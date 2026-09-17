@@ -1,0 +1,16 @@
+spring:
+  config:
+    activate:
+      on-profile: "local & !prod"
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:54321/postgres}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: ${P6SPY_ENABLE_LOGGING:true}

@@ -1,0 +1,56 @@
+name: 일반 작업
+description: 테스트·빌드·CI·기타 유지보수·되돌리기 작업의 범위와 검증 기준을 정합니다.
+labels: ["status:needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제목에는 작업 대상과 개선 결과를 적어 주세요. 독립적으로 검토하고 완료할 수 있는 크기로 작성해 주세요.
+        분류 담당자는 선택한 작업 유형의 type 라벨 하나를 지정해 주세요.
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: 작업 유형
+      description: test는 테스트, build는 빌드·의존성, ci는 CI, chore는 나머지 유지보수, revert는 변경 되돌리기입니다. 선택값은 라벨로 자동 반영되지 않습니다.
+      options:
+        - test
+        - build
+        - ci
+        - chore
+        - revert
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: 현재 문제와 목적
+      description: 어떤 비용이나 불일치를 줄이려는지, 지금 필요한 이유를 설명해 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 작업 범위
+      description: 변경할 대상과 유지해야 할 동작·계약을 적어 주세요. 관련 없는 정리는 분리해 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건과 검증 계획
+      description: 완료를 판단할 조건과 확인 방법을 적어 주세요. test는 검증할 행동, build·ci는 실행 명령과 환경, chore는 변경 대상의 확인 방법을 포함해 주세요.
+      placeholder: |
+        - [ ] 확인 가능한 완료 조건
+        - 검증 방법 또는 명령 (아직 실행한 결과가 아닌 계획)
+    validations:
+      required: true
+  - type: textarea
+    id: revert_target
+    attributes:
+      label: 되돌릴 변경과 복구 조건
+      description: revert를 선택했다면 대상 PR·커밋, 되돌리는 이유, 원하는 복구 상태와 데이터·설정 복구 제약을 작성해 주세요. 다른 유형이면 비워 둡니다.
+  - type: textarea
+    id: impact
+    attributes:
+      label: 영향과 관련 자료
+      description: 호환성·실행 환경·배포 영향, 관련 문서와 이슈가 있으면 적어 주세요.

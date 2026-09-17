@@ -1,0 +1,39 @@
+name: 조사 및 논의
+description: 구현 전에 답해야 할 질문이나 선택지를 근거와 함께 정리합니다.
+labels: ["type:investigation", "status:needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제목에는 답해야 할 질문이나 결정할 대상을 적어 주세요. 확인된 사실과 가설을 구분해 주세요.
+  - type: textarea
+    id: question
+    attributes:
+      label: 질문 또는 결정할 사항
+      description: 어떤 불확실성을 해소해야 다음 작업을 진행할 수 있나요?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 배경과 현재 근거
+      description: 확인한 코드·문서·측정 결과, 시도한 방법과 아직 모르는 점을 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: completion
+    attributes:
+      label: 조사 범위와 종료 조건
+      description: 비교할 선택지, 판단 기준과 조사를 마칠 조건을 적어 주세요. 상시 문서 갱신이나 후속 구현이 필요한지도 표시해 주세요.
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: 시간 제약
+      description: 정해진 기한이나 조사 시간 한도가 있으면 적어 주세요. 합의된 일정과 제안을 구분해 주세요.
+  - type: textarea
+    id: references
+    attributes:
+      label: 관련 자료
+      description: 관련 이슈, 공식 문서, 비교 자료를 연결해 주세요.

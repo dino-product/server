@@ -1,0 +1,76 @@
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: spring-settings
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  docker:
+    compose:
+      enabled: ${SPRING_DOCKER_COMPOSE_ENABLED:false}
+      lifecycle-management: start-and-stop
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:10}
+      minimum-idle: ${HIKARI_MIN_IDLE:2}
+      connection-timeout: 30000
+      validation-timeout: 5000
+      max-lifetime: 1800000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        show_sql: false
+        default_schema: public
+  mvc:
+    problemdetails:
+      enabled: false
+
+springdoc:
+  use-fqn: true
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:true}
+    path: /docs-json
+  swagger-ui:
+    enabled: ${OPENAPI_ENABLED:true}
+    path: /docs
+    disable-swagger-default-url: true
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9090}
+  endpoint:
+    health:
+      show-details: when-authorized
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active:default}
+
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: ${P6SPY_ENABLE_LOGGING:false}
+      multiline: false
+      logging: slf4j
+
+logging:
+  level:
+    root: INFO
+    com.example: ${LOGGING_APP_LEVEL:INFO}
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+
+app:
+  cors:
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:5173}

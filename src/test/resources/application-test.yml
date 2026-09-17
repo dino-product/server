@@ -1,0 +1,22 @@
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+  docker:
+    compose:
+      enabled: false
+
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: false
+
+management:
+  server:
+    port: 0
+
+logging:
+  level:
+    root: WARN
+    org.testcontainers: INFO

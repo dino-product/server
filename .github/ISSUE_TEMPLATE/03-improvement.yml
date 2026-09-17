@@ -1,0 +1,52 @@
+name: 구조 및 성능 개선
+description: 동작을 보존하는 리팩터링이나 측정 가능한 성능 개선을 제안합니다.
+labels: ["status:needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제목에는 개선할 대상과 목표를 적어 주세요. 분류 담당자는 선택한 작업 유형의 type 라벨 하나를 지정해 주세요.
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: 작업 유형
+      description: refactor는 동작을 보존하는 구조 개선, perf는 성능 개선입니다. 선택값은 라벨로 자동 반영되지 않습니다.
+      options:
+        - refactor
+        - perf
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 현재 문제와 근거
+      description: 복잡도·중복·변경 비용 또는 성능 병목을 설명하고, 확인한 코드·테스트·측정 근거를 연결해 주세요. 가설은 구분해 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 개선 범위와 보존할 계약
+      description: 변경할 구조나 처리 과정, 보존해야 할 API·도메인 동작·데이터 계약을 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건과 검증 계획
+      description: refactor는 기존 동작 보존을 확인할 검사, perf는 개선 목표와 회귀 여부를 판단할 기준을 적어 주세요.
+      placeholder: |
+        - [ ] 확인 가능한 개선 결과
+        - 기존 동작과 개선 결과를 검증할 방법
+    validations:
+      required: true
+  - type: textarea
+    id: measurement
+    attributes:
+      label: 성능 기준선과 측정 조건
+      description: perf를 선택했다면 지표·현재 수치·목표·데이터 규모·환경·재현 명령을 작성해 주세요. 미측정이면 그 사실과 측정 계획을 적고 수치를 추정하지 마세요. refactor이면 생략할 수 있습니다.
+  - type: textarea
+    id: references
+    attributes:
+      label: 대안과 관련 자료
+      description: 고려한 다른 방법, 영향받는 모듈·문서와 관련 이슈를 연결해 주세요.

@@ -1,0 +1,127 @@
+# Project rules: loaded at startup when the project .codex layer is trusted.
+# Sources (repository root): AGENTS.md and docs/conventions/workflow/approvals/README.md#approvals.
+# Prefix matching is partial coverage, not a complete action/SQL permission boundary.
+# No allow rules: automatic local work still uses the session's existing permissions.
+
+prefix_rule(
+    pattern = ["git", ["push", "rebase", "reset"]],
+    decision = "prompt",
+    justification = "원격·브랜치·커밋과 이력/작업 트리 변경 범위를 요약한 뒤 확인받습니다.",
+    match = ["git push origin HEAD", "git push --force-with-lease", "git rebase main", "git reset --hard HEAD"],
+    not_match = ["git status", "git commit -m example", "git -C . push origin HEAD"],
+)
+
+prefix_rule(
+    pattern = ["git", "commit", "--amend"],
+    decision = "prompt",
+    justification = "수정할 커밋과 변경 내용을 요약한 뒤 확인받습니다. 새 커밋과 구분합니다.",
+    match = ["git commit --amend", "git commit --amend --no-edit"],
+    not_match = ["git commit -m example", "git commit -m example --amend"],
+)
+
+prefix_rule(
+    pattern = ["git", "branch", ["-d", "-D", "--delete"]],
+    decision = "prompt",
+    justification = "삭제할 브랜치와 미병합 변경·복구 가능 여부를 요약한 뒤 확인받습니다.",
+    match = ["git branch -d example", "git branch -D example", "git branch --delete example"],
+    not_match = ["git branch --list", "git switch -c example", "git branch -r -d origin/example"],
+)
+
+prefix_rule(
+    pattern = ["docker", "compose", "down"],
+    decision = "prompt",
+    justification = "종료할 Compose 자원과 DB 데이터·볼륨 삭제 여부를 요약한 뒤 확인받습니다.",
+    match = ["docker compose down", "docker compose down --volumes"],
+    not_match = ["docker compose ps", "docker compose --env-file .env down --volumes"],
+)
+
+prefix_rule(
+    pattern = ["docker", "volume", ["rm", "prune"]],
+    decision = "prompt",
+    justification = "삭제할 볼륨과 포함된 데이터·복구 가능 여부를 요약한 뒤 확인받습니다.",
+    match = ["docker volume rm example", "docker volume prune --force"],
+    not_match = ["docker volume ls", "docker volume inspect example"],
+)
+
+prefix_rule(
+    pattern = ["docker", "rm"],
+    decision = "prompt",
+    justification = "삭제할 컨테이너와 DB 데이터·볼륨 영향을 요약한 뒤 확인받습니다.",
+    match = ["docker rm example", "docker rm -v example"],
+    not_match = ["docker ps"],
+)
+
+prefix_rule(
+    pattern = ["docker", "container", ["rm", "prune"]],
+    decision = "prompt",
+    justification = "삭제할 컨테이너와 DB 데이터·볼륨 영향을 요약한 뒤 확인받습니다.",
+    match = ["docker container rm example", "docker container prune --force"],
+    not_match = ["docker container ls"],
+)
+
+prefix_rule(
+    pattern = ["docker", "system", "prune"],
+    decision = "prompt",
+    justification = "정리할 Docker 자원과 데이터 삭제 범위를 요약한 뒤 확인받습니다.",
+    match = ["docker system prune", "docker system prune --volumes --force"],
+    not_match = ["docker system df"],
+)
+
+# Fixed option variants only; arbitrary option values/order still need agent review.
+prefix_rule(
+    pattern = ["git", "-C", ".", ["push", "rebase", "reset"]],
+    decision = "prompt",
+    justification = "기본 형태의 Git 명령과 동일하게 대상과 변경 범위를 요약한 뒤 확인받습니다.",
+    match = ["git -C . push origin HEAD", "git -C . rebase main", "git -C . reset --hard HEAD"],
+    not_match = ["git -C . status", "git -C ../other push origin HEAD"],
+)
+
+prefix_rule(
+    pattern = ["git", "branch", "-r", ["-d", "-D", "--delete"]],
+    decision = "prompt",
+    justification = "삭제할 원격 추적 브랜치와 영향을 요약한 뒤 확인받습니다.",
+    match = ["git branch -r -d origin/example", "git branch -r --delete origin/example"],
+    not_match = ["git branch -r", "git branch -a"],
+)
+
+prefix_rule(
+    pattern = ["docker", "compose", "--env-file", ".env", "down"],
+    decision = "prompt",
+    justification = "종료할 Compose 자원과 DB 데이터·볼륨 삭제 여부를 요약한 뒤 확인받습니다.",
+    match = ["docker compose --env-file .env down", "docker compose --env-file .env down --volumes"],
+    not_match = ["docker compose --env-file .env ps", "docker compose --env-file .env up -d postgres"],
+)
+
+# Conservative match: prefix matching cannot identify the active profile/DB.
+prefix_rule(
+    pattern = ["./gradlew", "bootRun"],
+    decision = "prompt",
+    justification = "활성 프로필·대상 DB와 시작·종료 시 스키마 삭제 여부를 요약한 뒤 확인받습니다. local은 create-drop입니다.",
+    match = ["./gradlew bootRun", "./gradlew bootRun --args=--spring.profiles.active=local"],
+    not_match = ["./gradlew bootJar", "./gradlew compileJava", "./gradlew --console=plain bootRun"],
+)
+
+prefix_rule(
+    pattern = ["git", "stash", ["drop", "clear"]],
+    decision = "prompt",
+    justification = "삭제할 stash와 보관한 변경·복구 가능 여부를 요약한 뒤 확인받습니다.",
+    match = ["git stash drop", "git stash drop stash@{0}", "git stash clear"],
+    not_match = ["git stash list", "git stash show", "git stash push"],
+)
+
+prefix_rule(
+    pattern = ["gh", "pr", ["merge", "close"]],
+    decision = "prompt",
+    justification = "대상 PR·변경과 병합 방식·CI·브랜치 삭제 영향을 요약한 뒤 확인받습니다.",
+    match = ["gh pr merge 123 --squash", "gh pr close 123", "gh pr close 123 --delete-branch"],
+    not_match = ["gh pr view 123", "gh pr create --body-file pr.md", "gh pr edit 123 --body-file pr.md", "gh pr comment 123 --body-file comment.md"],
+)
+
+# Conservative match: create may also create an unpublished draft.
+prefix_rule(
+    pattern = ["gh", "release", "create"],
+    decision = "prompt",
+    justification = "릴리스의 저장소·태그·대상 커밋·게시 내용·자산과 연동 배포 영향을 요약한 뒤 확인받습니다.",
+    match = ["gh release create v1.0.0", "gh release create v1.0.0 --draft"],
+    not_match = ["gh release view v1.0.0", "gh release list", "gh release edit v1.0.0 --draft=false"],
+)

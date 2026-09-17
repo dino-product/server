@@ -1,0 +1,117 @@
+[
+  {
+    "name": "type:feat",
+    "color": "A2EEEF",
+    "description": "새 기능 또는 사용자·호출자가 관찰하는 동작 개선"
+  },
+  {
+    "name": "type:fix",
+    "color": "D73A4A",
+    "description": "기대 동작이나 합의된 계약과 다른 문제 및 수정"
+  },
+  {
+    "name": "type:docs",
+    "color": "0075CA",
+    "description": "문서·설명·가이드의 추가 및 수정"
+  },
+  {
+    "name": "type:refactor",
+    "color": "D4C5F9",
+    "description": "외부 동작과 계약을 보존하는 코드 구조 개선"
+  },
+  {
+    "name": "type:perf",
+    "color": "F9D0C4",
+    "description": "측정 가능한 응답 시간·처리량·자원 사용량 개선"
+  },
+  {
+    "name": "type:test",
+    "color": "BFD4F2",
+    "description": "테스트 추가·수정과 테스트 환경 개선"
+  },
+  {
+    "name": "type:build",
+    "color": "FBCA04",
+    "description": "빌드 시스템·패키징·의존성 변경"
+  },
+  {
+    "name": "type:ci",
+    "color": "0E8A16",
+    "description": "CI 워크플로·자동 검사 실행 절차 변경"
+  },
+  {
+    "name": "type:chore",
+    "color": "EDEDED",
+    "description": "다른 작업 유형에 해당하지 않는 저장소 관리와 유지보수"
+  },
+  {
+    "name": "type:revert",
+    "color": "B60205",
+    "description": "특정 PR·커밋의 변경을 되돌리는 작업"
+  },
+  {
+    "name": "type:investigation",
+    "color": "D876E3",
+    "description": "조사·질문·대안 비교와 의사결정"
+  },
+  {
+    "name": "area:api",
+    "color": "1D76DB",
+    "description": "HTTP·Web DTO·OpenAPI·API 보안 계약"
+  },
+  {
+    "name": "area:domain",
+    "color": "1D76DB",
+    "description": "도메인·유스케이스·모듈 경계와 공개 계약"
+  },
+  {
+    "name": "area:persistence",
+    "color": "1D76DB",
+    "description": "JPA·DB·스키마·트랜잭션·이벤트 처리"
+  },
+  {
+    "name": "area:build",
+    "color": "1D76DB",
+    "description": "Gradle·CI·컨테이너·의존성·실행 설정"
+  },
+  {
+    "name": "area:docs",
+    "color": "1D76DB",
+    "description": "문서·AI 지침·이슈 및 PR 양식"
+  },
+  {
+    "name": "area:tests",
+    "color": "1D76DB",
+    "description": "테스트 설계·자동 검증·테스트 환경"
+  },
+  {
+    "name": "priority:high",
+    "color": "B60205",
+    "description": "서비스 장애·데이터 손실·주요 작업 차단 등 우선 대응이 필요한 작업"
+  },
+  {
+    "name": "priority:medium",
+    "color": "FBCA04",
+    "description": "영향과 일정 검토 후 일반 개발 순서에 배정한 작업"
+  },
+  {
+    "name": "priority:low",
+    "color": "C2E0C6",
+    "description": "영향이 작거나 대안이 있어 일정상 뒤로 둘 수 있는 작업"
+  },
+  {
+    "name": "status:needs-triage",
+    "color": "EDEDED",
+    "description": "담당자가 문제·범위·중복·작업 분류를 아직 확인하지 않은 이슈"
+  },
+  {
+    "name": "status:blocked",
+    "color": "F9D0C4",
+    "description": "명시한 외부 의존성이나 결정 때문에 진행이 막힌 작업"
+  },
+  {
+    "name": "compatibility:breaking",
+    "color": "B60205",
+    "description": "기존 API·이벤트·데이터·설정 소비자의 대응이 필요한 변경"
+  }
+]

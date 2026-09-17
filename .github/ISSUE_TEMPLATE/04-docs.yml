@@ -1,0 +1,41 @@
+name: 문서 개선
+description: 문서·예제·작성 지침의 누락이나 불일치를 독자와 검증 기준에 맞춰 정리합니다.
+labels: ["type:docs", "status:needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제목에는 문서 대상과 필요한 수정을 적어 주세요. 실제 동작도 바꿔야 한다면 그 동작의 작업 유형으로 분류해 주세요.
+  - type: textarea
+    id: target
+    attributes:
+      label: 대상 문서와 독자
+      description: 파일 경로·섹션·URL과 이 내용을 읽는 사람을 적어 주세요. 새 문서가 필요하면 예상 위치와 용도를 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 누락 또는 불일치
+      description: 현재 내용의 어떤 부분이 없거나 잘못되었나요? 실제 코드·설정·다른 문서와 비교한 근거를 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 수정 방향
+      description: 독자가 무엇을 이해하거나 실행할 수 있어야 하나요? 같은 내용을 관리하는 원본 문서가 있으면 연결해 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건과 확인 방법
+      description: 링크·경로·앵커, 실제 구현과의 일치, 중복 내용 정리, 명령·예제의 정확성을 어떻게 확인할지 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: 관련 자료
+      description: 관련 이슈와 공식 자료를 연결해 주세요.
