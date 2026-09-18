@@ -1,7 +1,7 @@
 <a id="layers"></a>
 # 모듈 내부 계층
 
-아래 경로는 `src/main/java/com/example/{module}` 기준입니다.
+아래 경로는 `src/main/java/com/orbit/{module}` 기준입니다.
 
 - Adapter는 Application Port와 Domain에 의존합니다. `domain`은 식별자·값의 불변식을 보장하며 Application/Adapter 및 Spring·JPA·Web 타입·annotation에 의존하지 않습니다.
 - 입력 Adapter는 입력 Port를 호출합니다. Application Service 구현·출력 Port·Persistence 직접 호출은 금지합니다. HTTP는 `adapter/in/web`, 이벤트 소비는 `adapter/in/event`에 둡니다.

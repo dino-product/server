@@ -12,7 +12,7 @@
 | 포맷·import·명명 형태 | [Spotless](../../../build.gradle.kts), [Checkstyle 설정](../../../gradle/quality.gradle.kts)·[규칙](../../../config/checkstyle/checkstyle.xml) | `get`/`find` 의미·DTO 소유권은 [컨벤션](../java/style.md#style)과 리뷰로 확인 |
 | 모듈·계층 경계 | [집중 검사](selection.md#selection)의 `ModularityTest`, `ArchitectureTest` | 비즈니스 책임·공개 정보의 적절성, 새 규칙의 검사 필요성 |
 | HTTP·OpenAPI·이벤트 | [집중 검사](selection.md#selection)의 통합 테스트 | 작성한 시나리오만 검증하며 새 API·정책을 자동 보장하지 않음 |
-| 프로필 | [ApplicationProfileConfigurationTest](../../../src/test/java/com/example/shared/internal/config/ApplicationProfileConfigurationTest.java) | 실제 배포 환경의 인증·접근·마이그레이션 정책 |
+| 프로필 | [ApplicationProfileConfigurationTest](../../../src/test/java/com/orbit/shared/internal/config/ApplicationProfileConfigurationTest.java) | 실제 배포 환경의 인증·접근·마이그레이션 정책 |
 | 전체 테스트·보고서 | [테스트 설정](../../../gradle/testing.gradle.kts), [CI](../../../.github/workflows/ci.yml) | 필터 없는 실행 여부; JaCoCo는 보고서 생성이며 최소 커버리지 게이트는 없음 |
 | Markdown·ADR·PR 작성 | [문서 검증](../../../AGENTS.md#검증과-완료), [ADR 관리](../../agents/documents/maintenance.md#maintenance), [GitHub 가이드](../workflow/README.md#workflow) | 현재 링크·ADR 상태·PR 제목/라벨·크기·커밋별 완결성을 자동 차단하는 저장소 CI는 없음 |
 
