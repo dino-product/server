@@ -1,8 +1,8 @@
 package com.orbit.shared.internal.response;
 
-import com.orbit.shared.error.BaseCode;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.orbit.shared.error.BaseCode;
 
 @JsonPropertyOrder({"success", "code", "message", "result"})
 public record ApiResponse<T>(
