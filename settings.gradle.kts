@@ -1,1 +1,1 @@
-rootProject.name = "Spring-Settings"
+rootProject.name = "orbit-server"

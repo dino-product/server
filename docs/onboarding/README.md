@@ -22,9 +22,9 @@ JDK 21, Docker와 Docker Compose가 필요합니다. Gradle은 저장소 Wrapper
 | Gradle 프로젝트 이름 | `settings.gradle.kts`의 `rootProject.name` |
 | 그룹·버전·설명 | `build.gradle.kts`의 `group`, `version`, `description` |
 | 애플리케이션 이름 | `src/main/resources/application.yml`의 `spring.application.name`, `logback-spring.xml`의 이름 기본값 |
-| 기본 패키지·애플리케이션 클래스 | `src/main/java/com/example`, `src/test/java/com/example`, `SpringSettingsApplication` 참조 |
+| 기본 패키지·애플리케이션 클래스 | `src/main/java/com/orbit`, `src/test/java/com/orbit`, `OrbitApplication` 참조 |
 | Modulith 시스템 이름 | 애플리케이션 클래스의 `@Modulithic(systemName)` |
-| 문자열로 지정한 패키지 | `ArchitectureTest`의 `importPackages`, 로깅 설정의 `com.example` |
+| 문자열로 지정한 패키지 | `ArchitectureTest`의 `importPackages`, 로깅 설정의 `com.orbit` |
 
 패키지 경로를 옮기면 모듈·테스트 `AGENTS.md`의 상대 링크와 문서의 코드·테스트 경로도 갱신합니다. 운영 적용 전에는 인증·인가, 스키마 마이그레이션과 이벤트 전달 보장 요구를 [백엔드 ADR](../adr/001-backend-architecture.md)에 따라 결정합니다.
 
@@ -55,8 +55,8 @@ curl http://localhost:9090/actuator/health
 ## 자주 쓰는 명령
 
 ```bash
-./gradlew test --tests 'com.example.user.*'
-./gradlew test --tests com.example.UserRegistrationEventIntegrationTest -PrequireAllTests=true
+./gradlew test --tests 'com.orbit.user.*'
+./gradlew test --tests com.orbit.UserRegistrationEventIntegrationTest -PrequireAllTests=true
 ./gradlew spotlessApply
 ```
 

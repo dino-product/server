@@ -1,10 +1,10 @@
 <a id="modules"></a>
 # 모듈 경계
 
-`com.example` 최상위는 비즈니스 책임별 Application Module로 나눕니다. 최상위에 `controller`, `service`, `repository`, `entity`, `dto` 기술 계층 패키지를 만들지 않습니다. 현재 목록·책임·허용 의존성은 [도메인 지도](../../domain/README.md#모듈별-책임과-공개-계약)가 소유합니다.
+`com.orbit` 최상위는 비즈니스 책임별 Application Module로 나눕니다. 최상위에 `controller`, `service`, `repository`, `entity`, `dto` 기술 계층 패키지를 만들지 않습니다. 현재 목록·책임·허용 의존성은 [도메인 지도](../../domain/README.md#모듈별-책임과-공개-계약)가 소유합니다.
 
 ```text
-com.example
+com.orbit
 ├── shared
 │   ├── error          # named interface
 │   ├── openapi        # named interface

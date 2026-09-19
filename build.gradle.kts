@@ -12,7 +12,7 @@ apply(from = "gradle/querydsl.gradle.kts")
 apply(from = "gradle/quality.gradle.kts")
 apply(from = "gradle/testing.gradle.kts")
 
-group = "com.example"
+group = "com.orbit"
 version = "0.0.1-SNAPSHOT"
 description = "Reusable Spring Boot project settings template"
 

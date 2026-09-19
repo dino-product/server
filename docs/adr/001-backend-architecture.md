@@ -1,7 +1,7 @@
 # ADR-001: 백엔드 아키텍처
 
 - 상태: Accepted
-- 기준일: 2026-09-14
+- 기준일: 2026-09-19
 - 범위: 초기 백엔드의 구조·기술 선택·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
 
 ## 배경과 목적
@@ -15,6 +15,14 @@
 - 비즈니스 모듈의 공개 계약은 모듈 루트에 둡니다. `shared`의 오류·OpenAPI 계약은 named interface로 나누어 필요한 계약만 허용합니다. 내부 패키지 공개로 검증을 우회하지 않습니다.
 
 모듈별 책임·공개 타입·허용 의존성은 [도메인 지도](../domain/README.md), 패키지와 수정 위치는 [아키텍처 규칙](../conventions/architecture/modules.md#modules)이 원본입니다.
+
+## 제품 모듈 골격
+
+- 제품 구현의 책임 경계를 준비하기 위해 `organization`, `work`, `notification`을 Application Module 골격으로 등록합니다. `user`·`auth` 예제와 `shared`는 유지합니다.
+- 조직·소속·초대, 작업 생애주기, 알림을 각각의 책임으로 계획하되, 현재 골격은 `package-info.java`만 포함합니다. 애그리게잇·공개 API·이벤트는 아직 구현하지 않았습니다.
+- 실제 사용 전 의존성을 열어 두지 않도록 골격의 `allowedDependencies`는 빈 배열로 명시합니다. 구현이 공개 계약을 사용할 때 필요한 항목만 추가하고 도메인 지도를 함께 갱신합니다.
+- [도메인 지도](../domain/README.md#모듈별-책임과-공개-계약)는 골격을 포함한 현재 모듈 구성의 원본입니다. [BC 설계 초안](../domain/bounded-contexts.md#bounded-contexts)의 애그리게잇·컨텍스트 관계·향후 확장은 현재 구현 계약과 구분합니다.
+- `ModularityTest`는 6개 모듈 구성과 경계를 검사합니다. 골격 등록만으로 제품 기능이나 계획된 모듈 간 연동이 구현되었다고 보지 않습니다.
 
 ## Application과 모델 분리
 
