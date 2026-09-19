@@ -1,3 +1,2 @@
-@org.springframework.modulith.ApplicationModule(
-        allowedDependencies = {"shared::error", "shared::openapi", "organization", "work"})
+@org.springframework.modulith.ApplicationModule(allowedDependencies = {})
 package com.orbit.notification;
