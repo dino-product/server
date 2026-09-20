@@ -12,10 +12,10 @@ class ModularityTest {
     private final ApplicationModules modules = ApplicationModules.of(OrbitApplication.class);
 
     @Test
-    @DisplayName("shared, user, auth, organization, work, notification 모듈만 구성한다")
+    @DisplayName("shared, user, auth, organization, schedule, notification 모듈만 구성한다")
     void containsExpectedModules() {
         assertThat(modules.stream().map(module -> module.getIdentifier().toString()))
-                .containsExactlyInAnyOrder("shared", "user", "auth", "organization", "work", "notification");
+                .containsExactlyInAnyOrder("shared", "user", "auth", "organization", "schedule", "notification");
     }
 
     @Test
