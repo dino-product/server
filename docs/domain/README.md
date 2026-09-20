@@ -10,7 +10,7 @@
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
 | `auth` | subject 조회 예제와 등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `user` |
 | `organization` | 골격 — 조직·소속·초대 관리 예정 | 없음 | 없음 |
-| `work` | 골격 — 작업 생애주기 관리 예정 | 없음 | 없음 |
+| `schedule` | 골격 — 작업 생애주기 관리 예정 | 없음 | 없음 |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |
 
 골격 모듈은 `package-info.java`만 존재하며 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. 실제 공개 계약을 사용하는 구현을 추가할 때 필요한 의존성과 이 지도를 함께 갱신합니다.
@@ -25,7 +25,7 @@
 | `src/main/java/com/orbit/auth/**` | [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md) → [Auth](auth.md) | 예제 한계·소유 모델 변환·커밋 후 처리 |
 | `src/main/java/com/orbit/shared/**` | [shared 지침](../../src/main/java/com/orbit/shared/AGENTS.md) → [공개 타입·소비자](#모듈별-책임과-공개-계약)·[공개 경계 규칙](../conventions/architecture/shared.md#shared) | named interface와 내부 구현, 소비 모듈 영향 |
 | `src/main/java/com/orbit/organization/**` | 하위 지침 없음 → [조직 설계](bounded-contexts.md#organization) | 골격만 존재; 조직·소속·초대 소유권과 미결정 정책 |
-| `src/main/java/com/orbit/work/**` | 하위 지침 없음 → [작업 설계](bounded-contexts.md#work) | 골격만 존재; 작업 생애주기·배정 경계 |
+| `src/main/java/com/orbit/schedule/**` | 하위 지침 없음 → [작업 설계](bounded-contexts.md#schedule) | 골격만 존재; 작업 생애주기·배정 경계 |
 | `src/main/java/com/orbit/notification/**` | 하위 지침 없음 → [알림 설계](bounded-contexts.md#notification) | 골격만 존재; 이벤트 소비 경계 |
 | `src/test/java/com/orbit/**` | [테스트 지침](../../src/test/java/com/orbit/AGENTS.md) → 위 대상 소스 모듈 지침·계약 | 테스트가 다루는 소유 모듈·소비 경계 |
 
