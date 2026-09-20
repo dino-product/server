@@ -14,7 +14,7 @@ public enum WorkStatus {
         return switch (this) {
             case REGISTERED -> nextStatus == PENDING_ACCEPTANCE || nextStatus == CANCELLED;
             case PENDING_ACCEPTANCE -> nextStatus == ACCEPTED || nextStatus == REJECTED || nextStatus == CANCELLED;
-            case REJECTED -> nextStatus == PENDING_ACCEPTANCE;
+            case REJECTED -> nextStatus == REGISTERED;
             case ACCEPTED -> nextStatus == IN_PROGRESS || nextStatus == CANCELLED;
             case IN_PROGRESS -> nextStatus == COMPLETED || nextStatus == CANCELLED;
             case COMPLETED, CANCELLED -> false;
