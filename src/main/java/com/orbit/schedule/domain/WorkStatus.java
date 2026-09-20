@@ -1,5 +1,6 @@
 package com.orbit.schedule.domain;
 
+/** 작업 진행 상태와 정방향 전이 규칙. 대기함은 기사·시간 미배정을 나타내는 파생 조회 상태라 여기 포함하지 않는다. */
 public enum WorkStatus {
     REGISTERED,
     PENDING_ACCEPTANCE,
