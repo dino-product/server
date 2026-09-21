@@ -4,8 +4,11 @@ import java.util.List;
 
 /**
  * 같은 기사의 일정 겹침·동시 진행 여부를 판정하는 순수 정책. 리포지토리 조회는 이 정책의 범위 밖이며 호출자가 배선한다.
- * 입력 목록은 호출자가 같은 기사 것으로 좁혀 전달한다고 가정하지 않고, WorkSchedule의 technicianId·Work의
- * IN_PROGRESS 상태로 각 메서드가 방어적으로 다시 걸러낸다.
+ * 두 메서드의 기사 스코프 책임은 다르다.
+ * {@link #overlaps}는 candidate가 technicianId를 갖고 있어 호출자가 같은 기사로 좁혀 전달한다고 가정하지
+ * 않고 정책이 스스로 다시 걸러낸다. 반면 {@link #hasConcurrentInProgress}는 비교 기준이 될 기사를 받지
+ * 않으므로 자체적으로 기사를 좁힐 수 없다 — 전달받은 목록이 이미 대상 기사 것으로 좁혀져 있다고 가정하며,
+ * 그 안에서 IN_PROGRESS 상태만 방어적으로 다시 걸러낸다.
  */
 public final class WorkScheduleConflictPolicy {
 
