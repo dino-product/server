@@ -17,12 +17,12 @@ public final class AssignmentHistory {
         this.result = AssignmentResult.PENDING;
     }
 
-    public void accept() {
+    void accept() {
         requirePending("accept");
         result = AssignmentResult.ACCEPTED;
     }
 
-    public void reject(RejectionReason reason) {
+    void reject(RejectionReason reason) {
         requirePending("reject");
         if (reason == null) {
             throw new IllegalArgumentException("rejectionReason must not be null");
@@ -31,7 +31,7 @@ public final class AssignmentHistory {
         rejectionReason = reason;
     }
 
-    public void reassign() {
+    void reassign() {
         requirePending("reassign");
         result = AssignmentResult.REASSIGNED;
     }

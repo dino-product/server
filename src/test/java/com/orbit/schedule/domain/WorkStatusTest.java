@@ -38,9 +38,11 @@ class WorkStatusTest {
                 Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.ACCEPTED),
                 Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.REJECTED),
                 Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.CANCELLED),
+                Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.REGISTERED),
                 Arguments.of(WorkStatus.REJECTED, WorkStatus.REGISTERED),
                 Arguments.of(WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS),
                 Arguments.of(WorkStatus.ACCEPTED, WorkStatus.CANCELLED),
+                Arguments.of(WorkStatus.ACCEPTED, WorkStatus.REGISTERED),
                 Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.COMPLETED),
                 Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.CANCELLED));
     }
@@ -50,7 +52,6 @@ class WorkStatusTest {
                 Arguments.of(WorkStatus.REGISTERED, WorkStatus.COMPLETED),
                 Arguments.of(WorkStatus.COMPLETED, WorkStatus.IN_PROGRESS),
                 Arguments.of(WorkStatus.CANCELLED, WorkStatus.PENDING_ACCEPTANCE),
-                Arguments.of(WorkStatus.ACCEPTED, WorkStatus.REGISTERED),
                 Arguments.of(WorkStatus.REJECTED, WorkStatus.ACCEPTED),
                 Arguments.of(WorkStatus.REJECTED, WorkStatus.PENDING_ACCEPTANCE));
     }
