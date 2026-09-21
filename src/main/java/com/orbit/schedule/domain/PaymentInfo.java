@@ -35,12 +35,21 @@ public final class PaymentInfo {
             return false;
         }
         PaymentInfo that = (PaymentInfo) o;
-        return Objects.equals(fee, that.fee) && Objects.equals(method, that.method);
+        return feeEquals(fee, that.fee) && Objects.equals(method, that.method);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fee, method);
+        return Objects.hash(fee == null ? null : fee.stripTrailingZeros(), method);
+    }
+
+    // BigDecimal.equals는 scale까지 비교해 150000과 150000.00을 다르다고 판단하므로,
+    // 생성자 검증과 같은 compareTo 기준(값 동등성)으로 맞춘다.
+    private static boolean feeEquals(BigDecimal a, BigDecimal b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.compareTo(b) == 0;
     }
 
     @Override
