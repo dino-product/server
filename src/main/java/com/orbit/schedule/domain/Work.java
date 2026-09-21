@@ -197,6 +197,9 @@ public final class Work {
         if (newStatus == null) {
             throw new IllegalArgumentException("newStatus must not be null");
         }
+        if (newStatus == WorkStatus.REGISTERED) {
+            schedule = null;
+        }
         status = newStatus;
     }
 

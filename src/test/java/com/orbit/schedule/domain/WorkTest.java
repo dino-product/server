@@ -490,6 +490,26 @@ class WorkTest {
         }
 
         @Test
+        @DisplayName("REGISTERED로 강제 변경하면 배정된 일정을 정리한다")
+        void clearsScheduleWhenForcedToRegistered() {
+            Work work = acceptedWork();
+
+            work.forceStatus(WorkStatus.REGISTERED);
+
+            assertThat(work.schedule()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("REGISTERED가 아닌 상태로 강제 변경하면 배정된 일정을 그대로 둔다")
+        void keepsScheduleWhenForcedToNonRegisteredStatus() {
+            Work work = acceptedWork();
+
+            work.forceStatus(WorkStatus.COMPLETED);
+
+            assertThat(work.schedule()).contains(FIRST_SCHEDULE);
+        }
+
+        @Test
         @DisplayName("새 상태가 null이면 거부한다")
         void rejectsNullStatus() {
             Work work = registeredWork();
