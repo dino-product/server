@@ -190,6 +190,11 @@ public final class Work {
     }
 
     public void cancel() {
+        // unassign()과 동일하게, 아직 응답이 없는 PENDING 이력은 취소로 마감 처리한다.
+        // 이미 ACCEPTED로 굳어진 이력은 되돌릴 수 없는 과거 기록이므로 그대로 둔다.
+        if (status == WorkStatus.PENDING_ACCEPTANCE) {
+            latestAssignment().reassign();
+        }
         status = status.transitionTo(WorkStatus.CANCELLED);
     }
 

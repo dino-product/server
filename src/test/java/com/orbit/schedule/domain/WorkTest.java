@@ -453,12 +453,33 @@ class WorkTest {
         @MethodSource("com.orbit.schedule.domain.WorkTest#cancellableStatuses")
         @DisplayName("허용된 상태의 작업을 취소한다")
         void cancelsAllowedStatus(WorkStatus status) {
-            Work work = registeredWork();
-            work.forceStatus(status);
+            // forceStatus는 assignmentHistory 없이도 상태만 바꿀 수 있어, PENDING_ACCEPTANCE에서
+            // 이력을 마감해야 하는 cancel()의 실제 불변조건을 검증하려면 자연스러운 흐름으로 도달해야 한다.
+            Work work = workAt(status);
 
             work.cancel();
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("수락 대기 중 취소하면 PENDING이던 배정 이력을 마감한다")
+        void closesPendingAssignmentHistoryOnCancel() {
+            Work work = pendingWork();
+
+            work.cancel();
+
+            assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.REASSIGNED);
+        }
+
+        @Test
+        @DisplayName("수락된 배정 이력은 취소해도 그대로 보존한다")
+        void preservesAcceptedAssignmentHistoryOnCancel() {
+            Work work = acceptedWork();
+
+            work.cancel();
+
+            assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.ACCEPTED);
         }
 
         @ParameterizedTest
@@ -540,6 +561,16 @@ class WorkTest {
         Work work = acceptedWork();
         work.start();
         return work;
+    }
+
+    private static Work workAt(WorkStatus status) {
+        return switch (status) {
+            case REGISTERED -> registeredWork();
+            case PENDING_ACCEPTANCE -> pendingWork();
+            case ACCEPTED -> acceptedWork();
+            case IN_PROGRESS -> inProgressWork();
+            default -> throw new IllegalArgumentException("Unsupported status for test setup: " + status);
+        };
     }
 
     private static Work reconstitutedWithoutHistory(WorkStatus status) {
