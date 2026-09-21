@@ -123,4 +123,26 @@ class CompletionReportTest {
         assertThat(report).isEqualTo(sameReport);
         assertThat(report.hashCode()).isEqualTo(sameReport.hashCode());
     }
+
+    @Test
+    @DisplayName("결제금액의 scale이 달라도 값이 같으면 동등하다")
+    void isEqualWhenActualFeeScaleDiffers() {
+        CompletionReport report = new CompletionReport(
+                List.of("before.jpg"),
+                List.of("after.jpg"),
+                "필터 1개",
+                "필터 교체 완료",
+                new BigDecimal("150000"),
+                ActualPaymentMethod.BANK_TRANSFER);
+        CompletionReport sameValueDifferentScale = new CompletionReport(
+                List.of("before.jpg"),
+                List.of("after.jpg"),
+                "필터 1개",
+                "필터 교체 완료",
+                new BigDecimal("150000.00"),
+                ActualPaymentMethod.BANK_TRANSFER);
+
+        assertThat(report).isEqualTo(sameValueDifferentScale);
+        assertThat(report.hashCode()).isEqualTo(sameValueDifferentScale.hashCode());
+    }
 }

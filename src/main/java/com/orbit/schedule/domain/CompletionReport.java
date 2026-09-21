@@ -76,13 +76,28 @@ public final class CompletionReport {
                 && Objects.equals(afterPhotos, that.afterPhotos)
                 && Objects.equals(usedParts, that.usedParts)
                 && Objects.equals(workNote, that.workNote)
-                && Objects.equals(actualFee, that.actualFee)
+                && actualFeeEquals(actualFee, that.actualFee)
                 && Objects.equals(actualPaymentMethod, that.actualPaymentMethod);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(beforePhotos, afterPhotos, usedParts, workNote, actualFee, actualPaymentMethod);
+        return Objects.hash(
+                beforePhotos,
+                afterPhotos,
+                usedParts,
+                workNote,
+                actualFee == null ? null : actualFee.stripTrailingZeros(),
+                actualPaymentMethod);
+    }
+
+    // BigDecimal.equals는 scale까지 비교해 150000과 150000.00을 다르다고 판단하므로,
+    // 생성자 검증과 같은 compareTo 기준(값 동등성)으로 맞춘다.
+    private static boolean actualFeeEquals(BigDecimal a, BigDecimal b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.compareTo(b) == 0;
     }
 
     @Override
