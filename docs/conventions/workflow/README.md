@@ -15,4 +15,5 @@
 | AI 게시물 작성 | [공통 작성](publishing.md#publishing) |
 | 선행 PR 변경·반영 | [stack 관리](pull-requests/maintenance.md#maintenance) |
 | PR 크기 판단 / 리뷰 | [크기](review/size.md#size) / [리뷰 절차](review/procedure.md#procedure) |
-| 양식 구성 이유 / 새 저장소 적용 | [선택 이유](../../onboarding/github-setup.md#구성과-선택-이유) / [적용](../../onboarding/github-setup.md#새-저장소에-적용) |
+| 자동 리뷰·규약 검사 운영 | [자동 리뷰](review/automation.md#automation) |
+| 라벨 저장소 적용 | [적용](labels.md#저장소-적용) |
