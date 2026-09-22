@@ -65,7 +65,7 @@ docs/
 
 ## 검증
 
-[전체 검증 명령](AGENTS.md#검증과-완료)을 사용합니다. 전체 테스트에는 Docker가 필요하며 일부 건너뛰기를 통과로 보지 않습니다. [집중 검사](docs/conventions/testing/selection.md#selection)와 [CI 보고서 정책](docs/conventions/testing/completion.md#completion)은 해당 절에서 확인합니다. PR에는 CI `verify`, [PR 규약 검사](.github/workflows/pr-conventions.yml), 비차단 [자동 리뷰](docs/conventions/workflow/review/automation.md#automation)가 실행됩니다.
+[전체 검증 명령](AGENTS.md#검증과-완료)을 사용합니다. 전체 테스트에는 Docker가 필요하며 일부 건너뛰기를 통과로 보지 않습니다. [집중 검사](docs/conventions/testing/selection.md#selection)와 [CI 보고서 정책](docs/conventions/testing/completion.md#completion)은 해당 절에서 확인합니다. PR에는 CI `verify`, 변경 문서의 링크·앵커를 보는 [PR conventions](.github/workflows/pr-conventions.yml), 비차단 [자동 리뷰](docs/conventions/workflow/review/automation.md#automation)가 실행됩니다.
 
 ## 문서 안내
 

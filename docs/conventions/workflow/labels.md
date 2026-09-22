@@ -17,7 +17,7 @@
 <a id="저장소-적용"></a>
 ## 저장소 적용
 
-GitHub는 `labels.json`을 자동으로 읽지 않으므로 아래 명령으로 라벨을 생성·갱신합니다. 같은 이름은 색상·설명만 갱신하고 다른 라벨은 삭제하지 않아 반복 실행할 수 있습니다. 저장소 쓰기 권한, GitHub CLI 인증, Python 3이 필요합니다. [PR 규약 검사](../../../.github/workflows/pr-conventions.yml)가 `type:*` 라벨을 요구하므로 라벨이 없는 저장소에서는 먼저 적용합니다. [gh label create](https://cli.github.com/manual/gh_label_create)
+GitHub는 `labels.json`을 자동으로 읽지 않으므로 아래 명령으로 라벨을 생성·갱신합니다. 같은 이름은 색상·설명만 갱신하고 다른 라벨은 삭제하지 않아 반복 실행할 수 있습니다. 저장소 쓰기 권한, GitHub CLI 인증, Python 3이 필요합니다. [gh label create](https://cli.github.com/manual/gh_label_create)
 
 ```bash
 gh auth status

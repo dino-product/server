@@ -164,7 +164,7 @@ jobs:
             실행 정보:
             - 이벤트 `${{ github.event_name }}`, dry_run `${{ env.DRY_RUN }}`
             - CI verify 결과 `${{ needs.verify.result }}` (실행 ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}). `skipped`면 '미실행'으로 적는다. 실패면 `gh run view <id> --log-failed`로 단계를 확인한다.
-            - PR 규약 검사는 `gh pr checks <번호>`의 `PR conventions` 항목을 인용한다. 진행 중이면 '진행 중'으로 적고 통과로 쓰지 않는다. 그 검사가 판정한 항목은 다시 지적하지 않는다.
+            - 문서 링크 검사는 `gh pr checks <번호>`의 `PR conventions` 항목을 인용한다. 진행 중이면 '진행 중'으로 적고 통과로 쓰지 않는다. 그 검사가 판정한 항목은 다시 지적하지 않는다.
             - base/head는 이미 확정되어 있다. base `${{ steps.target.outputs.base_ref }}`, head `${{ steps.target.outputs.head_ref }}`, head SHA `${{ steps.target.outputs.head_sha }}`이며 워킹 트리가 이 head SHA다. 나머지 PR 정보는 `gh pr view <번호> --json isDraft,additions,deletions,body`로 얻고, base SHA는 `git merge-base origin/<base> origin/<head>`로 구한다. `<base>...<head>` 범위만 이번 PR 변경이다.
 
             게시:

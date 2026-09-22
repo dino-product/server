@@ -14,7 +14,7 @@
 | HTTP·OpenAPI·이벤트 | [집중 검사](selection.md#selection)의 통합 테스트 | 작성한 시나리오만 검증하며 새 API·정책을 자동 보장하지 않음 |
 | 프로필 | [ApplicationProfileConfigurationTest](../../../src/test/java/com/orbit/shared/internal/config/ApplicationProfileConfigurationTest.java) | 실제 배포 환경의 인증·접근·마이그레이션 정책 |
 | 전체 테스트·보고서 | [테스트 설정](../../../gradle/testing.gradle.kts), [CI](../../../.github/workflows/ci.yml) | 필터 없는 실행 여부; JaCoCo는 보고서 생성이며 최소 커버리지 게이트는 없음 |
-| Markdown·ADR·PR 작성 | [문서 검증](../../../AGENTS.md#검증과-완료), [ADR 관리](../../agents/documents/maintenance.md#maintenance), [PR 규약 검사](../../../.github/workflows/pr-conventions.yml)의 제목·라벨·양식·변경 문서 링크/앵커 | ADR 상태·크기 적정성·커밋별 완결성·검증 절의 실제성은 리뷰로 확인 |
-| PR 리뷰 | [자동 리뷰](../workflow/review/automation.md#automation)가 verify·규약 검사 결과를 인용해 비차단 게시 | 결함·의미 판단의 채택과 병합 여부는 사람 |
+| Markdown·ADR·PR 작성 | [문서 검증](../../../AGENTS.md#검증과-완료), [ADR 관리](../../agents/documents/maintenance.md#maintenance), [PR conventions](../../../.github/workflows/pr-conventions.yml)의 변경 문서 링크/앵커 | 제목·라벨·본문 양식, ADR 상태·크기 적정성·커밋별 완결성·검증 절의 실제성은 리뷰로 확인 |
+| PR 리뷰 | [자동 리뷰](../workflow/review/automation.md#automation)가 verify·링크 검사 결과를 인용해 비차단 게시 | 결함·의미 판단의 채택과 병합 여부는 사람 |
 
 선택 배경: [포맷과 검증 결정](../../adr/001-backend-architecture.md#포맷과-검증).

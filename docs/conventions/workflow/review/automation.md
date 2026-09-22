@@ -9,7 +9,7 @@ PR이 열리거나 갱신되면 [CI](../../../../.github/workflows/ci.yml)의 `r
 | --- | --- |
 | 트리거 | `opened`·`reopened`·`ready_for_review`·`synchronize`. Draft와 포크 PR은 건너뜀. 수동은 `workflow_dispatch`(PR 번호·`dry_run`)이며 요약만 게시 |
 | 체크아웃 | 자동·수동 모두 대상 PR의 head SHA를 체크아웃해 읽기 도구가 보는 파일과 인용한 head를 일치시킴. 수동 실행은 대상 PR을 먼저 조회해 head SHA를 확정하고 포크 PR이면 체크아웃 전에 실패 처리 |
-| 순서 | `verify` 완료 후 실행. verify 결과와 [규약 검사](#규약-검사)를 인용하고 gradle을 재실행하지 않음 |
+| 순서 | `verify` 완료 후 실행. verify 결과와 [링크 검사](#규약-검사)를 인용하고 gradle을 재실행하지 않음 |
 | 동시성 | PR별 그룹. 새 커밋이 오면 진행 중 실행을 취소하고 최신 head로 다시 봄 |
 | 권한 | `contents: read`, `pull-requests: write`, `actions: read`. 게시 주체는 `GITHUB_TOKEN`(github-actions[bot]), 모델 인증은 `CLAUDE_CODE_OAUTH_TOKEN` 시크릿 |
 | 도구 | 읽기 도구(`Read`·`Glob`·`Grep`), `git diff/log/merge-base/show`, `gh pr view/diff/checks`, `gh run view`, 요약 게시 스크립트(본문은 표준입력), 인라인 코멘트 도구만 허용. 파일 쓰기 도구는 없음 |
@@ -19,7 +19,9 @@ PR이 열리거나 갱신되면 [CI](../../../../.github/workflows/ci.yml)의 `r
 <a id="규약-검사"></a>
 ## 기계 검사와 리뷰 판단의 분담
 
-[PR 규약 검사](../../../../.github/workflows/pr-conventions.yml)가 제목 형식, `type:*` 라벨 일치, `!`와 `compatibility:breaking` 짝, 양식 절 순서·안내 주석·빈 절·이슈 연결 표기, 변경 Markdown의 상대 링크·앵커 실재를 판정합니다. 리뷰는 이 결과와 Spotless·Checkstyle·테스트 결과를 인용만 하고 다시 판정하지 않습니다.
+[PR conventions](../../../../.github/workflows/pr-conventions.yml) 워크플로는 변경 Markdown의 상대 링크·앵커 실재만 판정합니다. 리뷰는 이 결과와 Spotless·Checkstyle·테스트 결과를 인용만 하고 다시 판정하지 않습니다.
+
+PR 제목·`type:*` 라벨·본문 양식은 기계로 검사하지 않습니다. 기준은 [PR 작성](../pull-requests/writing.md#writing)과 [라벨](../labels.md#labels)이며 지키지 않으면 리뷰가 `컨벤션` 유형으로 지적합니다.
 
 리뷰가 판단하는 것: 실패 경로·경계·널·동시성·상태 전이·테스트 누락·호출부와 계약의 불일치 같은 결함, 의미 판단이 필요한 컨벤션(모듈 경계·계층 의존·소비 모델·JPA/트랜잭션/이벤트·HTTP/DTO·테스트 설계), 소유 문서 최신화 누락, 검증 절이 실제 SHA·명령·결과를 담았는지, 커밋별 한 변경 이유. [PR 크기](size.md#size)는 줄 수만으로 판정하지 않고 초과 이유·분할 가능성을 맥락으로 판단합니다.
 
@@ -42,7 +44,7 @@ PR이 열리거나 갱신되면 [CI](../../../../.github/workflows/ci.yml)의 `r
 ```markdown
 <!-- dino-pr-review head=<sha7> -->
 ### 자동 리뷰 · 🔴 N · 🟡 N · 💭 N
-`<base7>…<head7>` · 파일 N · +A/−D · verify: 통과|실패(단계)|미실행 · 규약 검사: 통과|실패|진행 중
+`<base7>…<head7>` · 파일 N · +A/−D · verify: 통과|실패(단계)|미실행 · 링크 검사: 통과|실패|진행 중
 
 | # | 등급 | 위치 | 요지 |
 | --- | --- | --- | --- |
@@ -66,8 +68,8 @@ PR이 열리거나 갱신되면 [CI](../../../../.github/workflows/ci.yml)의 `r
 
 ## 운영
 
-- `CLAUDE_CODE_OAUTH_TOKEN`은 저장소 Settings → Secrets에 등록하고 만료되면 갱신합니다. 규약 검사가 요구하는 `type:*` 라벨은 [라벨 적용](../labels.md#저장소-적용)으로 먼저 만듭니다.
-- 검사·게시 스크립트를 바꾸면 `python3 -m unittest discover -s .github/scripts/tests`의 고정 입력 회귀 검사를 함께 갱신합니다. 규약 검사 워크플로가 먼저 실행합니다.
+- `CLAUDE_CODE_OAUTH_TOKEN`은 저장소 Settings → Secrets에 등록하고 만료되면 갱신합니다. `type:*` 라벨은 [라벨 적용](../labels.md#저장소-적용)으로 만듭니다.
+- 검사·게시 스크립트를 바꾸면 `python3 -m unittest discover -s .github/scripts/tests`의 고정 입력 회귀 검사를 함께 갱신합니다. `PR conventions` 워크플로가 먼저 실행합니다.
 - 프롬프트·형식을 바꿀 때는 `workflow_dispatch`의 `dry_run`으로 게시 없이 `review-dry-run` 아티팩트에서 결과를 확인합니다.
 - 게시된 지적에 👍/👎 반응을 남깁니다. 해결률·반응을 보고 등급 기준을 이 문서에서 조정합니다.
 - 리뷰 실행 비용은 PR 크기에 비례합니다. 부담되면 `synchronize`를 빼고 `ready_for_review`·수동 실행만 남깁니다.

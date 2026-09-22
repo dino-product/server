@@ -1,4 +1,4 @@
-"""규약 검사·요약 게시 스크립트의 고정 입력 회귀 검사.
+"""링크 검사·요약 게시 스크립트의 고정 입력 회귀 검사.
 
 실행: python3 -m unittest discover -s .github/scripts/tests
 GitHub API 는 호출하지 않는다.
@@ -6,13 +6,10 @@ GitHub API 는 호출하지 않는다.
 from __future__ import annotations
 
 import importlib.util
-import io
-import json
 import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -25,75 +22,8 @@ def load(name: str):
     return module
 
 
-meta = load("check_pr_metadata")
 links = load("check_markdown_links")
 summary = load("post_review_summary")
-
-
-def run_meta(title: str, labels: list[str], body: str, draft: bool = False) -> tuple[int, str]:
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
-        json.dump({"pull_request": {"title": title, "body": body, "draft": draft,
-                                    "labels": [{"name": l} for l in labels]}}, f)
-    out = io.StringIO()
-    argv = sys.argv
-    sys.argv = ["check_pr_metadata.py", "--event", f.name]
-    try:
-        with redirect_stdout(out):
-            code = meta.main()
-    finally:
-        sys.argv = argv
-    return code, out.getvalue()
-
-
-GOOD_BODY = """## 변경 목적과 결과
-
-목적.
-
-## 관련 이슈
-
-없음
-
-## 주요 변경
-
-내용.
-
-## 검증
-
-명령과 결과.
-"""
-
-
-class MetadataTest(unittest.TestCase):
-    def test_valid_pr_passes(self):
-        code, out = run_meta("ci: 워크플로 추가", ["type:ci"], GOOD_BODY)
-        self.assertEqual(code, 0, out)
-
-    def test_title_format_and_label_match(self):
-        code, out = run_meta("잘못된 제목", ["type:ci"], GOOD_BODY)
-        self.assertEqual(code, 1)
-        self.assertIn("형식이 아닙니다", out)
-        code, out = run_meta("fix(user): 수정", ["type:ci"], GOOD_BODY)
-        self.assertIn("일치하지 않습니다", out)
-        code, out = run_meta("fix(user): 수정", [], GOOD_BODY)
-        self.assertIn("라벨이 없습니다", out)
-
-    def test_breaking_marker_pairs_with_label(self):
-        _, out = run_meta("feat(api)!: 계약 변경", ["type:feat"], GOOD_BODY)
-        self.assertIn("compatibility:breaking", out)
-        code, _ = run_meta("feat(api)!: 계약 변경", ["type:feat", "compatibility:breaking"], GOOD_BODY)
-        self.assertEqual(code, 0)
-
-    def test_body_template_rules(self):
-        bad = "<!-- 안내 -->\n## 검증\n\n## 변경 목적과 결과\n\n## 관련 이슈\n\n뭔가\n## 주요 변경\n"
-        code, out = run_meta("ci: 제목", ["type:ci"], bad)
-        self.assertEqual(code, 1)
-        for msg in ["안내 주석", "절 순서", "비어 있습니다", "Closes #번호"]:
-            self.assertIn(msg, out)
-
-    def test_draft_skips_body(self):
-        code, out = run_meta("ci: 제목", ["type:ci"], "<!-- 미완성 -->", draft=True)
-        self.assertEqual(code, 0, out)
-        self.assertIn("Draft", out)
 
 
 class LinkCheckTest(unittest.TestCase):

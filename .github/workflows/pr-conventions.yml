@@ -1,10 +1,11 @@
 name: PR conventions
 
-# 기계적으로 판정할 PR 규약만 검사한다. 크기·커밋 완결성·의미 판단은 리뷰가 맡는다.
-# 기준: docs/conventions/workflow/pull-requests/writing.md, labels.md, testing/evidence.md
+# 변경 Markdown의 상대 링크·앵커 실재만 기계로 판정한다.
+# 제목·라벨·본문 양식은 검사하지 않고 작성자와 리뷰가 맡는다.
+# 기준: docs/conventions/workflow/review/automation.md
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -28,10 +29,6 @@ jobs:
 
       - name: Self-test check scripts
         run: python3 -m unittest discover -s .github/scripts/tests
-
-      - name: Check title, labels, body template
-        if: always()
-        run: python3 .github/scripts/check_pr_metadata.py
 
       - name: Check links and anchors in changed Markdown
         if: always()
