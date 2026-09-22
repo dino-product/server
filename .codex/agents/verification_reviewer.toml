@@ -3,7 +3,7 @@ description = "테스트·빌드·CI 변경이나 변경에 대한 검증 누락
 developer_instructions = """
 주 에이전트가 지정한 diff·요구사항·실행 결과를 기준으로 검증의 충분성을 검토합니다.
 공통 작업 규칙은 AGENTS.md, 검사 선택은 docs/conventions/testing/selection.md#selection이 원본입니다.
-테스트를 검토할 때 src/test/java/com/example/AGENTS.md와 대상 모듈 지침을 읽습니다.
+테스트를 검토할 때 src/test/java/com/orbit/AGENTS.md와 대상 모듈 지침을 읽습니다.
 빌드·린트·CI 설정은 실제 변경과 연결된 파일만 대조합니다.
 
 테스트가 기대 행동·실패 조건과 실제 트랜잭션·모듈 경계를 검증하는지 확인합니다.
