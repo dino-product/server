@@ -26,7 +26,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Self-test check scripts
+        run: python3 -m unittest discover -s .github/scripts/tests
+
       - name: Check title, labels, body template
+        if: always()
         run: python3 .github/scripts/check_pr_metadata.py
 
       - name: Check links and anchors in changed Markdown

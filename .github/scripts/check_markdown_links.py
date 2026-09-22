@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """변경된 Markdown 파일의 상대 링크·앵커 실재 검사.
 
-`--base`…`--head` 사이에 추가·수정된 `*.md`(및 `.toml` 지침 파일의 경로 문자열은 제외)를 대상으로,
-상대 경로 링크의 파일 존재와 `#앵커`의 실재를 확인한다. 외부 URL은 확인하지 않는다.
+`--base`…`--head` 사이에 추가·수정된 `*.md`를 대상으로 상대 경로 링크의 파일 존재와 `#앵커`의
+실재를 확인한다. 범위에 삭제·이름 변경된 `.md`가 있으면 그 문서를 가리키던 미변경 문서도 깨질 수 있어
+모든 `.md`로 범위를 넓힌다. 외부 URL은 확인하지 않는다.
 앵커는 `<a id="...">`, HTML `id=`, 제목의 GitHub 슬러그를 인정한다.
 """
 from __future__ import annotations
@@ -49,12 +50,25 @@ def anchors_of(path: Path, cache: dict[Path, set[str]]) -> set[str]:
     return found
 
 
-def changed_markdown(base: str, head: str, root: Path) -> list[Path]:
+def all_markdown(root: Path) -> list[Path]:
+    return [p for p in root.rglob("*.md") if "build" not in p.parts and ".git" not in p.parts]
+
+
+def changed_markdown(base: str, head: str, root: Path) -> tuple[list[Path], bool]:
+    """(검사 대상, 전체 승격 여부). 삭제(D)·이름 변경(R)이 있으면 전체 문서를 돌려준다."""
     out = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=AMR", f"{base}...{head}", "--", "*.md"],
+        ["git", "diff", "--name-status", f"{base}...{head}", "--", "*.md"],
         check=True, capture_output=True, text=True, cwd=root,
-    ).stdout.split()
-    return [root / p for p in out if (root / p).exists()]
+    ).stdout.splitlines()
+    files: list[Path] = []
+    for line in out:
+        parts = line.split("\t")
+        status = parts[0][0]
+        if status in "DR":
+            return all_markdown(root), True
+        if status in "AM" and (root / parts[-1]).exists():
+            files.append(root / parts[-1])
+    return files, False
 
 
 def check_file(md: Path, root: Path, cache: dict[Path, set[str]]) -> list[str]:
@@ -91,13 +105,16 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="변경 여부와 관계없이 모든 .md 검사")
     args = parser.parse_args()
     root = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True, text=True).stdout.strip())
+    escalated = False
     if args.all:
-        files = [p for p in root.rglob("*.md") if "build" not in p.parts and ".git" not in p.parts]
+        files = all_markdown(root)
     else:
         if not args.base:
             print("--base 가 필요합니다 (또는 --all).", file=sys.stderr)
             return 2
-        files = changed_markdown(args.base, args.head, root)
+        files, escalated = changed_markdown(args.base, args.head, root)
+    if escalated:
+        print("::notice::삭제·이름 변경된 문서가 있어 모든 Markdown의 링크를 검사합니다.")
     cache: dict[Path, set[str]] = {}
     errors: list[str] = []
     for md in sorted(files):

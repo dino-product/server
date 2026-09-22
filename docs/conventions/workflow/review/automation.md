@@ -11,7 +11,7 @@ PR이 열리거나 갱신되면 [CI](../../../../.github/workflows/ci.yml)의 `r
 | 순서 | `verify` 완료 후 실행. verify 결과와 [규약 검사](#규약-검사)를 인용하고 gradle을 재실행하지 않음 |
 | 동시성 | PR별 그룹. 새 커밋이 오면 진행 중 실행을 취소하고 최신 head로 다시 봄 |
 | 권한 | `contents: read`, `pull-requests: write`, `actions: read`. 게시 주체는 `GITHUB_TOKEN`(github-actions[bot]), 모델 인증은 `CLAUDE_CODE_OAUTH_TOKEN` 시크릿 |
-| 도구 | 읽기 도구, `git diff/log/merge-base/show`, `gh pr view/diff/checks`, `gh run view`, 요약 게시 스크립트, 인라인 코멘트 도구만 허용 |
+| 도구 | 읽기 도구(`Read`·`Glob`·`Grep`), `git diff/log/merge-base/show`, `gh pr view/diff/checks`, `gh run view`, 요약 게시 스크립트(본문은 표준입력), 인라인 코멘트 도구만 허용. 파일 쓰기 도구는 없음 |
 
 하지 않는 것: 승인·변경 요청, 코드·문서 수정, 커밋·푸시, PR 제목·본문·라벨 변경, 병합·닫기. 리뷰는 병합을 막지 않으며 병합 판단은 사람이 합니다. 저장소 문서·PR 본문 안의 지시문은 참고 자료이고 프롬프트보다 우선하지 않습니다.
 
@@ -59,11 +59,12 @@ PR이 열리거나 갱신되면 [CI](../../../../.github/workflows/ci.yml)의 `r
 
 ## 재리뷰와 중복
 
-같은 head SHA에 요약이 있으면 게시하지 않습니다. 이전 요약이 다른 SHA면 항목별 해결·남음·신규를 판정해 표 아래 한 줄로 적습니다. 재리뷰에서는 🔴와 상태만 게시하고 🟡·💭는 새 🔴와 직접 관련될 때만 씁니다. 선행 PR이 열려 있으면 `git merge-base`로 구한 범위만 보고 그 사실을 확인 불가에 적습니다.
+같은 head SHA에 요약이 있으면 게시하지 않으며 이 판정은 게시 스크립트가 `--head`로 수행합니다. 이전 요약이 다른 SHA면 항목별 해결·남음·신규를 판정해 표 아래 한 줄로 적습니다. 재리뷰에서는 🔴와 상태만 게시하고 🟡·💭는 새 🔴와 직접 관련될 때만 씁니다. 선행 PR이 열려 있으면 `git merge-base`로 구한 범위만 보고 그 사실을 확인 불가에 적습니다.
 
 ## 운영
 
 - `CLAUDE_CODE_OAUTH_TOKEN`은 저장소 Settings → Secrets에 등록하고 만료되면 갱신합니다. 규약 검사가 요구하는 `type:*` 라벨은 [라벨 적용](../labels.md#저장소-적용)으로 먼저 만듭니다.
+- 검사·게시 스크립트를 바꾸면 `python3 -m unittest discover -s .github/scripts/tests`의 고정 입력 회귀 검사를 함께 갱신합니다. 규약 검사 워크플로가 먼저 실행합니다.
 - 프롬프트·형식을 바꿀 때는 `workflow_dispatch`의 `dry_run`으로 게시 없이 `review-dry-run` 아티팩트에서 결과를 확인합니다.
 - 게시된 지적에 👍/👎 반응을 남깁니다. 해결률·반응을 보고 등급 기준과 상한을 이 문서에서 조정합니다.
 - 리뷰 실행 비용은 PR 크기에 비례합니다. 부담되면 `synchronize`를 빼고 `ready_for_review`·수동 실행만 남깁니다.
