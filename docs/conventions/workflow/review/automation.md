@@ -8,6 +8,7 @@ PR이 열리거나 갱신되면 [CI](../../../../.github/workflows/ci.yml)의 `r
 | 항목 | 값 |
 | --- | --- |
 | 트리거 | `opened`·`reopened`·`ready_for_review`·`synchronize`. Draft와 포크 PR은 건너뜀. 수동은 `workflow_dispatch`(PR 번호·`dry_run`)이며 요약만 게시 |
+| 체크아웃 | 자동·수동 모두 대상 PR의 head SHA를 체크아웃해 읽기 도구가 보는 파일과 인용한 head를 일치시킴. 수동 실행은 대상 PR을 먼저 조회해 head SHA를 확정하고 포크 PR이면 체크아웃 전에 실패 처리 |
 | 순서 | `verify` 완료 후 실행. verify 결과와 [규약 검사](#규약-검사)를 인용하고 gradle을 재실행하지 않음 |
 | 동시성 | PR별 그룹. 새 커밋이 오면 진행 중 실행을 취소하고 최신 head로 다시 봄 |
 | 권한 | `contents: read`, `pull-requests: write`, `actions: read`. 게시 주체는 `GITHUB_TOKEN`(github-actions[bot]), 모델 인증은 `CLAUDE_CODE_OAUTH_TOKEN` 시크릿 |
