@@ -1,0 +1,37 @@
+name: PR conventions
+
+# 기계적으로 판정할 PR 규약만 검사한다. 크기·커밋 완결성·의미 판단은 리뷰가 맡는다.
+# 기준: docs/conventions/workflow/pull-requests/writing.md, labels.md, testing/evidence.md
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-conventions-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: PR conventions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check title, labels, body template
+        run: python3 .github/scripts/check_pr_metadata.py
+
+      - name: Check links and anchors in changed Markdown
+        if: always()
+        run: >-
+          python3 .github/scripts/check_markdown_links.py
+          --base ${{ github.event.pull_request.base.sha }}
+          --head ${{ github.event.pull_request.head.sha }}
