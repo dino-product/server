@@ -44,7 +44,7 @@ curl http://localhost:8080/api/v1/auth/examples/subjects/1
 ## 아키텍처
 
 ```text
-src/main/java/com/example/   애플리케이션과 shared·user·auth 모듈
+src/main/java/com/orbit/     애플리케이션과 모듈
 src/test/                   단위·모듈·API·아키텍처 테스트
 gradle/                     버전·의존성·품질·테스트 설정과 Wrapper
 config/checkstyle/          코드 검사 규칙
@@ -53,11 +53,10 @@ docker/                    실행 JAR용 컨테이너 이미지
 .codex/agents/             선택형 모듈·검증 검토 역할
 .codex/rules/              신뢰한 프로젝트에서 로딩하는 명령 실행 규칙
 docs/
-├── adr/                    템플릿 아키텍처 결정 이력
+├── adr/                    아키텍처·에이전트 규칙 결정 이력
 ├── agents/                 상황별 에이전트 탐색·협업·실행 정책 안내
 ├── conventions/            주제별 개발 규칙
 ├── domain/                 모듈 책임과 공개 계약
-├── onboarding/             템플릿을 사용하는 개발자의 적용·실행 안내
 ├── planning/               제품 유즈케이스·미결정 정책 초안
 └── troubleshooting/        반복 조사에서 얻은 문제 해결 사례
 ```
@@ -66,11 +65,10 @@ docs/
 
 ## 검증
 
-[전체 검증 명령](AGENTS.md#검증과-완료)을 사용합니다. 전체 테스트에는 Docker가 필요하며 일부 건너뛰기를 통과로 보지 않습니다. [집중 검사](docs/conventions/testing/selection.md#selection)와 [CI 보고서 정책](docs/conventions/testing/completion.md#completion)은 해당 절에서 확인합니다.
+[전체 검증 명령](AGENTS.md#검증과-완료)을 사용합니다. 전체 테스트에는 Docker가 필요하며 일부 건너뛰기를 통과로 보지 않습니다. [집중 검사](docs/conventions/testing/selection.md#selection)와 [CI 보고서 정책](docs/conventions/testing/completion.md#completion)은 해당 절에서 확인합니다. PR에는 CI `verify`, [PR 규약 검사](.github/workflows/pr-conventions.yml), 비차단 [자동 리뷰](docs/conventions/workflow/review/automation.md#automation)가 실행됩니다.
 
 ## 문서 안내
 
-- 템플릿 적용·개발자 온보딩: [온보딩](docs/onboarding/README.md)
 - 작업별 규칙·원본·검증 경로: [컨벤션 목차](docs/conventions/README.md#conventions)
 - API 스키마: [OpenAPI](docs/conventions/web/openapi/controllers.md#controllers)
 - AI 작업 방식: [AGENTS.md](AGENTS.md)
