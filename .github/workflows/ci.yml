@@ -85,8 +85,11 @@ jobs:
 
     steps:
       - name: Checkout
+        # 수동 실행에는 이벤트가 주는 head가 없다. 입력받은 PR의 head를 직접 체크아웃해야
+        # Read/Glob/Grep이 읽는 파일이 실행 브랜치가 아닌 대상 PR의 파일이 된다.
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || '' }}
           fetch-depth: 0
 
       - name: Fetch all branches
