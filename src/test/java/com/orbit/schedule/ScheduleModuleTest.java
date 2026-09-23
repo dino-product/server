@@ -1,6 +1,7 @@
 package com.orbit.schedule;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,12 +10,16 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.schedule.application.error.ScheduleErrorCode;
+import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
+import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
+import com.orbit.shared.error.BusinessException;
 import com.orbit.support.TestcontainersConfiguration;
 
 @ApplicationModuleTest
@@ -31,6 +36,9 @@ class ScheduleModuleTest {
     @Autowired
     private LoadActorPort loadActorPort;
 
+    @Autowired
+    private CreateWorkUseCase createWorkUseCase;
+
     @Test
     void assembledActorPortDeniesEveryAccountUntilOrganizationIsWired() {
         assertThat(loadActorPort.findActiveActor(1L, ORGANIZATION_ID)).isEmpty();
@@ -45,5 +53,13 @@ class ScheduleModuleTest {
 
         assertThat(workRepository.findById(id))
                 .hasValueSatisfying(work -> assertThat(work.name()).isEqualTo("모듈 작업"));
+    }
+
+    @Test
+    void assembledCreateWorkUseCaseDeniesEveryoneUntilOrganizationIsWired() {
+        assertThatThrownBy(() -> createWorkUseCase.create(new CreateWorkCommand(
+                        1L, ORGANIZATION_ID.value(), "모듈 작업", null, null, null, null, null, null)))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
     }
 }
