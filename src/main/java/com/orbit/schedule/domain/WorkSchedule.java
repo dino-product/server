@@ -1,10 +1,13 @@
 package com.orbit.schedule.domain;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
-/** 배정 시 확정되는 담당기사·시작시간·예상소요시간 묶음과 그로부터 파생되는 종료시간. */
-public record WorkSchedule(MembershipId technicianId, LocalDateTime startTime, Duration expectedDuration) {
+/**
+ * 배정 시 확정되는 담당기사·시작시각·예상소요시간 묶음과 그로부터 파생되는 종료시각. 시각은 UTC {@link Instant}로 다루고, 화면의 날짜·시간 표시는 조직의 현지
+ * 시간대로 변환한다.
+ */
+public record WorkSchedule(MembershipId technicianId, Instant startTime, Duration expectedDuration) {
 
     public WorkSchedule {
         if (technicianId == null) {
@@ -18,7 +21,7 @@ public record WorkSchedule(MembershipId technicianId, LocalDateTime startTime, D
         }
     }
 
-    public LocalDateTime endTime() {
+    public Instant endTime() {
         return startTime.plus(expectedDuration);
     }
 }
