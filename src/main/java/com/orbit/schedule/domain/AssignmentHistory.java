@@ -50,17 +50,15 @@ public final class AssignmentHistory {
         if (decidedAt == null) {
             throw new IllegalArgumentException(result + " history must have decidedAt");
         }
-        switch (result) {
-            case ACCEPTED -> {
-                requireNoRejectionReason(rejectionReason);
-                history.accept(decidedAt);
-            }
-            case REJECTED -> history.reject(rejectionReason, decidedAt);
-            case REASSIGNED -> {
-                requireNoRejectionReason(rejectionReason);
-                history.reassign(decidedAt);
-            }
-            case PENDING -> throw new IllegalStateException("unreachable");
+        if (result == AssignmentResult.REJECTED) {
+            history.reject(rejectionReason, decidedAt);
+            return history;
+        }
+        requireNoRejectionReason(rejectionReason);
+        if (result == AssignmentResult.ACCEPTED) {
+            history.accept(decidedAt);
+        } else {
+            history.reassign(decidedAt);
         }
         return history;
     }
