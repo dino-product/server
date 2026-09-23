@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Work에 완전히 속하며 제출 후 수정되지 않는 완료보고. */
+/** Work에 완전히 속하며 제출 후 수정되지 않는 완료보고. 사용부품·수행메모의 빈 문자열·공백은 미입력(null)으로 정규화한다. */
 public final class CompletionReport {
 
     private static final int MAX_PHOTO_COUNT = 6;
@@ -28,6 +28,8 @@ public final class CompletionReport {
             ActualPaymentMethod actualPaymentMethod) {
         this.beforePhotos = copyPhotos(beforePhotos, "beforePhotos");
         this.afterPhotos = copyPhotos(afterPhotos, "afterPhotos");
+        usedParts = blankToNull(usedParts);
+        workNote = blankToNull(workNote);
         if (usedParts != null && usedParts.length() > MAX_USED_PARTS_LENGTH) {
             throw new IllegalArgumentException("usedParts must be at most 255 characters");
         }
@@ -119,6 +121,10 @@ public final class CompletionReport {
                 + ", actualPaymentMethod="
                 + actualPaymentMethod
                 + "]";
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private static List<String> copyPhotos(List<String> photos, String fieldName) {
