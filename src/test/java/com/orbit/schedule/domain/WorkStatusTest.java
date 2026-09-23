@@ -46,6 +46,25 @@ class WorkStatusTest {
     }
 
     @ParameterizedTest
+    @EnumSource(
+            value = WorkStatus.class,
+            names = {"PENDING_ACCEPTANCE", "ACCEPTED", "IN_PROGRESS"})
+    @DisplayName("수락대기·수락됨·작업중은 일정을 점유하는 활성 상태다")
+    void activeStatusesOccupySchedule(WorkStatus status) {
+        assertThat(status.isActive()).isTrue();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = WorkStatus.class,
+            mode = EnumSource.Mode.EXCLUDE,
+            names = {"PENDING_ACCEPTANCE", "ACCEPTED", "IN_PROGRESS"})
+    @DisplayName("그 밖의 상태(등록·완료·취소)는 일정을 점유하지 않는다")
+    void inactiveStatusesDoNotOccupySchedule(WorkStatus status) {
+        assertThat(status.isActive()).isFalse();
+    }
+
+    @ParameterizedTest
     @MethodSource("allowedTransitions")
     @DisplayName("화이트리스트에 정의된 상태로 전이한다")
     void transitionsToAllowedStatus(WorkStatus currentStatus, WorkStatus nextStatus) {
