@@ -10,6 +10,7 @@ import java.util.Optional;
 public final class Work {
 
     private final WorkId id;
+    private final OrganizationId organizationId;
     private final String name;
     private final MembershipId registrarId;
     private final WorkTypeId workType;
@@ -22,6 +23,7 @@ public final class Work {
 
     private Work(
             WorkId id,
+            OrganizationId organizationId,
             String name,
             MembershipId registrarId,
             WorkTypeId workType,
@@ -31,6 +33,9 @@ public final class Work {
             WorkStatus status,
             List<AssignmentHistory> assignmentHistory,
             CompletionReport completionReport) {
+        if (organizationId == null) {
+            throw new IllegalArgumentException("organizationId must not be null");
+        }
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name must not be blank");
         }
@@ -41,6 +46,7 @@ public final class Work {
             throw new IllegalArgumentException("status must not be null");
         }
         this.id = id;
+        this.organizationId = organizationId;
         this.name = name;
         this.registrarId = registrarId;
         this.workType = workType;
@@ -53,6 +59,7 @@ public final class Work {
     }
 
     public static Work register(
+            OrganizationId organizationId,
             String name,
             MembershipId registrarId,
             WorkTypeId workType,
@@ -60,6 +67,7 @@ public final class Work {
             PaymentInfo paymentInfo) {
         return new Work(
                 null,
+                organizationId,
                 name,
                 registrarId,
                 workType,
@@ -73,6 +81,7 @@ public final class Work {
 
     public static Work reconstitute(
             WorkId id,
+            OrganizationId organizationId,
             String name,
             MembershipId registrarId,
             WorkTypeId workType,
@@ -84,6 +93,7 @@ public final class Work {
             CompletionReport completionReport) {
         Work work = new Work(
                 Objects.requireNonNull(id, "id must not be null"),
+                organizationId,
                 name,
                 registrarId,
                 workType,
@@ -99,6 +109,10 @@ public final class Work {
 
     public Optional<WorkId> id() {
         return Optional.ofNullable(id);
+    }
+
+    public OrganizationId organizationId() {
+        return organizationId;
     }
 
     public String name() {

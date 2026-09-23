@@ -21,6 +21,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 @DisplayName("작업")
 class WorkTest {
 
+    private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
     private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
@@ -47,9 +48,11 @@ class WorkTest {
         @Test
         @DisplayName("등록 상태의 작업을 생성한다")
         void registersWork() {
-            Work work = Work.register("에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+            Work work =
+                    Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
 
             assertThat(work.id()).isEmpty();
+            assertThat(work.organizationId()).isEqualTo(ORGANIZATION_ID);
             assertThat(work.name()).isEqualTo("에어컨 수리");
             assertThat(work.registrarId()).isEqualTo(REGISTRAR_ID);
             assertThat(work.workType()).contains(WORK_TYPE_ID);
@@ -66,15 +69,23 @@ class WorkTest {
         @ValueSource(strings = {" ", "\t"})
         @DisplayName("작업명이 비어 있으면 거부한다")
         void rejectsBlankName(String name) {
-            assertThatThrownBy(() -> Work.register(name, REGISTRAR_ID, null, null, null))
+            assertThatThrownBy(() -> Work.register(ORGANIZATION_ID, name, REGISTRAR_ID, null, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("name must not be blank");
         }
 
         @Test
+        @DisplayName("조직이 null이면 거부한다")
+        void rejectsNullOrganizationId() {
+            assertThatThrownBy(() -> Work.register(null, "에어컨 수리", REGISTRAR_ID, null, null, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("organizationId must not be null");
+        }
+
+        @Test
         @DisplayName("등록자가 null이면 거부한다")
         void rejectsNullRegistrarId() {
-            assertThatThrownBy(() -> Work.register("에어컨 수리", null, null, null, null))
+            assertThatThrownBy(() -> Work.register(ORGANIZATION_ID, "에어컨 수리", null, null, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("registrarId must not be null");
         }
@@ -82,7 +93,7 @@ class WorkTest {
         @Test
         @DisplayName("선택 정보가 null이면 빈 값객체로 정규화한다")
         void normalizesNullOptionalInformation() {
-            Work work = Work.register("에어컨 수리", REGISTRAR_ID, null, null, null);
+            Work work = Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, null, null, null);
 
             assertThat(work.workType()).isEmpty();
             assertThat(work.customerInfo()).isNotNull();
@@ -103,6 +114,7 @@ class WorkTest {
 
             Work work = Work.reconstitute(
                     id,
+                    ORGANIZATION_ID,
                     "에어컨 수리",
                     REGISTRAR_ID,
                     WORK_TYPE_ID,
@@ -115,6 +127,7 @@ class WorkTest {
             histories.clear();
 
             assertThat(work.id()).contains(id);
+            assertThat(work.organizationId()).isEqualTo(ORGANIZATION_ID);
             assertThat(work.schedule()).contains(FIRST_SCHEDULE);
             assertThat(work.status()).isEqualTo(WorkStatus.COMPLETED);
             assertThat(work.assignmentHistory()).containsExactly(history);
@@ -151,7 +164,17 @@ class WorkTest {
         @DisplayName("식별자가 null이면 재구성을 거부한다")
         void rejectsNullIdWhenReconstituting() {
             assertThatThrownBy(() -> Work.reconstitute(
-                            null, "에어컨 수리", REGISTRAR_ID, null, null, null, null, WorkStatus.REGISTERED, null, null))
+                            null,
+                            ORGANIZATION_ID,
+                            "에어컨 수리",
+                            REGISTRAR_ID,
+                            null,
+                            null,
+                            null,
+                            null,
+                            WorkStatus.REGISTERED,
+                            null,
+                            null))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessage("id must not be null");
         }
@@ -240,7 +263,7 @@ class WorkTest {
         @Test
         @DisplayName("담당기사, 시작시간, 예상소요시간이 모두 없으면 배정을 거부한다")
         void rejectsAssignWithAllScheduleFieldsMissing() {
-            Work work = Work.register("필터 교체", REGISTRAR_ID, null, null, null);
+            Work work = Work.register(ORGANIZATION_ID, "필터 교체", REGISTRAR_ID, null, null, null);
 
             assertThatThrownBy(() -> work.assign(new WorkSchedule(null, null, null), NOW))
                     .isInstanceOf(IllegalArgumentException.class);
@@ -632,7 +655,7 @@ class WorkTest {
     }
 
     private static Work registeredWork() {
-        return Work.register("에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+        return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
     }
 
     private static Work pendingWork() {
@@ -681,6 +704,7 @@ class WorkTest {
             WorkStatus status, WorkSchedule schedule, List<AssignmentHistory> histories, CompletionReport report) {
         return Work.reconstitute(
                 new WorkId(10L),
+                ORGANIZATION_ID,
                 "에어컨 수리",
                 REGISTRAR_ID,
                 WORK_TYPE_ID,

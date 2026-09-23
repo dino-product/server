@@ -49,10 +49,10 @@
 | --- | --- |
 | 책임 | 작업 등록부터 완료까지 전체 생애주기. 발주–배정–수행의 최소 단위를 다룸 |
 | 상태 | 도메인 구현 — Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책. 작업 지침은 [schedule 지침](../../src/main/java/com/orbit/schedule/AGENTS.md) |
-| 소유 애그리게잇 | **Work**(Root) — 작업명(유일한 필수 항목), 등록자·담당기사(Membership ID 참조), 시간, 상태<br>├ AssignmentHistory(내부 엔티티) — 배정 시도마다 일정·배정/응답 시각·결과, 최신 이력이 현재 배정<br>├ CompletionReport(내부 엔티티) — 완료보고(사진·메모·실제 결제), Work와 생명주기 완전히 묶임<br>└ WorkSchedule/CustomerInfo/PaymentInfo/Money(VO) — 담당기사·시작시각·예상소요시간 / 고객정보 / 결제정보 / 원 단위 금액 |
+| 소유 애그리게잇 | **Work**(Root) — 소속 조직(Organization ID 참조), 작업명(사용자 입력 중 유일한 필수 항목), 등록자·담당기사(Membership ID 참조), 시간, 상태<br>├ AssignmentHistory(내부 엔티티) — 배정 시도마다 일정·배정/응답 시각·결과, 최신 이력이 현재 배정<br>├ CompletionReport(내부 엔티티) — 완료보고(사진·메모·실제 결제), Work와 생명주기 완전히 묶임<br>└ WorkSchedule/CustomerInfo/PaymentInfo/Money(VO) — 담당기사·시작시각·예상소요시간 / 고객정보 / 결제정보 / 원 단위 금액 |
 | 상태 전이 | 등록(대기함) → 수락대기 → 수락됨 → 작업중 → 완료. 거절·배정 해제는 대기함으로 복귀, 취소는 소프트 삭제인 별도 종료 경로 — 상세는 [작업 상태·배정 정책](#schedule-policies) |
 | 읽기 모델 | Timetable/Backlog — **애그리게잇 아님.** Work를 기사×시간 축으로 투영한 조회 결과일 뿐, 자체 쓰기 불변식이 없음 |
-| 관계 | `organization` → 참조(ID) (담당기사·등록자가 유효한 Membership인지 확인, ACL) · `notification` ← 이벤트 발행(작업 상태 변경) |
+| 관계 | `organization` → 참조(ID) (등록자·담당기사가 Work의 조직에 속한 활성 Membership인지, 작업 유형이 같은 조직의 WorkType인지 확인, ACL — 도메인은 ID만 보유하므로 Application이 등록·배정·재배정 시 검증) · `notification` ← 이벤트 발행(작업 상태 변경) |
 
 > **명명 정정**: 기획안 원문·이전 대화에서는 이 애그리게잇을 "Job"이라 불렀으나, 저장소의 기존 계획 문서(`use-cases.md`)가 이미 `*WorkUseCase` 명명을 쓰고 있어 **애그리게잇명은 "Work"로 통일**한다. 이후 모든 문서·코드에서 Job이라는 이름은 쓰지 않는다.
 >
@@ -139,6 +139,7 @@
 | BC-001 | 개인 계정·프로필 관리(마이페이지, 탈퇴)를 어느 컨텍스트가 가질지 | `auth`가 가질지, 별도 "계정" 성격 컨텍스트를 새로 둘지 미정. "계정"이라는 이름을 `organization`에서 뺀 것과 직접 연결된 이슈 |
 | BC-002 | 참여 요청(MembershipRequest)을 `organization`에서 분리할 시점 | 현재는 승인·소속 생성의 원자성 때문에 `organization`에 둠 — 요청 생명주기가 복잡해지면 분리 검토 |
 | BC-004 | 정산 기능의 실제 포함 여부 | 탈퇴 차단 조건에 "미완료 정산"이 등장하지만 정산 업무 흐름 자체는 미확인 (`use-cases.md` §8) |
+| BC-005 | 여러 조직에 소속된 기사의 조직 간 일정 충돌 판정 여부 | 일정 충돌은 기사의 Membership(조직별로 따로 존재)으로 판정해 같은 조직 안에서만 본다. 다중 소속이 허용되고 기사 앱이 모든 조직의 작업을 합쳐 보여주므로, 한 사람의 조직 간 겹침을 막을지 제품 결정 필요 |
 
 ---
 
