@@ -30,10 +30,10 @@ public final class CompletionReport {
         usedParts = blankToNull(usedParts);
         workNote = blankToNull(workNote);
         if (usedParts != null && usedParts.length() > MAX_USED_PARTS_LENGTH) {
-            throw new IllegalArgumentException("usedParts must be at most 255 characters");
+            throw new IllegalArgumentException("usedParts must be at most " + MAX_USED_PARTS_LENGTH + " characters");
         }
         if (workNote != null && workNote.length() > MAX_WORK_NOTE_LENGTH) {
-            throw new IllegalArgumentException("workNote must be at most 255 characters");
+            throw new IllegalArgumentException("workNote must be at most " + MAX_WORK_NOTE_LENGTH + " characters");
         }
         this.usedParts = usedParts;
         this.workNote = workNote;
@@ -113,7 +113,7 @@ public final class CompletionReport {
             return List.of();
         }
         if (photos.size() > MAX_PHOTO_COUNT) {
-            throw new IllegalArgumentException(fieldName + " must have at most 6 photos");
+            throw new IllegalArgumentException(fieldName + " must have at most " + MAX_PHOTO_COUNT + " photos");
         }
         if (photos.stream().anyMatch(Objects::isNull)) {
             throw new IllegalArgumentException(fieldName + " must not contain null");
