@@ -140,9 +140,12 @@ public final class Work {
     public void assign(WorkSchedule newSchedule, Instant assignedAt) {
         requireStatus(WorkStatus.REGISTERED, "assign");
         requireSchedule(newSchedule);
+        // 검증을 모두 마친 뒤 반영해, 예외가 나도 작업이 부분적으로 바뀌지 않게 한다.
+        AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, assignedAt);
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
         schedule = newSchedule;
-        assignmentHistory.add(new AssignmentHistory(newSchedule, assignedAt));
-        status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
+        assignmentHistory.add(newAssignment);
+        status = nextStatus;
     }
 
     public void accept(Instant decidedAt) {
@@ -224,11 +227,13 @@ public final class Work {
 
     /** 응답 대기 중인 배정은 마감하고, 이미 수락된 이력은 그대로 둔 채 새 배정을 추가해 다시 수락받는다. */
     private void changeAssignment(WorkSchedule newSchedule, Instant changedAt) {
+        // 새 배정 이력을 먼저 만들어 시각을 검증한 뒤 반영해, 예외가 나도 작업이 부분적으로 바뀌지 않게 한다.
+        AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, changedAt);
         if (status == WorkStatus.PENDING_ACCEPTANCE) {
             latestAssignment().reassign(changedAt);
         }
         schedule = newSchedule;
-        assignmentHistory.add(new AssignmentHistory(newSchedule, changedAt));
+        assignmentHistory.add(newAssignment);
         if (status == WorkStatus.ACCEPTED) {
             status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
         }

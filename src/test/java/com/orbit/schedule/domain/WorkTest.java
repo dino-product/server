@@ -188,6 +188,19 @@ class WorkTest {
         }
 
         @Test
+        @DisplayName("배정 시각이 null이면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsNullAssignedAtWithoutPartialChange() {
+            Work work = registeredWork();
+
+            assertThatThrownBy(() -> work.assign(FIRST_SCHEDULE, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be null");
+            assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
+            assertThat(work.schedule()).isEmpty();
+            assertThat(work.assignmentHistory()).isEmpty();
+        }
+
+        @Test
         @DisplayName("등록 외 상태에서는 배정을 거부한다")
         void rejectsAssignmentOutsideRegisteredStatus() {
             Work work = acceptedWork();
@@ -304,6 +317,17 @@ class WorkTest {
         }
 
         @Test
+        @DisplayName("수락된 작업을 재배정할 때 시각이 null이면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsNullTimeOnAcceptedWorkWithoutPartialChange() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.reassign(SECOND_SCHEDULE, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be null");
+            assertUnchangedAcceptedWork(work);
+        }
+
+        @Test
         @DisplayName("수락된 작업을 재배정하면 수락 이력은 두고 새 기사에게 다시 수락받는다")
         void reassignsAcceptedWorkAndRequiresReacceptance() {
             Work work = acceptedWork();
@@ -356,6 +380,17 @@ class WorkTest {
             work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW);
 
             assertChangedAssignment(work, RESCHEDULED_FIRST_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("수락된 작업의 일정을 바꿀 때 시각이 null이면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsNullTimeOnAcceptedWorkWithoutPartialChange() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be null");
+            assertUnchangedAcceptedWork(work);
         }
 
         @Test
@@ -737,6 +772,13 @@ class WorkTest {
         assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.REASSIGNED);
         assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(newSchedule);
         assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
+    }
+
+    private static void assertUnchangedAcceptedWork(Work work) {
+        assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
+        assertThat(work.schedule()).contains(FIRST_SCHEDULE);
+        assertThat(work.assignmentHistory()).hasSize(1);
+        assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.ACCEPTED);
     }
 
     private static void assertReacceptanceRequired(Work work, WorkSchedule newSchedule) {
