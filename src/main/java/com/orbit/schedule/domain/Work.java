@@ -246,9 +246,7 @@ public final class Work {
         if (assignmentHistory.isEmpty()) {
             return;
         }
-        AssignmentHistory latest = assignmentHistory.getLast();
-        Instant latestMoment = latest.decidedAt().orElse(latest.assignedAt());
-        if (at.isBefore(latestMoment)) {
+        if (at.isBefore(lastMomentOf(assignmentHistory.getLast()))) {
             throw new IllegalArgumentException("assignedAt must not be before the latest assignment");
         }
     }
@@ -258,6 +256,10 @@ public final class Work {
         for (int i = 0; i < assignmentHistory.size() - 1; i++) {
             if (assignmentHistory.get(i).result() == AssignmentResult.PENDING) {
                 throw new IllegalArgumentException("Only the latest assignment history can be PENDING");
+            }
+            AssignmentHistory next = assignmentHistory.get(i + 1);
+            if (next.assignedAt().isBefore(lastMomentOf(assignmentHistory.get(i)))) {
+                throw new IllegalArgumentException("assignment histories must be in chronological order");
             }
         }
         AssignmentHistory latest = assignmentHistory.isEmpty() ? null : assignmentHistory.getLast();
@@ -295,6 +297,11 @@ public final class Work {
         if (latest != null && latest.result() == AssignmentResult.PENDING) {
             throw new IllegalArgumentException(status + " work must not have a PENDING assignment");
         }
+    }
+
+    /** 배정 이력의 마지막 시각. 응답·마감됐으면 응답 시각, 대기 중이면 배정 시각이다. */
+    private static Instant lastMomentOf(AssignmentHistory history) {
+        return history.decidedAt().orElse(history.assignedAt());
     }
 
     private void requireStatus(WorkStatus requiredStatus, String action) {

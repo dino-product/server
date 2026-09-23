@@ -796,7 +796,21 @@ class WorkTest {
                         SECOND_SCHEDULE,
                         List.of(pendingHistory(FIRST_SCHEDULE), pendingHistory(SECOND_SCHEDULE)),
                         null,
-                        "Only the latest assignment history can be PENDING"));
+                        "Only the latest assignment history can be PENDING"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(
+                                AssignmentHistory.restore(
+                                        FIRST_SCHEDULE,
+                                        NOW,
+                                        AssignmentResult.REJECTED,
+                                        RejectionReason.OTHER,
+                                        NOW.plusSeconds(100)),
+                                AssignmentHistory.restore(
+                                        SECOND_SCHEDULE, NOW.plusSeconds(50), AssignmentResult.PENDING, null, null)),
+                        null,
+                        "assignment histories must be in chronological order"));
     }
 
     private static void assertChangedAssignment(Work work, WorkSchedule newSchedule) {
