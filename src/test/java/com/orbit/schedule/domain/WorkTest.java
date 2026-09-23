@@ -520,9 +520,34 @@ class WorkTest {
         void cancelsAllowedStatus(WorkStatus status) {
             Work work = workIn(status);
 
-            work.cancel();
+            work.cancel(NOW);
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("응답 대기 중인 배정을 취소 시각으로 마감한다")
+        void closesPendingAssignment() {
+            Work work = pendingWork();
+            Instant cancelledAt = NOW.plusSeconds(60);
+
+            work.cancel(cancelledAt);
+
+            AssignmentHistory history = work.assignmentHistory().getLast();
+            assertThat(history.result()).isEqualTo(AssignmentResult.REASSIGNED);
+            assertThat(history.decidedAt()).contains(cancelledAt);
+        }
+
+        @Test
+        @DisplayName("수락된 배정 이력은 그대로 둔다")
+        void keepsAcceptedAssignment() {
+            Work work = acceptedWork();
+
+            work.cancel(NOW.plusSeconds(60));
+
+            AssignmentHistory history = work.assignmentHistory().getLast();
+            assertThat(history.result()).isEqualTo(AssignmentResult.ACCEPTED);
+            assertThat(history.decidedAt()).contains(NOW);
         }
 
         @ParameterizedTest
@@ -531,7 +556,7 @@ class WorkTest {
         void rejectsTerminalStatus(WorkStatus status) {
             Work work = workIn(status);
 
-            assertThatThrownBy(work::cancel)
+            assertThatThrownBy(() -> work.cancel(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot transition from %s to CANCELLED", status);
         }
@@ -567,7 +592,7 @@ class WorkTest {
 
     private static Work cancelledWork() {
         Work work = registeredWork();
-        work.cancel();
+        work.cancel(NOW);
         return work;
     }
 

@@ -207,8 +207,13 @@ public final class Work {
         status = status.transitionTo(WorkStatus.COMPLETED);
     }
 
-    public void cancel() {
-        status = status.transitionTo(WorkStatus.CANCELLED);
+    /** 완료 전 작업을 취소한다. 응답 대기 중인 배정은 취소 시각으로 마감하고 수락된 이력은 그대로 둔다. */
+    public void cancel(Instant cancelledAt) {
+        WorkStatus cancelled = status.transitionTo(WorkStatus.CANCELLED);
+        if (status == WorkStatus.PENDING_ACCEPTANCE) {
+            latestAssignment().reassign(cancelledAt);
+        }
+        status = cancelled;
     }
 
     private void requireChangeableAssignment(String action) {
