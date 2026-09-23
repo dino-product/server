@@ -33,7 +33,7 @@
 | 저장·트랜잭션·이벤트·프로필 변경 | 해당하는 [JPA](docs/conventions/persistence/jpa.md#jpa)·[트랜잭션](docs/conventions/persistence/transactions.md#transactions)·[이벤트](docs/conventions/persistence/events.md#events)·[프로필](docs/conventions/runtime/profiles.md#profiles) 파일만 |
 | HTTP·Controller / Web DTO | 해당하는 [HTTP 계약](docs/conventions/web/http.md#http) / [DTO 구성](docs/conventions/web/dto.md#dto) |
 | OpenAPI 계약 변경 | 해당하는 [ControllerDocs](docs/conventions/web/openapi/controllers.md#controllers)·[응답](docs/conventions/web/openapi/responses.md#responses)·[파라미터](docs/conventions/web/openapi/parameters.md#parameters); 변경 후 [검증](docs/conventions/web/openapi/verification.md#verification) |
-| 테스트 작성·실행, CI | [설계](docs/conventions/testing/design.md#design)·[집중 검사](docs/conventions/testing/selection.md#selection)·[실행·출력](docs/conventions/testing/execution.md#execution)·[전체 실행·CI](docs/conventions/testing/completion.md#completion) 중 현재 단계; 테스트 수정에는 [하위 지침](src/test/java/com/example/AGENTS.md) |
+| 테스트 작성·실행, CI | [설계](docs/conventions/testing/design.md#design)·[집중 검사](docs/conventions/testing/selection.md#selection)·[실행·출력](docs/conventions/testing/execution.md#execution)·[전체 실행·CI](docs/conventions/testing/completion.md#completion) 중 현재 단계; 테스트 수정에는 [하위 지침](src/test/java/com/orbit/AGENTS.md); 자동 리뷰·규약 검사 워크플로 변경은 [자동 리뷰 운영](docs/conventions/workflow/review/automation.md#automation) |
 | 실행·환경 문제 | [빠른 시작](README.md#빠른-시작); 프로필·DB 설정은 [실행 환경](docs/conventions/runtime/profiles.md#profiles) |
 | 에이전트 협업·실행 정책 점검 | 역할 선택·인계는 [협업](docs/agents/collaboration.md#역할-선택과-인계), 명령 규칙·승인 모드 진단은 [실행 정책](docs/agents/execution-policy.md) |
 | 오류·실패 조사 | [트러블슈팅 색인](docs/troubleshooting/README.md)에서 관련 사례 확인 |

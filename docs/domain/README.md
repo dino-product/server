@@ -10,7 +10,7 @@
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
 | `auth` | subject 조회 예제와 등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `user` |
 | `organization` | 골격 — 조직·소속·참여 요청 관리 예정 | 없음 | 없음 |
-| `schedule` | 작업 생애주기 — 현재 `domain`(값객체·배정 이력·완료보고)만 구현 | 없음 | 없음 |
+| `schedule` | 작업 생애주기 — 현재 `domain`(Work 애그리게잇·값객체·배정 이력·완료보고)만 구현 | 없음 | 없음 |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |
 
 골격 모듈(`organization`, `notification`)은 `package-info.java`만 존재합니다. `schedule`은 `domain` 패키지만 있고 공개 계약이 없습니다. 세 모듈 모두 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. 실제 공개 계약을 사용하는 구현을 추가할 때 필요한 의존성과 이 지도를 함께 갱신합니다.

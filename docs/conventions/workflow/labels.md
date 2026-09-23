@@ -13,3 +13,28 @@
 | `compatibility:breaking` | 기존 소비자 대응이 필요할 때 지정하고 본문에 영향·전환 방법 설명 |
 
 진행·리뷰·완료는 Issue/PR 상태와 사용하는 Project로 관리하며 같은 의미의 상태 라벨을 추가하지 않습니다. 기존 GitHub 기본 라벨은 삭제할 필요가 없지만 동일 의미의 라벨을 중복 적용하지 않습니다.
+
+<a id="저장소-적용"></a>
+## 저장소 적용
+
+GitHub는 `labels.json`을 자동으로 읽지 않으므로 아래 명령으로 라벨을 생성·갱신합니다. 같은 이름은 색상·설명만 갱신하고 다른 라벨은 삭제하지 않아 반복 실행할 수 있습니다. 저장소 쓰기 권한, GitHub CLI 인증, Python 3이 필요합니다. [PR 규약 검사](../../../.github/workflows/pr-conventions.yml)가 `type:*` 라벨을 요구하므로 라벨이 없는 저장소에서는 먼저 적용합니다. [gh label create](https://cli.github.com/manual/gh_label_create)
+
+```bash
+gh auth status
+GH_REPO='dino-product/server' python3 - <<'PY'
+import json
+import os
+import subprocess
+from pathlib import Path
+
+repo = os.environ["GH_REPO"]
+labels = json.loads(Path(".github/labels.json").read_text(encoding="utf-8"))
+for label in labels:
+    subprocess.run([
+        "gh", "label", "create", label["name"], "--repo", repo,
+        "--color", label["color"], "--description", label["description"], "--force",
+    ], check=True)
+PY
+```
+
+새 모듈마다 라벨을 미리 늘리지 않습니다. 실제 분류에 필요할 때 정의 파일·양식·이 문서를 함께 갱신하고 다시 적용합니다.
