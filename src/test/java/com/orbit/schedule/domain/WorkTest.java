@@ -164,8 +164,7 @@ class WorkTest {
         @Test
         @DisplayName("등록 외 상태에서는 배정을 거부한다")
         void rejectsAssignmentOutsideRegisteredStatus() {
-            Work work = registeredWork();
-            work.forceStatus(WorkStatus.ACCEPTED);
+            Work work = acceptedWork();
 
             assertThatThrownBy(() -> work.assign(FIRST_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
@@ -376,8 +375,7 @@ class WorkTest {
         @MethodSource("com.orbit.schedule.domain.WorkTest#statusesThatCannotBeUnassigned")
         @DisplayName("해제할 수 없는 상태에서는 거부한다")
         void rejectsDisallowedStatus(WorkStatus status) {
-            Work work = registeredWork();
-            work.forceStatus(status);
+            Work work = workIn(status);
 
             assertThatThrownBy(() -> work.unassign(NOW))
                     .isInstanceOf(IllegalStateException.class)
@@ -454,8 +452,7 @@ class WorkTest {
         @MethodSource("com.orbit.schedule.domain.WorkTest#cancellableStatuses")
         @DisplayName("허용된 상태의 작업을 취소한다")
         void cancelsAllowedStatus(WorkStatus status) {
-            Work work = registeredWork();
-            work.forceStatus(status);
+            Work work = workIn(status);
 
             work.cancel();
 
@@ -466,58 +463,11 @@ class WorkTest {
         @ValueSource(strings = {"COMPLETED", "CANCELLED"})
         @DisplayName("종료된 작업은 취소할 수 없다")
         void rejectsTerminalStatus(WorkStatus status) {
-            Work work = registeredWork();
-            work.forceStatus(status);
+            Work work = workIn(status);
 
             assertThatThrownBy(work::cancel)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot transition from %s to CANCELLED", status);
-        }
-    }
-
-    @Nested
-    @DisplayName("관리자 상태 강제 변경")
-    class ForceStatus {
-
-        @Test
-        @DisplayName("화이트리스트에 없는 상태 전이도 강제로 적용한다")
-        void bypassesTransitionWhitelist() {
-            Work work = registeredWork();
-            work.forceStatus(WorkStatus.COMPLETED);
-
-            work.forceStatus(WorkStatus.REGISTERED);
-
-            assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
-        }
-
-        @Test
-        @DisplayName("REGISTERED로 강제 변경하면 배정된 일정을 정리한다")
-        void clearsScheduleWhenForcedToRegistered() {
-            Work work = acceptedWork();
-
-            work.forceStatus(WorkStatus.REGISTERED);
-
-            assertThat(work.schedule()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("REGISTERED가 아닌 상태로 강제 변경하면 배정된 일정을 그대로 둔다")
-        void keepsScheduleWhenForcedToNonRegisteredStatus() {
-            Work work = acceptedWork();
-
-            work.forceStatus(WorkStatus.COMPLETED);
-
-            assertThat(work.schedule()).contains(FIRST_SCHEDULE);
-        }
-
-        @Test
-        @DisplayName("새 상태가 null이면 거부한다")
-        void rejectsNullStatus() {
-            Work work = registeredWork();
-
-            assertThatThrownBy(() -> work.forceStatus(null))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("newStatus must not be null");
         }
     }
 
@@ -541,6 +491,30 @@ class WorkTest {
         Work work = acceptedWork();
         work.start();
         return work;
+    }
+
+    private static Work completedWork() {
+        Work work = inProgressWork();
+        work.submitCompletionReport(COMPLETION_REPORT);
+        return work;
+    }
+
+    private static Work cancelledWork() {
+        Work work = registeredWork();
+        work.cancel();
+        return work;
+    }
+
+    /** 실제 전이 흐름으로 주어진 상태의 작업을 만든다. */
+    private static Work workIn(WorkStatus status) {
+        return switch (status) {
+            case REGISTERED -> registeredWork();
+            case PENDING_ACCEPTANCE -> pendingWork();
+            case ACCEPTED -> acceptedWork();
+            case IN_PROGRESS -> inProgressWork();
+            case COMPLETED -> completedWork();
+            case CANCELLED -> cancelledWork();
+        };
     }
 
     private static Work reconstitutedWithoutHistory(WorkStatus status) {

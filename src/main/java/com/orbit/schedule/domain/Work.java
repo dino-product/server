@@ -194,16 +194,6 @@ public final class Work {
         status = status.transitionTo(WorkStatus.CANCELLED);
     }
 
-    public void forceStatus(WorkStatus newStatus) {
-        if (newStatus == null) {
-            throw new IllegalArgumentException("newStatus must not be null");
-        }
-        if (newStatus == WorkStatus.REGISTERED) {
-            schedule = null;
-        }
-        status = newStatus;
-    }
-
     private void changeAssignment(WorkSchedule newSchedule, Instant changedAt, String action) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, action);
         requireSchedule(newSchedule);
