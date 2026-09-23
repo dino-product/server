@@ -9,13 +9,9 @@ import org.junit.jupiter.api.Test;
 class PaymentMethodTest {
 
     @Test
-    @DisplayName("결제수단 4개가 정의된 순서대로 존재한다")
+    @DisplayName("결제수단 3개가 정의된 순서대로 존재한다")
     void containsAllMethodsInOrder() {
         assertThat(PaymentMethod.values())
-                .containsExactly(
-                        PaymentMethod.ON_SITE_CARD,
-                        PaymentMethod.ON_SITE_CASH,
-                        PaymentMethod.BANK_TRANSFER,
-                        PaymentMethod.INVOICE_POSTPAID);
+                .containsExactly(PaymentMethod.ON_SITE_CARD, PaymentMethod.ON_SITE_CASH, PaymentMethod.BANK_TRANSFER);
     }
 }

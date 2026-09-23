@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
@@ -27,9 +27,10 @@ class WorkLifecycleScenarioTest {
     private static final PaymentInfo PAYMENT_INFO =
             new PaymentInfo(new BigDecimal("150000"), PaymentMethod.ON_SITE_CARD);
     private static final WorkSchedule FIRST_SCHEDULE =
-            new WorkSchedule(TECHNICIAN_ID, LocalDateTime.of(2026, 9, 22, 10, 0), Duration.ofHours(2));
+            new WorkSchedule(TECHNICIAN_ID, Instant.parse("2026-09-22T01:00:00Z"), Duration.ofHours(2));
     private static final WorkSchedule SECOND_SCHEDULE =
-            new WorkSchedule(OTHER_TECHNICIAN_ID, LocalDateTime.of(2026, 9, 23, 14, 0), Duration.ofMinutes(90));
+            new WorkSchedule(OTHER_TECHNICIAN_ID, Instant.parse("2026-09-23T05:00:00Z"), Duration.ofMinutes(90));
+    private static final Instant NOW = Instant.parse("2026-09-21T01:00:00Z");
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(
             List.of("before.jpg"),
             List.of("after.jpg"),
@@ -43,8 +44,8 @@ class WorkLifecycleScenarioTest {
     void happyPathFromRegistrationToCompletion() {
         Work work = registeredWork();
 
-        work.assign(FIRST_SCHEDULE);
-        work.accept();
+        work.assign(FIRST_SCHEDULE, NOW);
+        work.accept(NOW);
         work.start();
         work.submitCompletionReport(COMPLETION_REPORT);
 
@@ -60,13 +61,13 @@ class WorkLifecycleScenarioTest {
     void rejectionThenReassignmentPath() {
         Work work = registeredWork();
 
-        work.assign(FIRST_SCHEDULE);
-        work.reject(RejectionReason.SCHEDULE_CONFLICT);
+        work.assign(FIRST_SCHEDULE, NOW);
+        work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW);
         assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
         assertThat(work.schedule()).isEmpty();
 
-        work.assign(SECOND_SCHEDULE);
-        work.accept();
+        work.assign(SECOND_SCHEDULE, NOW);
+        work.accept(NOW);
 
         assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
         assertThat(work.schedule()).contains(SECOND_SCHEDULE);
@@ -85,7 +86,7 @@ class WorkLifecycleScenarioTest {
         void cancelsFromRegistered() {
             Work work = registeredWork();
 
-            work.cancel();
+            work.cancel(NOW);
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         }
@@ -94,9 +95,9 @@ class WorkLifecycleScenarioTest {
         @DisplayName("수락 대기 상태에서 취소한다")
         void cancelsFromPendingAcceptance() {
             Work work = registeredWork();
-            work.assign(FIRST_SCHEDULE);
+            work.assign(FIRST_SCHEDULE, NOW);
 
-            work.cancel();
+            work.cancel(NOW);
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
             assertThat(work.assignmentHistory()).hasSize(1);
@@ -106,10 +107,10 @@ class WorkLifecycleScenarioTest {
         @DisplayName("수락 상태에서 취소한다")
         void cancelsFromAccepted() {
             Work work = registeredWork();
-            work.assign(FIRST_SCHEDULE);
-            work.accept();
+            work.assign(FIRST_SCHEDULE, NOW);
+            work.accept(NOW);
 
-            work.cancel();
+            work.cancel(NOW);
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
             assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.ACCEPTED);
@@ -119,40 +120,14 @@ class WorkLifecycleScenarioTest {
         @DisplayName("작업중 상태에서 취소한다")
         void cancelsFromInProgress() {
             Work work = registeredWork();
-            work.assign(FIRST_SCHEDULE);
-            work.accept();
+            work.assign(FIRST_SCHEDULE, NOW);
+            work.accept(NOW);
             work.start();
 
-            work.cancel();
+            work.cancel(NOW);
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         }
-    }
-
-    @Test
-    @DisplayName("관리자 강제변경: 진행중 작업을 대기함으로 역방향 전이시킨 뒤 다시 정상 흐름을 이어간다")
-    void adminForceStatusReversesInProgressWorkThenResumesNormalFlow() {
-        Work work = registeredWork();
-        work.assign(FIRST_SCHEDULE);
-        work.accept();
-        work.start();
-        assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
-
-        // IN_PROGRESS -> REGISTERED는 화이트리스트에 없는 역방향 전이이며 forceStatus로만 가능하다.
-        work.forceStatus(WorkStatus.REGISTERED);
-
-        assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
-        assertThat(work.schedule()).isEmpty();
-        assertThat(work.assignmentHistory()).hasSize(1);
-
-        work.assign(SECOND_SCHEDULE);
-        work.accept();
-        work.start();
-        work.submitCompletionReport(COMPLETION_REPORT);
-
-        assertThat(work.status()).isEqualTo(WorkStatus.COMPLETED);
-        assertThat(work.schedule()).contains(SECOND_SCHEDULE);
-        assertThat(work.assignmentHistory()).hasSize(2);
     }
 
     private static Work registeredWork() {
