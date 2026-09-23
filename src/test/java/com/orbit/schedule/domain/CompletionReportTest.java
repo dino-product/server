@@ -3,7 +3,6 @@ package com.orbit.schedule.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,7 +18,7 @@ class CompletionReportTest {
     void createsWithAllValues() {
         List<String> beforePhotos = List.of("before-1.jpg", "before-2.jpg");
         List<String> afterPhotos = List.of("after-1.jpg", "after-2.jpg");
-        BigDecimal actualFee = new BigDecimal("150000");
+        Money actualFee = new Money(150000L);
 
         CompletionReport report = new CompletionReport(
                 beforePhotos, afterPhotos, "필터 1개", "필터 교체 완료", actualFee, ActualPaymentMethod.CREDIT_CARD);
@@ -126,14 +125,6 @@ class CompletionReportTest {
     }
 
     @Test
-    @DisplayName("결제금액이 음수이면 거부한다")
-    void rejectsNegativeActualFee() {
-        assertThatThrownBy(() -> new CompletionReport(null, null, null, null, new BigDecimal("-0.01"), null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("actualFee must not be negative");
-    }
-
-    @Test
     @DisplayName("제출된 작업 전 사진 목록은 수정할 수 없다")
     void beforePhotosAreImmutable() {
         CompletionReport report = new CompletionReport(List.of("before.jpg"), null, null, null, null, null);
@@ -161,39 +152,17 @@ class CompletionReportTest {
                 List.of("after.jpg"),
                 "필터 1개",
                 "필터 교체 완료",
-                new BigDecimal("150000"),
+                new Money(150000L),
                 ActualPaymentMethod.BANK_TRANSFER);
         CompletionReport sameReport = new CompletionReport(
                 List.of("before.jpg"),
                 List.of("after.jpg"),
                 "필터 1개",
                 "필터 교체 완료",
-                new BigDecimal("150000"),
+                new Money(150000L),
                 ActualPaymentMethod.BANK_TRANSFER);
 
         assertThat(report).isEqualTo(sameReport);
         assertThat(report.hashCode()).isEqualTo(sameReport.hashCode());
-    }
-
-    @Test
-    @DisplayName("결제금액의 scale이 달라도 값이 같으면 동등하다")
-    void isEqualWhenActualFeeScaleDiffers() {
-        CompletionReport report = new CompletionReport(
-                List.of("before.jpg"),
-                List.of("after.jpg"),
-                "필터 1개",
-                "필터 교체 완료",
-                new BigDecimal("150000"),
-                ActualPaymentMethod.BANK_TRANSFER);
-        CompletionReport sameValueDifferentScale = new CompletionReport(
-                List.of("before.jpg"),
-                List.of("after.jpg"),
-                "필터 1개",
-                "필터 교체 완료",
-                new BigDecimal("150000.00"),
-                ActualPaymentMethod.BANK_TRANSFER);
-
-        assertThat(report).isEqualTo(sameValueDifferentScale);
-        assertThat(report.hashCode()).isEqualTo(sameValueDifferentScale.hashCode());
     }
 }
