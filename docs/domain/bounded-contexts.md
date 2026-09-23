@@ -12,7 +12,7 @@
 | 구분 | 의미 |
 | --- | --- |
 | **서브도메인** | Core(핵심 경쟁력) / Supporting(핵심을 돕는) / Generic(범용) |
-| **상태** | `도메인 구현` — `domain` 패키지만 존재, Application·Adapter·공개 계약 없음 / `골격 생성` — 모듈 루트의 `package-info.java`만 존재, 도메인 코드 없음 / `미착수` — 폴더도 없음 |
+| **상태** | `구현 중` — `domain`과 일부 Application·Adapter가 있으나 공개 계약·완성된 유즈케이스는 없음 / `도메인 구현` — `domain` 패키지만 존재, Application·Adapter·공개 계약 없음 / `골격 생성` — 모듈 루트의 `package-info.java`만 존재, 도메인 코드 없음 / `미착수` — 폴더도 없음 |
 | **관계 표기** | `참조(ID)` — 동기 조회, 상대 공개 계약만 호출 / `이벤트` — 비동기, Published Language / `ACL` — 상대 모델을 자기 언어로 번역해 수용 |
 
 ---
@@ -48,7 +48,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 작업 등록부터 완료까지 전체 생애주기. 발주–배정–수행의 최소 단위를 다룸 |
-| 상태 | 도메인 구현 — Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책, Application 출력 포트·오류 코드. 작업 지침은 [schedule 지침](../../src/main/java/com/orbit/schedule/AGENTS.md) |
+| 상태 | 구현 중 — Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책, Application 출력 포트·오류 코드, 임시 출력 어댑터. 작업 지침은 [schedule 지침](../../src/main/java/com/orbit/schedule/AGENTS.md) |
 | 소유 애그리게잇 | **Work**(Root) — 소속 조직(Organization ID 참조), 작업명(사용자 입력 중 유일한 필수 항목), 등록자·담당기사(Membership ID 참조), 시간, 상태<br>├ AssignmentHistory(내부 엔티티) — 배정 시도마다 일정·배정/응답 시각·결과, 최신 이력이 현재 배정<br>├ CompletionReport(내부 엔티티) — 완료보고(사진·메모·실제 결제), Work와 생명주기 완전히 묶임<br>└ WorkSchedule/CustomerInfo/PaymentInfo/Money(VO) — 담당기사·시작시각·예상소요시간 / 고객정보 / 결제정보 / 원 단위 금액 |
 | 상태 전이 | 등록(대기함) → 수락대기 → 수락됨 → 작업중 → 완료. 거절·배정 해제는 대기함으로 복귀, 취소는 소프트 삭제인 별도 종료 경로 — 상세는 [작업 상태·배정 정책](#schedule-policies) |
 | 읽기 모델 | Timetable/Backlog — **애그리게잇 아님.** Work를 기사×시간 축으로 투영한 조회 결과일 뿐, 자체 쓰기 불변식이 없음 |
