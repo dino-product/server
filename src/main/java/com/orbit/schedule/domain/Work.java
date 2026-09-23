@@ -11,12 +11,12 @@ public final class Work {
 
     private final WorkId id;
     private final OrganizationId organizationId;
-    private final String name;
+    private String name;
     private final MembershipId registrarId;
-    private final WorkTypeId workType;
+    private WorkTypeId workType;
     private WorkSchedule schedule;
-    private final CustomerInfo customerInfo;
-    private final PaymentInfo paymentInfo;
+    private CustomerInfo customerInfo;
+    private PaymentInfo paymentInfo;
     private WorkStatus status;
     private final List<AssignmentHistory> assignmentHistory;
     private CompletionReport completionReport;
@@ -36,9 +36,7 @@ public final class Work {
         if (organizationId == null) {
             throw new IllegalArgumentException("organizationId must not be null");
         }
-        if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("name must not be blank");
-        }
+        requireName(name);
         if (registrarId == null) {
             throw new IllegalArgumentException("registrarId must not be null");
         }
@@ -51,8 +49,8 @@ public final class Work {
         this.registrarId = registrarId;
         this.workType = workType;
         this.schedule = schedule;
-        this.customerInfo = customerInfo == null ? new CustomerInfo(null, null, null) : customerInfo;
-        this.paymentInfo = paymentInfo == null ? new PaymentInfo(null, null) : paymentInfo;
+        this.customerInfo = orEmpty(customerInfo);
+        this.paymentInfo = orEmpty(paymentInfo);
         this.status = status;
         this.assignmentHistory = assignmentHistory == null ? new ArrayList<>() : new ArrayList<>(assignmentHistory);
         this.completionReport = completionReport;
@@ -211,6 +209,22 @@ public final class Work {
         status = status.transitionTo(WorkStatus.REGISTERED);
     }
 
+    /**
+     * 작업명·작업 유형·고객정보·결제정보 네 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된 작업은 바꿀 수
+     * 없고, 상태·배정은 그대로 둔다.
+     */
+    public void changeDetails(
+            String newName, WorkTypeId newWorkType, CustomerInfo newCustomerInfo, PaymentInfo newPaymentInfo) {
+        if (status.isTerminal()) {
+            throw new IllegalStateException("Cannot change details when status is " + status);
+        }
+        requireName(newName);
+        name = newName;
+        workType = newWorkType;
+        customerInfo = orEmpty(newCustomerInfo);
+        paymentInfo = orEmpty(newPaymentInfo);
+    }
+
     public void start() {
         requireStatus(WorkStatus.ACCEPTED, "start");
         status = status.transitionTo(WorkStatus.IN_PROGRESS);
@@ -322,6 +336,20 @@ public final class Work {
         if (status != requiredStatus) {
             throw new IllegalStateException("Cannot " + action + " when status is " + status);
         }
+    }
+
+    private static void requireName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("name must not be blank");
+        }
+    }
+
+    private static CustomerInfo orEmpty(CustomerInfo customerInfo) {
+        return customerInfo == null ? new CustomerInfo(null, null, null) : customerInfo;
+    }
+
+    private static PaymentInfo orEmpty(PaymentInfo paymentInfo) {
+        return paymentInfo == null ? new PaymentInfo(null, null) : paymentInfo;
     }
 
     private static void requireSchedule(WorkSchedule schedule) {

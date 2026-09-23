@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -177,6 +179,83 @@ class WorkTest {
                             null))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessage("id must not be null");
+        }
+    }
+
+    @Nested
+    @DisplayName("기본정보 수정")
+    class ChangeDetails {
+
+        private static final WorkTypeId OTHER_WORK_TYPE_ID = new WorkTypeId(9L);
+        private static final CustomerInfo OTHER_CUSTOMER_INFO = new CustomerInfo("김철수", "010-9876-5432", "부산시");
+        private static final PaymentInfo OTHER_PAYMENT_INFO =
+                new PaymentInfo(new Money(80_000L), PaymentMethod.BANK_TRANSFER);
+
+        @ParameterizedTest
+        @EnumSource(
+                value = WorkStatus.class,
+                mode = EnumSource.Mode.EXCLUDE,
+                names = {"COMPLETED", "CANCELLED"})
+        @DisplayName("완료·취소 전 작업의 작업명·유형·고객정보·결제정보를 바꾸고 상태·배정은 그대로 둔다")
+        void changesDetailsBeforeTermination(WorkStatus status) {
+            Work work = workIn(status);
+            Optional<WorkSchedule> scheduleBefore = work.schedule();
+            List<AssignmentHistory> historyBefore = work.assignmentHistory();
+
+            work.changeDetails("보일러 점검", OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO);
+
+            assertThat(work.name()).isEqualTo("보일러 점검");
+            assertThat(work.workType()).contains(OTHER_WORK_TYPE_ID);
+            assertThat(work.customerInfo()).isEqualTo(OTHER_CUSTOMER_INFO);
+            assertThat(work.paymentInfo()).isEqualTo(OTHER_PAYMENT_INFO);
+            assertThat(work.status()).isEqualTo(status);
+            assertThat(work.schedule()).isEqualTo(scheduleBefore);
+            assertThat(work.assignmentHistory()).isEqualTo(historyBefore);
+        }
+
+        @Test
+        @DisplayName("선택 정보를 비우면 빈 값객체로 정규화한다")
+        void normalizesClearedOptionalInformation() {
+            Work work = registeredWork();
+
+            work.changeDetails("보일러 점검", null, null, null);
+
+            assertThat(work.workType()).isEmpty();
+            assertThat(work.customerInfo()).isEqualTo(new CustomerInfo(null, null, null));
+            assertThat(work.paymentInfo()).isEqualTo(new PaymentInfo(null, null));
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"COMPLETED", "CANCELLED"})
+        @DisplayName("완료·취소된 작업은 수정할 수 없고 아무것도 바꾸지 않는다")
+        void rejectsTerminatedWork(WorkStatus status) {
+            Work work = workIn(status);
+
+            assertThatThrownBy(() -> work.changeDetails("보일러 점검", null, null, null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Cannot change details when status is " + status);
+            assertUnchangedDetails(work);
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @ValueSource(strings = {" ", "\t"})
+        @DisplayName("작업명이 비어 있으면 거부하고 아무것도 바꾸지 않는다")
+        void rejectsBlankNameWithoutPartialChange(String name) {
+            Work work = registeredWork();
+
+            assertThatThrownBy(
+                            () -> work.changeDetails(name, OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("name must not be blank");
+            assertUnchangedDetails(work);
+        }
+
+        private static void assertUnchangedDetails(Work work) {
+            assertThat(work.name()).isEqualTo("에어컨 수리");
+            assertThat(work.workType()).contains(WORK_TYPE_ID);
+            assertThat(work.customerInfo()).isEqualTo(CUSTOMER_INFO);
+            assertThat(work.paymentInfo()).isEqualTo(PAYMENT_INFO);
         }
     }
 

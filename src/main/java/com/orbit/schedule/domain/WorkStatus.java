@@ -27,6 +27,11 @@ public enum WorkStatus {
         };
     }
 
+    /** 완료·취소처럼 어떤 상태로도 전이할 수 없는 종료 상태인지. */
+    public boolean isTerminal() {
+        return this == COMPLETED || this == CANCELLED;
+    }
+
     public WorkStatus transitionTo(WorkStatus nextStatus) {
         if (!canTransitionTo(nextStatus)) {
             throw new IllegalStateException("Cannot transition from " + this + " to " + nextStatus);
