@@ -4,10 +4,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.AssignmentHistory;
+import com.orbit.schedule.domain.MembershipId;
+import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 
@@ -35,6 +38,20 @@ public class FakeWorkRepository implements WorkRepository {
     @Override
     public Optional<Work> findById(WorkId workId) {
         return Optional.ofNullable(store.get(workId.value())).map(work -> copyOf(work, workId));
+    }
+
+    @Override
+    public List<Work> findActiveByTechnician(OrganizationId organizationId, MembershipId technicianId) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        return store.values().stream()
+                .filter(work -> work.organizationId().equals(organizationId))
+                .filter(work -> work.status().isActive())
+                .filter(work -> work.schedule()
+                        .map(schedule -> schedule.technicianId().equals(technicianId))
+                        .orElse(false))
+                .map(work -> copyOf(work, work.id().orElseThrow()))
+                .toList();
     }
 
     /** 저장 호출마다 그 시점의 작업. */

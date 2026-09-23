@@ -3,6 +3,9 @@ package com.orbit.schedule;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -11,8 +14,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
+import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.UpdateWorkDetailsUseCase;
+import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
@@ -44,6 +49,9 @@ class ScheduleModuleTest {
     @Autowired
     private UpdateWorkDetailsUseCase updateWorkDetailsUseCase;
 
+    @Autowired
+    private AssignWorkUseCase assignWorkUseCase;
+
     @Test
     void assembledActorPortDeniesEveryAccountUntilOrganizationIsWired() {
         assertThat(loadActorPort.findActiveActor(1L, ORGANIZATION_ID)).isEmpty();
@@ -72,6 +80,20 @@ class ScheduleModuleTest {
     void assembledUpdateWorkDetailsUseCaseDeniesEveryoneUntilOrganizationIsWired() {
         assertThatThrownBy(() -> updateWorkDetailsUseCase.update(new UpdateWorkDetailsCommand(
                         1L, ORGANIZATION_ID.value(), 1L, "모듈 작업", null, null, null, null, null, null)))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
+    }
+
+    @Test
+    void assembledAssignWorkUseCaseDeniesEveryoneUntilOrganizationIsWired() {
+        assertThatThrownBy(() -> assignWorkUseCase.assign(new AssignWorkCommand(
+                        1L,
+                        ORGANIZATION_ID.value(),
+                        1L,
+                        3L,
+                        Instant.parse("2026-09-25T01:00:00Z"),
+                        Duration.ofHours(2),
+                        false)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
     }

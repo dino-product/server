@@ -137,9 +137,80 @@ class InMemoryWorkRepositoryTest {
     }
 
     @Test
+    @DisplayName("조직 안에서 기사에게 현재 배정된 활성 작업(수락대기·수락됨·작업중)만 찾는다")
+    void findsActiveWorksOfTechnicianInOrganization() {
+        MembershipId technician = FIRST_SCHEDULE.technicianId();
+        WorkId pending = saveIn(FIRST_SCHEDULE, WorkStatus.PENDING_ACCEPTANCE);
+        WorkId accepted = saveIn(FIRST_SCHEDULE, WorkStatus.ACCEPTED);
+        WorkId inProgress = saveIn(FIRST_SCHEDULE, WorkStatus.IN_PROGRESS);
+        saveIn(FIRST_SCHEDULE, WorkStatus.COMPLETED);
+        saveIn(FIRST_SCHEDULE, WorkStatus.CANCELLED);
+        saveIn(SECOND_SCHEDULE, WorkStatus.PENDING_ACCEPTANCE);
+        repository.save(newWork("미배정"));
+        Work otherOrganizationWork = Work.register(new OrganizationId(200L), "다른 조직", REGISTRAR_ID, null, null, null);
+        otherOrganizationWork.assign(FIRST_SCHEDULE, NOW);
+        repository.save(otherOrganizationWork);
+
+        List<Work> found = repository.findActiveByTechnician(ORGANIZATION_ID, technician);
+
+        assertThat(found)
+                .extracting(work -> work.id().orElseThrow())
+                .containsExactlyInAnyOrder(pending, accepted, inProgress);
+    }
+
+    @Test
+    @DisplayName("다른 기사로 재배정된 작업은 이전 기사의 활성 작업에서 빠진다(과거 이력이 아니라 현재 배정 기준)")
+    void usesCurrentAssignmentNotHistory() {
+        Work work = newWork("재배정 작업");
+        work.assign(FIRST_SCHEDULE, NOW);
+        work.reassign(SECOND_SCHEDULE, NOW.plusSeconds(10));
+        WorkId id = repository.save(work).id().orElseThrow();
+
+        assertThat(repository.findActiveByTechnician(ORGANIZATION_ID, FIRST_SCHEDULE.technicianId()))
+                .isEmpty();
+        assertThat(repository.findActiveByTechnician(ORGANIZATION_ID, SECOND_SCHEDULE.technicianId()))
+                .extracting(found -> found.id().orElseThrow())
+                .containsExactly(id);
+    }
+
+    @Test
+    @DisplayName("찾은 작업을 저장하지 않고 바꿔도 저장값은 그대로다")
+    void doesNotLeakUnsavedChangesOfFoundWorks() {
+        WorkId id = saveIn(FIRST_SCHEDULE, WorkStatus.PENDING_ACCEPTANCE);
+        Work found = repository
+                .findActiveByTechnician(ORGANIZATION_ID, FIRST_SCHEDULE.technicianId())
+                .getFirst();
+
+        found.accept(NOW.plusSeconds(60));
+
+        assertThat(repository.findById(id).orElseThrow().status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+    }
+
+    @Test
     @DisplayName("없는 작업은 비어 있다")
     void returnsEmptyForUnknownId() {
         assertThat(repository.findById(new WorkId(999L))).isEmpty();
+    }
+
+    private WorkId saveIn(WorkSchedule schedule, WorkStatus status) {
+        Work work = newWork("작업");
+        work.assign(schedule, NOW);
+        switch (status) {
+            case PENDING_ACCEPTANCE -> {}
+            case ACCEPTED -> work.accept(NOW);
+            case IN_PROGRESS -> {
+                work.accept(NOW);
+                work.start();
+            }
+            case COMPLETED -> {
+                work.accept(NOW);
+                work.start();
+                work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null));
+            }
+            case CANCELLED -> work.cancel(NOW);
+            default -> throw new IllegalArgumentException("unsupported fixture status: " + status);
+        }
+        return repository.save(work).id().orElseThrow();
     }
 
     private static Work newWork(String name) {
