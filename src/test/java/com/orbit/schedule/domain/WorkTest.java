@@ -31,6 +31,8 @@ class WorkTest {
             new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T01:00:00Z"), Duration.ofHours(2));
     private static final WorkSchedule SECOND_SCHEDULE =
             new WorkSchedule(new MembershipId(4L), Instant.parse("2026-09-23T05:00:00Z"), Duration.ofMinutes(90));
+    private static final WorkSchedule RESCHEDULED_FIRST_SCHEDULE =
+            new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T05:00:00Z"), Duration.ofHours(2));
     private static final Instant NOW = Instant.parse("2026-09-21T01:00:00Z");
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(
             List.of("before.jpg"),
@@ -298,7 +300,27 @@ class WorkTest {
 
             work.reassign(SECOND_SCHEDULE, NOW);
 
-            assertChangedAssignment(work);
+            assertChangedAssignment(work, SECOND_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("수락된 작업을 재배정하면 수락 이력은 두고 새 기사에게 다시 수락받는다")
+        void reassignsAcceptedWorkAndRequiresReacceptance() {
+            Work work = acceptedWork();
+
+            work.reassign(SECOND_SCHEDULE, NOW);
+
+            assertReacceptanceRequired(work, SECOND_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("같은 기사로는 재배정할 수 없다")
+        void rejectsSameTechnician() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(() -> work.reassign(RESCHEDULED_FIRST_SCHEDULE, NOW))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("reassign requires a different technician");
         }
 
         @Test
@@ -312,7 +334,7 @@ class WorkTest {
         }
 
         @Test
-        @DisplayName("수락 대기 상태가 아니면 거부한다")
+        @DisplayName("수락 대기·수락됨 상태가 아니면 거부한다")
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
@@ -331,9 +353,39 @@ class WorkTest {
         void reschedulesPendingWork() {
             Work work = pendingWork();
 
-            work.reschedule(SECOND_SCHEDULE, NOW);
+            work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW);
 
-            assertChangedAssignment(work);
+            assertChangedAssignment(work, RESCHEDULED_FIRST_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("수락된 작업의 일정을 바꾸면 수락 이력은 두고 다시 수락받는다")
+        void reschedulesAcceptedWorkAndRequiresReacceptance() {
+            Work work = acceptedWork();
+
+            work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW);
+
+            assertReacceptanceRequired(work, RESCHEDULED_FIRST_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("담당기사가 바뀌면 일정 변경이 아니라 재배정이라 거부한다")
+        void rejectsDifferentTechnician() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(() -> work.reschedule(SECOND_SCHEDULE, NOW))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("reschedule requires the same technician");
+        }
+
+        @Test
+        @DisplayName("시간이 그대로면 거부한다")
+        void rejectsUnchangedSchedule() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(() -> work.reschedule(FIRST_SCHEDULE, NOW))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("reschedule requires a different time");
         }
 
         @Test
@@ -347,11 +399,11 @@ class WorkTest {
         }
 
         @Test
-        @DisplayName("수락 대기 상태가 아니면 거부한다")
+        @DisplayName("수락 대기·수락됨 상태가 아니면 거부한다")
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reschedule(SECOND_SCHEDULE, NOW))
+            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reschedule when status is REGISTERED");
         }
@@ -653,12 +705,21 @@ class WorkTest {
                         "Only the latest assignment history can be PENDING"));
     }
 
-    private static void assertChangedAssignment(Work work) {
-        assertThat(work.schedule()).contains(SECOND_SCHEDULE);
+    private static void assertChangedAssignment(Work work, WorkSchedule newSchedule) {
+        assertThat(work.schedule()).contains(newSchedule);
         assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         assertThat(work.assignmentHistory()).hasSize(2);
         assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.REASSIGNED);
-        assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(SECOND_SCHEDULE);
+        assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(newSchedule);
+        assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
+    }
+
+    private static void assertReacceptanceRequired(Work work, WorkSchedule newSchedule) {
+        assertThat(work.schedule()).contains(newSchedule);
+        assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(work.assignmentHistory()).hasSize(2);
+        assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.ACCEPTED);
+        assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(newSchedule);
         assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
     }
 

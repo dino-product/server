@@ -158,12 +158,27 @@ public final class Work {
         status = status.transitionTo(WorkStatus.REGISTERED);
     }
 
+    /** 담당기사를 바꾼다. 수락 이후라도 새 기사에게 다시 수락받는다. */
     public void reassign(WorkSchedule newSchedule, Instant changedAt) {
-        changeAssignment(newSchedule, changedAt, "reassign");
+        requireChangeableAssignment("reassign");
+        requireSchedule(newSchedule);
+        if (newSchedule.technicianId().equals(schedule.technicianId())) {
+            throw new IllegalArgumentException("reassign requires a different technician");
+        }
+        changeAssignment(newSchedule, changedAt);
     }
 
+    /** 같은 기사의 시간을 바꾼다. 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. */
     public void reschedule(WorkSchedule newSchedule, Instant changedAt) {
-        changeAssignment(newSchedule, changedAt, "reschedule");
+        requireChangeableAssignment("reschedule");
+        requireSchedule(newSchedule);
+        if (!newSchedule.technicianId().equals(schedule.technicianId())) {
+            throw new IllegalArgumentException("reschedule requires the same technician");
+        }
+        if (newSchedule.equals(schedule)) {
+            throw new IllegalArgumentException("reschedule requires a different time");
+        }
+        changeAssignment(newSchedule, changedAt);
     }
 
     public void unassign(Instant unassignedAt) {
@@ -196,12 +211,22 @@ public final class Work {
         status = status.transitionTo(WorkStatus.CANCELLED);
     }
 
-    private void changeAssignment(WorkSchedule newSchedule, Instant changedAt, String action) {
-        requireStatus(WorkStatus.PENDING_ACCEPTANCE, action);
-        requireSchedule(newSchedule);
-        latestAssignment().reassign(changedAt);
+    private void requireChangeableAssignment(String action) {
+        if (status != WorkStatus.PENDING_ACCEPTANCE && status != WorkStatus.ACCEPTED) {
+            throw new IllegalStateException("Cannot " + action + " when status is " + status);
+        }
+    }
+
+    /** 응답 대기 중인 배정은 마감하고, 이미 수락된 이력은 그대로 둔 채 새 배정을 추가해 다시 수락받는다. */
+    private void changeAssignment(WorkSchedule newSchedule, Instant changedAt) {
+        if (status == WorkStatus.PENDING_ACCEPTANCE) {
+            latestAssignment().reassign(changedAt);
+        }
         schedule = newSchedule;
         assignmentHistory.add(new AssignmentHistory(newSchedule, changedAt));
+        if (status == WorkStatus.ACCEPTED) {
+            status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
+        }
     }
 
     /** 저장값 복원 시 상태와 일정·배정 이력·완료보고가 서로 맞는지 검증한다. */
