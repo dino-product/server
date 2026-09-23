@@ -98,7 +98,7 @@ class WorkTest {
         @DisplayName("저장된 작업을 모든 상태와 함께 재구성한다")
         void reconstitutesWork() {
             WorkId id = new WorkId(10L);
-            AssignmentHistory history = new AssignmentHistory(FIRST_SCHEDULE, NOW);
+            AssignmentHistory history = acceptedHistory(FIRST_SCHEDULE);
             List<AssignmentHistory> histories = new ArrayList<>(List.of(history));
 
             Work work = Work.reconstitute(
@@ -121,6 +121,30 @@ class WorkTest {
             assertThat(work.completionReport()).contains(COMPLETION_REPORT);
             assertThatThrownBy(() -> work.assignmentHistory().clear())
                     .isInstanceOf(UnsupportedOperationException.class);
+        }
+
+        @ParameterizedTest
+        @MethodSource("com.orbit.schedule.domain.WorkTest#consistentStoredStates")
+        @DisplayName("상태와 데이터가 맞는 저장값은 재구성한다")
+        void reconstitutesConsistentState(
+                WorkStatus status, WorkSchedule schedule, List<AssignmentHistory> histories, CompletionReport report) {
+            Work work = reconstitute(status, schedule, histories, report);
+
+            assertThat(work.status()).isEqualTo(status);
+        }
+
+        @ParameterizedTest
+        @MethodSource("com.orbit.schedule.domain.WorkTest#inconsistentStoredStates")
+        @DisplayName("상태와 데이터가 어긋난 저장값은 재구성을 거부한다")
+        void rejectsInconsistentState(
+                WorkStatus status,
+                WorkSchedule schedule,
+                List<AssignmentHistory> histories,
+                CompletionReport report,
+                String message) {
+            assertThatThrownBy(() -> reconstitute(status, schedule, histories, report))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage(message);
         }
 
         @Test
@@ -219,16 +243,6 @@ class WorkTest {
             assertThatThrownBy(() -> work.accept(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot accept when status is REGISTERED");
-        }
-
-        @Test
-        @DisplayName("배정 이력이 없으면 거부한다")
-        void rejectsMissingAssignmentHistory() {
-            Work work = reconstitutedWithoutHistory(WorkStatus.PENDING_ACCEPTANCE);
-
-            assertThatThrownBy(() -> work.accept(NOW))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("No assignment history");
         }
     }
 
@@ -517,18 +531,126 @@ class WorkTest {
         };
     }
 
-    private static Work reconstitutedWithoutHistory(WorkStatus status) {
+    private static Work reconstitute(
+            WorkStatus status, WorkSchedule schedule, List<AssignmentHistory> histories, CompletionReport report) {
         return Work.reconstitute(
                 new WorkId(10L),
                 "에어컨 수리",
                 REGISTRAR_ID,
                 WORK_TYPE_ID,
-                FIRST_SCHEDULE,
+                schedule,
                 CUSTOMER_INFO,
                 PAYMENT_INFO,
                 status,
-                List.of(),
-                null);
+                histories,
+                report);
+    }
+
+    private static AssignmentHistory pendingHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(schedule, NOW, AssignmentResult.PENDING, null, null);
+    }
+
+    private static AssignmentHistory acceptedHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(schedule, NOW, AssignmentResult.ACCEPTED, null, NOW);
+    }
+
+    private static AssignmentHistory rejectedHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(schedule, NOW, AssignmentResult.REJECTED, RejectionReason.OTHER, NOW);
+    }
+
+    private static AssignmentHistory closedHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(schedule, NOW, AssignmentResult.REASSIGNED, null, NOW);
+    }
+
+    private static Stream<Arguments> consistentStoredStates() {
+        return Stream.of(
+                Arguments.of(WorkStatus.REGISTERED, null, List.of(), null),
+                Arguments.of(WorkStatus.REGISTERED, null, List.of(rejectedHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(WorkStatus.REGISTERED, null, List.of(acceptedHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(closedHistory(FIRST_SCHEDULE), pendingHistory(SECOND_SCHEDULE)),
+                        null),
+                Arguments.of(WorkStatus.ACCEPTED, FIRST_SCHEDULE, List.of(acceptedHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(WorkStatus.IN_PROGRESS, FIRST_SCHEDULE, List.of(acceptedHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(
+                        WorkStatus.COMPLETED,
+                        FIRST_SCHEDULE,
+                        List.of(acceptedHistory(FIRST_SCHEDULE)),
+                        COMPLETION_REPORT),
+                Arguments.of(WorkStatus.CANCELLED, null, List.of(), null),
+                Arguments.of(WorkStatus.CANCELLED, FIRST_SCHEDULE, List.of(closedHistory(FIRST_SCHEDULE)), null));
+    }
+
+    private static Stream<Arguments> inconsistentStoredStates() {
+        return Stream.of(
+                Arguments.of(
+                        WorkStatus.REGISTERED,
+                        FIRST_SCHEDULE,
+                        List.of(),
+                        null,
+                        "REGISTERED work must not have a schedule"),
+                Arguments.of(
+                        WorkStatus.REGISTERED,
+                        null,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "REGISTERED work must not have a PENDING assignment"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        FIRST_SCHEDULE,
+                        List.of(),
+                        null,
+                        "PENDING_ACCEPTANCE work requires the latest assignment to be PENDING for its schedule"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        null,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "PENDING_ACCEPTANCE work must have a schedule"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "PENDING_ACCEPTANCE work requires the latest assignment to be PENDING for its schedule"),
+                Arguments.of(
+                        WorkStatus.ACCEPTED,
+                        FIRST_SCHEDULE,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "ACCEPTED work requires the latest assignment to be ACCEPTED for its schedule"),
+                Arguments.of(
+                        WorkStatus.IN_PROGRESS,
+                        null,
+                        List.of(acceptedHistory(FIRST_SCHEDULE)),
+                        null,
+                        "IN_PROGRESS work must have a schedule"),
+                Arguments.of(
+                        WorkStatus.COMPLETED,
+                        FIRST_SCHEDULE,
+                        List.of(acceptedHistory(FIRST_SCHEDULE)),
+                        null,
+                        "COMPLETED work must have a completion report"),
+                Arguments.of(
+                        WorkStatus.ACCEPTED,
+                        FIRST_SCHEDULE,
+                        List.of(acceptedHistory(FIRST_SCHEDULE)),
+                        COMPLETION_REPORT,
+                        "ACCEPTED work must not have a completion report"),
+                Arguments.of(
+                        WorkStatus.CANCELLED,
+                        FIRST_SCHEDULE,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "CANCELLED work must not have a PENDING assignment"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(pendingHistory(FIRST_SCHEDULE), pendingHistory(SECOND_SCHEDULE)),
+                        null,
+                        "Only the latest assignment history can be PENDING"));
     }
 
     private static void assertChangedAssignment(Work work) {

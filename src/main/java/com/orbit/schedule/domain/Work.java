@@ -82,7 +82,7 @@ public final class Work {
             WorkStatus status,
             List<AssignmentHistory> assignmentHistory,
             CompletionReport completionReport) {
-        return new Work(
+        Work work = new Work(
                 Objects.requireNonNull(id, "id must not be null"),
                 name,
                 registrarId,
@@ -93,6 +93,8 @@ public final class Work {
                 status,
                 assignmentHistory,
                 completionReport);
+        work.requireConsistentState();
+        return work;
     }
 
     public Optional<WorkId> id() {
@@ -200,6 +202,50 @@ public final class Work {
         latestAssignment().reassign(changedAt);
         schedule = newSchedule;
         assignmentHistory.add(new AssignmentHistory(newSchedule, changedAt));
+    }
+
+    /** 저장값 복원 시 상태와 일정·배정 이력·완료보고가 서로 맞는지 검증한다. */
+    private void requireConsistentState() {
+        for (int i = 0; i < assignmentHistory.size() - 1; i++) {
+            if (assignmentHistory.get(i).result() == AssignmentResult.PENDING) {
+                throw new IllegalArgumentException("Only the latest assignment history can be PENDING");
+            }
+        }
+        AssignmentHistory latest = assignmentHistory.isEmpty() ? null : assignmentHistory.getLast();
+        if (status == WorkStatus.REGISTERED && schedule != null) {
+            throw new IllegalArgumentException("REGISTERED work must not have a schedule");
+        }
+        if (status == WorkStatus.REGISTERED || status == WorkStatus.CANCELLED) {
+            requireNoPendingAssignment(latest);
+        } else if (status == WorkStatus.PENDING_ACCEPTANCE) {
+            requireAssignedSchedule(latest, AssignmentResult.PENDING);
+        } else {
+            requireAssignedSchedule(latest, AssignmentResult.ACCEPTED);
+        }
+        if (status == WorkStatus.COMPLETED && completionReport == null) {
+            throw new IllegalArgumentException("COMPLETED work must have a completion report");
+        }
+        if (status != WorkStatus.COMPLETED && completionReport != null) {
+            throw new IllegalArgumentException(status + " work must not have a completion report");
+        }
+    }
+
+    private void requireAssignedSchedule(AssignmentHistory latest, AssignmentResult expectedResult) {
+        if (schedule == null) {
+            throw new IllegalArgumentException(status + " work must have a schedule");
+        }
+        if (latest == null
+                || latest.result() != expectedResult
+                || !latest.schedule().equals(schedule)) {
+            throw new IllegalArgumentException(
+                    status + " work requires the latest assignment to be " + expectedResult + " for its schedule");
+        }
+    }
+
+    private void requireNoPendingAssignment(AssignmentHistory latest) {
+        if (latest != null && latest.result() == AssignmentResult.PENDING) {
+            throw new IllegalArgumentException(status + " work must not have a PENDING assignment");
+        }
     }
 
     private void requireStatus(WorkStatus requiredStatus, String action) {
