@@ -1,18 +1,8 @@
 package com.orbit.schedule.domain;
 
-/** 작업 등록 시 지정하는 결제수단. */
+/** 작업 등록 시 지정하는 결제수단. 화면 표시 문자열은 Web 경계에서 정한다. */
 public enum PaymentMethod {
-    ON_SITE_CARD("현장 카드"),
-    ON_SITE_CASH("현장 현금"),
-    BANK_TRANSFER("계좌이체");
-
-    private final String label;
-
-    PaymentMethod(String label) {
-        this.label = label;
-    }
-
-    public String label() {
-        return label;
-    }
+    ON_SITE_CARD,
+    ON_SITE_CASH,
+    BANK_TRANSFER
 }
