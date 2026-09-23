@@ -42,6 +42,11 @@ public class FakeWorkRepository implements WorkRepository {
         return List.copyOf(saved);
     }
 
+    /** 테스트 준비로 저장한 기록을 지워, 이후 서비스가 저장했는지만 보이게 한다. */
+    public void clearSaveHistory() {
+        saved.clear();
+    }
+
     private static Work copyOf(Work work, WorkId id) {
         List<AssignmentHistory> histories = work.assignmentHistory().stream()
                 .map(history -> AssignmentHistory.restore(

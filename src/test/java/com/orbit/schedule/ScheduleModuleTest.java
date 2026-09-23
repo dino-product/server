@@ -12,7 +12,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
+import com.orbit.schedule.application.port.in.command.UpdateWorkDetailsUseCase;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.MembershipId;
@@ -39,6 +41,9 @@ class ScheduleModuleTest {
     @Autowired
     private CreateWorkUseCase createWorkUseCase;
 
+    @Autowired
+    private UpdateWorkDetailsUseCase updateWorkDetailsUseCase;
+
     @Test
     void assembledActorPortDeniesEveryAccountUntilOrganizationIsWired() {
         assertThat(loadActorPort.findActiveActor(1L, ORGANIZATION_ID)).isEmpty();
@@ -59,6 +64,14 @@ class ScheduleModuleTest {
     void assembledCreateWorkUseCaseDeniesEveryoneUntilOrganizationIsWired() {
         assertThatThrownBy(() -> createWorkUseCase.create(new CreateWorkCommand(
                         1L, ORGANIZATION_ID.value(), "모듈 작업", null, null, null, null, null, null)))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
+    }
+
+    @Test
+    void assembledUpdateWorkDetailsUseCaseDeniesEveryoneUntilOrganizationIsWired() {
+        assertThatThrownBy(() -> updateWorkDetailsUseCase.update(new UpdateWorkDetailsCommand(
+                        1L, ORGANIZATION_ID.value(), 1L, "모듈 작업", null, null, null, null, null, null)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
     }
