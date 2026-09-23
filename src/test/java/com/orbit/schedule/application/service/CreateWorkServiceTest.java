@@ -3,6 +3,8 @@ package com.orbit.schedule.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Optional;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -11,8 +13,10 @@ import org.junit.jupiter.params.provider.EnumSource;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
+import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.service.fake.FakeLoadActorPort;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
+import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
@@ -136,6 +140,20 @@ class CreateWorkServiceTest {
                 () -> service.create(
                         new CreateWorkCommand(ACCOUNT_ID, 0L, "에어컨 수리", null, null, null, null, null, null)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("행위자 포트가 요청과 다른 조직의 행위자를 돌려주면 프로그래밍 오류로 멈추고 저장하지 않는다")
+    void failsFastWhenActorBelongsToOtherOrganization() {
+        LoadActorPort misbehavingPort = (accountId, organizationId) ->
+                Optional.of(new Actor(new MembershipId(11L), new OrganizationId(200L), ActorRole.OWNER));
+        CreateWorkService serviceWithMisbehavingPort = new CreateWorkService(misbehavingPort, workRepository);
+
+        assertThatThrownBy(() -> serviceWithMisbehavingPort.create(command("에어컨 수리", null)))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(BusinessException.class)
+                .hasMessage("actor must belong to the requested organization");
+        assertThat(workRepository.saved()).isEmpty();
     }
 
     private static CreateWorkCommand command(String name, Long fee) {
