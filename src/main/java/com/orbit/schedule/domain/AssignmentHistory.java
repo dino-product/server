@@ -63,11 +63,11 @@ public final class AssignmentHistory {
         return history;
     }
 
-    public void accept(Instant decidedAt) {
+    void accept(Instant decidedAt) {
         decide(AssignmentResult.ACCEPTED, decidedAt, "accept");
     }
 
-    public void reject(RejectionReason reason, Instant decidedAt) {
+    void reject(RejectionReason reason, Instant decidedAt) {
         requirePending("reject");
         if (reason == null) {
             throw new IllegalArgumentException("rejectionReason must not be null");
@@ -77,7 +77,7 @@ public final class AssignmentHistory {
     }
 
     /** 응답 전에 재배정·일정 변경·배정 해제·취소되어 대기 중인 배정을 마감한다. */
-    public void reassign(Instant decidedAt) {
+    void reassign(Instant decidedAt) {
         decide(AssignmentResult.REASSIGNED, decidedAt, "reassign");
     }
 
