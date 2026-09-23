@@ -10,6 +10,7 @@ import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult;
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.MembershipId;
@@ -18,20 +19,26 @@ import com.orbit.schedule.domain.WorkSchedule;
 
 /**
  * 대기함 작업 배정. 요청한 조직의 총관리자·직원만 배정할 수 있다. 권한(403) → 작업 식별자(400) → 작업 조회(다른 조직이면 404) → 일정 입력(400) → 도메인 배정
- * 규칙(상태 409·배정 시각 400) → 일정 겹침 순으로 확인한다. 겹치는데 확인하지 않은 요청이면 저장하지 않고 겹친 작업을 돌려준다. 서로 다른 작업을 같은 기사에게
- * 동시에 배정하는 경합은 아직 막지 않는다. 담당기사가 같은 조직의 활성 기사인지는 organization 계약이 연결될 때 검증하며, 그 전에는 이 유즈케이스를 컨트롤러로 노출하지
- * 않는다.
+ * 규칙(상태 409·배정 시각 400) → 일정 겹침 순으로 확인한다. 겹치는데 확인하지 않은 요청이면 저장하지 않고 겹친 작업을 돌려준다. 같은 기사를 동시에 바꾸는
+ * 요청은 기사 단위 잠금으로 한 줄로 세우고, 대기 한도를 넘기면 409다. 담당기사가 같은 조직의 활성 기사인지는 organization 계약이 연결될 때 검증하며, 그 전에는
+ * 이 유즈케이스를 컨트롤러로 노출하지 않는다.
  */
 @Service
 public class AssignWorkService implements AssignWorkUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
+    private final LockTechnicianSchedulePort lockTechnicianSchedulePort;
     private final Clock clock;
 
-    public AssignWorkService(LoadActorPort loadActorPort, WorkRepository workRepository, Clock clock) {
+    public AssignWorkService(
+            LoadActorPort loadActorPort,
+            WorkRepository workRepository,
+            LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
+        this.lockTechnicianSchedulePort = lockTechnicianSchedulePort;
         this.clock = clock;
     }
 
@@ -46,6 +53,7 @@ public class AssignWorkService implements AssignWorkUseCase {
         Instant now = clock.instant();
         DomainRuleViolations.run(() -> work.assign(schedule, now));
 
-        return ScheduleChanges.saveUnlessUnconfirmedConflict(workRepository, work, command.conflictConfirmed());
+        return ScheduleChanges.saveUnlessUnconfirmedConflict(
+                workRepository, lockTechnicianSchedulePort, work, command.conflictConfirmed());
     }
 }

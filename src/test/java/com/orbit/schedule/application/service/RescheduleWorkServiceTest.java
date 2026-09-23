@@ -16,6 +16,8 @@ import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult.ConflictingWork;
 import com.orbit.schedule.application.service.fake.FakeLoadActorPort;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentHistory;
@@ -43,8 +45,9 @@ class RescheduleWorkServiceTest {
 
     private final FakeWorkRepository workRepository = new FakeWorkRepository();
     private final FakeLoadActorPort actorPort = new FakeLoadActorPort();
+    private final FakeLockTechnicianSchedulePort scheduleLock = new FakeLockTechnicianSchedulePort(workRepository);
     private final RescheduleWorkService service =
-            new RescheduleWorkService(actorPort, workRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+            new RescheduleWorkService(actorPort, workRepository, scheduleLock, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     @DisplayName("수락된 작업의 시간을 바꾸면 같은 기사에게 다시 수락받는다")
@@ -61,6 +64,7 @@ class RescheduleWorkServiceTest {
         assertThat(saved.assignmentHistory())
                 .extracting(AssignmentHistory::result)
                 .containsExactly(AssignmentResult.ACCEPTED, AssignmentResult.PENDING);
+        assertThat(scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
     }
 
     @Test

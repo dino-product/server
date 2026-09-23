@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
@@ -28,6 +30,7 @@ import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
@@ -67,6 +70,12 @@ class ScheduleModuleTest {
 
     @Autowired
     private UnassignWorkUseCase unassignWorkUseCase;
+
+    @Autowired
+    private LockTechnicianSchedulePort lockTechnicianSchedulePort;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void assembledActorPortDeniesEveryAccountUntilOrganizationIsWired() {
@@ -122,6 +131,13 @@ class ScheduleModuleTest {
         assertDenied(() -> rescheduleWorkUseCase.reschedule(
                 new RescheduleWorkCommand(1L, ORGANIZATION_ID.value(), 1L, startTime, Duration.ofHours(2), false)));
         assertDenied(() -> unassignWorkUseCase.unassign(new UnassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L)));
+    }
+
+    @Test
+    void assembledTechnicianScheduleLockJoinsTheServiceTransaction() {
+        // 저장소와 다른 연결이면 어댑터가 거부하므로, 예외 없이 끝나면 자동 설정된 JdbcTemplate이 트랜잭션 연결을 쓴다는 뜻이다.
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> lockTechnicianSchedulePort.lock(ORGANIZATION_ID, new MembershipId(3L)));
     }
 
     private static void assertDenied(ThrowingCallable call) {

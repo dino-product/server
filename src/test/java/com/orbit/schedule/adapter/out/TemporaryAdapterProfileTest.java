@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
 
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
@@ -39,6 +40,9 @@ class TemporaryAdapterProfileTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @ComponentScan("com.orbit.schedule.adapter.out")
+    // 모든 프로필에서 등록하는 실제 어댑터(persistence)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에 들어오게 한다.
+    @ComponentScan(
+            basePackages = "com.orbit.schedule.adapter.out",
+            excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*\\.persistence\\..*"))
     static class ScanTemporaryAdapters {}
 }

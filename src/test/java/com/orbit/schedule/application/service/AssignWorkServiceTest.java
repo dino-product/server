@@ -17,6 +17,8 @@ import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult.ConflictingWork;
 import com.orbit.schedule.application.service.fake.FakeLoadActorPort;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentResult;
@@ -42,8 +44,9 @@ class AssignWorkServiceTest {
 
     private final FakeWorkRepository workRepository = new FakeWorkRepository();
     private final FakeLoadActorPort actorPort = new FakeLoadActorPort();
+    private final FakeLockTechnicianSchedulePort scheduleLock = new FakeLockTechnicianSchedulePort(workRepository);
     private final AssignWorkService service =
-            new AssignWorkService(actorPort, workRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+            new AssignWorkService(actorPort, workRepository, scheduleLock, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     @DisplayName("겹치는 일정이 없으면 기사·일정을 배정해 수락대기로 만들고 배정 시각을 기록한다")
@@ -58,6 +61,7 @@ class AssignWorkServiceTest {
         Work saved = singleSaved();
         assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, Duration.ofHours(2)));
+        assertThat(scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
             assertThat(history.assignedAt()).isEqualTo(NOW);
             assertThat(history.result()).isEqualTo(AssignmentResult.PENDING);
@@ -88,6 +92,20 @@ class AssignWorkServiceTest {
                         Tuple.tuple(later.value(), "늦은 작업", laterStart, laterStart.plus(Duration.ofHours(2))));
         assertThat(workRepository.saved()).isEmpty();
         assertThat(workRepository.findById(target).orElseThrow().status()).isEqualTo(WorkStatus.REGISTERED);
+        assertThat(scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
+    }
+
+    @Test
+    @DisplayName("같은 기사의 앞선 변경을 기다리다 잠금에 실패하면 기사 일정을 읽지도 저장하지도 않고 그 오류를 돌려준다")
+    void propagatesLockFailureWithoutReadingOrSaving() {
+        givenManager();
+        WorkId target = givenRegisteredWork(ORGANIZATION_ID);
+        scheduleLock.failWith(new BusinessException(ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY));
+
+        assertErrorWithoutSave(
+                () -> service.assign(command(target.value(), TEN, Duration.ofHours(2), false)),
+                ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY);
+        assertThat(workRepository.activeByTechnicianQueryCount()).isZero();
     }
 
     @Test
@@ -168,6 +186,7 @@ class AssignWorkServiceTest {
         assertErrorWithoutSave(
                 () -> service.assign(command(alreadyAssigned.value(), TEN, Duration.ofHours(2), false)),
                 ScheduleErrorCode.INVALID_WORK_STATE);
+        assertThat(scheduleLock.locks()).isEmpty();
     }
 
     @Test

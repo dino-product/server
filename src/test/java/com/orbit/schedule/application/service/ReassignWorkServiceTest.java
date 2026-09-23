@@ -16,6 +16,8 @@ import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult.ConflictingWork;
 import com.orbit.schedule.application.service.fake.FakeLoadActorPort;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentHistory;
@@ -43,8 +45,9 @@ class ReassignWorkServiceTest {
 
     private final FakeWorkRepository workRepository = new FakeWorkRepository();
     private final FakeLoadActorPort actorPort = new FakeLoadActorPort();
+    private final FakeLockTechnicianSchedulePort scheduleLock = new FakeLockTechnicianSchedulePort(workRepository);
     private final ReassignWorkService service =
-            new ReassignWorkService(actorPort, workRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+            new ReassignWorkService(actorPort, workRepository, scheduleLock, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 마감하고 새 기사의 수락을 기다린다")
@@ -62,6 +65,7 @@ class ReassignWorkServiceTest {
                 .extracting(AssignmentHistory::result)
                 .containsExactly(AssignmentResult.REASSIGNED, AssignmentResult.PENDING);
         assertThat(saved.assignmentHistory().getLast().assignedAt()).isEqualTo(NOW);
+        assertThat(scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, NEW_TECHNICIAN, 0));
     }
 
     @Test

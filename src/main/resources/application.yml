@@ -74,3 +74,6 @@ logging:
 app:
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:5173}
+  schedule:
+    technician-lock:
+      wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}

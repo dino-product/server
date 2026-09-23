@@ -23,6 +23,7 @@ public class FakeWorkRepository implements WorkRepository {
     private final Map<Long, Work> store = new HashMap<>();
     private final List<Work> saved = new ArrayList<>();
     private long sequence;
+    private int activeByTechnicianQueryCount;
 
     @Override
     public Work save(Work work) {
@@ -44,6 +45,7 @@ public class FakeWorkRepository implements WorkRepository {
     public List<Work> findActiveByTechnician(OrganizationId organizationId, MembershipId technicianId) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         Objects.requireNonNull(technicianId, "technicianId must not be null");
+        activeByTechnicianQueryCount++;
         return store.values().stream()
                 .filter(work -> work.organizationId().equals(organizationId))
                 .filter(work -> work.status().isActive())
@@ -57,6 +59,11 @@ public class FakeWorkRepository implements WorkRepository {
     /** 저장 호출마다 그 시점의 작업. */
     public List<Work> saved() {
         return List.copyOf(saved);
+    }
+
+    /** 기사의 활성 작업을 조회한 횟수. */
+    public int activeByTechnicianQueryCount() {
+        return activeByTechnicianQueryCount;
     }
 
     /** 테스트 준비로 저장한 기록을 지워, 이후 서비스가 저장했는지만 보이게 한다. */
