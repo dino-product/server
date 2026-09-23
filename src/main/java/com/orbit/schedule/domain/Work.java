@@ -142,6 +142,7 @@ public final class Work {
         requireSchedule(newSchedule);
         // 검증을 모두 마친 뒤 반영해, 예외가 나도 작업이 부분적으로 바뀌지 않게 한다.
         AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, assignedAt);
+        requireNotBeforeLatestAssignment(assignedAt);
         WorkStatus nextStatus = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
         schedule = newSchedule;
         assignmentHistory.add(newAssignment);
@@ -229,13 +230,26 @@ public final class Work {
     private void changeAssignment(WorkSchedule newSchedule, Instant changedAt) {
         // 새 배정 이력을 먼저 만들어 시각을 검증한 뒤 반영해, 예외가 나도 작업이 부분적으로 바뀌지 않게 한다.
         AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, changedAt);
+        requireNotBeforeLatestAssignment(changedAt);
+        WorkStatus nextStatus =
+                status == WorkStatus.ACCEPTED ? status.transitionTo(WorkStatus.PENDING_ACCEPTANCE) : status;
         if (status == WorkStatus.PENDING_ACCEPTANCE) {
             latestAssignment().reassign(changedAt);
         }
         schedule = newSchedule;
         assignmentHistory.add(newAssignment);
-        if (status == WorkStatus.ACCEPTED) {
-            status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
+        status = nextStatus;
+    }
+
+    /** 새 배정 시각이 최신 배정 이력의 마지막 시각(응답 시각, 없으면 배정 시각)보다 이르지 않은지 확인해 이력의 시간 순서를 지킨다. */
+    private void requireNotBeforeLatestAssignment(Instant at) {
+        if (assignmentHistory.isEmpty()) {
+            return;
+        }
+        AssignmentHistory latest = assignmentHistory.getLast();
+        Instant latestMoment = latest.decidedAt().orElse(latest.assignedAt());
+        if (at.isBefore(latestMoment)) {
+            throw new IllegalArgumentException("assignedAt must not be before the latest assignment");
         }
     }
 
