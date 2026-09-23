@@ -75,6 +75,26 @@ class CompletionReportTest {
     }
 
     @Test
+    @DisplayName("사용부품이 255자이면 허용한다")
+    void acceptsUsedPartsOf255Characters() {
+        String usedParts = "a".repeat(255);
+
+        CompletionReport report = new CompletionReport(null, null, usedParts, null, null, null);
+
+        assertThat(report.usedParts()).contains(usedParts);
+    }
+
+    @Test
+    @DisplayName("사용부품이 256자이면 거부한다")
+    void rejectsUsedPartsLongerThan255Characters() {
+        String usedParts = "a".repeat(256);
+
+        assertThatThrownBy(() -> new CompletionReport(null, null, usedParts, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("usedParts must be at most 255 characters");
+    }
+
+    @Test
     @DisplayName("결제금액이 음수이면 거부한다")
     void rejectsNegativeActualFee() {
         assertThatThrownBy(() -> new CompletionReport(null, null, null, null, new BigDecimal("-0.01"), null))
