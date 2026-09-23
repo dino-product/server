@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Duration;
 import java.time.Instant;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -16,9 +17,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
+import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
+import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
+import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.UpdateWorkDetailsUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
@@ -51,6 +58,15 @@ class ScheduleModuleTest {
 
     @Autowired
     private AssignWorkUseCase assignWorkUseCase;
+
+    @Autowired
+    private ReassignWorkUseCase reassignWorkUseCase;
+
+    @Autowired
+    private RescheduleWorkUseCase rescheduleWorkUseCase;
+
+    @Autowired
+    private UnassignWorkUseCase unassignWorkUseCase;
 
     @Test
     void assembledActorPortDeniesEveryAccountUntilOrganizationIsWired() {
@@ -96,5 +112,20 @@ class ScheduleModuleTest {
                         false)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
+    }
+
+    @Test
+    void assembledAssignmentChangeUseCasesDenyEveryoneUntilOrganizationIsWired() {
+        Instant startTime = Instant.parse("2026-09-25T01:00:00Z");
+        assertDenied(() -> reassignWorkUseCase.reassign(
+                new ReassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 4L, startTime, Duration.ofHours(2), false)));
+        assertDenied(() -> rescheduleWorkUseCase.reschedule(
+                new RescheduleWorkCommand(1L, ORGANIZATION_ID.value(), 1L, startTime, Duration.ofHours(2), false)));
+        assertDenied(() -> unassignWorkUseCase.unassign(new UnassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L)));
+    }
+
+    private static void assertDenied(ThrowingCallable call) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
     }
 }

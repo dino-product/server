@@ -482,14 +482,15 @@ class WorkTest {
                     .hasMessage("schedule must not be null");
         }
 
-        @Test
+        @ParameterizedTest
+        @MethodSource("com.orbit.schedule.domain.WorkTest#statusesThatCannotChangeAssignment")
         @DisplayName("수락 대기·수락됨 상태가 아니면 거부한다")
-        void rejectsOutsidePendingStatus() {
-            Work work = registeredWork();
+        void rejectsOutsidePendingStatus(WorkStatus status) {
+            Work work = workIn(status);
 
             assertThatThrownBy(() -> work.reassign(SECOND_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("Cannot reassign when status is REGISTERED");
+                    .hasMessage("Cannot reassign when status is " + status);
         }
     }
 
@@ -502,7 +503,7 @@ class WorkTest {
         void reschedulesPendingWork() {
             Work work = pendingWork();
 
-            work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW);
+            work.reschedule(RESCHEDULED_FIRST_SCHEDULE.startTime(), RESCHEDULED_FIRST_SCHEDULE.expectedDuration(), NOW);
 
             assertChangedAssignment(work, RESCHEDULED_FIRST_SCHEDULE);
         }
@@ -512,7 +513,10 @@ class WorkTest {
         void rejectsNullTimeOnAcceptedWorkWithoutPartialChange() {
             Work work = acceptedWork();
 
-            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE, null))
+            assertThatThrownBy(() -> work.reschedule(
+                            RESCHEDULED_FIRST_SCHEDULE.startTime(),
+                            RESCHEDULED_FIRST_SCHEDULE.expectedDuration(),
+                            null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("assignedAt must not be null");
             assertUnchangedAcceptedWork(work);
@@ -523,7 +527,10 @@ class WorkTest {
         void rejectsTimeBeforeAcceptanceWithoutPartialChange() {
             Work work = acceptedWork();
 
-            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW.minusSeconds(1)))
+            assertThatThrownBy(() -> work.reschedule(
+                            RESCHEDULED_FIRST_SCHEDULE.startTime(),
+                            RESCHEDULED_FIRST_SCHEDULE.expectedDuration(),
+                            NOW.minusSeconds(1)))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("assignedAt must not be before the latest assignment");
             assertUnchangedAcceptedWork(work);
@@ -534,19 +541,9 @@ class WorkTest {
         void reschedulesAcceptedWorkAndRequiresReacceptance() {
             Work work = acceptedWork();
 
-            work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW);
+            work.reschedule(RESCHEDULED_FIRST_SCHEDULE.startTime(), RESCHEDULED_FIRST_SCHEDULE.expectedDuration(), NOW);
 
             assertReacceptanceRequired(work, RESCHEDULED_FIRST_SCHEDULE);
-        }
-
-        @Test
-        @DisplayName("담당기사가 바뀌면 일정 변경이 아니라 재배정이라 거부한다")
-        void rejectsDifferentTechnician() {
-            Work work = pendingWork();
-
-            assertThatThrownBy(() -> work.reschedule(SECOND_SCHEDULE, NOW))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("reschedule requires the same technician");
         }
 
         @Test
@@ -554,29 +551,45 @@ class WorkTest {
         void rejectsUnchangedSchedule() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.reschedule(FIRST_SCHEDULE, NOW))
+            assertThatThrownBy(
+                            () -> work.reschedule(FIRST_SCHEDULE.startTime(), FIRST_SCHEDULE.expectedDuration(), NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("reschedule requires a different time");
         }
 
         @Test
-        @DisplayName("새 일정이 null이면 거부한다")
-        void rejectsNullSchedule() {
+        @DisplayName("담당기사는 그대로 두고 시간만 바꾼다")
+        void keepsCurrentTechnician() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.reschedule(null, NOW))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("schedule must not be null");
+            work.reschedule(RESCHEDULED_FIRST_SCHEDULE.startTime(), RESCHEDULED_FIRST_SCHEDULE.expectedDuration(), NOW);
+
+            assertThat(work.schedule()).contains(RESCHEDULED_FIRST_SCHEDULE);
         }
 
         @Test
-        @DisplayName("수락 대기·수락됨 상태가 아니면 거부한다")
-        void rejectsOutsidePendingStatus() {
-            Work work = registeredWork();
+        @DisplayName("새 시작시각이나 소요시간이 잘못되면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsInvalidTimeWithoutPartialChange() {
+            Work work = acceptedWork();
 
-            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW))
+            assertThatThrownBy(() -> work.reschedule(null, Duration.ofHours(1), NOW))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("startTime must not be null");
+            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE.startTime(), Duration.ZERO, NOW))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("expectedDuration must be positive");
+            assertUnchangedAcceptedWork(work);
+        }
+
+        @ParameterizedTest
+        @MethodSource("com.orbit.schedule.domain.WorkTest#statusesThatCannotChangeAssignment")
+        @DisplayName("수락 대기·수락됨 상태가 아니면 입력과 관계없이 상태 오류로 거부한다")
+        void rejectsOutsidePendingStatus(WorkStatus status) {
+            Work work = workIn(status);
+
+            assertThatThrownBy(() -> work.reschedule(null, null, NOW))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("Cannot reschedule when status is REGISTERED");
+                    .hasMessage("Cannot reschedule when status is " + status);
         }
     }
 
@@ -921,7 +934,7 @@ class WorkTest {
         assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         assertThat(work.assignmentHistory()).hasSize(2);
         assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.REASSIGNED);
-        assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(newSchedule);
+        assertThat(work.assignmentHistory().getLast().schedule()).isEqualTo(newSchedule);
         assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
     }
 
@@ -937,7 +950,7 @@ class WorkTest {
         assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         assertThat(work.assignmentHistory()).hasSize(2);
         assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.ACCEPTED);
-        assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(newSchedule);
+        assertThat(work.assignmentHistory().getLast().schedule()).isEqualTo(newSchedule);
         assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
     }
 
@@ -947,6 +960,10 @@ class WorkTest {
                 Arguments.of(WorkStatus.PENDING_ACCEPTANCE),
                 Arguments.of(WorkStatus.ACCEPTED),
                 Arguments.of(WorkStatus.IN_PROGRESS));
+    }
+
+    private static Stream<Arguments> statusesThatCannotChangeAssignment() {
+        return statusesThatCannotBeUnassigned();
     }
 
     private static Stream<Arguments> statusesThatCannotBeUnassigned() {

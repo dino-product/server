@@ -63,9 +63,7 @@ class InMemoryWorkRepositoryTest {
         work.assign(FIRST_SCHEDULE, NOW);
         work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW.plusSeconds(10));
         work.assign(SECOND_SCHEDULE, NOW.plusSeconds(20));
-        work.reschedule(
-                new WorkSchedule(new MembershipId(4L), Instant.parse("2026-09-25T07:00:00Z"), Duration.ofHours(1)),
-                NOW.plusSeconds(30));
+        work.reschedule(Instant.parse("2026-09-25T07:00:00Z"), Duration.ofHours(1), NOW.plusSeconds(30));
         work.accept(NOW.plusSeconds(40));
         work.start();
         work.submitCompletionReport(new CompletionReport(

@@ -2,9 +2,9 @@
 
 [루트 지침](../../../../../../AGENTS.md)에 추가 적용합니다. 책임·애그리게잇은 [작업 설계](../../../../../../docs/domain/bounded-contexts.md#schedule), 상태 전이·배정·취소·권한 규칙은 [작업 상태·배정 정책](../../../../../../docs/domain/bounded-contexts.md#schedule-policies)이 원본입니다. 여기에 타입 목록·전이표를 복제하지 않습니다.
 
-- `domain`, `application`(작업 등록·기본정보 수정·배정 유즈케이스·출력 포트·오류 코드), `adapter/out`(임시 출력 어댑터)이 있고 모듈 루트 공개 계약은 없습니다. `allowedDependencies`는 `shared::error`입니다. 추가할 때 도메인 지도와 허용 의존성을 함께 갱신합니다.
+- `domain`, `application`(작업 등록·기본정보 수정·배정·재배정·일정 변경·배정 해제 유즈케이스·출력 포트·오류 코드), `adapter/out`(임시 출력 어댑터)이 있고 모듈 루트 공개 계약은 없습니다. `allowedDependencies`는 `shared::error`입니다. 추가할 때 도메인 지도와 허용 의존성을 함께 갱신합니다.
 - 출력 포트 구현은 임시입니다: `adapter/out/memory/InMemoryWorkRepository`는 JPA 어댑터(HM-234), `adapter/out/organization/DenyingActorAdapter`(모두 거부)는 organization 소속 조회 계약으로 교체한 뒤 삭제합니다. 둘 다 `local`·`test` 프로필에서만 등록합니다. 이 포트를 쓰는 서비스(`CreateWorkService` 등)가 있으므로 현재 그 밖의 프로필(`prod`, 프로필 없음)은 Bean 부재로 기동하지 않으며, 이것이 의도입니다. 실제 어댑터를 추가하고 임시 구현을 지우지 않으면 Bean 중복으로 실패하니 `@Primary`로 덮지 않습니다.
-- JPA 어댑터는 `WorkRepository` 계약을 지킵니다: 조회 결과는 영속 상태와 분리된 사본이라 `save`하지 않은 변경은 커밋돼도 저장되지 않아야 하고(배정의 미확인 겹침이 여기에 기댑니다), 이를 실제 트랜잭션 커밋으로 검증하는 테스트를 둡니다. 서로 다른 작업을 같은 기사에게 동시에 배정하면 둘 다 겹침 없이 저장될 수 있으니 기사 단위 잠금을 함께 검토합니다.
+- JPA 어댑터는 `WorkRepository` 계약을 지킵니다: 조회 결과는 영속 상태와 분리된 사본이라 `save`하지 않은 변경은 커밋돼도 저장되지 않아야 하고(배정·재배정·일정 변경의 미확인 겹침이 여기에 기댑니다), 이를 실제 트랜잭션 커밋으로 검증하는 테스트를 둡니다. 서로 다른 작업을 같은 기사에게 동시에 배정하면 둘 다 겹침 없이 저장될 수 있으니 기사 단위 잠금을 함께 검토합니다.
 - 서비스 단위 테스트용 fake는 `src/test`에 두고 `@Component` 등 스캔 대상 애너테이션을 붙이지 않습니다.
 - 도메인 불변식 예외는 서비스가 `DomainRuleViolations`로 감싸 오류 코드로 바꿉니다. 람다에는 도메인 호출만 넣습니다.
 - Domain은 Spring·JPA·Web 타입과 `Clock`에 의존하지 않습니다. 시각은 호출자가 UTC `Instant`로 넘깁니다.

@@ -107,7 +107,7 @@ class WorkLifecycleScenarioTest {
 
         work.assign(FIRST_SCHEDULE, T1);
         work.accept(T2);
-        work.reschedule(RESCHEDULED_FIRST_SCHEDULE, T3);
+        work.reschedule(RESCHEDULED_FIRST_SCHEDULE.startTime(), RESCHEDULED_FIRST_SCHEDULE.expectedDuration(), T3);
         work.accept(T4);
 
         assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
@@ -142,7 +142,7 @@ class WorkLifecycleScenarioTest {
         Work work = registeredWork();
 
         work.assign(FIRST_SCHEDULE, T1);
-        work.reschedule(RESCHEDULED_FIRST_SCHEDULE, T2);
+        work.reschedule(RESCHEDULED_FIRST_SCHEDULE.startTime(), RESCHEDULED_FIRST_SCHEDULE.expectedDuration(), T2);
         work.reassign(SECOND_SCHEDULE, T3);
         work.cancel(T4);
 

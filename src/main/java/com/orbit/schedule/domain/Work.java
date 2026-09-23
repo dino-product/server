@@ -1,5 +1,6 @@
 package com.orbit.schedule.domain;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -184,13 +185,13 @@ public final class Work {
         changeAssignment(newSchedule, changedAt);
     }
 
-    /** 같은 기사의 시간을 바꾼다. 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. */
-    public void reschedule(WorkSchedule newSchedule, Instant changedAt) {
+    /**
+     * 담당기사는 그대로 두고 시작시각·예상소요시간을 바꾼다. 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. 상태를 먼저 확인하므로 바꿀 수 없는 상태면 입력과
+     * 관계없이 거부한다.
+     */
+    public void reschedule(Instant newStartTime, Duration newExpectedDuration, Instant changedAt) {
         requireChangeableAssignment("reschedule");
-        requireSchedule(newSchedule);
-        if (!newSchedule.technicianId().equals(schedule.technicianId())) {
-            throw new IllegalArgumentException("reschedule requires the same technician");
-        }
+        WorkSchedule newSchedule = new WorkSchedule(schedule.technicianId(), newStartTime, newExpectedDuration);
         if (newSchedule.equals(schedule)) {
             throw new IllegalArgumentException("reschedule requires a different time");
         }
