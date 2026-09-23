@@ -128,6 +128,9 @@ public final class CompletionReport {
         if (photos.size() > MAX_PHOTO_COUNT) {
             throw new IllegalArgumentException(fieldName + " must have at most 6 photos");
         }
+        if (photos.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException(fieldName + " must not contain null");
+        }
         return List.copyOf(photos);
     }
 }
