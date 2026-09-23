@@ -1,2 +1,2 @@
 @org.springframework.modulith.ApplicationModule(allowedDependencies = {})
-package com.orbit.work;
+package com.orbit.schedule;
