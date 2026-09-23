@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @DisplayName("작업 상태")
@@ -25,6 +26,13 @@ class WorkStatusTest {
                         WorkStatus.IN_PROGRESS,
                         WorkStatus.COMPLETED,
                         WorkStatus.CANCELLED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(WorkStatus.class)
+    @DisplayName("상태가 그대로인 변경은 전이가 아니므로 자기 자신으로의 전이는 허용하지 않는다")
+    void rejectsSelfTransition(WorkStatus status) {
+        assertThat(status.canTransitionTo(status)).isFalse();
     }
 
     @ParameterizedTest

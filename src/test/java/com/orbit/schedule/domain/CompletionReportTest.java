@@ -116,6 +116,16 @@ class CompletionReportTest {
     }
 
     @Test
+    @DisplayName("사용부품과 수행메모의 빈 문자열·공백은 미입력으로 취급한다")
+    void treatsBlankTextAsAbsent() {
+        CompletionReport report = new CompletionReport(null, null, "", "   ", null, null);
+
+        assertThat(report.usedParts()).isEmpty();
+        assertThat(report.workNote()).isEmpty();
+        assertThat(report).isEqualTo(new CompletionReport(null, null, null, null, null, null));
+    }
+
+    @Test
     @DisplayName("결제금액이 음수이면 거부한다")
     void rejectsNegativeActualFee() {
         assertThatThrownBy(() -> new CompletionReport(null, null, null, null, new BigDecimal("-0.01"), null))
