@@ -1,9 +1,6 @@
 package com.orbit.schedule.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import java.math.BigDecimal;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,8 +11,8 @@ class PaymentInfoTest {
     @Test
     @DisplayName("같은 결제 정보는 동등하다")
     void hasValueEquality() {
-        PaymentInfo paymentInfo = new PaymentInfo(new BigDecimal("150000"), PaymentMethod.BANK_TRANSFER);
-        PaymentInfo samePaymentInfo = new PaymentInfo(new BigDecimal("150000"), PaymentMethod.BANK_TRANSFER);
+        PaymentInfo paymentInfo = new PaymentInfo(new Money(150000L), PaymentMethod.BANK_TRANSFER);
+        PaymentInfo samePaymentInfo = new PaymentInfo(new Money(150000L), PaymentMethod.BANK_TRANSFER);
 
         assertThat(paymentInfo).isEqualTo(samePaymentInfo);
         assertThat(paymentInfo.hashCode()).isEqualTo(samePaymentInfo.hashCode());
@@ -24,19 +21,19 @@ class PaymentInfoTest {
     @Test
     @DisplayName("하나라도 다른 결제 정보는 동등하지 않다")
     void isNotEqualWhenAnyValueDiffers() {
-        PaymentInfo paymentInfo = new PaymentInfo(new BigDecimal("150000"), PaymentMethod.BANK_TRANSFER);
+        PaymentInfo paymentInfo = new PaymentInfo(new Money(150000L), PaymentMethod.BANK_TRANSFER);
 
         assertThat(paymentInfo)
-                .isNotEqualTo(new PaymentInfo(new BigDecimal("200000"), PaymentMethod.BANK_TRANSFER))
-                .isNotEqualTo(new PaymentInfo(new BigDecimal("150000"), PaymentMethod.ON_SITE_CARD));
+                .isNotEqualTo(new PaymentInfo(new Money(200000L), PaymentMethod.BANK_TRANSFER))
+                .isNotEqualTo(new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD));
     }
 
     @Test
     @DisplayName("작업 금액만 포함해 생성할 수 있다")
     void createsWithFeeOnly() {
-        PaymentInfo paymentInfo = new PaymentInfo(BigDecimal.ZERO, null);
+        PaymentInfo paymentInfo = new PaymentInfo(new Money(0L), null);
 
-        assertThat(paymentInfo.fee()).contains(BigDecimal.ZERO);
+        assertThat(paymentInfo.fee()).contains(new Money(0L));
         assertThat(paymentInfo.method()).isEmpty();
     }
 
@@ -52,7 +49,7 @@ class PaymentInfoTest {
     @Test
     @DisplayName("작업 금액과 결제 방식을 모두 포함해 생성할 수 있다")
     void createsWithAllValues() {
-        BigDecimal fee = new BigDecimal("150000");
+        Money fee = new Money(150000L);
 
         PaymentInfo paymentInfo = new PaymentInfo(fee, PaymentMethod.BANK_TRANSFER);
 
@@ -67,23 +64,5 @@ class PaymentInfoTest {
 
         assertThat(paymentInfo.fee()).isEmpty();
         assertThat(paymentInfo.method()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("금액의 scale이 달라도 값이 같으면 동등하다")
-    void isEqualWhenFeeScaleDiffers() {
-        PaymentInfo paymentInfo = new PaymentInfo(new BigDecimal("150000"), PaymentMethod.BANK_TRANSFER);
-        PaymentInfo sameValueDifferentScale = new PaymentInfo(new BigDecimal("150000.00"), PaymentMethod.BANK_TRANSFER);
-
-        assertThat(paymentInfo).isEqualTo(sameValueDifferentScale);
-        assertThat(paymentInfo.hashCode()).isEqualTo(sameValueDifferentScale.hashCode());
-    }
-
-    @Test
-    @DisplayName("작업 금액이 음수이면 거부한다")
-    void rejectsNegativeFee() {
-        assertThatThrownBy(() -> new PaymentInfo(new BigDecimal("-0.01"), null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("fee must not be negative");
     }
 }

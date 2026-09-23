@@ -175,6 +175,14 @@ class AssignmentHistoryTest {
     }
 
     @Test
+    @DisplayName("결과가 없는 저장값은 복원하지 않는다")
+    void rejectsRestoringWithoutResult() {
+        assertThatThrownBy(() -> AssignmentHistory.restore(SCHEDULE, ASSIGNED_AT, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("result must not be null");
+    }
+
+    @Test
     @DisplayName("저장된 응답 전 마감 이력을 복원한다")
     void restoresClosedHistory() {
         AssignmentHistory history =

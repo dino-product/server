@@ -1,6 +1,5 @@
 package com.orbit.schedule.domain;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -16,7 +15,7 @@ public final class CompletionReport {
     private final List<String> afterPhotos;
     private final String usedParts;
     private final String workNote;
-    private final BigDecimal actualFee;
+    private final Money actualFee;
     private final ActualPaymentMethod actualPaymentMethod;
 
     public CompletionReport(
@@ -24,20 +23,17 @@ public final class CompletionReport {
             List<String> afterPhotos,
             String usedParts,
             String workNote,
-            BigDecimal actualFee,
+            Money actualFee,
             ActualPaymentMethod actualPaymentMethod) {
         this.beforePhotos = copyPhotos(beforePhotos, "beforePhotos");
         this.afterPhotos = copyPhotos(afterPhotos, "afterPhotos");
         usedParts = blankToNull(usedParts);
         workNote = blankToNull(workNote);
         if (usedParts != null && usedParts.length() > MAX_USED_PARTS_LENGTH) {
-            throw new IllegalArgumentException("usedParts must be at most 255 characters");
+            throw new IllegalArgumentException("usedParts must be at most " + MAX_USED_PARTS_LENGTH + " characters");
         }
         if (workNote != null && workNote.length() > MAX_WORK_NOTE_LENGTH) {
-            throw new IllegalArgumentException("workNote must be at most 255 characters");
-        }
-        if (actualFee != null && actualFee.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("actualFee must not be negative");
+            throw new IllegalArgumentException("workNote must be at most " + MAX_WORK_NOTE_LENGTH + " characters");
         }
         this.usedParts = usedParts;
         this.workNote = workNote;
@@ -61,7 +57,7 @@ public final class CompletionReport {
         return Optional.ofNullable(workNote);
     }
 
-    public Optional<BigDecimal> actualFee() {
+    public Optional<Money> actualFee() {
         return Optional.ofNullable(actualFee);
     }
 
@@ -82,28 +78,13 @@ public final class CompletionReport {
                 && Objects.equals(afterPhotos, that.afterPhotos)
                 && Objects.equals(usedParts, that.usedParts)
                 && Objects.equals(workNote, that.workNote)
-                && actualFeeEquals(actualFee, that.actualFee)
+                && Objects.equals(actualFee, that.actualFee)
                 && Objects.equals(actualPaymentMethod, that.actualPaymentMethod);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-                beforePhotos,
-                afterPhotos,
-                usedParts,
-                workNote,
-                actualFee == null ? null : actualFee.stripTrailingZeros(),
-                actualPaymentMethod);
-    }
-
-    // BigDecimal.equals는 scale까지 비교해 150000과 150000.00을 다르다고 판단하므로,
-    // 생성자 검증과 같은 compareTo 기준(값 동등성)으로 맞춘다.
-    private static boolean actualFeeEquals(BigDecimal a, BigDecimal b) {
-        if (a == null || b == null) {
-            return a == b;
-        }
-        return a.compareTo(b) == 0;
+        return Objects.hash(beforePhotos, afterPhotos, usedParts, workNote, actualFee, actualPaymentMethod);
     }
 
     @Override
@@ -132,7 +113,7 @@ public final class CompletionReport {
             return List.of();
         }
         if (photos.size() > MAX_PHOTO_COUNT) {
-            throw new IllegalArgumentException(fieldName + " must have at most 6 photos");
+            throw new IllegalArgumentException(fieldName + " must have at most " + MAX_PHOTO_COUNT + " photos");
         }
         if (photos.stream().anyMatch(Objects::isNull)) {
             throw new IllegalArgumentException(fieldName + " must not contain null");
