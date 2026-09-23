@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
@@ -20,11 +20,15 @@ class WorkScheduleConflictPolicyTest {
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
     private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
+    private static final Instant NOW = Instant.parse("2026-09-21T00:00:00Z");
     private static final PaymentInfo PAYMENT_INFO =
             new PaymentInfo(new BigDecimal("150000"), PaymentMethod.ON_SITE_CARD);
 
     private static WorkSchedule scheduleOf(MembershipId technicianId, int hour, int durationHours) {
-        return new WorkSchedule(technicianId, LocalDateTime.of(2026, 9, 22, hour, 0), Duration.ofHours(durationHours));
+        return new WorkSchedule(
+                technicianId,
+                Instant.parse("2026-09-22T00:00:00Z").plus(Duration.ofHours(hour)),
+                Duration.ofHours(durationHours));
     }
 
     @Nested
@@ -163,8 +167,8 @@ class WorkScheduleConflictPolicyTest {
 
     private static Work acceptedWork() {
         Work work = registeredWork();
-        work.assign(scheduleOf(TECHNICIAN_ID, 10, 2));
-        work.accept();
+        work.assign(scheduleOf(TECHNICIAN_ID, 10, 2), NOW);
+        work.accept(NOW);
         return work;
     }
 

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -28,9 +28,12 @@ class WorkTest {
     private static final PaymentInfo PAYMENT_INFO =
             new PaymentInfo(new BigDecimal("150000"), PaymentMethod.ON_SITE_CARD);
     private static final WorkSchedule FIRST_SCHEDULE =
-            new WorkSchedule(new MembershipId(3L), LocalDateTime.of(2026, 9, 22, 10, 0), Duration.ofHours(2));
+            new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T01:00:00Z"), Duration.ofHours(2));
     private static final WorkSchedule SECOND_SCHEDULE =
-            new WorkSchedule(new MembershipId(4L), LocalDateTime.of(2026, 9, 23, 14, 0), Duration.ofMinutes(90));
+            new WorkSchedule(new MembershipId(4L), Instant.parse("2026-09-23T05:00:00Z"), Duration.ofMinutes(90));
+    private static final WorkSchedule RESCHEDULED_FIRST_SCHEDULE =
+            new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T05:00:00Z"), Duration.ofHours(2));
+    private static final Instant NOW = Instant.parse("2026-09-21T01:00:00Z");
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(
             List.of("before.jpg"),
             List.of("after.jpg"),
@@ -97,7 +100,7 @@ class WorkTest {
         @DisplayName("저장된 작업을 모든 상태와 함께 재구성한다")
         void reconstitutesWork() {
             WorkId id = new WorkId(10L);
-            AssignmentHistory history = new AssignmentHistory(FIRST_SCHEDULE);
+            AssignmentHistory history = acceptedHistory(FIRST_SCHEDULE);
             List<AssignmentHistory> histories = new ArrayList<>(List.of(history));
 
             Work work = Work.reconstitute(
@@ -122,6 +125,30 @@ class WorkTest {
                     .isInstanceOf(UnsupportedOperationException.class);
         }
 
+        @ParameterizedTest
+        @MethodSource("com.orbit.schedule.domain.WorkTest#consistentStoredStates")
+        @DisplayName("상태와 데이터가 맞는 저장값은 재구성한다")
+        void reconstitutesConsistentState(
+                WorkStatus status, WorkSchedule schedule, List<AssignmentHistory> histories, CompletionReport report) {
+            Work work = reconstitute(status, schedule, histories, report);
+
+            assertThat(work.status()).isEqualTo(status);
+        }
+
+        @ParameterizedTest
+        @MethodSource("com.orbit.schedule.domain.WorkTest#inconsistentStoredStates")
+        @DisplayName("상태와 데이터가 어긋난 저장값은 재구성을 거부한다")
+        void rejectsInconsistentState(
+                WorkStatus status,
+                WorkSchedule schedule,
+                List<AssignmentHistory> histories,
+                CompletionReport report,
+                String message) {
+            assertThatThrownBy(() -> reconstitute(status, schedule, histories, report))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage(message);
+        }
+
         @Test
         @DisplayName("식별자가 null이면 재구성을 거부한다")
         void rejectsNullIdWhenReconstituting() {
@@ -141,7 +168,7 @@ class WorkTest {
         void assignsRegisteredWork() {
             Work work = registeredWork();
 
-            work.assign(FIRST_SCHEDULE);
+            work.assign(FIRST_SCHEDULE, NOW);
 
             assertThat(work.schedule()).contains(FIRST_SCHEDULE);
             assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
@@ -155,7 +182,7 @@ class WorkTest {
         void rejectsNullSchedule() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.assign(null))
+            assertThatThrownBy(() -> work.assign(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("schedule must not be null");
         }
@@ -163,10 +190,9 @@ class WorkTest {
         @Test
         @DisplayName("등록 외 상태에서는 배정을 거부한다")
         void rejectsAssignmentOutsideRegisteredStatus() {
-            Work work = registeredWork();
-            work.forceStatus(WorkStatus.ACCEPTED);
+            Work work = acceptedWork();
 
-            assertThatThrownBy(() -> work.assign(FIRST_SCHEDULE))
+            assertThatThrownBy(() -> work.assign(FIRST_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot assign when status is ACCEPTED");
         }
@@ -191,7 +217,7 @@ class WorkTest {
         void rejectsAssignWithAllScheduleFieldsMissing() {
             Work work = Work.register("필터 교체", REGISTRAR_ID, null, null, null);
 
-            assertThatThrownBy(() -> work.assign(new WorkSchedule(null, null, null)))
+            assertThatThrownBy(() -> work.assign(new WorkSchedule(null, null, null), NOW))
                     .isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -205,7 +231,7 @@ class WorkTest {
         void acceptsPendingAssignment() {
             Work work = pendingWork();
 
-            work.accept();
+            work.accept(NOW);
 
             assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
             assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.ACCEPTED);
@@ -216,19 +242,9 @@ class WorkTest {
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(work::accept)
+            assertThatThrownBy(() -> work.accept(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot accept when status is REGISTERED");
-        }
-
-        @Test
-        @DisplayName("배정 이력이 없으면 거부한다")
-        void rejectsMissingAssignmentHistory() {
-            Work work = reconstitutedWithoutHistory(WorkStatus.PENDING_ACCEPTANCE);
-
-            assertThatThrownBy(work::accept)
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("No assignment history");
         }
     }
 
@@ -241,7 +257,7 @@ class WorkTest {
         void rejectsPendingAssignment() {
             Work work = pendingWork();
 
-            work.reject(RejectionReason.SCHEDULE_CONFLICT);
+            work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW);
 
             AssignmentHistory history = work.assignmentHistory().getLast();
             assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
@@ -255,7 +271,7 @@ class WorkTest {
         void rejectsNullReason() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.reject(null))
+            assertThatThrownBy(() -> work.reject(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("rejectionReason must not be null");
             assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
@@ -267,7 +283,7 @@ class WorkTest {
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reject(RejectionReason.OTHER))
+            assertThatThrownBy(() -> work.reject(RejectionReason.OTHER, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reject when status is REGISTERED");
         }
@@ -282,9 +298,29 @@ class WorkTest {
         void reassignsPendingWork() {
             Work work = pendingWork();
 
-            work.reassign(SECOND_SCHEDULE);
+            work.reassign(SECOND_SCHEDULE, NOW);
 
-            assertChangedAssignment(work);
+            assertChangedAssignment(work, SECOND_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("수락된 작업을 재배정하면 수락 이력은 두고 새 기사에게 다시 수락받는다")
+        void reassignsAcceptedWorkAndRequiresReacceptance() {
+            Work work = acceptedWork();
+
+            work.reassign(SECOND_SCHEDULE, NOW);
+
+            assertReacceptanceRequired(work, SECOND_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("같은 기사로는 재배정할 수 없다")
+        void rejectsSameTechnician() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(() -> work.reassign(RESCHEDULED_FIRST_SCHEDULE, NOW))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("reassign requires a different technician");
         }
 
         @Test
@@ -292,17 +328,17 @@ class WorkTest {
         void rejectsNullSchedule() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.reassign(null))
+            assertThatThrownBy(() -> work.reassign(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("schedule must not be null");
         }
 
         @Test
-        @DisplayName("수락 대기 상태가 아니면 거부한다")
+        @DisplayName("수락 대기·수락됨 상태가 아니면 거부한다")
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reassign(SECOND_SCHEDULE))
+            assertThatThrownBy(() -> work.reassign(SECOND_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reassign when status is REGISTERED");
         }
@@ -317,9 +353,39 @@ class WorkTest {
         void reschedulesPendingWork() {
             Work work = pendingWork();
 
-            work.reschedule(SECOND_SCHEDULE);
+            work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW);
 
-            assertChangedAssignment(work);
+            assertChangedAssignment(work, RESCHEDULED_FIRST_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("수락된 작업의 일정을 바꾸면 수락 이력은 두고 다시 수락받는다")
+        void reschedulesAcceptedWorkAndRequiresReacceptance() {
+            Work work = acceptedWork();
+
+            work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW);
+
+            assertReacceptanceRequired(work, RESCHEDULED_FIRST_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("담당기사가 바뀌면 일정 변경이 아니라 재배정이라 거부한다")
+        void rejectsDifferentTechnician() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(() -> work.reschedule(SECOND_SCHEDULE, NOW))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("reschedule requires the same technician");
+        }
+
+        @Test
+        @DisplayName("시간이 그대로면 거부한다")
+        void rejectsUnchangedSchedule() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(() -> work.reschedule(FIRST_SCHEDULE, NOW))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("reschedule requires a different time");
         }
 
         @Test
@@ -327,17 +393,17 @@ class WorkTest {
         void rejectsNullSchedule() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.reschedule(null))
+            assertThatThrownBy(() -> work.reschedule(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("schedule must not be null");
         }
 
         @Test
-        @DisplayName("수락 대기 상태가 아니면 거부한다")
+        @DisplayName("수락 대기·수락됨 상태가 아니면 거부한다")
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reschedule(SECOND_SCHEDULE))
+            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reschedule when status is REGISTERED");
         }
@@ -352,7 +418,7 @@ class WorkTest {
         void unassignsPendingWork() {
             Work work = pendingWork();
 
-            work.unassign();
+            work.unassign(NOW);
 
             assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.REASSIGNED);
             assertThat(work.schedule()).isEmpty();
@@ -364,7 +430,7 @@ class WorkTest {
         void unassignsAcceptedWorkWithoutChangingHistory() {
             Work work = acceptedWork();
 
-            work.unassign();
+            work.unassign(NOW);
 
             assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.ACCEPTED);
             assertThat(work.schedule()).isEmpty();
@@ -375,10 +441,9 @@ class WorkTest {
         @MethodSource("com.orbit.schedule.domain.WorkTest#statusesThatCannotBeUnassigned")
         @DisplayName("해제할 수 없는 상태에서는 거부한다")
         void rejectsDisallowedStatus(WorkStatus status) {
-            Work work = registeredWork();
-            work.forceStatus(status);
+            Work work = workIn(status);
 
-            assertThatThrownBy(work::unassign)
+            assertThatThrownBy(() -> work.unassign(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot unassign when status is " + status);
         }
@@ -453,70 +518,47 @@ class WorkTest {
         @MethodSource("com.orbit.schedule.domain.WorkTest#cancellableStatuses")
         @DisplayName("허용된 상태의 작업을 취소한다")
         void cancelsAllowedStatus(WorkStatus status) {
-            Work work = registeredWork();
-            work.forceStatus(status);
+            Work work = workIn(status);
 
-            work.cancel();
+            work.cancel(NOW);
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("응답 대기 중인 배정을 취소 시각으로 마감한다")
+        void closesPendingAssignment() {
+            Work work = pendingWork();
+            Instant cancelledAt = NOW.plusSeconds(60);
+
+            work.cancel(cancelledAt);
+
+            AssignmentHistory history = work.assignmentHistory().getLast();
+            assertThat(history.result()).isEqualTo(AssignmentResult.REASSIGNED);
+            assertThat(history.decidedAt()).contains(cancelledAt);
+        }
+
+        @Test
+        @DisplayName("수락된 배정 이력은 그대로 둔다")
+        void keepsAcceptedAssignment() {
+            Work work = acceptedWork();
+
+            work.cancel(NOW.plusSeconds(60));
+
+            AssignmentHistory history = work.assignmentHistory().getLast();
+            assertThat(history.result()).isEqualTo(AssignmentResult.ACCEPTED);
+            assertThat(history.decidedAt()).contains(NOW);
         }
 
         @ParameterizedTest
         @ValueSource(strings = {"COMPLETED", "CANCELLED"})
         @DisplayName("종료된 작업은 취소할 수 없다")
         void rejectsTerminalStatus(WorkStatus status) {
-            Work work = registeredWork();
-            work.forceStatus(status);
+            Work work = workIn(status);
 
-            assertThatThrownBy(work::cancel)
+            assertThatThrownBy(() -> work.cancel(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot transition from %s to CANCELLED", status);
-        }
-    }
-
-    @Nested
-    @DisplayName("관리자 상태 강제 변경")
-    class ForceStatus {
-
-        @Test
-        @DisplayName("화이트리스트에 없는 상태 전이도 강제로 적용한다")
-        void bypassesTransitionWhitelist() {
-            Work work = registeredWork();
-            work.forceStatus(WorkStatus.COMPLETED);
-
-            work.forceStatus(WorkStatus.REGISTERED);
-
-            assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
-        }
-
-        @Test
-        @DisplayName("REGISTERED로 강제 변경하면 배정된 일정을 정리한다")
-        void clearsScheduleWhenForcedToRegistered() {
-            Work work = acceptedWork();
-
-            work.forceStatus(WorkStatus.REGISTERED);
-
-            assertThat(work.schedule()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("REGISTERED가 아닌 상태로 강제 변경하면 배정된 일정을 그대로 둔다")
-        void keepsScheduleWhenForcedToNonRegisteredStatus() {
-            Work work = acceptedWork();
-
-            work.forceStatus(WorkStatus.COMPLETED);
-
-            assertThat(work.schedule()).contains(FIRST_SCHEDULE);
-        }
-
-        @Test
-        @DisplayName("새 상태가 null이면 거부한다")
-        void rejectsNullStatus() {
-            Work work = registeredWork();
-
-            assertThatThrownBy(() -> work.forceStatus(null))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("newStatus must not be null");
         }
     }
 
@@ -526,13 +568,13 @@ class WorkTest {
 
     private static Work pendingWork() {
         Work work = registeredWork();
-        work.assign(FIRST_SCHEDULE);
+        work.assign(FIRST_SCHEDULE, NOW);
         return work;
     }
 
     private static Work acceptedWork() {
         Work work = pendingWork();
-        work.accept();
+        work.accept(NOW);
         return work;
     }
 
@@ -542,26 +584,167 @@ class WorkTest {
         return work;
     }
 
-    private static Work reconstitutedWithoutHistory(WorkStatus status) {
+    private static Work completedWork() {
+        Work work = inProgressWork();
+        work.submitCompletionReport(COMPLETION_REPORT);
+        return work;
+    }
+
+    private static Work cancelledWork() {
+        Work work = registeredWork();
+        work.cancel(NOW);
+        return work;
+    }
+
+    /** 실제 전이 흐름으로 주어진 상태의 작업을 만든다. */
+    private static Work workIn(WorkStatus status) {
+        return switch (status) {
+            case REGISTERED -> registeredWork();
+            case PENDING_ACCEPTANCE -> pendingWork();
+            case ACCEPTED -> acceptedWork();
+            case IN_PROGRESS -> inProgressWork();
+            case COMPLETED -> completedWork();
+            case CANCELLED -> cancelledWork();
+        };
+    }
+
+    private static Work reconstitute(
+            WorkStatus status, WorkSchedule schedule, List<AssignmentHistory> histories, CompletionReport report) {
         return Work.reconstitute(
                 new WorkId(10L),
                 "에어컨 수리",
                 REGISTRAR_ID,
                 WORK_TYPE_ID,
-                FIRST_SCHEDULE,
+                schedule,
                 CUSTOMER_INFO,
                 PAYMENT_INFO,
                 status,
-                List.of(),
-                null);
+                histories,
+                report);
     }
 
-    private static void assertChangedAssignment(Work work) {
-        assertThat(work.schedule()).contains(SECOND_SCHEDULE);
+    private static AssignmentHistory pendingHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(schedule, NOW, AssignmentResult.PENDING, null, null);
+    }
+
+    private static AssignmentHistory acceptedHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(schedule, NOW, AssignmentResult.ACCEPTED, null, NOW);
+    }
+
+    private static AssignmentHistory rejectedHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(schedule, NOW, AssignmentResult.REJECTED, RejectionReason.OTHER, NOW);
+    }
+
+    private static AssignmentHistory closedHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(schedule, NOW, AssignmentResult.REASSIGNED, null, NOW);
+    }
+
+    private static Stream<Arguments> consistentStoredStates() {
+        return Stream.of(
+                Arguments.of(WorkStatus.REGISTERED, null, List.of(), null),
+                Arguments.of(WorkStatus.REGISTERED, null, List.of(rejectedHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(WorkStatus.REGISTERED, null, List.of(acceptedHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(closedHistory(FIRST_SCHEDULE), pendingHistory(SECOND_SCHEDULE)),
+                        null),
+                Arguments.of(WorkStatus.ACCEPTED, FIRST_SCHEDULE, List.of(acceptedHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(WorkStatus.IN_PROGRESS, FIRST_SCHEDULE, List.of(acceptedHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(
+                        WorkStatus.COMPLETED,
+                        FIRST_SCHEDULE,
+                        List.of(acceptedHistory(FIRST_SCHEDULE)),
+                        COMPLETION_REPORT),
+                Arguments.of(WorkStatus.CANCELLED, null, List.of(), null),
+                Arguments.of(WorkStatus.CANCELLED, FIRST_SCHEDULE, List.of(closedHistory(FIRST_SCHEDULE)), null));
+    }
+
+    private static Stream<Arguments> inconsistentStoredStates() {
+        return Stream.of(
+                Arguments.of(
+                        WorkStatus.REGISTERED,
+                        FIRST_SCHEDULE,
+                        List.of(),
+                        null,
+                        "REGISTERED work must not have a schedule"),
+                Arguments.of(
+                        WorkStatus.REGISTERED,
+                        null,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "REGISTERED work must not have a PENDING assignment"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        FIRST_SCHEDULE,
+                        List.of(),
+                        null,
+                        "PENDING_ACCEPTANCE work requires the latest assignment to be PENDING for its schedule"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        null,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "PENDING_ACCEPTANCE work must have a schedule"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "PENDING_ACCEPTANCE work requires the latest assignment to be PENDING for its schedule"),
+                Arguments.of(
+                        WorkStatus.ACCEPTED,
+                        FIRST_SCHEDULE,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "ACCEPTED work requires the latest assignment to be ACCEPTED for its schedule"),
+                Arguments.of(
+                        WorkStatus.IN_PROGRESS,
+                        null,
+                        List.of(acceptedHistory(FIRST_SCHEDULE)),
+                        null,
+                        "IN_PROGRESS work must have a schedule"),
+                Arguments.of(
+                        WorkStatus.COMPLETED,
+                        FIRST_SCHEDULE,
+                        List.of(acceptedHistory(FIRST_SCHEDULE)),
+                        null,
+                        "COMPLETED work must have a completion report"),
+                Arguments.of(
+                        WorkStatus.ACCEPTED,
+                        FIRST_SCHEDULE,
+                        List.of(acceptedHistory(FIRST_SCHEDULE)),
+                        COMPLETION_REPORT,
+                        "ACCEPTED work must not have a completion report"),
+                Arguments.of(
+                        WorkStatus.CANCELLED,
+                        FIRST_SCHEDULE,
+                        List.of(pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "CANCELLED work must not have a PENDING assignment"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(pendingHistory(FIRST_SCHEDULE), pendingHistory(SECOND_SCHEDULE)),
+                        null,
+                        "Only the latest assignment history can be PENDING"));
+    }
+
+    private static void assertChangedAssignment(Work work, WorkSchedule newSchedule) {
+        assertThat(work.schedule()).contains(newSchedule);
         assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         assertThat(work.assignmentHistory()).hasSize(2);
         assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.REASSIGNED);
-        assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(SECOND_SCHEDULE);
+        assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(newSchedule);
+        assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
+    }
+
+    private static void assertReacceptanceRequired(Work work, WorkSchedule newSchedule) {
+        assertThat(work.schedule()).contains(newSchedule);
+        assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(work.assignmentHistory()).hasSize(2);
+        assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.ACCEPTED);
+        assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(newSchedule);
         assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
     }
 

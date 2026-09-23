@@ -1,5 +1,6 @@
 package com.orbit.schedule.domain;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -81,7 +82,7 @@ public final class Work {
             WorkStatus status,
             List<AssignmentHistory> assignmentHistory,
             CompletionReport completionReport) {
-        return new Work(
+        Work work = new Work(
                 Objects.requireNonNull(id, "id must not be null"),
                 name,
                 registrarId,
@@ -92,6 +93,8 @@ public final class Work {
                 status,
                 assignmentHistory,
                 completionReport);
+        work.requireConsistentState();
+        return work;
     }
 
     public Optional<WorkId> id() {
@@ -134,41 +137,56 @@ public final class Work {
         return Optional.ofNullable(completionReport);
     }
 
-    public void assign(WorkSchedule newSchedule) {
+    public void assign(WorkSchedule newSchedule, Instant assignedAt) {
         requireStatus(WorkStatus.REGISTERED, "assign");
         requireSchedule(newSchedule);
         schedule = newSchedule;
-        assignmentHistory.add(new AssignmentHistory(newSchedule));
+        assignmentHistory.add(new AssignmentHistory(newSchedule, assignedAt));
         status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
     }
 
-    public void accept() {
+    public void accept(Instant decidedAt) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, "accept");
-        latestAssignment().accept();
+        latestAssignment().accept(decidedAt);
         status = status.transitionTo(WorkStatus.ACCEPTED);
     }
 
-    public void reject(RejectionReason reason) {
+    public void reject(RejectionReason reason, Instant decidedAt) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, "reject");
-        latestAssignment().reject(reason);
+        latestAssignment().reject(reason, decidedAt);
         schedule = null;
         status = status.transitionTo(WorkStatus.REGISTERED);
     }
 
-    public void reassign(WorkSchedule newSchedule) {
-        changeAssignment(newSchedule, "reassign");
+    /** 담당기사를 바꾼다. 수락 이후라도 새 기사에게 다시 수락받는다. */
+    public void reassign(WorkSchedule newSchedule, Instant changedAt) {
+        requireChangeableAssignment("reassign");
+        requireSchedule(newSchedule);
+        if (newSchedule.technicianId().equals(schedule.technicianId())) {
+            throw new IllegalArgumentException("reassign requires a different technician");
+        }
+        changeAssignment(newSchedule, changedAt);
     }
 
-    public void reschedule(WorkSchedule newSchedule) {
-        changeAssignment(newSchedule, "reschedule");
+    /** 같은 기사의 시간을 바꾼다. 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. */
+    public void reschedule(WorkSchedule newSchedule, Instant changedAt) {
+        requireChangeableAssignment("reschedule");
+        requireSchedule(newSchedule);
+        if (!newSchedule.technicianId().equals(schedule.technicianId())) {
+            throw new IllegalArgumentException("reschedule requires the same technician");
+        }
+        if (newSchedule.equals(schedule)) {
+            throw new IllegalArgumentException("reschedule requires a different time");
+        }
+        changeAssignment(newSchedule, changedAt);
     }
 
-    public void unassign() {
+    public void unassign(Instant unassignedAt) {
         if (status != WorkStatus.PENDING_ACCEPTANCE && status != WorkStatus.ACCEPTED) {
             throw new IllegalStateException("Cannot unassign when status is " + status);
         }
         if (status == WorkStatus.PENDING_ACCEPTANCE) {
-            latestAssignment().reassign();
+            latestAssignment().reassign(unassignedAt);
         }
         // ACCEPTED 이력은 되돌릴 수 없는 과거 기록이므로 배정 해제 후에도 그대로 보존한다.
         schedule = null;
@@ -189,26 +207,75 @@ public final class Work {
         status = status.transitionTo(WorkStatus.COMPLETED);
     }
 
-    public void cancel() {
-        status = status.transitionTo(WorkStatus.CANCELLED);
+    /** 완료 전 작업을 취소한다. 응답 대기 중인 배정은 취소 시각으로 마감하고 수락된 이력은 그대로 둔다. */
+    public void cancel(Instant cancelledAt) {
+        WorkStatus cancelled = status.transitionTo(WorkStatus.CANCELLED);
+        if (status == WorkStatus.PENDING_ACCEPTANCE) {
+            latestAssignment().reassign(cancelledAt);
+        }
+        status = cancelled;
     }
 
-    public void forceStatus(WorkStatus newStatus) {
-        if (newStatus == null) {
-            throw new IllegalArgumentException("newStatus must not be null");
+    private void requireChangeableAssignment(String action) {
+        if (status != WorkStatus.PENDING_ACCEPTANCE && status != WorkStatus.ACCEPTED) {
+            throw new IllegalStateException("Cannot " + action + " when status is " + status);
         }
-        if (newStatus == WorkStatus.REGISTERED) {
-            schedule = null;
-        }
-        status = newStatus;
     }
 
-    private void changeAssignment(WorkSchedule newSchedule, String action) {
-        requireStatus(WorkStatus.PENDING_ACCEPTANCE, action);
-        requireSchedule(newSchedule);
-        latestAssignment().reassign();
+    /** 응답 대기 중인 배정은 마감하고, 이미 수락된 이력은 그대로 둔 채 새 배정을 추가해 다시 수락받는다. */
+    private void changeAssignment(WorkSchedule newSchedule, Instant changedAt) {
+        if (status == WorkStatus.PENDING_ACCEPTANCE) {
+            latestAssignment().reassign(changedAt);
+        }
         schedule = newSchedule;
-        assignmentHistory.add(new AssignmentHistory(newSchedule));
+        assignmentHistory.add(new AssignmentHistory(newSchedule, changedAt));
+        if (status == WorkStatus.ACCEPTED) {
+            status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
+        }
+    }
+
+    /** 저장값 복원 시 상태와 일정·배정 이력·완료보고가 서로 맞는지 검증한다. */
+    private void requireConsistentState() {
+        for (int i = 0; i < assignmentHistory.size() - 1; i++) {
+            if (assignmentHistory.get(i).result() == AssignmentResult.PENDING) {
+                throw new IllegalArgumentException("Only the latest assignment history can be PENDING");
+            }
+        }
+        AssignmentHistory latest = assignmentHistory.isEmpty() ? null : assignmentHistory.getLast();
+        if (status == WorkStatus.REGISTERED && schedule != null) {
+            throw new IllegalArgumentException("REGISTERED work must not have a schedule");
+        }
+        if (status == WorkStatus.REGISTERED || status == WorkStatus.CANCELLED) {
+            requireNoPendingAssignment(latest);
+        } else if (status == WorkStatus.PENDING_ACCEPTANCE) {
+            requireAssignedSchedule(latest, AssignmentResult.PENDING);
+        } else {
+            requireAssignedSchedule(latest, AssignmentResult.ACCEPTED);
+        }
+        if (status == WorkStatus.COMPLETED && completionReport == null) {
+            throw new IllegalArgumentException("COMPLETED work must have a completion report");
+        }
+        if (status != WorkStatus.COMPLETED && completionReport != null) {
+            throw new IllegalArgumentException(status + " work must not have a completion report");
+        }
+    }
+
+    private void requireAssignedSchedule(AssignmentHistory latest, AssignmentResult expectedResult) {
+        if (schedule == null) {
+            throw new IllegalArgumentException(status + " work must have a schedule");
+        }
+        if (latest == null
+                || latest.result() != expectedResult
+                || !latest.schedule().equals(schedule)) {
+            throw new IllegalArgumentException(
+                    status + " work requires the latest assignment to be " + expectedResult + " for its schedule");
+        }
+    }
+
+    private void requireNoPendingAssignment(AssignmentHistory latest) {
+        if (latest != null && latest.result() == AssignmentResult.PENDING) {
+            throw new IllegalArgumentException(status + " work must not have a PENDING assignment");
+        }
     }
 
     private void requireStatus(WorkStatus requiredStatus, String action) {

@@ -70,6 +70,16 @@ class PaymentInfoTest {
     }
 
     @Test
+    @DisplayName("금액의 scale이 달라도 값이 같으면 동등하다")
+    void isEqualWhenFeeScaleDiffers() {
+        PaymentInfo paymentInfo = new PaymentInfo(new BigDecimal("150000"), PaymentMethod.BANK_TRANSFER);
+        PaymentInfo sameValueDifferentScale = new PaymentInfo(new BigDecimal("150000.00"), PaymentMethod.BANK_TRANSFER);
+
+        assertThat(paymentInfo).isEqualTo(sameValueDifferentScale);
+        assertThat(paymentInfo.hashCode()).isEqualTo(sameValueDifferentScale.hashCode());
+    }
+
+    @Test
     @DisplayName("작업 금액이 음수이면 거부한다")
     void rejectsNegativeFee() {
         assertThatThrownBy(() -> new PaymentInfo(new BigDecimal("-0.01"), null))

@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 class WorkScheduleTest {
 
     private static final MembershipId TECHNICIAN_ID = new MembershipId(1L);
-    private static final LocalDateTime START_TIME = LocalDateTime.of(2026, 9, 20, 10, 0);
+    private static final Instant START_TIME = Instant.parse("2026-09-20T01:00:00Z");
 
     @Test
     @DisplayName("담당기사가 null이면 거부한다")
@@ -72,6 +72,6 @@ class WorkScheduleTest {
     void calculatesEndTime() {
         WorkSchedule schedule = new WorkSchedule(TECHNICIAN_ID, START_TIME, Duration.ofMinutes(90));
 
-        assertThat(schedule.endTime()).isEqualTo(LocalDateTime.of(2026, 9, 20, 11, 30));
+        assertThat(schedule.endTime()).isEqualTo(Instant.parse("2026-09-20T02:30:00Z"));
     }
 }
