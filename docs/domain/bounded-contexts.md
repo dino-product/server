@@ -35,12 +35,12 @@
 
 | 항목 | 내용 |
 | --- | --- |
-| 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 초대, 조직 소속(Membership) 관리 |
+| 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 회사 참여 요청, 조직 소속(Membership) 관리 |
 | 상태 | 골격 생성 (`package-info.java`만 존재) |
-| 소유 애그리게잇 | **Organization**(Root) — 조직명·업종, 유형(직원/기사/작업유형) 보유<br>**Invitation**(Root) — 발급→수락/만료/재발급, 토큰·경로(ID/링크/QR)<br>**Membership**(Root) — role(Owner/Staff/Technician)·조직 소속·활성상태, authAccountId를 불투명 참조로만 보유 |
-| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, ACL) · `schedule` → 참조(ID) 제공 (Membership 조회) · `notification` ← 이벤트 발행(`InvitationAccepted`) |
+| 소유 애그리게잇 | **Organization**(Root) — 조직명·업종, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유, 대기→승인(유형 확정)/거절/취소(사용자)<br>**Membership**(Root) — role(Owner/Staff/Technician)·조직 소속·활성상태, authAccountId를 불투명 참조로만 보유. 사용자는 여러 조직에 소속될 수 있음(N:M), 같은 조직 내 중복 소속·대기 요청만 차단 |
+| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, ACL) · `schedule` → 참조(ID) 제공 (Membership 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
 
-**Invitation을 별도 모듈로 분리하지 않은 이유**: `docs/planning/use-cases.md`의 5모듈 제안은 `invitation`을 독립 모듈로 뒀지만, 지금은 우선 `organization` 안의 애그리게잇 하나로 통합해서 시작한다. 초대 토큰 생명주기가 복잡해지거나(재발급 정책, 다중 소속 검증 등) 별도 팀 경계가 필요해지면 그때 모듈로 분리한다 — 지금 미리 쪼개서 얻는 이득보다 모듈 하나 늘리는 관리 비용이 더 크다고 판단.
+**참여 요청을 별도 모듈로 분리하지 않은 이유**: 회사 코드와 참여 요청은 소속 생성 규칙에 포함되고, 승인과 소속 생성이 하나의 유즈케이스에서 함께 성공·실패해야 하므로 `organization` 안의 애그리게잇으로 둔다(`docs/planning/use-cases.md` §3). 요청 생명주기가 복잡해지거나(다중 소속 검증 등) 별도 팀 경계가 필요해지면 그때 모듈 분리를 검토한다.
 
 <a id="schedule"></a>
 ### 3. 스케줄 컨텍스트 (`schedule`) — Core Subdomain ★핵심
@@ -136,15 +136,14 @@
 | # | 이슈 | 비고 |
 | --- | --- | --- |
 | BC-001 | 개인 계정·프로필 관리(마이페이지, 탈퇴)를 어느 컨텍스트가 가질지 | `auth`가 가질지, 별도 "계정" 성격 컨텍스트를 새로 둘지 미정. "계정"이라는 이름을 `organization`에서 뺀 것과 직접 연결된 이슈 |
-| BC-002 | Invitation을 `organization`에서 분리할 시점 | `use-cases.md`는 이미 별도 모듈(`invitation`)로 제안 중 — 필요해지면(재발급 정책 복잡화 등) 분리 |
-| BC-003 | 다중 소속(N:M) 허용 여부 | `use-cases.md` §2·§8에서 Figma 화면 간 상충 확인됨(초대 수락 Spec은 타사 소속 차단, 마이페이지는 다중 소속 가능). Membership 애그리게잇의 카디널리티에 직접 영향 |
+| BC-002 | 참여 요청(MembershipRequest)을 `organization`에서 분리할 시점 | 현재는 승인·소속 생성의 원자성 때문에 `organization`에 둠 — 요청 생명주기가 복잡해지면 분리 검토 |
 | BC-004 | 정산 기능의 실제 포함 여부 | 탈퇴 차단 조건에 "미완료 정산"이 등장하지만 정산 업무 흐름 자체는 미확인 (`use-cases.md` §8) |
 
 ---
 
 ## 다음 단계
 
-1. `organization`/`schedule`/`notification`의 `domain` 패키지에 실제 애그리게잇 구현 (Organization/Invitation/Membership, Work, Notification)
+1. `organization`/`schedule`/`notification`의 `domain` 패키지에 실제 애그리게잇 구현 (Organization/MembershipRequest/Membership, Work, Notification)
 2. 각 모듈 루트에 공개 계약 클래스 배치 (예: `schedule`의 `WorkLookup`처럼 `auth`/`user` 예제와 동일한 패턴)
 3. 모듈별 `AGENTS.md` 작성 (도메인 코드가 들어가는 시점에 함께)
 4. 이 문서와 [도메인 지도](README.md)를 실제 구현 진행에 맞춰 갱신
