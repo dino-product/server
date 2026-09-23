@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -28,9 +28,10 @@ class WorkTest {
     private static final PaymentInfo PAYMENT_INFO =
             new PaymentInfo(new BigDecimal("150000"), PaymentMethod.ON_SITE_CARD);
     private static final WorkSchedule FIRST_SCHEDULE =
-            new WorkSchedule(new MembershipId(3L), LocalDateTime.of(2026, 9, 22, 10, 0), Duration.ofHours(2));
+            new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T01:00:00Z"), Duration.ofHours(2));
     private static final WorkSchedule SECOND_SCHEDULE =
-            new WorkSchedule(new MembershipId(4L), LocalDateTime.of(2026, 9, 23, 14, 0), Duration.ofMinutes(90));
+            new WorkSchedule(new MembershipId(4L), Instant.parse("2026-09-23T05:00:00Z"), Duration.ofMinutes(90));
+    private static final Instant NOW = Instant.parse("2026-09-21T01:00:00Z");
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(
             List.of("before.jpg"),
             List.of("after.jpg"),
@@ -97,7 +98,7 @@ class WorkTest {
         @DisplayName("저장된 작업을 모든 상태와 함께 재구성한다")
         void reconstitutesWork() {
             WorkId id = new WorkId(10L);
-            AssignmentHistory history = new AssignmentHistory(FIRST_SCHEDULE);
+            AssignmentHistory history = new AssignmentHistory(FIRST_SCHEDULE, NOW);
             List<AssignmentHistory> histories = new ArrayList<>(List.of(history));
 
             Work work = Work.reconstitute(
@@ -141,7 +142,7 @@ class WorkTest {
         void assignsRegisteredWork() {
             Work work = registeredWork();
 
-            work.assign(FIRST_SCHEDULE);
+            work.assign(FIRST_SCHEDULE, NOW);
 
             assertThat(work.schedule()).contains(FIRST_SCHEDULE);
             assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
@@ -155,7 +156,7 @@ class WorkTest {
         void rejectsNullSchedule() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.assign(null))
+            assertThatThrownBy(() -> work.assign(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("schedule must not be null");
         }
@@ -166,7 +167,7 @@ class WorkTest {
             Work work = registeredWork();
             work.forceStatus(WorkStatus.ACCEPTED);
 
-            assertThatThrownBy(() -> work.assign(FIRST_SCHEDULE))
+            assertThatThrownBy(() -> work.assign(FIRST_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot assign when status is ACCEPTED");
         }
@@ -191,7 +192,7 @@ class WorkTest {
         void rejectsAssignWithAllScheduleFieldsMissing() {
             Work work = Work.register("필터 교체", REGISTRAR_ID, null, null, null);
 
-            assertThatThrownBy(() -> work.assign(new WorkSchedule(null, null, null)))
+            assertThatThrownBy(() -> work.assign(new WorkSchedule(null, null, null), NOW))
                     .isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -205,7 +206,7 @@ class WorkTest {
         void acceptsPendingAssignment() {
             Work work = pendingWork();
 
-            work.accept();
+            work.accept(NOW);
 
             assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
             assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.ACCEPTED);
@@ -216,7 +217,7 @@ class WorkTest {
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(work::accept)
+            assertThatThrownBy(() -> work.accept(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot accept when status is REGISTERED");
         }
@@ -226,7 +227,7 @@ class WorkTest {
         void rejectsMissingAssignmentHistory() {
             Work work = reconstitutedWithoutHistory(WorkStatus.PENDING_ACCEPTANCE);
 
-            assertThatThrownBy(work::accept)
+            assertThatThrownBy(() -> work.accept(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("No assignment history");
         }
@@ -241,7 +242,7 @@ class WorkTest {
         void rejectsPendingAssignment() {
             Work work = pendingWork();
 
-            work.reject(RejectionReason.SCHEDULE_CONFLICT);
+            work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW);
 
             AssignmentHistory history = work.assignmentHistory().getLast();
             assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
@@ -255,7 +256,7 @@ class WorkTest {
         void rejectsNullReason() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.reject(null))
+            assertThatThrownBy(() -> work.reject(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("rejectionReason must not be null");
             assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
@@ -267,7 +268,7 @@ class WorkTest {
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reject(RejectionReason.OTHER))
+            assertThatThrownBy(() -> work.reject(RejectionReason.OTHER, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reject when status is REGISTERED");
         }
@@ -282,7 +283,7 @@ class WorkTest {
         void reassignsPendingWork() {
             Work work = pendingWork();
 
-            work.reassign(SECOND_SCHEDULE);
+            work.reassign(SECOND_SCHEDULE, NOW);
 
             assertChangedAssignment(work);
         }
@@ -292,7 +293,7 @@ class WorkTest {
         void rejectsNullSchedule() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.reassign(null))
+            assertThatThrownBy(() -> work.reassign(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("schedule must not be null");
         }
@@ -302,7 +303,7 @@ class WorkTest {
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reassign(SECOND_SCHEDULE))
+            assertThatThrownBy(() -> work.reassign(SECOND_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reassign when status is REGISTERED");
         }
@@ -317,7 +318,7 @@ class WorkTest {
         void reschedulesPendingWork() {
             Work work = pendingWork();
 
-            work.reschedule(SECOND_SCHEDULE);
+            work.reschedule(SECOND_SCHEDULE, NOW);
 
             assertChangedAssignment(work);
         }
@@ -327,7 +328,7 @@ class WorkTest {
         void rejectsNullSchedule() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.reschedule(null))
+            assertThatThrownBy(() -> work.reschedule(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("schedule must not be null");
         }
@@ -337,7 +338,7 @@ class WorkTest {
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reschedule(SECOND_SCHEDULE))
+            assertThatThrownBy(() -> work.reschedule(SECOND_SCHEDULE, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reschedule when status is REGISTERED");
         }
@@ -352,7 +353,7 @@ class WorkTest {
         void unassignsPendingWork() {
             Work work = pendingWork();
 
-            work.unassign();
+            work.unassign(NOW);
 
             assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.REASSIGNED);
             assertThat(work.schedule()).isEmpty();
@@ -364,7 +365,7 @@ class WorkTest {
         void unassignsAcceptedWorkWithoutChangingHistory() {
             Work work = acceptedWork();
 
-            work.unassign();
+            work.unassign(NOW);
 
             assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.ACCEPTED);
             assertThat(work.schedule()).isEmpty();
@@ -378,7 +379,7 @@ class WorkTest {
             Work work = registeredWork();
             work.forceStatus(status);
 
-            assertThatThrownBy(work::unassign)
+            assertThatThrownBy(() -> work.unassign(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot unassign when status is " + status);
         }
@@ -526,13 +527,13 @@ class WorkTest {
 
     private static Work pendingWork() {
         Work work = registeredWork();
-        work.assign(FIRST_SCHEDULE);
+        work.assign(FIRST_SCHEDULE, NOW);
         return work;
     }
 
     private static Work acceptedWork() {
         Work work = pendingWork();
-        work.accept();
+        work.accept(NOW);
         return work;
     }
 

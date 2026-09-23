@@ -1,5 +1,6 @@
 package com.orbit.schedule.domain;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -134,41 +135,41 @@ public final class Work {
         return Optional.ofNullable(completionReport);
     }
 
-    public void assign(WorkSchedule newSchedule) {
+    public void assign(WorkSchedule newSchedule, Instant assignedAt) {
         requireStatus(WorkStatus.REGISTERED, "assign");
         requireSchedule(newSchedule);
         schedule = newSchedule;
-        assignmentHistory.add(new AssignmentHistory(newSchedule));
+        assignmentHistory.add(new AssignmentHistory(newSchedule, assignedAt));
         status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
     }
 
-    public void accept() {
+    public void accept(Instant decidedAt) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, "accept");
-        latestAssignment().accept();
+        latestAssignment().accept(decidedAt);
         status = status.transitionTo(WorkStatus.ACCEPTED);
     }
 
-    public void reject(RejectionReason reason) {
+    public void reject(RejectionReason reason, Instant decidedAt) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, "reject");
-        latestAssignment().reject(reason);
+        latestAssignment().reject(reason, decidedAt);
         schedule = null;
         status = status.transitionTo(WorkStatus.REGISTERED);
     }
 
-    public void reassign(WorkSchedule newSchedule) {
-        changeAssignment(newSchedule, "reassign");
+    public void reassign(WorkSchedule newSchedule, Instant changedAt) {
+        changeAssignment(newSchedule, changedAt, "reassign");
     }
 
-    public void reschedule(WorkSchedule newSchedule) {
-        changeAssignment(newSchedule, "reschedule");
+    public void reschedule(WorkSchedule newSchedule, Instant changedAt) {
+        changeAssignment(newSchedule, changedAt, "reschedule");
     }
 
-    public void unassign() {
+    public void unassign(Instant unassignedAt) {
         if (status != WorkStatus.PENDING_ACCEPTANCE && status != WorkStatus.ACCEPTED) {
             throw new IllegalStateException("Cannot unassign when status is " + status);
         }
         if (status == WorkStatus.PENDING_ACCEPTANCE) {
-            latestAssignment().reassign();
+            latestAssignment().reassign(unassignedAt);
         }
         // ACCEPTED 이력은 되돌릴 수 없는 과거 기록이므로 배정 해제 후에도 그대로 보존한다.
         schedule = null;
@@ -203,12 +204,12 @@ public final class Work {
         status = newStatus;
     }
 
-    private void changeAssignment(WorkSchedule newSchedule, String action) {
+    private void changeAssignment(WorkSchedule newSchedule, Instant changedAt, String action) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, action);
         requireSchedule(newSchedule);
-        latestAssignment().reassign();
+        latestAssignment().reassign(changedAt);
         schedule = newSchedule;
-        assignmentHistory.add(new AssignmentHistory(newSchedule));
+        assignmentHistory.add(new AssignmentHistory(newSchedule, changedAt));
     }
 
     private void requireStatus(WorkStatus requiredStatus, String action) {

@@ -9,6 +9,7 @@ import java.util.Optional;
 public final class CompletionReport {
 
     private static final int MAX_PHOTO_COUNT = 6;
+    private static final int MAX_USED_PARTS_LENGTH = 255;
     private static final int MAX_WORK_NOTE_LENGTH = 255;
 
     private final List<String> beforePhotos;
@@ -27,6 +28,9 @@ public final class CompletionReport {
             ActualPaymentMethod actualPaymentMethod) {
         this.beforePhotos = copyPhotos(beforePhotos, "beforePhotos");
         this.afterPhotos = copyPhotos(afterPhotos, "afterPhotos");
+        if (usedParts != null && usedParts.length() > MAX_USED_PARTS_LENGTH) {
+            throw new IllegalArgumentException("usedParts must be at most 255 characters");
+        }
         if (workNote != null && workNote.length() > MAX_WORK_NOTE_LENGTH) {
             throw new IllegalArgumentException("workNote must be at most 255 characters");
         }
@@ -76,13 +80,28 @@ public final class CompletionReport {
                 && Objects.equals(afterPhotos, that.afterPhotos)
                 && Objects.equals(usedParts, that.usedParts)
                 && Objects.equals(workNote, that.workNote)
-                && Objects.equals(actualFee, that.actualFee)
+                && actualFeeEquals(actualFee, that.actualFee)
                 && Objects.equals(actualPaymentMethod, that.actualPaymentMethod);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(beforePhotos, afterPhotos, usedParts, workNote, actualFee, actualPaymentMethod);
+        return Objects.hash(
+                beforePhotos,
+                afterPhotos,
+                usedParts,
+                workNote,
+                actualFee == null ? null : actualFee.stripTrailingZeros(),
+                actualPaymentMethod);
+    }
+
+    // BigDecimal.equals는 scale까지 비교해 150000과 150000.00을 다르다고 판단하므로,
+    // 생성자 검증과 같은 compareTo 기준(값 동등성)으로 맞춘다.
+    private static boolean actualFeeEquals(BigDecimal a, BigDecimal b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        return a.compareTo(b) == 0;
     }
 
     @Override
@@ -108,6 +127,9 @@ public final class CompletionReport {
         }
         if (photos.size() > MAX_PHOTO_COUNT) {
             throw new IllegalArgumentException(fieldName + " must have at most 6 photos");
+        }
+        if (photos.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException(fieldName + " must not contain null");
         }
         return List.copyOf(photos);
     }

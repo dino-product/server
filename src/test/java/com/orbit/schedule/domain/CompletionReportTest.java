@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
@@ -65,6 +66,26 @@ class CompletionReportTest {
     }
 
     @Test
+    @DisplayName("작업 전 사진 목록에 null이 있으면 거부한다")
+    void rejectsNullBeforePhoto() {
+        List<String> beforePhotos = Arrays.asList("before.jpg", null);
+
+        assertThatThrownBy(() -> new CompletionReport(beforePhotos, null, null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("beforePhotos must not contain null");
+    }
+
+    @Test
+    @DisplayName("작업 후 사진 목록에 null이 있으면 거부한다")
+    void rejectsNullAfterPhoto() {
+        List<String> afterPhotos = Arrays.asList(null, "after.jpg");
+
+        assertThatThrownBy(() -> new CompletionReport(null, afterPhotos, null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("afterPhotos must not contain null");
+    }
+
+    @Test
     @DisplayName("수행메모가 256자이면 거부한다")
     void rejectsWorkNoteLongerThan255Characters() {
         String workNote = "a".repeat(256);
@@ -72,6 +93,26 @@ class CompletionReportTest {
         assertThatThrownBy(() -> new CompletionReport(null, null, null, workNote, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("workNote must be at most 255 characters");
+    }
+
+    @Test
+    @DisplayName("사용부품이 255자이면 허용한다")
+    void acceptsUsedPartsOf255Characters() {
+        String usedParts = "a".repeat(255);
+
+        CompletionReport report = new CompletionReport(null, null, usedParts, null, null, null);
+
+        assertThat(report.usedParts()).contains(usedParts);
+    }
+
+    @Test
+    @DisplayName("사용부품이 256자이면 거부한다")
+    void rejectsUsedPartsLongerThan255Characters() {
+        String usedParts = "a".repeat(256);
+
+        assertThatThrownBy(() -> new CompletionReport(null, null, usedParts, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("usedParts must be at most 255 characters");
     }
 
     @Test
@@ -122,5 +163,27 @@ class CompletionReportTest {
 
         assertThat(report).isEqualTo(sameReport);
         assertThat(report.hashCode()).isEqualTo(sameReport.hashCode());
+    }
+
+    @Test
+    @DisplayName("결제금액의 scale이 달라도 값이 같으면 동등하다")
+    void isEqualWhenActualFeeScaleDiffers() {
+        CompletionReport report = new CompletionReport(
+                List.of("before.jpg"),
+                List.of("after.jpg"),
+                "필터 1개",
+                "필터 교체 완료",
+                new BigDecimal("150000"),
+                ActualPaymentMethod.BANK_TRANSFER);
+        CompletionReport sameValueDifferentScale = new CompletionReport(
+                List.of("before.jpg"),
+                List.of("after.jpg"),
+                "필터 1개",
+                "필터 교체 완료",
+                new BigDecimal("150000.00"),
+                ActualPaymentMethod.BANK_TRANSFER);
+
+        assertThat(report).isEqualTo(sameValueDifferentScale);
+        assertThat(report.hashCode()).isEqualTo(sameValueDifferentScale.hashCode());
     }
 }

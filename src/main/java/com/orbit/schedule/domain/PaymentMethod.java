@@ -4,8 +4,7 @@ package com.orbit.schedule.domain;
 public enum PaymentMethod {
     ON_SITE_CARD("현장 카드"),
     ON_SITE_CASH("현장 현금"),
-    BANK_TRANSFER("계좌이체"),
-    INVOICE_POSTPAID("청구서 발행 후불");
+    BANK_TRANSFER("계좌이체");
 
     private final String label;
 
