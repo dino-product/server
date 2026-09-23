@@ -175,6 +175,35 @@ class AssignmentHistoryTest {
     }
 
     @Test
+    @DisplayName("저장된 응답 전 마감 이력을 복원한다")
+    void restoresClosedHistory() {
+        AssignmentHistory history =
+                AssignmentHistory.restore(SCHEDULE, ASSIGNED_AT, AssignmentResult.REASSIGNED, null, DECIDED_AT);
+
+        assertThat(history.result()).isEqualTo(AssignmentResult.REASSIGNED);
+        assertThat(history.decidedAt()).contains(DECIDED_AT);
+        assertThat(history.rejectionReason()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("거절 사유가 있는 대기 이력은 복원하지 않는다")
+    void rejectsRestoringPendingWithReason() {
+        assertThatThrownBy(() -> AssignmentHistory.restore(
+                        SCHEDULE, ASSIGNED_AT, AssignmentResult.PENDING, RejectionReason.OTHER, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Only REJECTED history can have rejectionReason");
+    }
+
+    @Test
+    @DisplayName("거절 사유가 있는 응답 전 마감 이력은 복원하지 않는다")
+    void rejectsRestoringClosedWithReason() {
+        assertThatThrownBy(() -> AssignmentHistory.restore(
+                        SCHEDULE, ASSIGNED_AT, AssignmentResult.REASSIGNED, RejectionReason.OTHER, DECIDED_AT))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Only REJECTED history can have rejectionReason");
+    }
+
+    @Test
     @DisplayName("응답 시각이 있는 대기 이력은 복원하지 않는다")
     void rejectsRestoringPendingWithDecidedAt() {
         assertThatThrownBy(() ->
