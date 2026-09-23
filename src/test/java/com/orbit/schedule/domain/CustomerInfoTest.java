@@ -58,4 +58,24 @@ class CustomerInfoTest {
         assertThat(customerInfo.phone()).isEmpty();
         assertThat(customerInfo.address()).isEmpty();
     }
+
+    @Test
+    @DisplayName("빈 문자열과 공백만 있는 값은 미입력으로 취급한다")
+    void treatsBlankValuesAsAbsent() {
+        CustomerInfo customerInfo = new CustomerInfo("", "   ", "\t");
+
+        assertThat(customerInfo.name()).isEmpty();
+        assertThat(customerInfo.phone()).isEmpty();
+        assertThat(customerInfo.address()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("공백 값으로 만든 고객 정보는 미입력 고객 정보와 동등하다")
+    void blankValuesAreEqualToAbsentValues() {
+        CustomerInfo blank = new CustomerInfo("", " ", "");
+        CustomerInfo absent = new CustomerInfo(null, null, null);
+
+        assertThat(blank).isEqualTo(absent);
+        assertThat(blank.hashCode()).isEqualTo(absent.hashCode());
+    }
 }
