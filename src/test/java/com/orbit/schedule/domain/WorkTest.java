@@ -39,6 +39,7 @@ class WorkTest {
     private static final WorkSchedule RESCHEDULED_FIRST_SCHEDULE =
             new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T05:00:00Z"), Duration.ofHours(2));
     private static final Instant NOW = Instant.parse("2026-09-21T01:00:00Z");
+    private static final Instant LATER = NOW.plusSeconds(60);
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(
             List.of("before.jpg"),
             List.of("after.jpg"),
@@ -140,7 +141,9 @@ class WorkTest {
                     PAYMENT_INFO,
                     WorkStatus.COMPLETED,
                     histories,
-                    COMPLETION_REPORT);
+                    COMPLETION_REPORT,
+                    NOW.plusSeconds(60),
+                    NOW.plusSeconds(120));
             histories.clear();
 
             assertThat(work.id()).contains(id);
@@ -149,6 +152,8 @@ class WorkTest {
             assertThat(work.status()).isEqualTo(WorkStatus.COMPLETED);
             assertThat(work.assignmentHistory()).containsExactly(history);
             assertThat(work.completionReport()).contains(COMPLETION_REPORT);
+            assertThat(work.startedAt()).contains(NOW.plusSeconds(60));
+            assertThat(work.completedAt()).contains(NOW.plusSeconds(120));
             assertThatThrownBy(() -> work.assignmentHistory().clear())
                     .isInstanceOf(UnsupportedOperationException.class);
         }
@@ -177,6 +182,37 @@ class WorkTest {
                     .hasMessage(message);
         }
 
+        @ParameterizedTest
+        @MethodSource("com.orbit.schedule.domain.WorkTest#inconsistentProgressTimes")
+        @DisplayName("상태와 시작·완료 시각이 어긋난 저장값은 재구성을 거부한다")
+        void rejectsInconsistentProgressTimes(
+                WorkStatus status,
+                List<AssignmentHistory> histories,
+                Instant startedAt,
+                Instant completedAt,
+                String message) {
+            CompletionReport report = status == WorkStatus.COMPLETED ? COMPLETION_REPORT : null;
+            WorkSchedule schedule = status == WorkStatus.REGISTERED ? null : FIRST_SCHEDULE;
+
+            assertThatThrownBy(() -> reconstitute(status, schedule, histories, report, startedAt, completedAt))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage(message);
+        }
+
+        @Test
+        @DisplayName("수락 뒤 취소된 작업은 시작 시각이 있어도(작업중 취소) 없어도(수락됨 취소) 재구성한다")
+        void reconstitutesCancelledWorkWithOrWithoutStart() {
+            List<AssignmentHistory> histories =
+                    List.of(endedAcceptedHistory(FIRST_SCHEDULE, AssignmentEndReason.CANCELLED));
+
+            assertThat(reconstitute(WorkStatus.CANCELLED, FIRST_SCHEDULE, histories, null, NOW, null)
+                            .startedAt())
+                    .contains(NOW);
+            assertThat(reconstitute(WorkStatus.CANCELLED, FIRST_SCHEDULE, histories, null, null, null)
+                            .startedAt())
+                    .isEmpty();
+        }
+
         @Test
         @DisplayName("식별자가 null이면 재구성을 거부한다")
         void rejectsNullIdWhenReconstituting() {
@@ -190,6 +226,8 @@ class WorkTest {
                             null,
                             null,
                             WorkStatus.REGISTERED,
+                            null,
+                            null,
                             null,
                             null))
                     .isInstanceOf(NullPointerException.class)
@@ -740,11 +778,23 @@ class WorkTest {
     class Start {
 
         @Test
-        @DisplayName("수락된 작업을 시작한다")
+        @DisplayName("수락된 작업을 시작하고 시작 시각을 마이크로초로 잘라 남긴다")
         void startsAcceptedWork() {
             Work work = acceptedWork();
 
-            work.start();
+            work.start(LATER.plusNanos(1_999));
+
+            assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+            assertThat(work.startedAt()).contains(LATER.plusNanos(1_000));
+            assertThat(work.completedAt()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("예정 시작시각보다 이르게 시작해도 된다")
+        void allowsStartBeforeScheduledTime() {
+            Work work = acceptedWork();
+
+            work.start(FIRST_SCHEDULE.startTime().minusSeconds(3_600));
 
             assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
         }
@@ -754,9 +804,34 @@ class WorkTest {
         void rejectsOutsideAcceptedStatus() {
             Work work = pendingWork();
 
-            assertThatThrownBy(work::start)
+            assertThatThrownBy(() -> work.start(NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot start when status is PENDING_ACCEPTANCE");
+            assertThat(work.startedAt()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("시작 시각이 없으면 거부하고 작업을 바꾸지 않는다")
+        void rejectsNullStartedAt() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.start(null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("startedAt must not be null");
+            assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
+            assertThat(work.startedAt()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("수락 시각보다 앞선 시각으로는 시작하지 않고 작업을 바꾸지 않는다")
+        void rejectsStartBeforeAcceptance() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.start(NOW.minusNanos(1_000)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("startedAt must not be before the assignment was accepted");
+            assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
+            assertThat(work.startedAt()).isEmpty();
         }
     }
 
@@ -769,10 +844,29 @@ class WorkTest {
         void submitsCompletionReport() {
             Work work = inProgressWork();
 
-            work.submitCompletionReport(COMPLETION_REPORT);
+            work.submitCompletionReport(COMPLETION_REPORT, LATER.plusNanos(1_999));
 
             assertThat(work.completionReport()).contains(COMPLETION_REPORT);
             assertThat(work.status()).isEqualTo(WorkStatus.COMPLETED);
+            assertThat(work.startedAt()).contains(NOW);
+            assertThat(work.completedAt()).contains(LATER.plusNanos(1_000));
+        }
+
+        @Test
+        @DisplayName("완료 시각이 없거나 시작 시각보다 앞서면 거부하고 작업을 바꾸지 않는다")
+        void rejectsInvalidCompletedAt() {
+            Work work = acceptedWork();
+            work.start(LATER);
+
+            assertThatThrownBy(() -> work.submitCompletionReport(COMPLETION_REPORT, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("completedAt must not be null");
+            assertThatThrownBy(() -> work.submitCompletionReport(COMPLETION_REPORT, LATER.minusNanos(1_000)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("completedAt must not be before startedAt");
+            assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+            assertThat(work.completionReport()).isEmpty();
+            assertThat(work.completedAt()).isEmpty();
         }
 
         @Test
@@ -780,7 +874,7 @@ class WorkTest {
         void rejectsNullReport() {
             Work work = inProgressWork();
 
-            assertThatThrownBy(() -> work.submitCompletionReport(null))
+            assertThatThrownBy(() -> work.submitCompletionReport(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("completionReport must not be null");
         }
@@ -790,7 +884,7 @@ class WorkTest {
         void rejectsOutsideInProgressStatus() {
             Work work = acceptedWork();
 
-            assertThatThrownBy(() -> work.submitCompletionReport(COMPLETION_REPORT))
+            assertThatThrownBy(() -> work.submitCompletionReport(COMPLETION_REPORT, NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot submit completion report when status is ACCEPTED");
         }
@@ -838,19 +932,42 @@ class WorkTest {
                     .contains(new AssignmentEnding(NOW.plusSeconds(60), MANAGER_ID, AssignmentEndReason.CANCELLED));
         }
 
-        @ParameterizedTest
-        @EnumSource(
-                value = WorkStatus.class,
-                names = {"ACCEPTED", "IN_PROGRESS"})
+        @Test
         @DisplayName("수락 시각보다 앞선 시각으로는 취소하지 않고 작업을 전혀 바꾸지 않는다")
-        void rejectsCancellingBeforeAcceptance(WorkStatus status) {
-            Work work = workIn(status);
+        void rejectsCancellingBeforeAcceptance() {
+            Work work = acceptedWork();
 
             assertThatThrownBy(() -> work.cancel(NOW.minusSeconds(1), MANAGER_ID))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("endedAt must not be before the assignment was assigned or decided");
-            assertThat(work.status()).isEqualTo(status);
+            assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
             assertThat(work.assignmentHistory().getLast().ending()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("작업중인 작업은 시작 시각보다 앞선 시각으로 취소하지 않고 작업을 전혀 바꾸지 않는다")
+        void rejectsCancellingBeforeStart() {
+            Work work = acceptedWork();
+            work.start(LATER);
+
+            assertThatThrownBy(() -> work.cancel(LATER.minusSeconds(1), MANAGER_ID))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("endedAt must not be before startedAt");
+            assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+            assertThat(work.assignmentHistory().getLast().ending()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("작업중에 취소해도 시작 시각은 그대로 남는다")
+        void keepsStartedAtWhenCancellingInProgressWork() {
+            Work work = acceptedWork();
+            work.start(LATER);
+
+            work.cancel(LATER.plusSeconds(60), MANAGER_ID);
+
+            assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
+            assertThat(work.startedAt()).contains(LATER);
+            assertThat(work.completedAt()).isEmpty();
         }
 
         @Test
@@ -881,7 +998,6 @@ class WorkTest {
     class ActorRecords {
 
         private static final MembershipId OTHER_MANAGER_ID = new MembershipId(98L);
-        private static final Instant LATER = NOW.plusSeconds(60);
 
         @Test
         @DisplayName("배정한 관리자를 새 배정 이력에 남긴다")
@@ -1051,13 +1167,13 @@ class WorkTest {
 
     private static Work inProgressWork() {
         Work work = acceptedWork();
-        work.start();
+        work.start(NOW);
         return work;
     }
 
     private static Work completedWork() {
         Work work = inProgressWork();
-        work.submitCompletionReport(COMPLETION_REPORT);
+        work.submitCompletionReport(COMPLETION_REPORT, NOW);
         return work;
     }
 
@@ -1079,8 +1195,21 @@ class WorkTest {
         };
     }
 
+    /** 시작·완료 시각은 상태에 맞게 채운다(작업중이면 시작, 완료면 시작·완료를 {@link #NOW}로). */
     private static Work reconstitute(
             WorkStatus status, WorkSchedule schedule, List<AssignmentHistory> histories, CompletionReport report) {
+        boolean started = status == WorkStatus.IN_PROGRESS || status == WorkStatus.COMPLETED;
+        return reconstitute(
+                status, schedule, histories, report, started ? NOW : null, status == WorkStatus.COMPLETED ? NOW : null);
+    }
+
+    private static Work reconstitute(
+            WorkStatus status,
+            WorkSchedule schedule,
+            List<AssignmentHistory> histories,
+            CompletionReport report,
+            Instant startedAt,
+            Instant completedAt) {
         return Work.reconstitute(
                 new WorkId(10L),
                 ORGANIZATION_ID,
@@ -1092,7 +1221,9 @@ class WorkTest {
                 PAYMENT_INFO,
                 status,
                 histories,
-                report);
+                report,
+                startedAt,
+                completedAt);
     }
 
     private static AssignmentHistory pendingHistory(WorkSchedule schedule) {
@@ -1195,6 +1326,48 @@ class WorkTest {
                                 endedAcceptedHistory(FIRST_SCHEDULE, AssignmentEndReason.REASSIGNED),
                                 acceptedHistory(SECOND_SCHEDULE)),
                         null));
+    }
+
+    private static Stream<Arguments> inconsistentProgressTimes() {
+        List<AssignmentHistory> accepted = List.of(acceptedHistory(FIRST_SCHEDULE));
+        List<AssignmentHistory> cancelledAfterAcceptance =
+                List.of(endedAcceptedHistory(FIRST_SCHEDULE, AssignmentEndReason.CANCELLED));
+        return Stream.of(
+                Arguments.of(WorkStatus.IN_PROGRESS, accepted, null, null, "IN_PROGRESS work must have startedAt"),
+                Arguments.of(WorkStatus.COMPLETED, accepted, null, NOW, "COMPLETED work must have startedAt"),
+                Arguments.of(WorkStatus.ACCEPTED, accepted, NOW, null, "ACCEPTED work must not have startedAt"),
+                Arguments.of(
+                        WorkStatus.CANCELLED,
+                        List.of(closedHistory(FIRST_SCHEDULE, AssignmentEndReason.CANCELLED)),
+                        NOW,
+                        null,
+                        "CANCELLED work must not have startedAt"),
+                Arguments.of(WorkStatus.COMPLETED, accepted, NOW, null, "COMPLETED work must have completedAt"),
+                Arguments.of(WorkStatus.IN_PROGRESS, accepted, NOW, NOW, "IN_PROGRESS work must not have completedAt"),
+                Arguments.of(
+                        WorkStatus.CANCELLED,
+                        cancelledAfterAcceptance,
+                        NOW,
+                        NOW,
+                        "CANCELLED work must not have completedAt"),
+                Arguments.of(
+                        WorkStatus.IN_PROGRESS,
+                        accepted,
+                        NOW.minusSeconds(1),
+                        null,
+                        "startedAt must not be before the assignment was accepted"),
+                Arguments.of(
+                        WorkStatus.COMPLETED,
+                        accepted,
+                        NOW.plusSeconds(60),
+                        NOW.plusSeconds(59),
+                        "completedAt must not be before startedAt"),
+                Arguments.of(
+                        WorkStatus.CANCELLED,
+                        cancelledAfterAcceptance,
+                        NOW.plusSeconds(1),
+                        null,
+                        "endedAt must not be before startedAt"));
     }
 
     private static Stream<Arguments> inconsistentStoredStates() {

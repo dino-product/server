@@ -78,14 +78,16 @@ class InMemoryWorkRepositoryTest {
         work.accept(NOW.plusSeconds(40));
         work.reassign(FIRST_SCHEDULE, NOW.plusSeconds(50), MANAGER_ID);
         work.accept(NOW.plusSeconds(60));
-        work.start();
-        work.submitCompletionReport(new CompletionReport(
-                List.of("before.jpg"),
-                List.of("after.jpg"),
-                "필터 1개",
-                "교체 완료",
-                new Money(150_000L),
-                ActualPaymentMethod.CREDIT_CARD));
+        work.start(NOW.plusSeconds(70));
+        work.submitCompletionReport(
+                new CompletionReport(
+                        List.of("before.jpg"),
+                        List.of("after.jpg"),
+                        "필터 1개",
+                        "교체 완료",
+                        new Money(150_000L),
+                        ActualPaymentMethod.CREDIT_CARD),
+                NOW.plusSeconds(80));
 
         WorkId id = repository.save(work).id().orElseThrow();
         Work found = repository.findInOrganization(ORGANIZATION_ID, id).orElseThrow();
@@ -147,6 +149,8 @@ class InMemoryWorkRepositoryTest {
                 null,
                 WorkStatus.REGISTERED,
                 List.of(),
+                null,
+                null,
                 null);
 
         assertThatThrownBy(() -> repository.save(unknown))
@@ -225,12 +229,12 @@ class InMemoryWorkRepositoryTest {
             case ACCEPTED -> work.accept(NOW);
             case IN_PROGRESS -> {
                 work.accept(NOW);
-                work.start();
+                work.start(NOW);
             }
             case COMPLETED -> {
                 work.accept(NOW);
-                work.start();
-                work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null));
+                work.start(NOW);
+                work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
             }
             case CANCELLED -> work.cancel(NOW, MANAGER_ID);
             default -> throw new IllegalArgumentException("unsupported fixture status: " + status);

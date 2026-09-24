@@ -63,8 +63,8 @@ class FakeWorkRepositoryTest {
         work.reassign(
                 new WorkSchedule(new MembershipId(5L), NOW, Duration.ofHours(2)), NOW.plusSeconds(40), MANAGER_ID);
         work.accept(NOW.plusSeconds(50));
-        work.start();
-        work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null));
+        work.start(NOW.plusSeconds(60));
+        work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW.plusSeconds(70));
         return work;
     }
 }
