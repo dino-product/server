@@ -32,10 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.orbit.schedule.application.error.ScheduleErrorCode;
+import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
-import com.orbit.shared.error.BusinessException;
 import com.orbit.support.TestcontainersConfiguration;
 
 @DataJpaTest
@@ -95,7 +94,7 @@ class PostgresTechnicianScheduleLockAdapterTest {
     }
 
     @Test
-    @DisplayName("대기 한도를 넘기면 기사 일정 변경 중 오류로 실패한다")
+    @DisplayName("대기 한도를 넘기면 포트의 기사 일정 변경 중 예외로 실패한다")
     void failsWhenWaitLimitExceeded() throws Exception {
         MembershipId technicianId = nextTechnician();
         holdLock(technicianId);
@@ -105,8 +104,7 @@ class PostgresTechnicianScheduleLockAdapterTest {
         assertThatThrownBy(() -> waiter.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS))
                 .isInstanceOf(ExecutionException.class)
                 .cause()
-                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
-                        .isEqualTo(ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY));
+                .isInstanceOf(TechnicianScheduleBusyException.class);
     }
 
     @Test

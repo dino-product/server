@@ -56,6 +56,47 @@ class WorkScheduleTest {
     }
 
     @Test
+    @DisplayName("예상소요시간은 24시간까지 허용하고 넘으면 거부한다")
+    void limitsExpectedDurationToOneDay() {
+        assertThat(new WorkSchedule(TECHNICIAN_ID, START_TIME, Duration.ofHours(24)).expectedDuration())
+                .isEqualTo(WorkSchedule.MAX_EXPECTED_DURATION);
+        assertThatThrownBy(() -> new WorkSchedule(
+                        TECHNICIAN_ID, START_TIME, Duration.ofHours(24).plusNanos(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("expectedDuration must not exceed PT24H");
+    }
+
+    @Test
+    @DisplayName("종료시간을 계산할 수 없는 일정은 거부해 이후 겹침 판정을 깨뜨리지 않는다")
+    void rejectsUnrepresentableEndTime() {
+        assertThatThrownBy(() -> new WorkSchedule(TECHNICIAN_ID, Instant.MAX.minusSeconds(60), Duration.ofHours(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("endTime must be representable");
+    }
+
+    @Test
+    @DisplayName("지난 시각에 시작하는 일정도 사후 기록으로 허용한다")
+    void allowsPastStartTime() {
+        Instant past = Instant.parse("2020-01-01T00:00:00Z");
+
+        assertThat(new WorkSchedule(TECHNICIAN_ID, past, Duration.ofHours(1)).startTime())
+                .isEqualTo(past);
+    }
+
+    @Test
+    @DisplayName("담당기사 없이 시간 입력만 먼저 검증할 수 있다")
+    void validatesTimeWithoutTechnician() {
+        WorkSchedule.requireValidTime(START_TIME, Duration.ofHours(1));
+
+        assertThatThrownBy(() -> WorkSchedule.requireValidTime(null, Duration.ofHours(1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("startTime must not be null");
+        assertThatThrownBy(() -> WorkSchedule.requireValidTime(START_TIME, Duration.ZERO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("expectedDuration must be positive");
+    }
+
+    @Test
     @DisplayName("담당기사와 시작시간과 양수 예상소요시간으로 생성된다")
     void createsWithValidValues() {
         Duration expectedDuration = Duration.ofMinutes(1);

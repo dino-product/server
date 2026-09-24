@@ -180,20 +180,20 @@ public final class Work {
         requireChangeableAssignment("reassign");
         requireSchedule(newSchedule);
         if (newSchedule.technicianId().equals(schedule.technicianId())) {
-            throw new IllegalArgumentException("reassign requires a different technician");
+            throw new SameTechnicianException();
         }
         changeAssignment(newSchedule, changedAt);
     }
 
     /**
-     * 담당기사는 그대로 두고 시작시각·예상소요시간을 바꾼다. 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. 상태를 먼저 확인하므로 바꿀 수 없는 상태면 입력과
-     * 관계없이 거부한다.
+     * 담당기사는 그대로 두고 시작시각·예상소요시간을 바꾼다. 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. 현재 기사로 일정을 만들어야 하므로 상태를 시간 입력보다
+     * 먼저 확인한다. 입력을 상태보다 먼저 거르려면 호출자가 {@link WorkSchedule#requireValidTime}으로 미리 검증한다.
      */
     public void reschedule(Instant newStartTime, Duration newExpectedDuration, Instant changedAt) {
         requireChangeableAssignment("reschedule");
         WorkSchedule newSchedule = new WorkSchedule(schedule.technicianId(), newStartTime, newExpectedDuration);
         if (newSchedule.equals(schedule)) {
-            throw new IllegalArgumentException("reschedule requires a different time");
+            throw new UnchangedScheduleException();
         }
         changeAssignment(newSchedule, changedAt);
     }
@@ -212,14 +212,14 @@ public final class Work {
 
     /**
      * 작업명·작업 유형·고객정보·결제정보 네 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된 작업은 바꿀 수
-     * 없고, 상태·배정은 그대로 둔다.
+     * 없고, 상태·배정은 그대로 둔다. 서비스의 공통 오류 순서(입력 → 상태)에 맞춰 작업명을 상태보다 먼저 검증한다.
      */
     public void changeDetails(
             String newName, WorkTypeId newWorkType, CustomerInfo newCustomerInfo, PaymentInfo newPaymentInfo) {
+        requireName(newName);
         if (status.isTerminal()) {
             throw new IllegalStateException("Cannot change details when status is " + status);
         }
-        requireName(newName);
         name = newName;
         workType = newWorkType;
         customerInfo = orEmpty(newCustomerInfo);

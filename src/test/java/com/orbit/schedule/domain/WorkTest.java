@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -200,7 +201,7 @@ class WorkTest {
         void changesDetailsBeforeTermination(WorkStatus status) {
             Work work = workIn(status);
             Optional<WorkSchedule> scheduleBefore = work.schedule();
-            List<AssignmentHistory> historyBefore = work.assignmentHistory();
+            List<Tuple> historyBefore = snapshotOf(work.assignmentHistory());
 
             work.changeDetails("보일러 점검", OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO);
 
@@ -210,7 +211,19 @@ class WorkTest {
             assertThat(work.paymentInfo()).isEqualTo(OTHER_PAYMENT_INFO);
             assertThat(work.status()).isEqualTo(status);
             assertThat(work.schedule()).isEqualTo(scheduleBefore);
-            assertThat(work.assignmentHistory()).isEqualTo(historyBefore);
+            // 이력은 가변 객체라 같은 인스턴스끼리 비교하면 늘 같으므로, 바꾸기 전 값을 떠 두고 비교한다.
+            assertThat(snapshotOf(work.assignmentHistory())).isEqualTo(historyBefore);
+        }
+
+        private static List<Tuple> snapshotOf(List<AssignmentHistory> histories) {
+            return histories.stream()
+                    .map(history -> Tuple.tuple(
+                            history.schedule(),
+                            history.assignedAt(),
+                            history.result(),
+                            history.rejectionReason(),
+                            history.decidedAt()))
+                    .toList();
         }
 
         @Test
@@ -226,7 +239,9 @@ class WorkTest {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"COMPLETED", "CANCELLED"})
+        @EnumSource(
+                value = WorkStatus.class,
+                names = {"COMPLETED", "CANCELLED"})
         @DisplayName("완료·취소된 작업은 수정할 수 없고 아무것도 바꾸지 않는다")
         void rejectsTerminatedWork(WorkStatus status) {
             Work work = workIn(status);
@@ -235,6 +250,16 @@ class WorkTest {
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot change details when status is " + status);
             assertUnchangedDetails(work);
+        }
+
+        @Test
+        @DisplayName("완료된 작업이라도 작업명이 비었으면 입력 오류를 먼저 알린다")
+        void checksInputBeforeState() {
+            Work work = workIn(WorkStatus.COMPLETED);
+
+            assertThatThrownBy(() -> work.changeDetails(" ", null, null, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("name must not be blank");
         }
 
         @ParameterizedTest
@@ -468,7 +493,7 @@ class WorkTest {
             Work work = pendingWork();
 
             assertThatThrownBy(() -> work.reassign(RESCHEDULED_FIRST_SCHEDULE, NOW))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(SameTechnicianException.class)
                     .hasMessage("reassign requires a different technician");
         }
 
@@ -553,7 +578,7 @@ class WorkTest {
 
             assertThatThrownBy(
                             () -> work.reschedule(FIRST_SCHEDULE.startTime(), FIRST_SCHEDULE.expectedDuration(), NOW))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(UnchangedScheduleException.class)
                     .hasMessage("reschedule requires a different time");
         }
 

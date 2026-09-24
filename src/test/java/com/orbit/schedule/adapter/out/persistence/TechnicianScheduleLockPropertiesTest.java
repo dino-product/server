@@ -21,8 +21,8 @@ class TechnicianScheduleLockPropertiesTest {
     }
 
     @Test
-    @DisplayName("환경 변수를 비워 두거나 값을 주면 설정 바인딩이 기본값·지정값을 쓴다")
-    void bindsEmptyAndGivenValues() {
+    @DisplayName("설정 값을 비우면 2초, 주면 그 값을 쓰고, 30초를 넘기면 기동하지 않는다")
+    void bindsEmptyGivenAndTooLongValues() {
         ApplicationContextRunner runner = new ApplicationContextRunner().withUserConfiguration(EnableProperties.class);
 
         runner.withPropertyValues("app.schedule.technician-lock.wait-limit=").run(context -> assertThat(
@@ -36,10 +36,6 @@ class TechnicianScheduleLockPropertiesTest {
                 .run(context -> assertThat(context).hasFailed());
     }
 
-    @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(TechnicianScheduleLockProperties.class)
-    static class EnableProperties {}
-
     @Test
     @DisplayName("대기 한도는 1ms 이상 30초 이하만 허용해, PostgreSQL이 받지 못하는 값으로 기동하지 않는다")
     void acceptsOnlyBoundedWaitLimit() {
@@ -52,4 +48,8 @@ class TechnicianScheduleLockPropertiesTest {
                     .isInstanceOf(IllegalArgumentException.class);
         }
     }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(TechnicianScheduleLockProperties.class)
+    static class EnableProperties {}
 }

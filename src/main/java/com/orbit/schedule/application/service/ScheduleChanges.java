@@ -3,8 +3,8 @@ package com.orbit.schedule.application.service;
 import java.util.Comparator;
 import java.util.List;
 
-import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult;
-import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult.ConflictingWork;
+import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
+import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Work;
@@ -20,7 +20,7 @@ final class ScheduleChanges {
 
     private ScheduleChanges() {}
 
-    static ScheduleChangeResult saveUnlessUnconfirmedConflict(
+    static ScheduleChangeInfo saveUnlessUnconfirmedConflict(
             WorkRepository workRepository,
             LockTechnicianSchedulePort lockTechnicianSchedulePort,
             Work changedWork,
@@ -28,20 +28,20 @@ final class ScheduleChanges {
         WorkSchedule schedule = changedWork
                 .schedule()
                 .orElseThrow(() -> new IllegalStateException("changed work must have a schedule"));
-        lockTechnicianSchedulePort.lock(changedWork.organizationId(), schedule.technicianId());
+        TechnicianScheduleLocks.lock(lockTechnicianSchedulePort, changedWork.organizationId(), schedule.technicianId());
         List<Work> candidates =
-                workRepository.findActiveByTechnician(changedWork.organizationId(), schedule.technicianId());
+                workRepository.listActiveByTechnician(changedWork.organizationId(), schedule.technicianId());
         List<ConflictingWork> conflicts =
                 WorkScheduleConflictPolicy.findConflictingWorks(schedule, changedWork, candidates).stream()
                         .map(ScheduleChanges::toConflictingWork)
                         .sorted(Comparator.comparing(ConflictingWork::startTime).thenComparing(ConflictingWork::workId))
                         .toList();
         if (!conflicts.isEmpty() && !conflictConfirmed) {
-            return ScheduleChangeResult.withheld(conflicts);
+            return ScheduleChangeInfo.withheld(conflicts);
         }
 
         workRepository.save(changedWork);
-        return ScheduleChangeResult.applied(conflicts);
+        return ScheduleChangeInfo.applied(conflicts);
     }
 
     private static ConflictingWork toConflictingWork(Work work) {

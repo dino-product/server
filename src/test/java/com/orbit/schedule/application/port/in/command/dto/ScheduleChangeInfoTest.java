@@ -10,10 +10,10 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult.ConflictingWork;
+import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
 
 @DisplayName("일정 변경 결과")
-class ScheduleChangeResultTest {
+class ScheduleChangeInfoTest {
 
     private static final ConflictingWork CONFLICT = new ConflictingWork(
             1L, "기존 작업", Instant.parse("2026-09-25T01:00:00Z"), Instant.parse("2026-09-25T03:00:00Z"));
@@ -21,15 +21,15 @@ class ScheduleChangeResultTest {
     @Test
     @DisplayName("반영하지 않은 결과는 겹친 작업이 없으면 만들 수 없다")
     void withheldRequiresConflicts() {
-        assertThatThrownBy(() -> ScheduleChangeResult.withheld(List.of())).isInstanceOf(IllegalArgumentException.class);
-        assertThat(ScheduleChangeResult.withheld(List.of(CONFLICT)).applied()).isFalse();
+        assertThatThrownBy(() -> ScheduleChangeInfo.withheld(List.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThat(ScheduleChangeInfo.withheld(List.of(CONFLICT)).applied()).isFalse();
     }
 
     @Test
     @DisplayName("겹친 작업 목록은 넘긴 목록이 바뀌어도 그대로다")
     void copiesConflicts() {
         List<ConflictingWork> conflicts = new ArrayList<>(List.of(CONFLICT));
-        ScheduleChangeResult result = ScheduleChangeResult.applied(conflicts);
+        ScheduleChangeInfo result = ScheduleChangeInfo.applied(conflicts);
 
         conflicts.clear();
 

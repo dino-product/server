@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
-import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeResult;
+import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
@@ -18,10 +18,8 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
 
 /**
- * 대기함 작업 배정. 요청한 조직의 총관리자·직원만 배정할 수 있다. 권한(403) → 작업 식별자(400) → 작업 조회(다른 조직이면 404) → 일정 입력(400) → 도메인 배정
- * 규칙(상태 409·배정 시각 400) → 일정 겹침 순으로 확인한다. 겹치는데 확인하지 않은 요청이면 저장하지 않고 겹친 작업을 돌려준다. 같은 기사를 동시에 바꾸는
- * 요청은 기사 단위 잠금으로 한 줄로 세우고, 대기 한도를 넘기면 409다. 담당기사가 같은 조직의 활성 기사인지는 organization 계약이 연결될 때 검증하며, 그 전에는
- * 이 유즈케이스를 컨트롤러로 노출하지 않는다.
+ * 대기함 작업 배정. 담당기사·시작시각·예상소요시간을 한 번에 지정하고 기사의 수락을 기다린다. 같은 기사의 활성 작업과 겹치면 확인한 요청만 반영한다.
+ * 오류 확인 순서는 schedule 지침의 공통 순서를 따른다. 담당기사가 같은 조직의 활성 기사인지는 organization 계약이 연결될 때 검증한다.
  */
 @Service
 public class AssignWorkService implements AssignWorkUseCase {
@@ -44,7 +42,7 @@ public class AssignWorkService implements AssignWorkUseCase {
 
     @Override
     @Transactional
-    public ScheduleChangeResult assign(AssignWorkCommand command) {
+    public ScheduleChangeInfo assign(AssignWorkCommand command) {
         Actor actor = ManagingActors.require(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
         WorkSchedule schedule = DomainRuleViolations.call(() -> new WorkSchedule(

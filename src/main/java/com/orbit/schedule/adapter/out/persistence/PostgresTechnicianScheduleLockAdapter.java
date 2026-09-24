@@ -17,11 +17,10 @@ import org.springframework.jdbc.datasource.ConnectionHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
+import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
-import com.orbit.shared.error.BusinessException;
 
 /**
  * PostgreSQL 트랜잭션 단위 advisory lock으로 조직·기사의 일정 변경을 한 줄로 세운다. 테이블 없이 조직·기사로 만든 64비트 키(SHA-256 앞 8바이트)를 잠그고,
@@ -74,7 +73,7 @@ class PostgresTechnicianScheduleLockAdapter implements LockTechnicianSchedulePor
             });
         } catch (DataAccessException e) {
             if (isLockNotAvailable(e)) {
-                throw new BusinessException(ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY, e);
+                throw new TechnicianScheduleBusyException(e);
             }
             throw e;
         }

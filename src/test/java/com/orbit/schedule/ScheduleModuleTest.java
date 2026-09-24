@@ -89,7 +89,7 @@ class ScheduleModuleTest {
                 .id()
                 .orElseThrow();
 
-        assertThat(workRepository.findById(id))
+        assertThat(workRepository.findInOrganization(ORGANIZATION_ID, id))
                 .hasValueSatisfying(work -> assertThat(work.name()).isEqualTo("모듈 작업"));
     }
 

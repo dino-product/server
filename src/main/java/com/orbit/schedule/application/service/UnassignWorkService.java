@@ -14,8 +14,8 @@ import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.Work;
 
 /**
- * 배정 해제. 요청한 조직의 총관리자·직원만 해제할 수 있다. 권한(403) → 작업 식별자(400) → 작업 조회(다른 조직이면 404) → 도메인 해제 규칙(수락대기·수락됨이 아니면
- * 409, 수락대기면 대기 중이던 배정을 해제 시각으로 마감하므로 그 시각이 배정 시각보다 이르면 400) 순으로 확인한다. 수락된 배정 이력은 그대로 둔다. 해제된 작업은 대기함으로 돌아간다.
+ * 배정 해제. 수락대기·수락됨 작업을 대기함으로 돌린다. 응답 대기 중이던 배정은 해제 시각으로 마감하고 수락된 이력은 그대로 둔다. 오류 확인 순서는
+ * schedule 지침의 공통 순서를 따른다.
  */
 @Service
 public class UnassignWorkService implements UnassignWorkUseCase {

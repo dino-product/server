@@ -46,8 +46,16 @@ class InMemoryWorkRepositoryTest {
         WorkId second = repository.save(newWork("둘째 작업")).id().orElseThrow();
 
         assertThat(first).isNotEqualTo(second);
-        assertThat(repository.findById(first).orElseThrow().name()).isEqualTo("첫 작업");
-        assertThat(repository.findById(second).orElseThrow().name()).isEqualTo("둘째 작업");
+        assertThat(repository
+                        .findInOrganization(ORGANIZATION_ID, first)
+                        .orElseThrow()
+                        .name())
+                .isEqualTo("첫 작업");
+        assertThat(repository
+                        .findInOrganization(ORGANIZATION_ID, second)
+                        .orElseThrow()
+                        .name())
+                .isEqualTo("둘째 작업");
     }
 
     @Test
@@ -75,7 +83,7 @@ class InMemoryWorkRepositoryTest {
                 ActualPaymentMethod.CREDIT_CARD));
 
         WorkId id = repository.save(work).id().orElseThrow();
-        Work found = repository.findById(id).orElseThrow();
+        Work found = repository.findInOrganization(ORGANIZATION_ID, id).orElseThrow();
 
         assertThat(found).usingRecursiveComparison().ignoringFields("id").isEqualTo(work);
         assertThat(found.status()).isEqualTo(WorkStatus.COMPLETED);
@@ -88,25 +96,29 @@ class InMemoryWorkRepositoryTest {
     @DisplayName("조회한 작업을 저장하지 않고 바꾸면 저장값은 그대로다")
     void doesNotLeakUnsavedChangesOfLoadedWork() {
         WorkId id = repository.save(newWork("에어컨 수리")).id().orElseThrow();
-        Work loaded = repository.findById(id).orElseThrow();
+        Work loaded = repository.findInOrganization(ORGANIZATION_ID, id).orElseThrow();
 
         loaded.assign(FIRST_SCHEDULE, NOW);
 
-        assertThat(repository.findById(id).orElseThrow().status()).isEqualTo(WorkStatus.REGISTERED);
+        assertThat(repository
+                        .findInOrganization(ORGANIZATION_ID, id)
+                        .orElseThrow()
+                        .status())
+                .isEqualTo(WorkStatus.REGISTERED);
     }
 
     @Test
     @DisplayName("저장한 뒤 넘긴 작업이나 돌려받은 작업을 바꿔도 저장값은 그대로다")
     void doesNotShareInstancesAfterSave() {
         WorkId id = repository.save(newWork("에어컨 수리")).id().orElseThrow();
-        Work loaded = repository.findById(id).orElseThrow();
+        Work loaded = repository.findInOrganization(ORGANIZATION_ID, id).orElseThrow();
         loaded.assign(FIRST_SCHEDULE, NOW);
         Work returned = repository.save(loaded);
 
         loaded.accept(NOW.plusSeconds(60));
         returned.accept(NOW.plusSeconds(60));
 
-        Work reloaded = repository.findById(id).orElseThrow();
+        Work reloaded = repository.findInOrganization(ORGANIZATION_ID, id).orElseThrow();
         assertThat(reloaded.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         assertThat(reloaded.assignmentHistory()).singleElement().satisfies(history -> assertThat(history.result())
                 .isEqualTo(AssignmentResult.PENDING));
@@ -131,7 +143,8 @@ class InMemoryWorkRepositoryTest {
         assertThatThrownBy(() -> repository.save(unknown))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Cannot save unknown work: 999");
-        assertThat(repository.findById(new WorkId(999L))).isEmpty();
+        assertThat(repository.findInOrganization(ORGANIZATION_ID, new WorkId(999L)))
+                .isEmpty();
     }
 
     @Test
@@ -149,7 +162,7 @@ class InMemoryWorkRepositoryTest {
         otherOrganizationWork.assign(FIRST_SCHEDULE, NOW);
         repository.save(otherOrganizationWork);
 
-        List<Work> found = repository.findActiveByTechnician(ORGANIZATION_ID, technician);
+        List<Work> found = repository.listActiveByTechnician(ORGANIZATION_ID, technician);
 
         assertThat(found)
                 .extracting(work -> work.id().orElseThrow())
@@ -164,9 +177,9 @@ class InMemoryWorkRepositoryTest {
         work.reassign(SECOND_SCHEDULE, NOW.plusSeconds(10));
         WorkId id = repository.save(work).id().orElseThrow();
 
-        assertThat(repository.findActiveByTechnician(ORGANIZATION_ID, FIRST_SCHEDULE.technicianId()))
+        assertThat(repository.listActiveByTechnician(ORGANIZATION_ID, FIRST_SCHEDULE.technicianId()))
                 .isEmpty();
-        assertThat(repository.findActiveByTechnician(ORGANIZATION_ID, SECOND_SCHEDULE.technicianId()))
+        assertThat(repository.listActiveByTechnician(ORGANIZATION_ID, SECOND_SCHEDULE.technicianId()))
                 .extracting(found -> found.id().orElseThrow())
                 .containsExactly(id);
     }
@@ -176,18 +189,23 @@ class InMemoryWorkRepositoryTest {
     void doesNotLeakUnsavedChangesOfFoundWorks() {
         WorkId id = saveIn(FIRST_SCHEDULE, WorkStatus.PENDING_ACCEPTANCE);
         Work found = repository
-                .findActiveByTechnician(ORGANIZATION_ID, FIRST_SCHEDULE.technicianId())
+                .listActiveByTechnician(ORGANIZATION_ID, FIRST_SCHEDULE.technicianId())
                 .getFirst();
 
         found.accept(NOW.plusSeconds(60));
 
-        assertThat(repository.findById(id).orElseThrow().status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(repository
+                        .findInOrganization(ORGANIZATION_ID, id)
+                        .orElseThrow()
+                        .status())
+                .isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
     }
 
     @Test
     @DisplayName("없는 작업은 비어 있다")
     void returnsEmptyForUnknownId() {
-        assertThat(repository.findById(new WorkId(999L))).isEmpty();
+        assertThat(repository.findInOrganization(ORGANIZATION_ID, new WorkId(999L)))
+                .isEmpty();
     }
 
     private WorkId saveIn(WorkSchedule schedule, WorkStatus status) {
