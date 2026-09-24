@@ -26,6 +26,14 @@ class ScheduleChangeInfoTest {
     }
 
     @Test
+    @DisplayName("겹친 작업 목록이 null이면 만들 수 없다")
+    void requiresConflicts() {
+        assertThatThrownBy(() -> ScheduleChangeInfo.applied(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("conflicts must not be null");
+    }
+
+    @Test
     @DisplayName("겹친 작업 목록은 넘긴 목록이 바뀌어도 그대로다")
     void copiesConflicts() {
         List<ConflictingWork> conflicts = new ArrayList<>(List.of(CONFLICT));

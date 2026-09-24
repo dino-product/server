@@ -145,6 +145,37 @@ class RejectWorkServiceTest {
                 () -> service.reject(command(accepted.value(), 1, null, null)), ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
+    @Test
+    @DisplayName("응답 시각이 배정 시각보다 앞서면(서버 간 시계 차이) 입력 오류다")
+    void rejectsResponseBeforeAssignment() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = rescheduledAfterNow();
+
+        fixture.assertRejected(
+                () -> service.reject(command(id.value(), 2, RejectionReason.SCHEDULE_CONFLICT, null)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("응답할 수 없는 상태면 응답 시각이 배정 시각보다 앞서도 상태 오류다")
+    void checksStateBeforeResponseTime() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work work = fixture.stored(rescheduledAfterNow());
+        work.unassign(NOW.plusSeconds(120), SETUP_MANAGER_ID);
+        WorkId id = fixture.workRepository.store(work);
+
+        fixture.assertRejected(
+                () -> service.reject(command(id.value(), 2, RejectionReason.SCHEDULE_CONFLICT, null)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
+    }
+
+    /** 수락대기 작업을 고정 시계({@link ScheduleServiceFixture#NOW})보다 늦은 시각에 같은 기사의 다른 시간으로 바꿔 둔다. 새 배정은 2번이다. */
+    private WorkId rescheduledAfterNow() {
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        work.reschedule(TEN.plusSeconds(3_600), TWO_HOURS, NOW.plusSeconds(60), SETUP_MANAGER_ID);
+        return fixture.workRepository.store(work);
+    }
+
     private WorkId rejectedWork(Rejection rejection) {
         Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
         work.reject(rejection, ACCEPTED_AT);

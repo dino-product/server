@@ -119,6 +119,24 @@ class CreateWorkServiceTest {
     }
 
     @Test
+    @DisplayName("작업명·고객 이름·연락처·주소가 항목별 길이 상한을 넘으면 입력 오류다")
+    void rejectsTooLongText() {
+        fixture.givenManager();
+
+        fixture.assertRejected(
+                () -> service.create(command("가".repeat(101), null)), ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.create(customerCommand("가".repeat(51), null, null)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, "0".repeat(21), null)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, "가".repeat(201))),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
     @DisplayName("행위자 포트가 요청과 다른 조직의 행위자를 돌려주면 프로그래밍 오류로 멈추고 저장하지 않는다")
     void failsFastWhenActorBelongsToOtherOrganization() {
         LoadActorPort misbehavingPort = (accountId, organizationId) ->
@@ -130,6 +148,11 @@ class CreateWorkServiceTest {
                 .isNotInstanceOf(BusinessException.class)
                 .hasMessage("actor must belong to the requested organization");
         assertThat(fixture.workRepository.saved()).isEmpty();
+    }
+
+    private static CreateWorkCommand customerCommand(String name, String phone, String address) {
+        return new CreateWorkCommand(
+                ACCOUNT_ID, ORGANIZATION_ID.value(), "에어컨 수리", null, name, phone, address, null, null);
     }
 
     private static CreateWorkCommand command(String name, Long fee) {

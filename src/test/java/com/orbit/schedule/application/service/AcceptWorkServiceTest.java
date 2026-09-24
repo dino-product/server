@@ -4,6 +4,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCE
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETUP_MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
@@ -78,7 +79,38 @@ class AcceptWorkServiceTest {
         fixture.assertRejected(() -> service.accept(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);
     }
 
+    @Test
+    @DisplayName("응답 시각이 배정 시각보다 앞서면(서버 간 시계 차이) 입력 오류다")
+    void rejectsResponseBeforeAssignment() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = rescheduledAfterNow();
+
+        fixture.assertRejected(() -> service.accept(command(id.value(), 2)), ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("응답할 수 없는 상태면 응답 시각이 배정 시각보다 앞서도 상태 오류다")
+    void checksStateBeforeResponseTime() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work work = fixture.stored(rescheduledAfterNow());
+        work.unassign(NOW.plusSeconds(120), SETUP_MANAGER_ID);
+        WorkId id = fixture.workRepository.store(work);
+
+        fixture.assertRejected(() -> service.accept(command(id.value(), 2)), ScheduleErrorCode.INVALID_WORK_STATE);
+    }
+
+    /** 수락대기 작업을 고정 시계({@link ScheduleServiceFixture#NOW})보다 늦은 시각에 같은 기사의 다른 시간으로 바꿔 둔다. 새 배정은 2번이다. */
+    private WorkId rescheduledAfterNow() {
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        work.reschedule(TEN.plusSeconds(3_600), TWO_HOURS, NOW.plusSeconds(60), SETUP_MANAGER_ID);
+        return fixture.workRepository.store(work);
+    }
+
     private static AcceptWorkCommand command(long workId) {
-        return new AcceptWorkCommand(ACCOUNT_ID, ORGANIZATION_ID.value(), workId, 1);
+        return command(workId, 1);
+    }
+
+    private static AcceptWorkCommand command(long workId, int number) {
+        return new AcceptWorkCommand(ACCOUNT_ID, ORGANIZATION_ID.value(), workId, number);
     }
 }

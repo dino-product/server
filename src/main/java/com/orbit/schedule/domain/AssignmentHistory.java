@@ -1,11 +1,12 @@
 package com.orbit.schedule.domain;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 /**
  * Work에 속한 하나의 배정 시도와 그 결과. 배정한 사람과 시각, 기사의 응답(수락·거절) 시각, 관리자 조치로 배정이 끝난 기록을 남긴다. 수락·거절로 확정된 결과는
- * 바꾸지 않으며, 재배정 시에는 새 이력을 추가한다.
+ * 바꾸지 않으며, 재배정 시에는 새 이력을 추가한다. 배정·응답 시각은 저장소 정밀도인 마이크로초로 잘라 둔다.
  *
  * <ul>
  *   <li>응답 전에 끝나면 결과는 {@link AssignmentResult#WITHDRAWN}(응답 전 회수)이고 응답 시각은 종료 시각과 같다.
@@ -34,7 +35,7 @@ public final class AssignmentHistory {
             throw new IllegalArgumentException("assignedBy must not be null");
         }
         this.schedule = schedule;
-        this.assignedAt = assignedAt;
+        this.assignedAt = assignedAt.truncatedTo(ChronoUnit.MICROS);
         this.assignedBy = assignedBy;
         this.result = AssignmentResult.PENDING;
     }
@@ -80,7 +81,7 @@ public final class AssignmentHistory {
         if (ending == null) {
             throw new IllegalArgumentException("WITHDRAWN history must have an ending");
         }
-        if (!ending.endedAt().equals(decidedAt)) {
+        if (!ending.endedAt().equals(decidedAt.truncatedTo(ChronoUnit.MICROS))) {
             throw new IllegalArgumentException("WITHDRAWN history must be decided when it ended");
         }
         history.end(ending);
@@ -174,11 +175,12 @@ public final class AssignmentHistory {
         if (newDecidedAt == null) {
             throw new IllegalArgumentException("decidedAt must not be null");
         }
-        if (newDecidedAt.isBefore(assignedAt)) {
+        Instant storedDecidedAt = newDecidedAt.truncatedTo(ChronoUnit.MICROS);
+        if (storedDecidedAt.isBefore(assignedAt)) {
             throw new IllegalArgumentException("decidedAt must not be before assignedAt");
         }
         result = newResult;
-        decidedAt = newDecidedAt;
+        decidedAt = storedDecidedAt;
     }
 
     private void requirePending(String action) {

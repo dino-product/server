@@ -21,6 +21,34 @@ class AssignmentHistoryTest {
     private static final Instant DECIDED_AT = Instant.parse("2026-09-20T02:00:00Z");
 
     @Test
+    @DisplayName("배정·응답 시각은 마이크로초로 자르고, 자른 값으로 순서를 본다")
+    void truncatesTimesToMicroseconds() {
+        AssignmentHistory history = new AssignmentHistory(SCHEDULE, ASSIGNED_AT.plusNanos(1_999), MANAGER_ID);
+
+        history.accept(ASSIGNED_AT.plusNanos(1_500));
+
+        assertThat(history.assignedAt()).isEqualTo(ASSIGNED_AT.plusNanos(1_000));
+        assertThat(history.decidedAt()).contains(ASSIGNED_AT.plusNanos(1_000));
+    }
+
+    @Test
+    @DisplayName("응답 전 회수 이력은 마이크로초로 자른 응답 시각이 종료 시각과 같으면 복원한다")
+    void restoresWithdrawnHistoryComparingTruncatedTimes() {
+        AssignmentHistory history = AssignmentHistory.restore(
+                SCHEDULE,
+                ASSIGNED_AT,
+                MANAGER_ID,
+                AssignmentResult.WITHDRAWN,
+                null,
+                DECIDED_AT.plusNanos(500),
+                new AssignmentEnding(DECIDED_AT.plusNanos(900), OTHER_MANAGER_ID, AssignmentEndReason.UNASSIGNED));
+
+        assertThat(history.decidedAt()).contains(DECIDED_AT);
+        assertThat(history.ending())
+                .hasValueSatisfying(ending -> assertThat(ending.endedAt()).isEqualTo(DECIDED_AT));
+    }
+
+    @Test
     @DisplayName("일정이 null이면 거부한다")
     void rejectsNullSchedule() {
         assertThatThrownBy(() -> new AssignmentHistory(null, ASSIGNED_AT, MANAGER_ID))
