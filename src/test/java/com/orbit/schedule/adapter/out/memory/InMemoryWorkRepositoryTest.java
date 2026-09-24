@@ -29,6 +29,8 @@ import com.orbit.schedule.domain.WorkTypeId;
 @DisplayName("임시 메모리 작업 저장소")
 class InMemoryWorkRepositoryTest {
 
+    private static final MembershipId MANAGER_ID = new MembershipId(99L);
+
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkSchedule FIRST_SCHEDULE =
@@ -59,7 +61,7 @@ class InMemoryWorkRepositoryTest {
     }
 
     @Test
-    @DisplayName("모든 필드와 거절·마감·수락 이력을 가진 완료 작업을 그대로 저장·조회한다")
+    @DisplayName("모든 필드와 거절·회수·수락 뒤 종료·수락 이력을 가진 완료 작업을 그대로 저장·조회한다")
     void roundTripsFullyPopulatedWork() {
         Work work = Work.register(
                 ORGANIZATION_ID,
@@ -68,11 +70,13 @@ class InMemoryWorkRepositoryTest {
                 new WorkTypeId(2L),
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
-        work.assign(FIRST_SCHEDULE, NOW);
+        work.assign(FIRST_SCHEDULE, NOW, MANAGER_ID);
         work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW.plusSeconds(10));
-        work.assign(SECOND_SCHEDULE, NOW.plusSeconds(20));
-        work.reschedule(Instant.parse("2026-09-25T07:00:00Z"), Duration.ofHours(1), NOW.plusSeconds(30));
+        work.assign(SECOND_SCHEDULE, NOW.plusSeconds(20), MANAGER_ID);
+        work.reschedule(Instant.parse("2026-09-25T07:00:00Z"), Duration.ofHours(1), NOW.plusSeconds(30), MANAGER_ID);
         work.accept(NOW.plusSeconds(40));
+        work.reassign(FIRST_SCHEDULE, NOW.plusSeconds(50), MANAGER_ID);
+        work.accept(NOW.plusSeconds(60));
         work.start();
         work.submitCompletionReport(new CompletionReport(
                 List.of("before.jpg"),
@@ -89,7 +93,11 @@ class InMemoryWorkRepositoryTest {
         assertThat(found.status()).isEqualTo(WorkStatus.COMPLETED);
         assertThat(found.assignmentHistory())
                 .extracting(history -> history.result())
-                .containsExactly(AssignmentResult.REJECTED, AssignmentResult.REASSIGNED, AssignmentResult.ACCEPTED);
+                .containsExactly(
+                        AssignmentResult.REJECTED,
+                        AssignmentResult.WITHDRAWN,
+                        AssignmentResult.ACCEPTED,
+                        AssignmentResult.ACCEPTED);
     }
 
     @Test
@@ -98,7 +106,7 @@ class InMemoryWorkRepositoryTest {
         WorkId id = repository.save(newWork("에어컨 수리")).id().orElseThrow();
         Work loaded = repository.findInOrganization(ORGANIZATION_ID, id).orElseThrow();
 
-        loaded.assign(FIRST_SCHEDULE, NOW);
+        loaded.assign(FIRST_SCHEDULE, NOW, MANAGER_ID);
 
         assertThat(repository
                         .findInOrganization(ORGANIZATION_ID, id)
@@ -112,7 +120,7 @@ class InMemoryWorkRepositoryTest {
     void doesNotShareInstancesAfterSave() {
         WorkId id = repository.save(newWork("에어컨 수리")).id().orElseThrow();
         Work loaded = repository.findInOrganization(ORGANIZATION_ID, id).orElseThrow();
-        loaded.assign(FIRST_SCHEDULE, NOW);
+        loaded.assign(FIRST_SCHEDULE, NOW, MANAGER_ID);
         Work returned = repository.save(loaded);
 
         loaded.accept(NOW.plusSeconds(60));
@@ -159,7 +167,7 @@ class InMemoryWorkRepositoryTest {
         saveIn(SECOND_SCHEDULE, WorkStatus.PENDING_ACCEPTANCE);
         repository.save(newWork("미배정"));
         Work otherOrganizationWork = Work.register(new OrganizationId(200L), "다른 조직", REGISTRAR_ID, null, null, null);
-        otherOrganizationWork.assign(FIRST_SCHEDULE, NOW);
+        otherOrganizationWork.assign(FIRST_SCHEDULE, NOW, MANAGER_ID);
         repository.save(otherOrganizationWork);
 
         List<Work> found = repository.listActiveByTechnician(ORGANIZATION_ID, technician);
@@ -173,8 +181,8 @@ class InMemoryWorkRepositoryTest {
     @DisplayName("다른 기사로 재배정된 작업은 이전 기사의 활성 작업에서 빠진다(과거 이력이 아니라 현재 배정 기준)")
     void usesCurrentAssignmentNotHistory() {
         Work work = newWork("재배정 작업");
-        work.assign(FIRST_SCHEDULE, NOW);
-        work.reassign(SECOND_SCHEDULE, NOW.plusSeconds(10));
+        work.assign(FIRST_SCHEDULE, NOW, MANAGER_ID);
+        work.reassign(SECOND_SCHEDULE, NOW.plusSeconds(10), MANAGER_ID);
         WorkId id = repository.save(work).id().orElseThrow();
 
         assertThat(repository.listActiveByTechnician(ORGANIZATION_ID, FIRST_SCHEDULE.technicianId()))
@@ -210,7 +218,7 @@ class InMemoryWorkRepositoryTest {
 
     private WorkId saveIn(WorkSchedule schedule, WorkStatus status) {
         Work work = newWork("작업");
-        work.assign(schedule, NOW);
+        work.assign(schedule, NOW, MANAGER_ID);
         switch (status) {
             case PENDING_ACCEPTANCE -> {}
             case ACCEPTED -> work.accept(NOW);
@@ -223,7 +231,7 @@ class InMemoryWorkRepositoryTest {
                 work.start();
                 work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null));
             }
-            case CANCELLED -> work.cancel(NOW);
+            case CANCELLED -> work.cancel(NOW, MANAGER_ID);
             default -> throw new IllegalArgumentException("unsupported fixture status: " + status);
         }
         return repository.save(work).id().orElseThrow();

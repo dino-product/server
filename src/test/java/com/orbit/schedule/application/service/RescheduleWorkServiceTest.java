@@ -1,6 +1,7 @@
 package com.orbit.schedule.application.service;
 
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
@@ -23,6 +24,8 @@ import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
+import com.orbit.schedule.domain.AssignmentEndReason;
+import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.Work;
@@ -54,11 +57,14 @@ class RescheduleWorkServiceTest {
         assertThat(saved.assignmentHistory())
                 .extracting(AssignmentHistory::result)
                 .containsExactly(AssignmentResult.ACCEPTED, AssignmentResult.PENDING);
+        assertThat(saved.assignmentHistory().getFirst().ending())
+                .contains(new AssignmentEnding(NOW, MANAGER_ID, AssignmentEndReason.RESCHEDULED));
+        assertThat(saved.assignmentHistory().getLast().assignedBy()).isEqualTo(MANAGER_ID);
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
     }
 
     @Test
-    @DisplayName("작업 자신의 기존 일정과 겹치는 것은 겹침으로 보지 않고, 대기 중이던 배정은 지금 시각으로 마감한다")
+    @DisplayName("작업 자신의 기존 일정과 겹치는 것은 겹침으로 보지 않고, 대기 중이던 배정은 지금 시각으로 회수한다")
     void ignoresOwnPreviousSchedule() {
         fixture.givenManager();
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
@@ -68,7 +74,7 @@ class RescheduleWorkServiceTest {
         assertThat(result.applied()).isTrue();
         assertThat(result.conflicts()).isEmpty();
         assertThat(fixture.singleSaved().assignmentHistory().getFirst()).satisfies(history -> {
-            assertThat(history.result()).isEqualTo(AssignmentResult.REASSIGNED);
+            assertThat(history.result()).isEqualTo(AssignmentResult.WITHDRAWN);
             assertThat(history.decidedAt()).contains(NOW);
         });
     }
@@ -161,7 +167,7 @@ class RescheduleWorkServiceTest {
     void rejectsRescheduleBeforeLatestHistory() {
         fixture.givenManager();
         Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, null, null, null);
-        work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW);
+        work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
         work.accept(NOW.plus(Duration.ofHours(1)));
         WorkId id = fixture.workRepository.store(work);
 

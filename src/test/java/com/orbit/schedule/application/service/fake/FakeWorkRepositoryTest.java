@@ -28,6 +28,8 @@ import com.orbit.schedule.domain.WorkTypeId;
 @DisplayName("서비스 테스트용 작업 저장소")
 class FakeWorkRepositoryTest {
 
+    private static final MembershipId MANAGER_ID = new MembershipId(99L);
+
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final Instant NOW = Instant.parse("2026-09-24T01:00:00Z");
 
@@ -53,10 +55,13 @@ class FakeWorkRepositoryTest {
                 new WorkTypeId(2L),
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
-        work.assign(new WorkSchedule(new MembershipId(3L), NOW, Duration.ofHours(2)), NOW);
+        work.assign(new WorkSchedule(new MembershipId(3L), NOW, Duration.ofHours(2)), NOW, MANAGER_ID);
         work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW.plusSeconds(10));
-        work.assign(new WorkSchedule(new MembershipId(4L), NOW, Duration.ofHours(2)), NOW.plusSeconds(20));
+        work.assign(new WorkSchedule(new MembershipId(4L), NOW, Duration.ofHours(2)), NOW.plusSeconds(20), MANAGER_ID);
         work.accept(NOW.plusSeconds(30));
+        work.reassign(
+                new WorkSchedule(new MembershipId(5L), NOW, Duration.ofHours(2)), NOW.plusSeconds(40), MANAGER_ID);
+        work.accept(NOW.plusSeconds(50));
         work.start();
         work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null));
         return work;

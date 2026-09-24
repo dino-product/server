@@ -48,7 +48,8 @@ public class RescheduleWorkService implements RescheduleWorkUseCase {
         DomainRuleViolations.run(() -> WorkSchedule.requireValidTime(command.startTime(), command.expectedDuration()));
 
         Instant now = clock.instant();
-        DomainRuleViolations.run(() -> work.reschedule(command.startTime(), command.expectedDuration(), now));
+        DomainRuleViolations.run(
+                () -> work.reschedule(command.startTime(), command.expectedDuration(), now, actor.membershipId()));
 
         return ScheduleChanges.saveUnlessUnconfirmedConflict(
                 workRepository, lockTechnicianSchedulePort, work, command.conflictConfirmed());

@@ -2,6 +2,7 @@ package com.orbit.schedule.application.service;
 
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCEPTED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
@@ -26,6 +27,8 @@ import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
+import com.orbit.schedule.domain.AssignmentEndReason;
+import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.Work;
@@ -41,7 +44,7 @@ class ReassignWorkServiceTest {
             new ReassignWorkService(fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.clock);
 
     @Test
-    @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 지금 시각으로 마감하고 새 기사의 수락을 기다린다")
+    @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 지금 시각으로 회수하고 새 기사의 수락을 기다린다")
     void reassignsPendingWork() {
         fixture.givenManager();
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
@@ -57,8 +60,11 @@ class ReassignWorkServiceTest {
                 .extracting(AssignmentHistory::result, history -> history.decidedAt()
                         .orElse(null))
                 .containsExactly(
-                        Tuple.tuple(AssignmentResult.REASSIGNED, NOW), Tuple.tuple(AssignmentResult.PENDING, null));
+                        Tuple.tuple(AssignmentResult.WITHDRAWN, NOW), Tuple.tuple(AssignmentResult.PENDING, null));
+        assertThat(saved.assignmentHistory().getFirst().ending())
+                .contains(new AssignmentEnding(NOW, MANAGER_ID, AssignmentEndReason.REASSIGNED));
         assertThat(saved.assignmentHistory().getLast().assignedAt()).isEqualTo(NOW);
+        assertThat(saved.assignmentHistory().getLast().assignedBy()).isEqualTo(MANAGER_ID);
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, OTHER_TECHNICIAN_ID, 0));
     }
 
@@ -167,7 +173,7 @@ class ReassignWorkServiceTest {
     void rejectsReassignmentBeforeLatestHistory() {
         fixture.givenManager();
         Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, null, null, null);
-        work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW);
+        work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
         work.accept(NOW.plus(Duration.ofHours(1)));
         WorkId id = fixture.workRepository.store(work);
 

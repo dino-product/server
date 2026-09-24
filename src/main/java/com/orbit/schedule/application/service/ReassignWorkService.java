@@ -50,7 +50,7 @@ public class ReassignWorkService implements ReassignWorkUseCase {
                 new MembershipId(command.technicianMembershipId()), command.startTime(), command.expectedDuration()));
 
         Instant now = clock.instant();
-        DomainRuleViolations.run(() -> work.reassign(schedule, now));
+        DomainRuleViolations.run(() -> work.reassign(schedule, now, actor.membershipId()));
 
         return ScheduleChanges.saveUnlessUnconfirmedConflict(
                 workRepository, lockTechnicianSchedulePort, work, command.conflictConfirmed());

@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -31,6 +32,8 @@ import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.AssignmentEndReason;
+import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.MembershipId;
@@ -57,6 +60,7 @@ class ScheduleUseCaseFlowTest {
     private static final long CONFLICT_TECHNICIAN = 41L;
     private static final Instant TEN = Instant.parse("2030-01-02T01:00:00Z");
     private static final Duration TWO_HOURS = Duration.ofHours(2);
+    private static final MembershipId MANAGER = new MembershipId(11L);
 
     @Autowired
     private CreateWorkUseCase createWorkUseCase;
@@ -106,10 +110,18 @@ class ScheduleUseCaseFlowTest {
                 .findInOrganization(ORGANIZATION_ID, new WorkId(workId))
                 .orElseThrow();
         assertThat(stored.status()).isEqualTo(WorkStatus.REGISTERED);
-        // 배정·재배정·일정 변경이 각각 이력을 남기고, 응답 전에 다음 변경·해제로 모두 마감됐다.
+        // 배정·재배정·일정 변경이 각각 이력을 남기고, 응답 전에 다음 조치로 회수됐다. 회수 방식과 처리자는 종료 기록에 남는다.
         assertThat(stored.assignmentHistory())
-                .extracting(AssignmentHistory::result)
-                .containsExactly(AssignmentResult.REASSIGNED, AssignmentResult.REASSIGNED, AssignmentResult.REASSIGNED);
+                .extracting(
+                        AssignmentHistory::result,
+                        history ->
+                                history.ending().map(AssignmentEnding::reason).orElse(null),
+                        history ->
+                                history.ending().map(AssignmentEnding::endedBy).orElse(null))
+                .containsExactly(
+                        Tuple.tuple(AssignmentResult.WITHDRAWN, AssignmentEndReason.REASSIGNED, MANAGER),
+                        Tuple.tuple(AssignmentResult.WITHDRAWN, AssignmentEndReason.RESCHEDULED, MANAGER),
+                        Tuple.tuple(AssignmentResult.WITHDRAWN, AssignmentEndReason.UNASSIGNED, MANAGER));
     }
 
     @Test
@@ -146,8 +158,7 @@ class ScheduleUseCaseFlowTest {
         @Bean
         @Primary
         LoadActorPort managerActorPort() {
-            return (accountId, organizationId) ->
-                    Optional.of(new Actor(new MembershipId(11L), organizationId, ActorRole.STAFF));
+            return (accountId, organizationId) -> Optional.of(new Actor(MANAGER, organizationId, ActorRole.STAFF));
         }
     }
 }

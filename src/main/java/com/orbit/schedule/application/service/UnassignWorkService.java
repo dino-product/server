@@ -14,7 +14,7 @@ import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.Work;
 
 /**
- * 배정 해제. 수락대기·수락됨 작업을 대기함으로 돌린다. 응답 대기 중이던 배정은 해제 시각으로 마감하고 수락된 이력은 그대로 둔다. 오류 확인 순서는
+ * 배정 해제. 수락대기·수락됨 작업을 대기함으로 돌린다. 응답 전 배정은 회수(`WITHDRAWN`)로 확정하고, 수락된 배정은 결과를 둔 채 해제 시각·처리자를 종료로 남긴다. 오류 확인 순서는
  * schedule 지침의 공통 순서를 따른다.
  */
 @Service
@@ -37,7 +37,7 @@ public class UnassignWorkService implements UnassignWorkUseCase {
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
 
         Instant now = clock.instant();
-        DomainRuleViolations.run(() -> work.unassign(now));
+        DomainRuleViolations.run(() -> work.unassign(now, actor.membershipId()));
 
         workRepository.save(work);
     }

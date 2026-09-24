@@ -76,9 +76,11 @@ class InMemoryWorkRepository implements WorkRepository {
                 .map(history -> AssignmentHistory.restore(
                         history.schedule(),
                         history.assignedAt(),
+                        history.assignedBy(),
                         history.result(),
                         history.rejectionReason().orElse(null),
-                        history.decidedAt().orElse(null)))
+                        history.decidedAt().orElse(null),
+                        history.ending().orElse(null)))
                 .toList();
         return Work.reconstitute(
                 id,

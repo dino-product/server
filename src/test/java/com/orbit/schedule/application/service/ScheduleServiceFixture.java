@@ -36,6 +36,11 @@ final class ScheduleServiceFixture {
     static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     static final OrganizationId OTHER_ORGANIZATION_ID = new OrganizationId(200L);
     static final MembershipId REGISTRAR_ID = new MembershipId(1L);
+    /** {@link #givenManager()}가 만드는 관리자의 조직 소속. */
+    static final MembershipId MANAGER_ID = new MembershipId(11L);
+    /** 테스트 준비로 미리 배정·취소해 둔 관리자. 요청자({@link #MANAGER_ID})와 구분한다. */
+    static final MembershipId SETUP_MANAGER_ID = new MembershipId(12L);
+
     static final MembershipId TECHNICIAN_ID = new MembershipId(3L);
     static final MembershipId OTHER_TECHNICIAN_ID = new MembershipId(4L);
     static final Instant NOW = Instant.parse("2026-09-24T01:00:00Z");
@@ -55,7 +60,7 @@ final class ScheduleServiceFixture {
     }
 
     void givenActor(ActorRole role) {
-        actorPort.givenActor(ACCOUNT_ID, ORGANIZATION_ID, 11L, role);
+        actorPort.givenActor(ACCOUNT_ID, ORGANIZATION_ID, MANAGER_ID.value(), role);
     }
 
     /** 요청 조직의 작업을 주어진 상태까지 진행해 둔다. 대기함이 아니면 기사 {@link #TECHNICIAN_ID}의 {@link #TEN} 시작 2시간 일정으로 배정돼 있다. */
@@ -76,7 +81,7 @@ final class ScheduleServiceFixture {
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         if (status != WorkStatus.REGISTERED) {
-            work.assign(new WorkSchedule(technicianId, start, TWO_HOURS), ASSIGNED_AT);
+            work.assign(new WorkSchedule(technicianId, start, TWO_HOURS), ASSIGNED_AT, SETUP_MANAGER_ID);
         }
         if (status == WorkStatus.ACCEPTED || status == WorkStatus.IN_PROGRESS || status == WorkStatus.COMPLETED) {
             work.accept(ACCEPTED_AT);
@@ -88,7 +93,7 @@ final class ScheduleServiceFixture {
             work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null));
         }
         if (status == WorkStatus.CANCELLED) {
-            work.cancel(ACCEPTED_AT);
+            work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID);
         }
         return workRepository.store(work);
     }

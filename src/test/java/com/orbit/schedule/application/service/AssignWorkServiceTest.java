@@ -1,6 +1,7 @@
 package com.orbit.schedule.application.service;
 
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
@@ -55,6 +56,7 @@ class AssignWorkServiceTest {
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
             assertThat(history.assignedAt()).isEqualTo(NOW);
+            assertThat(history.assignedBy()).isEqualTo(MANAGER_ID);
             assertThat(history.result()).isEqualTo(AssignmentResult.PENDING);
         });
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
@@ -230,7 +232,7 @@ class AssignWorkServiceTest {
 
     private WorkId rejectedWork(Instant rejectedAt) {
         Work work = Work.register(ORGANIZATION_ID, "거절된 작업", REGISTRAR_ID, null, null, null);
-        work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), rejectedAt);
+        work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), rejectedAt, MANAGER_ID);
         work.reject(RejectionReason.OTHER, rejectedAt);
         return fixture.workRepository.store(work);
     }
