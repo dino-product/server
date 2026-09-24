@@ -19,7 +19,7 @@ public final class AssignmentHistory {
     private final Instant assignedAt;
     private final MembershipId assignedBy;
     private AssignmentResult result;
-    private RejectionReason rejectionReason;
+    private Rejection rejection;
     private Instant decidedAt;
     private AssignmentEnding ending;
 
@@ -45,15 +45,15 @@ public final class AssignmentHistory {
             Instant assignedAt,
             MembershipId assignedBy,
             AssignmentResult result,
-            RejectionReason rejectionReason,
+            Rejection rejection,
             Instant decidedAt,
             AssignmentEnding ending) {
         AssignmentHistory history = new AssignmentHistory(schedule, assignedAt, assignedBy);
         if (result == null) {
             throw new IllegalArgumentException("result must not be null");
         }
-        if (result != AssignmentResult.REJECTED && rejectionReason != null) {
-            throw new IllegalArgumentException("Only REJECTED history can have rejectionReason");
+        if (result != AssignmentResult.REJECTED && rejection != null) {
+            throw new IllegalArgumentException("Only REJECTED history can have a rejection");
         }
         if (result == AssignmentResult.PENDING) {
             if (decidedAt != null) {
@@ -67,7 +67,7 @@ public final class AssignmentHistory {
         }
         if (result == AssignmentResult.REJECTED) {
             requireNoEnding(result, ending);
-            history.reject(rejectionReason, decidedAt);
+            history.reject(rejection, decidedAt);
             return history;
         }
         if (result == AssignmentResult.ACCEPTED) {
@@ -91,13 +91,13 @@ public final class AssignmentHistory {
         decide(AssignmentResult.ACCEPTED, decidedAt, "accept");
     }
 
-    void reject(RejectionReason reason, Instant decidedAt) {
+    void reject(Rejection newRejection, Instant decidedAt) {
         requirePending("reject");
-        if (reason == null) {
-            throw new IllegalArgumentException("rejectionReason must not be null");
+        if (newRejection == null) {
+            throw new IllegalArgumentException("rejection must not be null");
         }
         decide(AssignmentResult.REJECTED, decidedAt, "reject");
-        rejectionReason = reason;
+        rejection = newRejection;
     }
 
     /**
@@ -140,8 +140,12 @@ public final class AssignmentHistory {
         return result;
     }
 
+    public Optional<Rejection> rejection() {
+        return Optional.ofNullable(rejection);
+    }
+
     public Optional<RejectionReason> rejectionReason() {
-        return Optional.ofNullable(rejectionReason);
+        return rejection().map(Rejection::reason);
     }
 
     public Optional<Instant> decidedAt() {

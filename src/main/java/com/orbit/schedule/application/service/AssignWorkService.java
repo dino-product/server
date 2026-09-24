@@ -43,7 +43,7 @@ public class AssignWorkService implements AssignWorkUseCase {
     @Override
     @Transactional
     public ScheduleChangeInfo assign(AssignWorkCommand command) {
-        Actor actor = ManagingActors.require(loadActorPort, command.accountId(), command.organizationId());
+        Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
         WorkSchedule schedule = DomainRuleViolations.call(() -> new WorkSchedule(
                 new MembershipId(command.technicianMembershipId()), command.startTime(), command.expectedDuration()));

@@ -169,9 +169,9 @@ public final class Work {
         status = status.transitionTo(WorkStatus.ACCEPTED);
     }
 
-    public void reject(RejectionReason reason, Instant decidedAt) {
+    public void reject(Rejection rejection, Instant decidedAt) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, "reject");
-        latestAssignment().reject(reason, decidedAt);
+        latestAssignment().reject(rejection, decidedAt);
         schedule = null;
         status = status.transitionTo(WorkStatus.REGISTERED);
     }

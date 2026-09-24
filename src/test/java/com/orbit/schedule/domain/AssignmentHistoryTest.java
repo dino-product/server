@@ -64,7 +64,7 @@ class AssignmentHistoryTest {
     void rejectsPendingAssignment() {
         AssignmentHistory history = new AssignmentHistory(SCHEDULE, ASSIGNED_AT, MANAGER_ID);
 
-        history.reject(RejectionReason.SCHEDULE_CONFLICT, DECIDED_AT);
+        history.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), DECIDED_AT);
 
         assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
         assertThat(history.rejectionReason()).contains(RejectionReason.SCHEDULE_CONFLICT);
@@ -72,13 +72,13 @@ class AssignmentHistoryTest {
     }
 
     @Test
-    @DisplayName("거절 사유가 null이면 거부한다")
+    @DisplayName("거절 사유 없이 거절할 수 없다")
     void rejectsNullRejectionReason() {
         AssignmentHistory history = new AssignmentHistory(SCHEDULE, ASSIGNED_AT, MANAGER_ID);
 
         assertThatThrownBy(() -> history.reject(null, DECIDED_AT))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("rejectionReason must not be null");
+                .hasMessage("rejection must not be null");
     }
 
     @Test
@@ -126,7 +126,7 @@ class AssignmentHistoryTest {
     @DisplayName("거절된 배정은 기사의 응답으로 끝났으므로 관리자 조치로 다시 끝낼 수 없다")
     void cannotEndRejectedAssignment() {
         AssignmentHistory history = new AssignmentHistory(SCHEDULE, ASSIGNED_AT, MANAGER_ID);
-        history.reject(RejectionReason.OTHER, DECIDED_AT);
+        history.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), DECIDED_AT);
 
         assertThatThrownBy(
                         () -> history.end(new AssignmentEnding(DECIDED_AT, MANAGER_ID, AssignmentEndReason.REASSIGNED)))
@@ -141,7 +141,7 @@ class AssignmentHistoryTest {
         AssignmentHistory history = new AssignmentHistory(SCHEDULE, ASSIGNED_AT, MANAGER_ID);
         history.end(new AssignmentEnding(DECIDED_AT, MANAGER_ID, AssignmentEndReason.REASSIGNED));
 
-        assertThatThrownBy(() -> history.reject(RejectionReason.OTHER, DECIDED_AT))
+        assertThatThrownBy(() -> history.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), DECIDED_AT))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Cannot reject when result is WITHDRAWN");
     }
@@ -150,7 +150,13 @@ class AssignmentHistoryTest {
     @DisplayName("저장된 거절 이력을 복원한다")
     void restoresRejectedHistory() {
         AssignmentHistory history = AssignmentHistory.restore(
-                SCHEDULE, ASSIGNED_AT, MANAGER_ID, AssignmentResult.REJECTED, RejectionReason.OTHER, DECIDED_AT, null);
+                SCHEDULE,
+                ASSIGNED_AT,
+                MANAGER_ID,
+                AssignmentResult.REJECTED,
+                new Rejection(RejectionReason.OTHER, "기타 사유"),
+                DECIDED_AT,
+                null);
 
         assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
         assertThat(history.rejectionReason()).contains(RejectionReason.OTHER);
@@ -195,9 +201,15 @@ class AssignmentHistoryTest {
     @DisplayName("거절 사유가 있는 대기 이력은 복원하지 않는다")
     void rejectsRestoringPendingWithReason() {
         assertThatThrownBy(() -> AssignmentHistory.restore(
-                        SCHEDULE, ASSIGNED_AT, MANAGER_ID, AssignmentResult.PENDING, RejectionReason.OTHER, null, null))
+                        SCHEDULE,
+                        ASSIGNED_AT,
+                        MANAGER_ID,
+                        AssignmentResult.PENDING,
+                        new Rejection(RejectionReason.OTHER, "기타 사유"),
+                        null,
+                        null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Only REJECTED history can have rejectionReason");
+                .hasMessage("Only REJECTED history can have a rejection");
     }
 
     @Test
@@ -208,11 +220,11 @@ class AssignmentHistoryTest {
                         ASSIGNED_AT,
                         MANAGER_ID,
                         AssignmentResult.WITHDRAWN,
-                        RejectionReason.OTHER,
+                        new Rejection(RejectionReason.OTHER, "기타 사유"),
                         DECIDED_AT,
                         new AssignmentEnding(DECIDED_AT, MANAGER_ID, AssignmentEndReason.REASSIGNED)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Only REJECTED history can have rejectionReason");
+                .hasMessage("Only REJECTED history can have a rejection");
     }
 
     @Test
@@ -234,12 +246,12 @@ class AssignmentHistoryTest {
     }
 
     @Test
-    @DisplayName("거절 사유가 없는 거절 이력은 복원하지 않는다")
+    @DisplayName("거절 사유 없는 거절 이력은 복원하지 않는다")
     void rejectsRestoringRejectedWithoutReason() {
         assertThatThrownBy(() -> AssignmentHistory.restore(
                         SCHEDULE, ASSIGNED_AT, MANAGER_ID, AssignmentResult.REJECTED, null, DECIDED_AT, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("rejectionReason must not be null");
+                .hasMessage("rejection must not be null");
     }
 
     @Test
@@ -404,7 +416,7 @@ class AssignmentHistoryTest {
                         ASSIGNED_AT,
                         MANAGER_ID,
                         AssignmentResult.REJECTED,
-                        RejectionReason.OTHER,
+                        new Rejection(RejectionReason.OTHER, "기타 사유"),
                         DECIDED_AT,
                         ending))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -419,10 +431,10 @@ class AssignmentHistoryTest {
                         ASSIGNED_AT,
                         MANAGER_ID,
                         AssignmentResult.ACCEPTED,
-                        RejectionReason.OTHER,
+                        new Rejection(RejectionReason.OTHER, "기타 사유"),
                         DECIDED_AT,
                         null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Only REJECTED history can have rejectionReason");
+                .hasMessage("Only REJECTED history can have a rejection");
     }
 }

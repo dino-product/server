@@ -19,6 +19,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -71,7 +72,7 @@ class InMemoryWorkRepositoryTest {
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         work.assign(FIRST_SCHEDULE, NOW, MANAGER_ID);
-        work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW.plusSeconds(10));
+        work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), NOW.plusSeconds(10));
         work.assign(SECOND_SCHEDULE, NOW.plusSeconds(20), MANAGER_ID);
         work.reschedule(Instant.parse("2026-09-25T07:00:00Z"), Duration.ofHours(1), NOW.plusSeconds(30), MANAGER_ID);
         work.accept(NOW.plusSeconds(40));

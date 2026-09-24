@@ -69,7 +69,7 @@ class WorkLifecycleScenarioTest {
         Work work = registeredWork();
 
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
-        work.reject(RejectionReason.SCHEDULE_CONFLICT, T2);
+        work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), T2);
         work.assign(SECOND_SCHEDULE, T3, MANAGER_ID);
         work.accept(T4);
 
@@ -218,7 +218,7 @@ class WorkLifecycleScenarioTest {
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
         work.accept(T2);
         work.reassign(SECOND_SCHEDULE, T3, MANAGER_ID);
-        work.reject(RejectionReason.OTHER, T4);
+        work.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), T4);
         work.assign(FIRST_SCHEDULE, T5, MANAGER_ID);
 
         assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
@@ -274,7 +274,7 @@ class WorkLifecycleScenarioTest {
                         history.assignedAt(),
                         history.assignedBy(),
                         history.result(),
-                        history.rejectionReason().orElse(null),
+                        history.rejection().orElse(null),
                         history.decidedAt().orElse(null),
                         history.ending().orElse(null)))
                 .toList();

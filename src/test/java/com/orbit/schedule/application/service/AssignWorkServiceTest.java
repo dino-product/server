@@ -28,6 +28,7 @@ import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -233,7 +234,7 @@ class AssignWorkServiceTest {
     private WorkId rejectedWork(Instant rejectedAt) {
         Work work = Work.register(ORGANIZATION_ID, "거절된 작업", REGISTRAR_ID, null, null, null);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), rejectedAt, MANAGER_ID);
-        work.reject(RejectionReason.OTHER, rejectedAt);
+        work.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), rejectedAt);
         return fixture.workRepository.store(work);
     }
 

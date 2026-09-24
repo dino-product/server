@@ -331,7 +331,7 @@ class WorkTest {
         @DisplayName("직전 배정 이력보다 이른 시각으로 다시 배정하면 거부하고 작업을 전혀 바꾸지 않는다")
         void rejectsAssignedAtBeforeLatestAssignmentWithoutPartialChange() {
             Work work = pendingWork();
-            work.reject(RejectionReason.OTHER, NOW.plusSeconds(60));
+            work.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), NOW.plusSeconds(60));
 
             assertThatThrownBy(() -> work.assign(SECOND_SCHEDULE, NOW.plusSeconds(59), MANAGER_ID))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -411,7 +411,7 @@ class WorkTest {
         void rejectsPendingAssignment() {
             Work work = pendingWork();
 
-            work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW);
+            work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), NOW);
 
             AssignmentHistory history = work.assignmentHistory().getLast();
             assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
@@ -421,13 +421,13 @@ class WorkTest {
         }
 
         @Test
-        @DisplayName("거절 사유가 null이면 거부한다")
+        @DisplayName("거절 사유 없이 거절할 수 없다")
         void rejectsNullReason() {
             Work work = pendingWork();
 
             assertThatThrownBy(() -> work.reject(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("rejectionReason must not be null");
+                    .hasMessage("rejection must not be null");
             assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
             assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
         }
@@ -437,7 +437,7 @@ class WorkTest {
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reject(RejectionReason.OTHER, NOW))
+            assertThatThrownBy(() -> work.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reject when status is REGISTERED");
         }
@@ -1050,7 +1050,13 @@ class WorkTest {
 
     private static AssignmentHistory rejectedHistory(WorkSchedule schedule) {
         return AssignmentHistory.restore(
-                schedule, NOW, MANAGER_ID, AssignmentResult.REJECTED, RejectionReason.OTHER, NOW, null);
+                schedule,
+                NOW,
+                MANAGER_ID,
+                AssignmentResult.REJECTED,
+                new Rejection(RejectionReason.OTHER, "기타 사유"),
+                NOW,
+                null);
     }
 
     private static AssignmentHistory closedHistory(WorkSchedule schedule) {
@@ -1310,7 +1316,7 @@ class WorkTest {
                                         NOW,
                                         MANAGER_ID,
                                         AssignmentResult.REJECTED,
-                                        RejectionReason.OTHER,
+                                        new Rejection(RejectionReason.OTHER, "기타 사유"),
                                         NOW.plusSeconds(100),
                                         null),
                                 AssignmentHistory.restore(
