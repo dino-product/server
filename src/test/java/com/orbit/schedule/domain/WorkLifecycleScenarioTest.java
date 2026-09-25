@@ -54,12 +54,14 @@ class WorkLifecycleScenarioTest {
 
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
         work.accept(T2);
-        work.start();
-        work.submitCompletionReport(COMPLETION_REPORT);
+        work.start(T3);
+        work.submitCompletionReport(COMPLETION_REPORT, T4);
 
         assertThat(work.status()).isEqualTo(WorkStatus.COMPLETED);
         assertThat(work.schedule()).contains(FIRST_SCHEDULE);
         assertThat(work.completionReport()).contains(COMPLETION_REPORT);
+        assertThat(work.startedAt()).contains(T3);
+        assertThat(work.completedAt()).contains(T4);
         assertHistory(work, tuple(FIRST_SCHEDULE, AssignmentResult.ACCEPTED, T1, Optional.of(T2), NOT_ENDED));
     }
 
@@ -91,8 +93,8 @@ class WorkLifecycleScenarioTest {
         work.accept(T2);
         work.reassign(SECOND_SCHEDULE, T3, MANAGER_ID);
         work.accept(T4);
-        work.start();
-        work.submitCompletionReport(COMPLETION_REPORT);
+        work.start(T5);
+        work.submitCompletionReport(COMPLETION_REPORT, T5);
 
         assertThat(work.status()).isEqualTo(WorkStatus.COMPLETED);
         assertThat(work.schedule()).contains(SECOND_SCHEDULE);
@@ -196,7 +198,7 @@ class WorkLifecycleScenarioTest {
 
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
         work.accept(T2);
-        work.start();
+        work.start(T3);
         work.cancel(T5, MANAGER_ID);
 
         assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
@@ -289,7 +291,9 @@ class WorkLifecycleScenarioTest {
                 work.paymentInfo(),
                 work.status(),
                 histories,
-                work.completionReport().orElse(null));
+                work.completionReport().orElse(null),
+                work.startedAt().orElse(null),
+                work.completedAt().orElse(null));
 
         assertThat(restored).usingRecursiveComparison().ignoringFields("id").isEqualTo(work);
     }

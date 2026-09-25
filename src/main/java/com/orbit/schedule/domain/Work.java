@@ -2,12 +2,16 @@ package com.orbit.schedule.domain;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-/** 작업 등록부터 배정, 수행, 완료까지의 생애주기를 관리하는 애그리게잇 루트. */
+/**
+ * 작업 등록부터 배정, 수행, 완료까지의 생애주기를 관리하는 애그리게잇 루트. 시작·완료 시각은 담당 기사의 실제 수행 기록이며, 다른 기록 시각처럼 저장소 정밀도인
+ * 마이크로초로 잘라 둔다.
+ */
 public final class Work {
 
     /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
@@ -24,6 +28,8 @@ public final class Work {
     private WorkStatus status;
     private final List<AssignmentHistory> assignmentHistory;
     private CompletionReport completionReport;
+    private Instant startedAt;
+    private Instant completedAt;
 
     private Work(
             WorkId id,
@@ -36,7 +42,9 @@ public final class Work {
             PaymentInfo paymentInfo,
             WorkStatus status,
             List<AssignmentHistory> assignmentHistory,
-            CompletionReport completionReport) {
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt) {
         if (organizationId == null) {
             throw new IllegalArgumentException("organizationId must not be null");
         }
@@ -58,6 +66,8 @@ public final class Work {
         this.status = status;
         this.assignmentHistory = assignmentHistory == null ? new ArrayList<>() : new ArrayList<>(assignmentHistory);
         this.completionReport = completionReport;
+        this.startedAt = truncateToMicros(startedAt);
+        this.completedAt = truncateToMicros(completedAt);
     }
 
     public static Work register(
@@ -78,6 +88,8 @@ public final class Work {
                 paymentInfo,
                 WorkStatus.REGISTERED,
                 List.of(),
+                null,
+                null,
                 null);
     }
 
@@ -92,7 +104,9 @@ public final class Work {
             PaymentInfo paymentInfo,
             WorkStatus status,
             List<AssignmentHistory> assignmentHistory,
-            CompletionReport completionReport) {
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt) {
         Work work = new Work(
                 Objects.requireNonNull(id, "id must not be null"),
                 organizationId,
@@ -104,7 +118,9 @@ public final class Work {
                 paymentInfo,
                 status,
                 assignmentHistory,
-                completionReport);
+                completionReport,
+                startedAt,
+                completedAt);
         work.requireConsistentState();
         return work;
     }
@@ -151,6 +167,16 @@ public final class Work {
 
     public Optional<CompletionReport> completionReport() {
         return Optional.ofNullable(completionReport);
+    }
+
+    /** 담당 기사가 작업을 시작한 시각. 작업중·완료된 작업과 작업중에 취소된 작업에만 있다. */
+    public Optional<Instant> startedAt() {
+        return Optional.ofNullable(startedAt);
+    }
+
+    /** 완료보고를 제출해 작업을 마친 시각. 완료된 작업에만 있다. */
+    public Optional<Instant> completedAt() {
+        return Optional.ofNullable(completedAt);
     }
 
     /** 대기함 작업을 기사·일정에 배정하고 수락을 기다린다. 배정한 관리자(조직 소속)를 이력에 남긴다. */
@@ -233,26 +259,49 @@ public final class Work {
         paymentInfo = orEmpty(newPaymentInfo);
     }
 
-    public void start() {
+    /** 수락된 작업을 시작해 작업중으로 바꾸고 시작 시각을 남긴다. 시작 시각은 수락 시각보다 앞설 수 없다. 예정 시작시각과는 관계없이 시작할 수 있다. */
+    public void start(Instant startedAt) {
         requireStatus(WorkStatus.ACCEPTED, "start");
-        status = status.transitionTo(WorkStatus.IN_PROGRESS);
+        if (startedAt == null) {
+            throw new IllegalArgumentException("startedAt must not be null");
+        }
+        Instant storedStartedAt = truncateToMicros(startedAt);
+        if (storedStartedAt.isBefore(latestAssignment().lastMoment())) {
+            throw new IllegalArgumentException("startedAt must not be before the assignment was accepted");
+        }
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.IN_PROGRESS);
+        this.startedAt = storedStartedAt;
+        status = nextStatus;
     }
 
-    public void submitCompletionReport(CompletionReport report) {
+    /** 작업중인 작업에 완료보고를 붙여 완료로 바꾸고 완료 시각을 남긴다. 보고 저장과 완료 전환은 함께 일어난다. 완료 시각은 시작 시각보다 앞설 수 없다. */
+    public void submitCompletionReport(CompletionReport report, Instant completedAt) {
         requireStatus(WorkStatus.IN_PROGRESS, "submit completion report");
         if (report == null) {
             throw new IllegalArgumentException("completionReport must not be null");
         }
+        if (completedAt == null) {
+            throw new IllegalArgumentException("completedAt must not be null");
+        }
+        Instant storedCompletedAt = truncateToMicros(completedAt);
+        if (storedCompletedAt.isBefore(startedAt)) {
+            throw new IllegalArgumentException("completedAt must not be before startedAt");
+        }
         WorkStatus nextStatus = status.transitionTo(WorkStatus.COMPLETED);
         completionReport = report;
+        this.completedAt = storedCompletedAt;
         status = nextStatus;
     }
 
-    /** 완료 전 작업을 취소한다. 현재 배정이 있으면(수락대기·수락됨·작업중) 취소 시각·처리자를 그 배정의 종료로 남긴다. */
+    /**
+     * 완료 전 작업을 취소한다. 현재 배정이 있으면(수락대기·수락됨·작업중) 취소 시각·처리자를 그 배정의 종료로 남긴다. 작업중이던 작업은 시작 시각을 그대로 두며,
+     * 취소 시각은 시작 시각보다 앞설 수 없다.
+     */
     public void cancel(Instant cancelledAt, MembershipId cancelledBy) {
         // 대기함 작업은 끝낼 배정이 없지만, 어느 상태에서든 같은 입력 규칙을 적용한다.
         AssignmentEnding ending = new AssignmentEnding(cancelledAt, cancelledBy, AssignmentEndReason.CANCELLED);
         WorkStatus cancelled = status.transitionTo(WorkStatus.CANCELLED);
+        requireNotBeforeStart(ending);
         if (status != WorkStatus.REGISTERED) {
             latestAssignment().end(ending);
         }
@@ -290,7 +339,13 @@ public final class Work {
         }
     }
 
-    /** 저장값 복원 시 상태와 일정·배정 이력·완료보고가 서로 맞는지 검증한다. */
+    private void requireNotBeforeStart(AssignmentEnding ending) {
+        if (startedAt != null && ending.endedAt().isBefore(startedAt)) {
+            throw new IllegalArgumentException("endedAt must not be before startedAt");
+        }
+    }
+
+    /** 저장값 복원 시 상태와 일정·배정 이력·완료보고·시작·완료 시각이 서로 맞는지 검증한다. */
     private void requireConsistentState() {
         for (int i = 0; i < assignmentHistory.size() - 1; i++) {
             AssignmentHistory previous = assignmentHistory.get(i);
@@ -331,6 +386,43 @@ public final class Work {
         if (status != WorkStatus.COMPLETED && completionReport != null) {
             throw new IllegalArgumentException(status + " work must not have a completion report");
         }
+        requireConsistentProgressTimes(latest);
+    }
+
+    /**
+     * 시작 시각은 작업중·완료된 작업에 반드시 있고, 수락된 뒤 취소된 작업에는 작업중에 취소됐을 때만 있다. 완료 시각은 완료된 작업에만 있다. 시간 순서는 수락 → 시작
+     * → 완료·취소다.
+     */
+    private void requireConsistentProgressTimes(AssignmentHistory latest) {
+        boolean started = status == WorkStatus.IN_PROGRESS || status == WorkStatus.COMPLETED;
+        boolean cancelledAfterAcceptance = status == WorkStatus.CANCELLED
+                && latest != null
+                && latest.result() == AssignmentResult.ACCEPTED
+                && latest.ending()
+                        .map(ending -> ending.reason() == AssignmentEndReason.CANCELLED)
+                        .orElse(false);
+        if (started && startedAt == null) {
+            throw new IllegalArgumentException(status + " work must have startedAt");
+        }
+        if (!started && !cancelledAfterAcceptance && startedAt != null) {
+            throw new IllegalArgumentException(status + " work must not have startedAt");
+        }
+        if (status == WorkStatus.COMPLETED && completedAt == null) {
+            throw new IllegalArgumentException("COMPLETED work must have completedAt");
+        }
+        if (status != WorkStatus.COMPLETED && completedAt != null) {
+            throw new IllegalArgumentException(status + " work must not have completedAt");
+        }
+        if (startedAt == null) {
+            return;
+        }
+        if (startedAt.isBefore(latest.decidedAt().orElseThrow())) {
+            throw new IllegalArgumentException("startedAt must not be before the assignment was accepted");
+        }
+        if (completedAt != null && completedAt.isBefore(startedAt)) {
+            throw new IllegalArgumentException("completedAt must not be before startedAt");
+        }
+        latest.ending().ifPresent(this::requireNotBeforeStart);
     }
 
     private void requireAssignedSchedule(AssignmentHistory latest, AssignmentResult expectedResult) {
@@ -418,6 +510,10 @@ public final class Work {
         if (name.length() > MAX_NAME_LENGTH) {
             throw new IllegalArgumentException("name must be at most " + MAX_NAME_LENGTH + " characters");
         }
+    }
+
+    private static Instant truncateToMicros(Instant instant) {
+        return instant == null ? null : instant.truncatedTo(ChronoUnit.MICROS);
     }
 
     private static CustomerInfo orEmpty(CustomerInfo customerInfo) {

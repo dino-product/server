@@ -104,6 +104,8 @@ public class FakeWorkRepository implements WorkRepository {
                 work.paymentInfo(),
                 work.status(),
                 histories,
-                work.completionReport().orElse(null));
+                work.completionReport().orElse(null),
+                work.startedAt().orElse(null),
+                work.completedAt().orElse(null));
     }
 }

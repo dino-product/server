@@ -74,7 +74,7 @@ final class ScheduleServiceFixture {
     }
 
     /**
-     * 주어진 상태까지 진행한 작업을 저장소에 둔다. 배정은 {@link #ASSIGNED_AT}, 수락은 {@link #ACCEPTED_AT}에 했고, 취소는 수락대기에서 해 일정이 남아 있다.
+     * 주어진 상태까지 진행한 작업을 저장소에 둔다. 배정은 {@link #ASSIGNED_AT}, 수락·시작·완료는 {@link #ACCEPTED_AT}에 했고, 취소는 수락대기에서 해 일정이 남아 있다.
      */
     WorkId givenWork(
             OrganizationId organizationId, String name, WorkStatus status, MembershipId technicianId, Instant start) {
@@ -92,10 +92,10 @@ final class ScheduleServiceFixture {
             work.accept(ACCEPTED_AT);
         }
         if (status == WorkStatus.IN_PROGRESS || status == WorkStatus.COMPLETED) {
-            work.start();
+            work.start(ACCEPTED_AT);
         }
         if (status == WorkStatus.COMPLETED) {
-            work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null));
+            work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), ACCEPTED_AT);
         }
         if (status == WorkStatus.CANCELLED) {
             work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID);

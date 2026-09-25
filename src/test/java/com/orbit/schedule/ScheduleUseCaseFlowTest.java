@@ -22,6 +22,8 @@ import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
+import com.orbit.schedule.application.port.in.command.StartWorkUseCase;
+import com.orbit.schedule.application.port.in.command.SubmitCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
@@ -29,6 +31,8 @@ import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
+import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
@@ -38,6 +42,7 @@ import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.Work;
@@ -84,6 +89,12 @@ class ScheduleUseCaseFlowTest {
 
     @Autowired
     private AcceptWorkUseCase acceptWorkUseCase;
+
+    @Autowired
+    private StartWorkUseCase startWorkUseCase;
+
+    @Autowired
+    private SubmitCompletionReportUseCase submitCompletionReportUseCase;
 
     @Autowired
     private WorkRepository workRepository;
@@ -154,18 +165,24 @@ class ScheduleUseCaseFlowTest {
     }
 
     @Test
-    void assembledTechnicianAcceptsTheAssignmentTheySaw() {
-        long workId = create("수락할 작업");
+    void assembledTechnicianAcceptsStartsAndCompletesTheAssignmentTheySaw() {
+        long workId = create("수행할 작업");
         assignWorkUseCase.assign(new AssignWorkCommand(
                 ACCOUNT_ID, ORGANIZATION_ID.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
 
         acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, ORGANIZATION_ID.value(), workId, 1));
+        startWorkUseCase.start(new StartWorkCommand(TECHNICIAN_ACCOUNT_ID, ORGANIZATION_ID.value(), workId, 1));
+        submitCompletionReportUseCase.submit(new SubmitCompletionReportCommand(
+                TECHNICIAN_ACCOUNT_ID, ORGANIZATION_ID.value(), workId, 1, null, null, null, "완료", null, null));
 
-        assertThat(workRepository
-                        .findInOrganization(ORGANIZATION_ID, new WorkId(workId))
-                        .orElseThrow()
-                        .status())
-                .isEqualTo(WorkStatus.ACCEPTED);
+        Work stored = workRepository
+                .findInOrganization(ORGANIZATION_ID, new WorkId(workId))
+                .orElseThrow();
+        assertThat(stored.status()).isEqualTo(WorkStatus.COMPLETED);
+        assertThat(stored.startedAt()).isPresent();
+        assertThat(stored.completedAt()).isPresent();
+        assertThat(stored.completionReport().flatMap(CompletionReport::workNote))
+                .contains("완료");
     }
 
     private long create(String name) {

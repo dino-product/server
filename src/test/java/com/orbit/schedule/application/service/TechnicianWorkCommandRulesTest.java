@@ -23,6 +23,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -31,9 +33,9 @@ import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 기사가 요청하는 배정 수락·거절이 schedule 지침의 기사 유즈케이스 오류 순서 — 계정 → 조직 식별자 → 구성원 → 기사 역할 → 작업 식별자 → 작업 조회 → 배정된 적
- * 있는 기사 → 배정 순번 형식 → 담당 기사 본인 → 최신 배정 → 응답할 수 있는 상태 — 를 같게 지키는지 확인한다. 거절 입력(사유·메모)의 순서는 거절 서비스
- * 테스트가 다룬다.
+ * 기사가 요청하는 배정 수락·거절·작업 시작·완료보고가 schedule 지침의 기사 유즈케이스 오류 순서 — 계정 → 조직 식별자 → 구성원 → 기사 역할 → 작업 식별자 →
+ * 작업 조회 → 배정된 적 있는 기사 → 배정 순번 형식 → 담당 기사 본인 → 최신 배정 → 처리할 수 있는 상태 — 를 같게 지키는지 확인한다. 거절 입력(사유·메모)과
+ * 완료보고 입력의 순서는 각 서비스 테스트가 다룬다.
  */
 @DisplayName("기사 유즈케이스 공통 오류 순서")
 class TechnicianWorkCommandRulesTest {
@@ -55,6 +57,26 @@ class TechnicianWorkCommandRulesTest {
                                 request.workId(),
                                 request.assignmentNumber(),
                                 RejectionReason.SCHEDULE_CONFLICT,
+                                null))),
+                new UseCase("시작", (f, request) -> new StartWorkService(
+                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
+                        .start(new StartWorkCommand(
+                                request.accountId(),
+                                request.organizationId(),
+                                request.workId(),
+                                request.assignmentNumber()))),
+                new UseCase("완료보고", (f, request) -> new SubmitCompletionReportService(
+                                f.actorPort, f.workRepository, f.clock)
+                        .submit(new SubmitCompletionReportCommand(
+                                request.accountId(),
+                                request.organizationId(),
+                                request.workId(),
+                                request.assignmentNumber(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
                                 null))));
     }
 
@@ -95,7 +117,7 @@ class TechnicianWorkCommandRulesTest {
 
     @ParameterizedTest
     @MethodSource("useCases")
-    @DisplayName("총관리자·직원은 기사를 대신해 응답할 수 없어 작업·입력과 관계없이 권한 오류다")
+    @DisplayName("총관리자·직원은 기사를 대신해 처리할 수 없어 작업·입력과 관계없이 권한 오류다")
     void rejectsManagers(UseCase useCase) {
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
         for (ActorRole role : new ActorRole[] {ActorRole.OWNER, ActorRole.STAFF}) {
