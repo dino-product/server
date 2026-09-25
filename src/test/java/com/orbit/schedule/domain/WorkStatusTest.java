@@ -3,6 +3,7 @@ package com.orbit.schedule.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +34,15 @@ class WorkStatusTest {
     @DisplayName("상태가 그대로인 변경은 전이가 아니므로 자기 자신으로의 전이는 허용하지 않는다")
     void rejectsSelfTransition(WorkStatus status) {
         assertThat(status.canTransitionTo(status)).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(WorkStatus.class)
+    @DisplayName("어떤 상태로도 전이할 수 없는 완료·취소만 종료 상태다")
+    void terminalStatusesAreThoseWithoutAnyTransition(WorkStatus status) {
+        boolean hasNoTransition = Arrays.stream(WorkStatus.values()).noneMatch(status::canTransitionTo);
+
+        assertThat(status.isTerminal()).isEqualTo(hasNoTransition);
     }
 
     @ParameterizedTest
