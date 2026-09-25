@@ -27,6 +27,11 @@ public enum WorkStatus {
         };
     }
 
+    /** 기사에게 배정돼 일정을 점유하는 활성 상태(수락대기·수락됨·작업중)인지. 일정 겹침 판정의 대상이다. */
+    public boolean isActive() {
+        return this == PENDING_ACCEPTANCE || this == ACCEPTED || this == IN_PROGRESS;
+    }
+
     /** 완료·취소처럼 어떤 상태로도 전이할 수 없는 종료 상태인지. */
     public boolean isTerminal() {
         return this == COMPLETED || this == CANCELLED;

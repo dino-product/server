@@ -2,19 +2,47 @@
 
 [루트 지침](../../../../../../AGENTS.md)에 추가 적용합니다. 책임·애그리게잇은 [작업 설계](../../../../../../docs/domain/bounded-contexts.md#schedule), 상태 전이·배정·취소·권한 규칙은 [작업 상태·배정 정책](../../../../../../docs/domain/bounded-contexts.md#schedule-policies)이 원본입니다. 여기에 타입 목록·전이표를 복제하지 않습니다.
 
-- `domain`, `application`(작업 등록·기본정보 수정 유즈케이스·출력 포트·오류 코드), `adapter/out`(임시 출력 어댑터)이 있고 모듈 루트 공개 계약은 없습니다. `allowedDependencies`는 `shared::error`입니다. 추가할 때 도메인 지도와 허용 의존성을 함께 갱신합니다.
+- `domain`, `application`, `adapter/out`이 있고 구현 범위는 [도메인 지도](../../../../../../docs/domain/README.md#모듈별-책임과-공개-계약)가 원본입니다. 모듈 루트 공개 계약은 없습니다. `allowedDependencies`는 `shared::error`입니다. 추가할 때 도메인 지도와 허용 의존성을 함께 갱신합니다.
 - 출력 포트 구현은 임시입니다: `adapter/out/memory/InMemoryWorkRepository`는 JPA 어댑터(HM-234), `adapter/out/organization/DenyingActorAdapter`(모두 거부)는 organization 소속 조회 계약으로 교체한 뒤 삭제합니다. 둘 다 `local`·`test` 프로필에서만 등록합니다. 이 포트를 쓰는 서비스(`CreateWorkService` 등)가 있으므로 현재 그 밖의 프로필(`prod`, 프로필 없음)은 Bean 부재로 기동하지 않으며, 이것이 의도입니다. 실제 어댑터를 추가하고 임시 구현을 지우지 않으면 Bean 중복으로 실패하니 `@Primary`로 덮지 않습니다.
+- JPA 어댑터는 `WorkRepository` 계약을 지킵니다: 조회 결과는 영속 상태와 분리된 사본이라 `save`하지 않은 변경은 커밋돼도 저장되지 않아야 하고(배정·재배정·일정 변경의 미확인 겹침이 여기에 기댑니다), 이를 실제 트랜잭션 커밋으로 검증하는 테스트를 둡니다.
+- 기사 일정을 차지하거나 옮기는 유즈케이스(배정·재배정·일정 변경)는 `ScheduleChanges`를 거칩니다. 기사의 활성 작업을 읽어 판정하는 다른 유즈케이스(시작의 동시 수행 판정, 관리자 강제 변경)도 읽기 전에 `TechnicianScheduleLocks`로 같은 기사를 잠급니다. 잠금으로 같은 기사를 동시에 바꾸는 요청을 한 줄로 세웁니다. 구현(`PostgresTechnicianScheduleLockAdapter`)은 PostgreSQL 트랜잭션 advisory lock이라 임시 어댑터와 달리 모든 프로필에서 등록되고, 저장소와 같은 트랜잭션 연결에서만 동작합니다. 대기 한도는 `app.schedule.technician-lock.wait-limit`(기본 2초)입니다.
+- 잠금은 잠근 뒤의 조회가 앞선 커밋을 볼 때만 유효합니다. JPA 어댑터는 READ COMMITTED를 유지하고, 기사 활성 작업 조회에 쿼리 캐시·2차 캐시를 쓰지 않습니다. 잠그기 전에 같은 기사의 다른 작업을 영속성 컨텍스트에 올려 두면 잠근 뒤 조회가 그 오래된 인스턴스를 돌려주므로, 잠금 전에는 대상 작업만 읽습니다.
 - 서비스 단위 테스트용 fake는 `src/test`에 두고 `@Component` 등 스캔 대상 애너테이션을 붙이지 않습니다.
 - 도메인 불변식 예외는 서비스가 `DomainRuleViolations`로 감싸 오류 코드로 바꿉니다. 람다에는 도메인 호출만 넣습니다.
 - Domain은 Spring·JPA·Web 타입과 `Clock`에 의존하지 않습니다. 시각은 호출자가 UTC `Instant`로 넘깁니다.
 - 상태는 업무별 메서드로만 바꾸고 상태만 주입하는 경로를 두지 않습니다. 새 전이는 정책 절과 전이 규칙·테스트를 함께 바꿉니다.
-- 배정 이력은 추가만 합니다. 수락·거절로 확정된 결과는 바꾸지 않고 현재 배정은 최신 이력입니다. 저장값 복원도 결과·시각·사유의 정합성을 검증합니다.
+- 배정 이력은 추가만 합니다. 수락·거절로 확정된 결과는 바꾸지 않고 현재 배정은 최신 이력입니다. 관리자 조치로 끝난 배정에는 종료 기록(`AssignmentEnding`)만 더합니다. 저장값 복원도 결과·시각·사유·종료 기록의 정합성을 검증하므로, JPA 저장에는 배정자와 종료(시각·처리자·방식)를 모두 담습니다.
 - 조직과 조직이 소유한 소속·작업 유형은 ID 값객체로만 참조하고 organization 내부 타입에 의존하지 않습니다.
+
+## 오류 순서
+
+모든 변경 유즈케이스는 아래 순서로 확인하고 먼저 걸린 오류 하나만 돌려줍니다. 서비스 javadoc은 이 순서를 복제하지 않고 자기 유즈케이스의 규칙만 적습니다.
+
+1. 계정 식별자 누락 — 인증 계층의 프로그래밍 오류(500)
+2. 조직 식별자 형식 — 400 `SCHEDULE-003`
+3. 조직의 활성 구성원 아님 — 403 `SCHEDULE-004`, 작업 관리 역할 아님 — 403 `SCHEDULE-005`
+4. 작업 식별자 형식 — 400 `SCHEDULE-003`, 없거나 다른 조직의 작업 — 404 `SCHEDULE-001`
+5. 요청 값 형식(작업명·금액·기사·시간 등) — 400 `SCHEDULE-003`
+6. 현재 상태로 할 수 없음 — 409 `SCHEDULE-002`
+7. 현재 값과 같음(같은 기사 재배정 409 `SCHEDULE-007`, 같은 시간 일정 변경 409 `SCHEDULE-008`), 배정 이력 시각 역전 400 `SCHEDULE-003`
+8. 같은 기사의 앞선 변경을 기다리다 대기 한도 초과 — 409 `SCHEDULE-006`
+9. 일정 겹침 — 확인하지 않은 요청은 반영하지 않고 겹친 작업을 돌려줌(오류 아님)
+
+organization 계약이 연결되기 전에는 요청자·기사·작업 유형의 소속을 검증하지 못하므로 어떤 유즈케이스도 컨트롤러로 노출하지 않습니다.
+
+## 다음 작업에 넘길 것
+
+- HM-231(수락·거절): 요청자가 현재 배정의 담당 기사 본인인지 확인하는 권한 규칙이 필요합니다. 기사가 화면을 연 사이 일정이 바뀌어도 담당 기사는 그대로일 수 있으므로, 명령에 기사가 본 배정(이력 순번이나 작업 버전)을 받아 최신 이력과 비교해 본 적 없는 배정을 수락하지 않게 합니다.
+- HM-232(시작): 같은 기사 동시 수행 판정 전에 `TechnicianScheduleLocks`로 잠급니다.
+- HM-233(취소): 작업 단위 취소 기록(시각·처리자·사유 255자 필수)을 Work에 둡니다. 지금 `Work.cancel`은 배정이 있을 때만 그 배정의 종료(`CANCELLED`)로 처리자를 남기고, 대기함 작업을 취소하면 처리자가 어디에도 남지 않습니다. 배정 이력의 취소 종료는 배정이 왜 끝났는지의 흔적으로 유지합니다.
+- HM-234(JPA): 버전 충돌을 어떤 오류 코드로 알릴지 정해 어댑터에서 변환합니다(지금은 500). 사용자가 본 버전(expectedVersion)을 명령으로 받아 덮어쓰기를 막을지도 이때 정합니다(지금은 마지막 요청이 이김, `WorkRepository` TODO). 두 트랜잭션이 같은 기사를 배정할 때 뒤 요청이 앞 요청의 커밋을 보고 겹침을 돌려주는 통합 테스트를 둡니다. 저장 시각은 PostgreSQL 정밀도(마이크로초)에 맞춰 메모리 값과 저장 값이 달라지지 않게 합니다. 활성 작업 조회에 시간 범위를 더하면 인덱스를 쓸 수 있습니다(판정은 정책이 다시 거름). 저장값 복원도 `WorkSchedule` 검증(24시간 상한 등)을 거치므로, 입력 정책을 좁힐 때는 기존 데이터를 옮기거나 복원 검증을 구조 검증으로 한정해야 그 기사의 작업을 불러오지 못하는 일이 없습니다. 시작시각은 지금 범위 제한이 없어 PostgreSQL `timestamptz`가 받지 못하는 먼 연도가 들어오면 저장 때 500이 나므로, 허용 범위를 정해 도메인이나 API에서 막습니다.
+- HM-238(API): 반영하지 않은 겹침 결과(`applied=false`)를 HTTP로 어떻게 표현할지, 확인 뒤 새로 생긴 겹침도 허용할지(지금은 허용) 정합니다. 재시도 처리도 정합니다: 작업 등록 재시도는 중복 생성되고, 이미 반영된 배정·해제를 다시 보내면 상태 오류(`SCHEDULE-002`)라 '이미 처리됨'과 '다른 사람이 먼저 바꿈'을 구분하지 못합니다. 사용자가 본 버전(expectedVersion)을 요청에 담을지는 HM-234와 함께 정합니다.
 
 ## 집중 검증
 
 - Domain: `com.orbit.schedule.domain` 패키지의 관련 테스트.
 - Application: `com.orbit.schedule.application` 패키지의 관련 테스트.
-- 모듈 조립: `com.orbit.schedule.ScheduleModuleTest`.
+- Adapter: `com.orbit.schedule.adapter` 패키지의 관련 테스트(잠금 어댑터는 Docker의 PostgreSQL 필요).
+- 모듈 조립: `com.orbit.schedule.ScheduleModuleTest`, `com.orbit.schedule.ScheduleUseCaseFlowTest`(둘 다 Docker의 PostgreSQL 필요).
 - 모듈 경계: `com.orbit.ModularityTest`, `com.orbit.ArchitectureTest`.
 - 그 밖의 선택은 [공통 검사 표](../../../../../../docs/conventions/testing/selection.md#selection)를 따릅니다.
