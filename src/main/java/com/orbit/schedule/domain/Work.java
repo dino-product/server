@@ -10,6 +10,9 @@ import java.util.Optional;
 /** 작업 등록부터 배정, 수행, 완료까지의 생애주기를 관리하는 애그리게잇 루트. */
 public final class Work {
 
+    /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
+    public static final int MAX_NAME_LENGTH = 100;
+
     private final WorkId id;
     private final OrganizationId organizationId;
     private String name;
@@ -165,15 +168,18 @@ public final class Work {
 
     public void accept(Instant decidedAt) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, "accept");
+        // 전이를 먼저 계산해, 이력을 바꾼 뒤 전이가 실패해 둘이 어긋나는 일이 없게 한다.
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.ACCEPTED);
         latestAssignment().accept(decidedAt);
-        status = status.transitionTo(WorkStatus.ACCEPTED);
+        status = nextStatus;
     }
 
-    public void reject(RejectionReason reason, Instant decidedAt) {
+    public void reject(Rejection rejection, Instant decidedAt) {
         requireStatus(WorkStatus.PENDING_ACCEPTANCE, "reject");
-        latestAssignment().reject(reason, decidedAt);
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.REGISTERED);
+        latestAssignment().reject(rejection, decidedAt);
         schedule = null;
-        status = status.transitionTo(WorkStatus.REGISTERED);
+        status = nextStatus;
     }
 
     /** 담당기사를 바꾼다. 수락 이후라도 새 기사에게 다시 수락받는다. 바꾼 관리자를 이전 배정의 종료와 새 배정에 남긴다. */
@@ -205,9 +211,10 @@ public final class Work {
         if (status != WorkStatus.PENDING_ACCEPTANCE && status != WorkStatus.ACCEPTED) {
             throw new IllegalStateException("Cannot unassign when status is " + status);
         }
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.REGISTERED);
         latestAssignment().end(new AssignmentEnding(unassignedAt, unassignedBy, AssignmentEndReason.UNASSIGNED));
         schedule = null;
-        status = status.transitionTo(WorkStatus.REGISTERED);
+        status = nextStatus;
     }
 
     /**
@@ -236,8 +243,9 @@ public final class Work {
         if (report == null) {
             throw new IllegalArgumentException("completionReport must not be null");
         }
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.COMPLETED);
         completionReport = report;
-        status = status.transitionTo(WorkStatus.COMPLETED);
+        status = nextStatus;
     }
 
     /** 완료 전 작업을 취소한다. 현재 배정이 있으면(수락대기·수락됨·작업중) 취소 시각·처리자를 그 배정의 종료로 남긴다. */
@@ -339,7 +347,7 @@ public final class Work {
     }
 
     /**
-     * 재배정·일정 변경으로 끝난 배정 바로 다음에는 같은 시각·같은 처리자가 만든 새 배정이 온다. 재배정은 다른 기사, 일정 변경은 같은 기사다. 해제로 끝난 배정 뒤의
+     * 재배정·일정 변경으로 끝난 배정 바로 다음에는 같은 시각·같은 처리자가 만든 새 배정이 온다. 재배정은 다른 기사, 일정 변경은 같은 기사의 다른 일정이다. 해제로 끝난 배정 뒤의
      * 배정은 대기함에서 새로 한 배정이라 시각 순서만 지키면 된다.
      */
     private static void requireFollowedByChange(
@@ -356,6 +364,11 @@ public final class Work {
         if (sameTechnician != (ending.reason() == AssignmentEndReason.RESCHEDULED)) {
             throw new IllegalArgumentException(
                     "assignment ended by " + ending.reason() + " must be followed by a matching technician");
+        }
+        if (ending.reason() == AssignmentEndReason.RESCHEDULED
+                && next.schedule().equals(previous.schedule())) {
+            throw new IllegalArgumentException(
+                    "assignment ended by RESCHEDULED must be followed by a different schedule");
         }
     }
 
@@ -401,6 +414,9 @@ public final class Work {
     private static void requireName(String name) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name must not be blank");
+        }
+        if (name.length() > MAX_NAME_LENGTH) {
+            throw new IllegalArgumentException("name must be at most " + MAX_NAME_LENGTH + " characters");
         }
     }
 

@@ -22,4 +22,9 @@ public record Actor(MembershipId membershipId, OrganizationId organizationId, Ac
     public boolean canManageWorks() {
         return role == ActorRole.OWNER || role == ActorRole.STAFF;
     }
+
+    /** 배정 수락·거절, 작업 시작, 완료보고는 기사만 한다. 그 작업의 담당 기사인지는 작업마다 따로 확인한다. */
+    public boolean canPerformWorks() {
+        return role == ActorRole.TECHNICIAN;
+    }
 }

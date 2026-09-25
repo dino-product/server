@@ -18,7 +18,9 @@ public enum ScheduleErrorCode implements BaseCode {
     ACTION_NOT_ALLOWED(HttpStatus.FORBIDDEN, "SCHEDULE-005", "이 작업을 처리할 권한이 없습니다."),
     TECHNICIAN_SCHEDULE_BUSY(HttpStatus.CONFLICT, "SCHEDULE-006", "같은 기사의 일정이 다른 요청으로 변경 중입니다. 잠시 후 다시 시도해 주세요."),
     SAME_TECHNICIAN(HttpStatus.CONFLICT, "SCHEDULE-007", "이미 해당 기사에게 배정된 작업입니다."),
-    SCHEDULE_UNCHANGED(HttpStatus.CONFLICT, "SCHEDULE-008", "이미 같은 일정입니다.");
+    SCHEDULE_UNCHANGED(HttpStatus.CONFLICT, "SCHEDULE-008", "이미 같은 일정입니다."),
+    NOT_ASSIGNED_TECHNICIAN(HttpStatus.FORBIDDEN, "SCHEDULE-009", "이 배정의 담당 기사가 아닙니다."),
+    ASSIGNMENT_CHANGED(HttpStatus.CONFLICT, "SCHEDULE-010", "배정이 바뀌었습니다. 최신 배정을 확인해 주세요.");
 
     private final HttpStatus httpStatus;
     private final String code;

@@ -17,11 +17,13 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
 import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
+import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
@@ -44,11 +46,11 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.support.TestcontainersConfiguration;
 
 /**
- * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. organization 계약이 없어 행위자 포트만 직원을 돌려주는 테스트 구현으로 바꾼다.
+ * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. organization 계약이 없어 행위자 포트만 테스트 구현으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, ScheduleUseCaseFlowTest.ManagerActors.class})
+@Import({TestcontainersConfiguration.class, ScheduleUseCaseFlowTest.ActorsByAccount.class})
 @Testcontainers(disabledWithoutDocker = true)
 class ScheduleUseCaseFlowTest {
 
@@ -61,6 +63,9 @@ class ScheduleUseCaseFlowTest {
     private static final Instant TEN = Instant.parse("2030-01-02T01:00:00Z");
     private static final Duration TWO_HOURS = Duration.ofHours(2);
     private static final MembershipId MANAGER = new MembershipId(11L);
+    // 이 계정은 기사로 요청한다. 다른 테스트와 겹치지 않는 기사 소속을 쓴다.
+    private static final long TECHNICIAN_ACCOUNT_ID = 2L;
+    private static final long ACCEPTING_TECHNICIAN = 51L;
 
     @Autowired
     private CreateWorkUseCase createWorkUseCase;
@@ -76,6 +81,9 @@ class ScheduleUseCaseFlowTest {
 
     @Autowired
     private UnassignWorkUseCase unassignWorkUseCase;
+
+    @Autowired
+    private AcceptWorkUseCase acceptWorkUseCase;
 
     @Autowired
     private WorkRepository workRepository;
@@ -145,6 +153,21 @@ class ScheduleUseCaseFlowTest {
                 .isEqualTo(WorkStatus.REGISTERED);
     }
 
+    @Test
+    void assembledTechnicianAcceptsTheAssignmentTheySaw() {
+        long workId = create("수락할 작업");
+        assignWorkUseCase.assign(new AssignWorkCommand(
+                ACCOUNT_ID, ORGANIZATION_ID.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
+
+        acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, ORGANIZATION_ID.value(), workId, 1));
+
+        assertThat(workRepository
+                        .findInOrganization(ORGANIZATION_ID, new WorkId(workId))
+                        .orElseThrow()
+                        .status())
+                .isEqualTo(WorkStatus.ACCEPTED);
+    }
+
     private long create(String name) {
         return createWorkUseCase
                 .create(new CreateWorkCommand(
@@ -153,12 +176,15 @@ class ScheduleUseCaseFlowTest {
     }
 
     @TestConfiguration(proxyBeanMethods = false)
-    static class ManagerActors {
+    static class ActorsByAccount {
 
         @Bean
         @Primary
-        LoadActorPort managerActorPort() {
-            return (accountId, organizationId) -> Optional.of(new Actor(MANAGER, organizationId, ActorRole.STAFF));
+        LoadActorPort actorPortByAccount() {
+            return (accountId, organizationId) -> Optional.of(
+                    accountId == TECHNICIAN_ACCOUNT_ID
+                            ? new Actor(new MembershipId(ACCEPTING_TECHNICIAN), organizationId, ActorRole.TECHNICIAN)
+                            : new Actor(MANAGER, organizationId, ActorRole.STAFF));
         }
     }
 }

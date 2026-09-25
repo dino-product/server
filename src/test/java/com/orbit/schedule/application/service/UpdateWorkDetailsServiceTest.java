@@ -108,10 +108,16 @@ class UpdateWorkDetailsServiceTest {
         fixture.assertRejected(
                 () -> service.update(command(completed.value(), "보일러 점검", -1L, 9L)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(command(completed.value(), "가".repeat(101), 80_000L, 9L)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(customerCommand(completed.value(), "가".repeat(51), null, null)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
     @Test
-    @DisplayName("작업명이 비었거나 요금이 음수거나 작업 유형 식별자가 틀리면 입력 오류다")
+    @DisplayName("작업명이 비었거나, 작업명·고객 정보가 길이 상한을 넘거나, 요금이 음수거나, 작업 유형 식별자가 틀리면 입력 오류다")
     void rejectsInvalidDetails() {
         fixture.givenManager();
         WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
@@ -122,6 +128,23 @@ class UpdateWorkDetailsServiceTest {
                 () -> service.update(command(id.value(), "보일러 점검", -1L, 9L)), ScheduleErrorCode.INVALID_WORK_INPUT);
         fixture.assertRejected(
                 () -> service.update(command(id.value(), "보일러 점검", 80_000L, 0L)), ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(command(id.value(), "가".repeat(101), 80_000L, 9L)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(customerCommand(id.value(), "가".repeat(51), null, null)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(customerCommand(id.value(), null, "0".repeat(21), null)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(customerCommand(id.value(), null, null, "가".repeat(201))),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    private static UpdateWorkDetailsCommand customerCommand(long workId, String name, String phone, String address) {
+        return new UpdateWorkDetailsCommand(
+                ACCOUNT_ID, ORGANIZATION_ID.value(), workId, "보일러 점검", null, name, phone, address, null, null);
     }
 
     private static UpdateWorkDetailsCommand command(long workId, String name, Long fee, Long workTypeId) {

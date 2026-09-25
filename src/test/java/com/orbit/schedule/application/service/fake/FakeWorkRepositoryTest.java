@@ -15,6 +15,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -56,7 +57,7 @@ class FakeWorkRepositoryTest {
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         work.assign(new WorkSchedule(new MembershipId(3L), NOW, Duration.ofHours(2)), NOW, MANAGER_ID);
-        work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW.plusSeconds(10));
+        work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), NOW.plusSeconds(10));
         work.assign(new WorkSchedule(new MembershipId(4L), NOW, Duration.ofHours(2)), NOW.plusSeconds(20), MANAGER_ID);
         work.accept(NOW.plusSeconds(30));
         work.reassign(

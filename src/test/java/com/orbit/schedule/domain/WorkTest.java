@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.assertj.core.groups.Tuple;
@@ -77,6 +78,17 @@ class WorkTest {
             assertThatThrownBy(() -> Work.register(ORGANIZATION_ID, name, REGISTRAR_ID, null, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("name must not be blank");
+        }
+
+        @Test
+        @DisplayName("작업명은 100자까지 받고 넘으면 거부한다")
+        void limitsNameLength() {
+            assertThat(Work.register(ORGANIZATION_ID, "가".repeat(100), REGISTRAR_ID, null, null, null)
+                            .name())
+                    .hasSize(100);
+            assertThatThrownBy(() -> Work.register(ORGANIZATION_ID, "가".repeat(101), REGISTRAR_ID, null, null, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("name must be at most 100 characters");
         }
 
         @Test
@@ -278,6 +290,18 @@ class WorkTest {
             assertUnchangedDetails(work);
         }
 
+        @Test
+        @DisplayName("100자를 넘는 작업명으로 바꾸면 거부하고 아무것도 바꾸지 않는다")
+        void rejectsTooLongNameWithoutPartialChange() {
+            Work work = registeredWork();
+
+            assertThatThrownBy(() -> work.changeDetails(
+                            "가".repeat(101), OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("name must be at most 100 characters");
+            assertUnchangedDetails(work);
+        }
+
         private static void assertUnchangedDetails(Work work) {
             assertThat(work.name()).isEqualTo("에어컨 수리");
             assertThat(work.workType()).contains(WORK_TYPE_ID);
@@ -331,14 +355,18 @@ class WorkTest {
         @DisplayName("직전 배정 이력보다 이른 시각으로 다시 배정하면 거부하고 작업을 전혀 바꾸지 않는다")
         void rejectsAssignedAtBeforeLatestAssignmentWithoutPartialChange() {
             Work work = pendingWork();
-            work.reject(RejectionReason.OTHER, NOW.plusSeconds(60));
+            work.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), NOW.plusSeconds(60));
 
             assertThatThrownBy(() -> work.assign(SECOND_SCHEDULE, NOW.plusSeconds(59), MANAGER_ID))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("assignedAt must not be before the latest assignment");
             assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
             assertThat(work.schedule()).isEmpty();
-            assertThat(work.assignmentHistory()).hasSize(1);
+            assertThat(work.assignmentHistory()).singleElement().satisfies(history -> {
+                assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
+                assertThat(history.decidedAt()).contains(NOW.plusSeconds(60));
+                assertThat(history.ending()).isEmpty();
+            });
         }
 
         @Test
@@ -411,7 +439,7 @@ class WorkTest {
         void rejectsPendingAssignment() {
             Work work = pendingWork();
 
-            work.reject(RejectionReason.SCHEDULE_CONFLICT, NOW);
+            work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), NOW);
 
             AssignmentHistory history = work.assignmentHistory().getLast();
             assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
@@ -421,13 +449,13 @@ class WorkTest {
         }
 
         @Test
-        @DisplayName("거절 사유가 null이면 거부한다")
+        @DisplayName("거절 사유 없이 거절할 수 없다")
         void rejectsNullReason() {
             Work work = pendingWork();
 
             assertThatThrownBy(() -> work.reject(null, NOW))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("rejectionReason must not be null");
+                    .hasMessage("rejection must not be null");
             assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
             assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
         }
@@ -437,7 +465,7 @@ class WorkTest {
         void rejectsOutsidePendingStatus() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.reject(RejectionReason.OTHER, NOW))
+            assertThatThrownBy(() -> work.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), NOW))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot reject when status is REGISTERED");
         }
@@ -592,6 +620,24 @@ class WorkTest {
                             FIRST_SCHEDULE.startTime(), FIRST_SCHEDULE.expectedDuration(), NOW, MANAGER_ID))
                     .isInstanceOf(UnchangedScheduleException.class)
                     .hasMessage("reschedule requires a different time");
+        }
+
+        @Test
+        @DisplayName("마이크로초보다 작은 단위만 다른 시간은 같은 시간이라 거부하고 이력을 늘리지 않는다")
+        void rejectsScheduleDifferingBelowMicroseconds() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(() -> work.reschedule(
+                            FIRST_SCHEDULE.startTime().plusNanos(500),
+                            FIRST_SCHEDULE.expectedDuration().plusNanos(500),
+                            NOW,
+                            MANAGER_ID))
+                    .isInstanceOf(UnchangedScheduleException.class)
+                    .hasMessage("reschedule requires a different time");
+            assertThat(work.assignmentHistory()).singleElement().satisfies(history -> {
+                assertThat(history.result()).isEqualTo(AssignmentResult.PENDING);
+                assertThat(history.ending()).isEmpty();
+            });
         }
 
         @Test
@@ -933,25 +979,34 @@ class WorkTest {
         @Test
         @DisplayName("처리자가 없으면 배정·재배정·일정 변경·해제·취소를 거부하고 작업을 바꾸지 않는다")
         void requiresActor() {
-            assertThatThrownBy(() -> registeredWork().assign(FIRST_SCHEDULE, NOW, null))
+            Work registered = registeredWork();
+            assertThatThrownBy(() -> registered.assign(FIRST_SCHEDULE, NOW, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("assignedBy must not be null");
-            Work pending = pendingWork();
-            assertThatThrownBy(() -> pending.reassign(SECOND_SCHEDULE, LATER, null))
-                    .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> pending.reschedule(
+            assertThat(registered.status()).isEqualTo(WorkStatus.REGISTERED);
+            assertThat(registered.schedule()).isEmpty();
+            assertThat(registered.assignmentHistory()).isEmpty();
+            assertPendingWorkRequiresActor(
+                    "assignedBy must not be null", work -> work.reassign(SECOND_SCHEDULE, LATER, null));
+            assertPendingWorkRequiresActor(
+                    "assignedBy must not be null",
+                    work -> work.reschedule(
                             RESCHEDULED_FIRST_SCHEDULE.startTime(),
                             RESCHEDULED_FIRST_SCHEDULE.expectedDuration(),
                             LATER,
-                            null))
-                    .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> pending.unassign(LATER, null))
+                            null));
+            assertPendingWorkRequiresActor("endedBy must not be null", work -> work.unassign(LATER, null));
+            assertPendingWorkRequiresActor("endedBy must not be null", work -> work.cancel(LATER, null));
+        }
+
+        private static void assertPendingWorkRequiresActor(String message, Consumer<Work> call) {
+            Work pending = pendingWork();
+
+            assertThatThrownBy(() -> call.accept(pending))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("endedBy must not be null");
-            assertThatThrownBy(() -> pending.cancel(LATER, null))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("endedBy must not be null");
+                    .hasMessage(message);
             assertThat(pending.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(pending.schedule()).contains(FIRST_SCHEDULE);
             assertThat(pending.assignmentHistory()).singleElement().satisfies(history -> {
                 assertThat(history.result()).isEqualTo(AssignmentResult.PENDING);
                 assertThat(history.ending()).isEmpty();
@@ -1050,7 +1105,13 @@ class WorkTest {
 
     private static AssignmentHistory rejectedHistory(WorkSchedule schedule) {
         return AssignmentHistory.restore(
-                schedule, NOW, MANAGER_ID, AssignmentResult.REJECTED, RejectionReason.OTHER, NOW, null);
+                schedule,
+                NOW,
+                MANAGER_ID,
+                AssignmentResult.REJECTED,
+                new Rejection(RejectionReason.OTHER, "기타 사유"),
+                NOW,
+                null);
     }
 
     private static AssignmentHistory closedHistory(WorkSchedule schedule) {
@@ -1172,6 +1233,14 @@ class WorkTest {
                                 pendingHistory(RESCHEDULED_FIRST_SCHEDULE)),
                         null,
                         "assignment ended by REASSIGNED must be followed by a matching technician"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        FIRST_SCHEDULE,
+                        List.of(
+                                closedHistory(FIRST_SCHEDULE, AssignmentEndReason.RESCHEDULED),
+                                pendingHistory(FIRST_SCHEDULE)),
+                        null,
+                        "assignment ended by RESCHEDULED must be followed by a different schedule"),
                 Arguments.of(
                         WorkStatus.PENDING_ACCEPTANCE,
                         SECOND_SCHEDULE,
@@ -1310,7 +1379,7 @@ class WorkTest {
                                         NOW,
                                         MANAGER_ID,
                                         AssignmentResult.REJECTED,
-                                        RejectionReason.OTHER,
+                                        new Rejection(RejectionReason.OTHER, "기타 사유"),
                                         NOW.plusSeconds(100),
                                         null),
                                 AssignmentHistory.restore(

@@ -25,6 +25,15 @@ class AssignmentEndingTest {
     }
 
     @Test
+    @DisplayName("종료 시각은 마이크로초로 자른다")
+    void truncatesEndedAtToMicroseconds() {
+        AssignmentEnding ending =
+                new AssignmentEnding(ENDED_AT.plusNanos(1_999), MANAGER_ID, AssignmentEndReason.UNASSIGNED);
+
+        assertThat(ending.endedAt()).isEqualTo(ENDED_AT.plusNanos(1_000));
+    }
+
+    @Test
     @DisplayName("종료 시각·처리자·방식 중 하나라도 없으면 거부한다")
     void requiresEveryValue() {
         assertThatThrownBy(() -> new AssignmentEnding(null, MANAGER_ID, AssignmentEndReason.UNASSIGNED))

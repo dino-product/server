@@ -1,11 +1,12 @@
 package com.orbit.schedule.domain;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 /**
  * Work에 속한 하나의 배정 시도와 그 결과. 배정한 사람과 시각, 기사의 응답(수락·거절) 시각, 관리자 조치로 배정이 끝난 기록을 남긴다. 수락·거절로 확정된 결과는
- * 바꾸지 않으며, 재배정 시에는 새 이력을 추가한다.
+ * 바꾸지 않으며, 재배정 시에는 새 이력을 추가한다. 배정·응답 시각은 저장소 정밀도인 마이크로초로 잘라 둔다.
  *
  * <ul>
  *   <li>응답 전에 끝나면 결과는 {@link AssignmentResult#WITHDRAWN}(응답 전 회수)이고 응답 시각은 종료 시각과 같다.
@@ -19,7 +20,7 @@ public final class AssignmentHistory {
     private final Instant assignedAt;
     private final MembershipId assignedBy;
     private AssignmentResult result;
-    private RejectionReason rejectionReason;
+    private Rejection rejection;
     private Instant decidedAt;
     private AssignmentEnding ending;
 
@@ -34,7 +35,7 @@ public final class AssignmentHistory {
             throw new IllegalArgumentException("assignedBy must not be null");
         }
         this.schedule = schedule;
-        this.assignedAt = assignedAt;
+        this.assignedAt = assignedAt.truncatedTo(ChronoUnit.MICROS);
         this.assignedBy = assignedBy;
         this.result = AssignmentResult.PENDING;
     }
@@ -45,15 +46,15 @@ public final class AssignmentHistory {
             Instant assignedAt,
             MembershipId assignedBy,
             AssignmentResult result,
-            RejectionReason rejectionReason,
+            Rejection rejection,
             Instant decidedAt,
             AssignmentEnding ending) {
         AssignmentHistory history = new AssignmentHistory(schedule, assignedAt, assignedBy);
         if (result == null) {
             throw new IllegalArgumentException("result must not be null");
         }
-        if (result != AssignmentResult.REJECTED && rejectionReason != null) {
-            throw new IllegalArgumentException("Only REJECTED history can have rejectionReason");
+        if (result != AssignmentResult.REJECTED && rejection != null) {
+            throw new IllegalArgumentException("Only REJECTED history can have a rejection");
         }
         if (result == AssignmentResult.PENDING) {
             if (decidedAt != null) {
@@ -67,7 +68,7 @@ public final class AssignmentHistory {
         }
         if (result == AssignmentResult.REJECTED) {
             requireNoEnding(result, ending);
-            history.reject(rejectionReason, decidedAt);
+            history.reject(rejection, decidedAt);
             return history;
         }
         if (result == AssignmentResult.ACCEPTED) {
@@ -80,7 +81,7 @@ public final class AssignmentHistory {
         if (ending == null) {
             throw new IllegalArgumentException("WITHDRAWN history must have an ending");
         }
-        if (!ending.endedAt().equals(decidedAt)) {
+        if (!ending.endedAt().equals(decidedAt.truncatedTo(ChronoUnit.MICROS))) {
             throw new IllegalArgumentException("WITHDRAWN history must be decided when it ended");
         }
         history.end(ending);
@@ -91,13 +92,13 @@ public final class AssignmentHistory {
         decide(AssignmentResult.ACCEPTED, decidedAt, "accept");
     }
 
-    void reject(RejectionReason reason, Instant decidedAt) {
+    void reject(Rejection newRejection, Instant decidedAt) {
         requirePending("reject");
-        if (reason == null) {
-            throw new IllegalArgumentException("rejectionReason must not be null");
+        if (newRejection == null) {
+            throw new IllegalArgumentException("rejection must not be null");
         }
         decide(AssignmentResult.REJECTED, decidedAt, "reject");
-        rejectionReason = reason;
+        rejection = newRejection;
     }
 
     /**
@@ -140,8 +141,12 @@ public final class AssignmentHistory {
         return result;
     }
 
+    public Optional<Rejection> rejection() {
+        return Optional.ofNullable(rejection);
+    }
+
     public Optional<RejectionReason> rejectionReason() {
-        return Optional.ofNullable(rejectionReason);
+        return rejection().map(Rejection::reason);
     }
 
     public Optional<Instant> decidedAt() {
@@ -170,11 +175,12 @@ public final class AssignmentHistory {
         if (newDecidedAt == null) {
             throw new IllegalArgumentException("decidedAt must not be null");
         }
-        if (newDecidedAt.isBefore(assignedAt)) {
+        Instant storedDecidedAt = newDecidedAt.truncatedTo(ChronoUnit.MICROS);
+        if (storedDecidedAt.isBefore(assignedAt)) {
             throw new IllegalArgumentException("decidedAt must not be before assignedAt");
         }
         result = newResult;
-        decidedAt = newDecidedAt;
+        decidedAt = storedDecidedAt;
     }
 
     private void requirePending(String action) {

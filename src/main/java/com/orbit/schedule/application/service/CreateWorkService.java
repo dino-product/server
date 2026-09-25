@@ -33,7 +33,7 @@ public class CreateWorkService implements CreateWorkUseCase {
     @Override
     @Transactional
     public CreatedWorkInfo create(CreateWorkCommand command) {
-        Actor actor = ManagingActors.require(loadActorPort, command.accountId(), command.organizationId());
+        Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
 
         Work work = DomainRuleViolations.call(() -> Work.register(
                 actor.organizationId(),

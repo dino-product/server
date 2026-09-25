@@ -59,6 +59,11 @@ final class ScheduleServiceFixture {
         givenActor(ActorRole.STAFF);
     }
 
+    /** 요청자를 주어진 소속의 기사로 둔다. 담당 기사 본인 여부는 소속으로 판단한다. */
+    void givenTechnician(MembershipId technicianId) {
+        actorPort.givenActor(ACCOUNT_ID, ORGANIZATION_ID, technicianId.value(), ActorRole.TECHNICIAN);
+    }
+
     void givenActor(ActorRole role) {
         actorPort.givenActor(ACCOUNT_ID, ORGANIZATION_ID, MANAGER_ID.value(), role);
     }

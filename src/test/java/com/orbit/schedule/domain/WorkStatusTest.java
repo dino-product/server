@@ -19,14 +19,7 @@ class WorkStatusTest {
     @Test
     @DisplayName("거절은 상태가 아니라 배정 이력의 결과라 진행 상태에 없다")
     void doesNotDefineRejectedStatus() {
-        assertThat(WorkStatus.values())
-                .containsExactly(
-                        WorkStatus.REGISTERED,
-                        WorkStatus.PENDING_ACCEPTANCE,
-                        WorkStatus.ACCEPTED,
-                        WorkStatus.IN_PROGRESS,
-                        WorkStatus.COMPLETED,
-                        WorkStatus.CANCELLED);
+        assertThat(WorkStatus.values()).extracting(WorkStatus::name).doesNotContain("REJECTED");
     }
 
     @ParameterizedTest
