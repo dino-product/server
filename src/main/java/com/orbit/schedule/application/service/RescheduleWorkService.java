@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
@@ -41,7 +42,7 @@ public class RescheduleWorkService implements RescheduleWorkUseCase {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ScheduleChangeInfo reschedule(RescheduleWorkCommand command) {
         Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
