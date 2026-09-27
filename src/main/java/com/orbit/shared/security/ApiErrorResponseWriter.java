@@ -21,6 +21,10 @@ public class ApiErrorResponseWriter {
     private final ObjectMapper objectMapper;
 
     public void write(HttpServletResponse response, BaseCode errorCode) throws IOException {
+        if (response.isCommitted()) {
+            return;
+        }
+        response.resetBuffer();
         response.setStatus(errorCode.getHttpStatus().value());
         response.setCharacterEncoding("UTF-8");
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
