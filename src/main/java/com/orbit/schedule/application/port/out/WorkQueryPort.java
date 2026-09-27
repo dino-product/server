@@ -31,6 +31,9 @@ public interface WorkQueryPort {
     /** 대기함 작업(등록 상태). */
     List<Work> listBacklog(OrganizationId organizationId);
 
-    /** 조건에 맞는 작업의 한 쪽과 전체 수. 이 메서드는 조건의 정렬 순서를 지킨다. */
+    /**
+     * 조건에 맞는 작업의 한 쪽과 전체 수. 조건의 정렬 순서를 지킨다. 쪽이 끝을 넘으면 빈 목록과 실제 전체 수를 돌려준다. 조건 해석(검색어 이스케이프, 지연 판정
+     * 시각, 정렬의 null 위치 등)은 {@link WorkSearchCriteria}를 따른다.
+     */
     WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria);
 }

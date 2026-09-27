@@ -156,7 +156,9 @@ class GetTimetableServiceTest {
             {FROM, null},
             {TO, FROM},
             {FROM, FROM},
-            {FROM, FROM.plus(Duration.ofDays(31)).plusNanos(1_000)}
+            {FROM, FROM.plus(Duration.ofDays(31)).plusNanos(1_000)},
+            {Instant.MIN, Instant.MIN.plus(Duration.ofDays(1))},
+            {Instant.MAX.minus(Duration.ofDays(1)), Instant.MAX}
         }) {
             fixture.assertRejected(
                     () -> service.get(query(period[0], period[1])), ScheduleErrorCode.INVALID_WORK_INPUT);

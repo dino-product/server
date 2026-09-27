@@ -32,6 +32,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private long sequence;
     private int activeByTechnicianQueryCount;
     private final List<WorkSearchCriteria> searches = new ArrayList<>();
+    private WorkSearchResult searchResult;
 
     @Override
     public Work save(Work work) {
@@ -92,14 +93,26 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 .toList();
     }
 
-    /** 검색 조건은 거르지 않고 기록만 한다(조건 해석은 실제 어댑터의 몫). 조직의 모든 작업을 저장 역순으로 돌려준다. */
+    /**
+     * 검색 조건은 해석하지 않고 기록만 한다(조건 해석은 실제 어댑터의 몫). {@link #givenSearchResult}로 정한 결과가 있으면 그것을, 없으면 조직의 모든 작업을 저장
+     * 역순으로 돌려준다.
+     */
     @Override
     public WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         Objects.requireNonNull(criteria, "criteria must not be null");
         searches.add(criteria);
+        if (searchResult != null) {
+            return searchResult;
+        }
         List<Work> works = inOrganization(organizationId);
         return new WorkSearchResult(works, works.size());
+    }
+
+    /** 검색이 돌려줄 작업(이 순서 그대로)과 전체 수를 정한다. */
+    public void givenSearchResult(List<WorkId> workIds, long totalCount) {
+        searchResult = new WorkSearchResult(
+                workIds.stream().map(id -> copyOf(store.get(id.value()), id)).toList(), totalCount);
     }
 
     /** 서비스가 검색한 조건. */

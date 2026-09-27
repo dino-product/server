@@ -53,7 +53,7 @@ public class SearchWorksService implements SearchWorksUseCase {
 
         WorkSearchResult result = workQueryPort.search(manager.organizationId(), criteria);
         return new WorkSearchInfo(
-                result.works().stream().map(work -> item(work, now)).toList(),
+                result.works().stream().map(work -> summary(work, now)).toList(),
                 result.totalCount(),
                 criteria.page(),
                 criteria.size());
@@ -67,24 +67,23 @@ public class SearchWorksService implements SearchWorksUseCase {
         TechnicianId technicianId = query.technicianId() == null
                 ? null
                 : DomainRuleViolations.call(() -> new TechnicianId(query.technicianId()));
-        if ((query.startFrom() == null) != (query.startTo() == null)
-                || (query.startFrom() != null && !query.startFrom().isBefore(query.startTo()))) {
-            throw invalidInput();
-        }
+        QueryPeriod startPeriod = query.startFrom() == null && query.startTo() == null
+                ? null
+                : QueryPeriod.ofAnyLength(query.startFrom(), query.startTo());
         if (query.statuses() != null && query.statuses().stream().anyMatch(Objects::isNull)) {
             throw invalidInput();
         }
         int page = query.page() == null ? 0 : query.page();
         int size = query.size() == null ? DEFAULT_PAGE_SIZE : query.size();
-        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE || (long) page * size > WorkSearchCriteria.MAX_OFFSET) {
             throw invalidInput();
         }
         return new WorkSearchCriteria(
                 keyword == null || keyword.isEmpty() ? null : keyword,
                 query.statuses() == null ? Set.of() : query.statuses(),
                 technicianId,
-                query.startFrom(),
-                query.startTo(),
+                startPeriod == null ? null : startPeriod.from(),
+                startPeriod == null ? null : startPeriod.to(),
                 query.returnedByRejectionOnly(),
                 query.delayedOnly() ? now : null,
                 sort(query.sort()),
@@ -103,9 +102,9 @@ public class SearchWorksService implements SearchWorksUseCase {
         };
     }
 
-    private static WorkSearchInfo.Item item(Work work, Instant now) {
+    private static WorkSearchInfo.WorkSummary summary(Work work, Instant now) {
         WorkSchedule schedule = work.schedule().orElse(null);
-        return new WorkSearchInfo.Item(
+        return new WorkSearchInfo.WorkSummary(
                 work.id().orElseThrow().value(),
                 work.name(),
                 work.status(),

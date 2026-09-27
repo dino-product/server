@@ -4,7 +4,6 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCE
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
-import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
@@ -14,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
@@ -99,19 +99,19 @@ class SearchWorksServiceTest {
     @DisplayName("저장소가 돌려준 순서·전체 수 그대로 담고, 일정·고객 이름·지연·거절 반환을 표시한다")
     void mapsResult() {
         fixture.givenManager();
+        WorkId late = fixture.givenWork(
+                ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, NOW.minus(Duration.ofHours(3)));
         Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
         rejected.reject(new Rejection(RejectionReason.SCOPE_MISMATCH, null), ACCEPTED_AT);
         WorkId rejectedId = fixture.workRepository.store(rejected);
-        WorkId late = fixture.givenWork(
-                ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, NOW.minus(Duration.ofHours(3)));
-        fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
+        fixture.workRepository.givenSearchResult(List.of(late, rejectedId), 50);
 
         WorkSearchInfo info = service.search(query(null, null, null, null, null, false, false, null, null, null));
 
-        assertThat(info.totalCount()).isEqualTo(2);
-        assertThat(info.items())
+        assertThat(info.totalCount()).isEqualTo(50);
+        assertThat(info.works())
                 .containsExactly(
-                        new WorkSearchInfo.Item(
+                        new WorkSearchInfo.WorkSummary(
                                 late.value(),
                                 "늦은 작업",
                                 WorkStatus.IN_PROGRESS,
@@ -121,7 +121,7 @@ class SearchWorksServiceTest {
                                 "홍길동",
                                 true,
                                 false),
-                        new WorkSearchInfo.Item(
+                        new WorkSearchInfo.WorkSummary(
                                 rejectedId.value(),
                                 "대상 작업",
                                 WorkStatus.REGISTERED,
@@ -149,20 +149,30 @@ class SearchWorksServiceTest {
         fixture.assertRejected(
                 () -> service.search(query(null, withNull, null, null, null, false, false, null, null, null)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
-        for (Instant[] period : new Instant[][] {{TEN, null}, {null, TEN}, {TEN, TEN}, {TEN.plusSeconds(1), TEN}}) {
+        for (Instant[] period : new Instant[][] {
+            {TEN, null},
+            {null, TEN},
+            {TEN, TEN},
+            {TEN.plusSeconds(1), TEN},
+            {Instant.MIN, TEN},
+            {TEN, Instant.MAX}
+        }) {
             fixture.assertRejected(
                     () -> service.search(query(null, null, null, period[0], period[1], false, false, null, null, null)),
                     ScheduleErrorCode.INVALID_WORK_INPUT);
         }
-        for (int[] paging : new int[][] {{-1, 20}, {0, 0}, {0, 101}}) {
+        for (int[] paging : new int[][] {{-1, 20}, {0, 0}, {0, 101}, {101, 100}, {Integer.MAX_VALUE, 100}}) {
             fixture.assertRejected(
                     () -> service.search(query(null, null, null, null, null, false, false, null, paging[0], paging[1])),
                     ScheduleErrorCode.INVALID_WORK_INPUT);
         }
-        assertThat(service.search(query("가".repeat(100), null, null, null, null, false, false, null, 0, 100))
+        assertThat(service.search(query(
+                                " " + "가".repeat(100) + " ", null, null, null, null, false, false, null, 100, 100))
                         .size())
                 .isEqualTo(100);
-        assertThat(fixture.workRepository.searches()).hasSize(1);
+        assertThat(fixture.workRepository.searches())
+                .singleElement()
+                .satisfies(criteria -> assertThat(criteria.keyword()).hasSize(100));
     }
 
     @Test
