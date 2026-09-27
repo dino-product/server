@@ -27,7 +27,7 @@ class ActorTest {
     }
 
     @Test
-    @DisplayName("기사는 기사 관계와 조직이 모두 있어야 한다")
+    @DisplayName("기사는 기사 계약과 조직이 모두 있어야 한다")
     void technicianRequiresEveryValue() {
         assertThatThrownBy(() -> new TechnicianActor(null, ORGANIZATION_ID))
                 .isInstanceOf(IllegalArgumentException.class)
