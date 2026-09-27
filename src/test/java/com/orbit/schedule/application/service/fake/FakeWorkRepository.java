@@ -95,6 +95,22 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     }
 
     @Override
+    public List<Work> listAssignedToTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        Objects.requireNonNull(from, "from must not be null");
+        Objects.requireNonNull(to, "to must not be null");
+        return inOrganization(organizationId).stream()
+                .filter(work -> work.assignmentHistory().stream()
+                        .map(AssignmentHistory::schedule)
+                        .anyMatch(schedule -> schedule.technicianId().equals(technicianId)
+                                && schedule.startTime().isBefore(to)
+                                && schedule.endTime().isAfter(from)))
+                .toList();
+    }
+
+    @Override
     public List<Work> listBacklog(OrganizationId organizationId) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         return inOrganization(organizationId).stream()

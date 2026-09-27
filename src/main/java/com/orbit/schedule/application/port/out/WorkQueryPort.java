@@ -36,6 +36,13 @@ public interface WorkQueryPort {
     List<Work> listScheduledForTechnician(
             OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to);
 
+    /**
+     * 그 기사가 한 번이라도 배정받은 작업 가운데, 그 기사의 배정(배정 이력의 일정) 중 하나라도 [from, to) 구간과 겹치는 작업. 지금 상태와 관계없이 담는다(다른
+     * 기사로 바뀌었거나 거절·취소된 작업 포함). 작업 이력·통계가 쓴다.
+     */
+    List<Work> listAssignedToTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to);
+
     /** 대기함 작업(등록 상태). */
     List<Work> listBacklog(OrganizationId organizationId);
 

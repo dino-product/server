@@ -33,6 +33,12 @@ class EmptyWorkQueryAdapter implements WorkQueryPort {
     }
 
     @Override
+    public List<Work> listAssignedToTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to) {
+        return List.of();
+    }
+
+    @Override
     public List<Work> listBacklog(OrganizationId organizationId) {
         return List.of();
     }
