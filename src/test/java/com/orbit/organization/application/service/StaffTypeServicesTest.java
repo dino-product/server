@@ -9,9 +9,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,13 +21,18 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
+import com.orbit.organization.application.port.in.command.dto.ActivateStaffTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.DeactivateStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.DeleteStaffTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateStaffTypeCommand;
 import com.orbit.organization.application.port.in.query.dto.GetStaffTypesQuery;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationRepository;
+import com.orbit.organization.application.port.out.PersonnelTypeInUseException;
 import com.orbit.organization.application.port.out.PersonnelTypeNameConflictException;
 import com.orbit.organization.application.port.out.StaffTypeRepository;
+import com.orbit.organization.application.port.out.StaffTypeUsagePort;
 import com.orbit.organization.domain.AuthAccountId;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Membership;
@@ -48,18 +55,26 @@ class StaffTypeServicesTest {
     private OrganizationRepository organizations;
     private MembershipRepository memberships;
     private FakeStaffTypes staffTypes;
+    private FakeUsage usage;
     private GetStaffTypesService get;
     private CreateStaffTypeService create;
     private UpdateStaffTypeService update;
+    private ActivateStaffTypeService activate;
+    private DeactivateStaffTypeService deactivate;
+    private DeleteStaffTypeService delete;
 
     @BeforeEach
     void setUp() {
         organizations = mock(OrganizationRepository.class);
         memberships = mock(MembershipRepository.class);
         staffTypes = new FakeStaffTypes();
+        usage = new FakeUsage();
         get = new GetStaffTypesService(organizations, memberships, staffTypes);
         create = new CreateStaffTypeService(organizations, memberships, staffTypes);
         update = new UpdateStaffTypeService(organizations, memberships, staffTypes);
+        activate = new ActivateStaffTypeService(organizations, memberships, staffTypes);
+        deactivate = new DeactivateStaffTypeService(organizations, memberships, staffTypes);
+        delete = new DeleteStaffTypeService(organizations, memberships, staffTypes, usage);
         owner();
     }
 
@@ -237,6 +252,122 @@ class StaffTypeServicesTest {
                         ACCOUNT.value(), ORGANIZATION.value(), type.id().value(), "관리", 2)));
     }
 
+    @Test
+    void deactivatesAndReactivatesIdempotentlyWithoutChangingTypeValues() {
+        var type = staffTypes.put(ORGANIZATION, "상담", 2);
+
+        var inactive = deactivate.deactivate(new DeactivateStaffTypeCommand(
+                ACCOUNT.value(), ORGANIZATION.value(), type.id().value()));
+        var stillInactive = deactivate.deactivate(new DeactivateStaffTypeCommand(
+                ACCOUNT.value(), ORGANIZATION.value(), type.id().value()));
+        var active = activate.activate(new ActivateStaffTypeCommand(
+                ACCOUNT.value(), ORGANIZATION.value(), type.id().value()));
+        var stillActive = activate.activate(new ActivateStaffTypeCommand(
+                ACCOUNT.value(), ORGANIZATION.value(), type.id().value()));
+
+        assertThat(inactive.active()).isFalse();
+        assertThat(stillInactive.active()).isFalse();
+        assertThat(active.active()).isTrue();
+        assertThat(stillActive.active()).isTrue();
+        assertThat(stillActive.id()).isEqualTo(type.id().value());
+        assertThat(stillActive.name()).isEqualTo("상담");
+        assertThat(stillActive.color()).isEqualTo(2);
+    }
+
+    @Test
+    void deletesUnusedActiveTypeAndAllowsReusingItsName() {
+        var type = staffTypes.put(ORGANIZATION, "상담", 2);
+
+        delete.delete(new DeleteStaffTypeCommand(
+                ACCOUNT.value(), ORGANIZATION.value(), type.id().value()));
+
+        assertThat(staffTypes.deleted).isEqualTo(1);
+        assertThat(staffTypes.types).doesNotContainKey(type.id());
+        assertThat(create.create(new CreateStaffTypeCommand(ACCOUNT.value(), ORGANIZATION.value(), "상담", 3))
+                        .name())
+                .isEqualTo("상담");
+    }
+
+    @Test
+    void assignedInactiveTypeCannotBeDeletedAndFkConflictAlsoMapsToInUse() {
+        var type = staffTypes.put(ORGANIZATION, "상담", 2);
+        type.deactivate();
+        usage.assigned.add(type.id());
+
+        assertError(
+                OrganizationErrorCode.PERSONNEL_TYPE_IN_USE,
+                () -> delete.delete(new DeleteStaffTypeCommand(
+                        ACCOUNT.value(), ORGANIZATION.value(), type.id().value())));
+        assertThat(staffTypes.deleted).isZero();
+        assertThat(staffTypes.types).containsKey(type.id());
+
+        usage.assigned.clear();
+        staffTypes.deleteFailure = new PersonnelTypeInUseException(new IllegalStateException("foreign key"));
+        assertError(
+                OrganizationErrorCode.PERSONNEL_TYPE_IN_USE,
+                () -> delete.delete(new DeleteStaffTypeCommand(
+                        ACCOUNT.value(), ORGANIZATION.value(), type.id().value())));
+        assertThat(staffTypes.types).containsKey(type.id());
+    }
+
+    @Test
+    void missingAndForeignTypesAreHiddenBeforeUsageChecks() {
+        var foreign = staffTypes.put(new OrganizationId(22L), "전기", 2);
+
+        assertError(
+                OrganizationErrorCode.PERSONNEL_TYPE_NOT_FOUND,
+                () -> activate.activate(new ActivateStaffTypeCommand(
+                        ACCOUNT.value(), ORGANIZATION.value(), foreign.id().value())));
+        assertError(
+                OrganizationErrorCode.PERSONNEL_TYPE_NOT_FOUND,
+                () -> deactivate.deactivate(
+                        new DeactivateStaffTypeCommand(ACCOUNT.value(), ORGANIZATION.value(), 999L)));
+        assertError(
+                OrganizationErrorCode.PERSONNEL_TYPE_NOT_FOUND,
+                () -> delete.delete(new DeleteStaffTypeCommand(
+                        ACCOUNT.value(), ORGANIZATION.value(), foreign.id().value())));
+        assertThat(usage.checked).isZero();
+        assertThat(staffTypes.saved).isZero();
+        assertThat(staffTypes.deleted).isZero();
+    }
+
+    @Test
+    void stateAndDeleteActionsRequireOwnerBeforeTypeLookup() {
+        when(memberships.findByOrganizationAndAccount(ORGANIZATION, ACCOUNT)).thenReturn(Optional.of(member(2L, true)));
+        assertStateActionsForbidden();
+        when(memberships.findByOrganizationAndAccount(ORGANIZATION, ACCOUNT))
+                .thenReturn(Optional.of(member(1L, false)));
+        assertStateActionsForbidden();
+        when(memberships.findByOrganizationAndAccount(ORGANIZATION, ACCOUNT)).thenReturn(Optional.empty());
+        assertStateActionsForbidden();
+        assertThat(staffTypes.reads).isZero();
+        assertThat(usage.checked).isZero();
+    }
+
+    @Test
+    void stateAndDeleteActionsValidateOrganizationBeforePortAccess() {
+        assertThatThrownBy(() -> activate.activate(new ActivateStaffTypeCommand(null, ORGANIZATION.value(), 1L)))
+                .isInstanceOf(NullPointerException.class);
+        assertError(
+                OrganizationErrorCode.INVALID_ORGANIZATION_INPUT,
+                () -> deactivate.deactivate(new DeactivateStaffTypeCommand(ACCOUNT.value(), 0L, 1L)));
+        assertError(
+                OrganizationErrorCode.INVALID_ORGANIZATION_INPUT,
+                () -> delete.delete(new DeleteStaffTypeCommand(ACCOUNT.value(), ORGANIZATION.value(), 0L)));
+        assertThat(staffTypes.reads).isZero();
+        assertThat(usage.checked).isZero();
+    }
+
+    @Test
+    void deletePropagatesUnrelatedPortFailure() {
+        var type = staffTypes.put(ORGANIZATION, "상담", 2);
+        staffTypes.deleteFailure = new OrganizationRuleViolation("port failure");
+
+        assertThatThrownBy(() -> delete.delete(new DeleteStaffTypeCommand(
+                        ACCOUNT.value(), ORGANIZATION.value(), type.id().value())))
+                .isInstanceOf(OrganizationRuleViolation.class);
+    }
+
     private void assertForbiddenForAllActions() {
         assertError(
                 OrganizationErrorCode.NOT_ORGANIZATION_OWNER,
@@ -247,6 +378,18 @@ class StaffTypeServicesTest {
         assertError(
                 OrganizationErrorCode.NOT_ORGANIZATION_OWNER,
                 () -> update.update(new UpdateStaffTypeCommand(ACCOUNT.value(), ORGANIZATION.value(), 999L, "가", 0)));
+    }
+
+    private void assertStateActionsForbidden() {
+        assertError(
+                OrganizationErrorCode.NOT_ORGANIZATION_OWNER,
+                () -> activate.activate(new ActivateStaffTypeCommand(ACCOUNT.value(), ORGANIZATION.value(), 0L)));
+        assertError(
+                OrganizationErrorCode.NOT_ORGANIZATION_OWNER,
+                () -> deactivate.deactivate(new DeactivateStaffTypeCommand(ACCOUNT.value(), ORGANIZATION.value(), 0L)));
+        assertError(
+                OrganizationErrorCode.NOT_ORGANIZATION_OWNER,
+                () -> delete.delete(new DeleteStaffTypeCommand(ACCOUNT.value(), ORGANIZATION.value(), 0L)));
     }
 
     private void assertError(OrganizationErrorCode expected, Runnable call) {
@@ -274,8 +417,10 @@ class StaffTypeServicesTest {
         private int reads;
         private int nameLookups;
         private int saved;
+        private int deleted;
         private StaffTypeId lastExcluded;
         private RuntimeException saveFailure;
+        private RuntimeException deleteFailure;
 
         StaffType put(OrganizationId organizationId, String name, int color) {
             var type = StaffType.create(
@@ -331,7 +476,22 @@ class StaffTypeServicesTest {
 
         @Override
         public void delete(StaffTypeId id) {
+            if (deleteFailure != null) {
+                throw deleteFailure;
+            }
+            deleted++;
             types.remove(id);
+        }
+    }
+
+    private static final class FakeUsage implements StaffTypeUsagePort {
+        private final Set<StaffTypeId> assigned = new HashSet<>();
+        private int checked;
+
+        @Override
+        public boolean isAssigned(StaffTypeId id) {
+            checked++;
+            return assigned.contains(id);
         }
     }
 }

@@ -19,12 +19,18 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
+import com.orbit.organization.application.port.in.command.ActivateStaffTypeUseCase;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.CreateStaffTypeUseCase;
+import com.orbit.organization.application.port.in.command.DeactivateStaffTypeUseCase;
+import com.orbit.organization.application.port.in.command.DeleteStaffTypeUseCase;
 import com.orbit.organization.application.port.in.command.UpdateOrganizationDetailsUseCase;
 import com.orbit.organization.application.port.in.command.UpdateStaffTypeUseCase;
+import com.orbit.organization.application.port.in.command.dto.ActivateStaffTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.DeactivateStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.DeleteStaffTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationDetailsCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateStaffTypeCommand;
 import com.orbit.organization.application.port.in.query.GetOrganizationDetailsUseCase;
@@ -69,6 +75,15 @@ class OrganizationModuleTest {
     @Autowired
     private UpdateStaffTypeUseCase updateStaffType;
 
+    @Autowired
+    private ActivateStaffTypeUseCase activateStaffType;
+
+    @Autowired
+    private DeactivateStaffTypeUseCase deactivateStaffType;
+
+    @Autowired
+    private DeleteStaffTypeUseCase deleteStaffType;
+
     @MockitoSpyBean
     private OrganizationRepository organizations;
 
@@ -102,6 +117,30 @@ class OrganizationModuleTest {
         assertThat(updated.name()).isEqualTo("팀장");
         assertThat(updated.color()).isEqualTo(7);
         assertThat(listed).containsExactly(updated);
+    }
+
+    @Test
+    void ownerChangesTypeStateDeletesUnusedTypeAndReusesName() {
+        var organization = create.create(new CreateOrganizationCommand(310L, "유형 상태 회사", null));
+        var type = createStaffType.create(new CreateStaffTypeCommand(310L, organization.organizationId(), "상담", 2));
+
+        var inactive = deactivateStaffType.deactivate(
+                new DeactivateStaffTypeCommand(310L, organization.organizationId(), type.id()));
+        assertThat(inactive.active()).isFalse();
+        assertThat(listStaffTypes.get(new GetStaffTypesQuery(310L, organization.organizationId())))
+                .containsExactly(inactive);
+
+        var active = activateStaffType.activate(
+                new ActivateStaffTypeCommand(310L, organization.organizationId(), type.id()));
+        assertThat(active.active()).isTrue();
+        deleteStaffType.delete(new DeleteStaffTypeCommand(310L, organization.organizationId(), type.id()));
+        assertThat(listStaffTypes.get(new GetStaffTypesQuery(310L, organization.organizationId())))
+                .isEmpty();
+
+        var recreated =
+                createStaffType.create(new CreateStaffTypeCommand(310L, organization.organizationId(), "상담", 3));
+        assertThat(recreated.id()).isNotEqualTo(type.id());
+        assertThat(recreated.name()).isEqualTo("상담");
     }
 
     @MockitoSpyBean
