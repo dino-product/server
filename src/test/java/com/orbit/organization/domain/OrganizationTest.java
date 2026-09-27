@@ -46,8 +46,8 @@ class OrganizationTest {
     void changesCompanyCodeWithoutChangingOwnership() {
         var owner = member(1L, ID);
         var organization = create(owner);
-        organization.changeCode(new CompanyCode("new-code"));
-        assertThat(organization.code().value()).isEqualTo("new-code");
+        organization.changeCode(new CompanyCode("NEWC0DE1"));
+        assertThat(organization.code().value()).isEqualTo("NEWC0DE1");
         assertThat(organization.ownerMembershipId()).isEqualTo(owner.id());
     }
 
@@ -114,7 +114,7 @@ class OrganizationTest {
     void rejectsMissingFieldsAndPreservesDetailsOnFailure() {
         var owner = member(1L, ID);
         var name = new OrganizationName("오빗");
-        var code = new CompanyCode("code");
+        var code = new CompanyCode("C0DE1234");
         assertThatThrownBy(() -> Organization.create(null, name, null, code, owner))
                 .isInstanceOf(OrganizationRuleViolation.class);
         assertThatThrownBy(() -> Organization.create(ID, null, null, code, owner))
@@ -131,7 +131,7 @@ class OrganizationTest {
     }
 
     private Organization create(Membership owner) {
-        return Organization.create(ID, new OrganizationName("오빗"), null, new CompanyCode("code"), owner);
+        return Organization.create(ID, new OrganizationName("오빗"), null, new CompanyCode("C0DE1234"), owner);
     }
 
     private Membership member(Long id, OrganizationId organizationId) {
