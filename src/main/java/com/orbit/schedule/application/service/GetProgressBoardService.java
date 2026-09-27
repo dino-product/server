@@ -19,14 +19,14 @@ import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 관리자 진행 보드 조회. 구간과 일정이 겹치는 작업(수락대기·수락됨·작업중·완료)을 지금 상태 그대로 열로 나누고(별도의 '이동중' 상태는 두지 않는다) 완료·작업중·지연
- * 수를 센다. 지연은 지금 시각으로 판정한다. 기사는 요청할 수 없다(403 SCHEDULE-005). 오류 확인 순서는 요청자 → 구간 입력이다.
+ * 관리자 진행 보드 조회. 구간과 일정이 겹치는 작업(수락대기·수락됨·작업중·완료)을 지금 상태 그대로 열로 나누고(별도의 '이동중' 상태는 두지 않는다) 전체·완료·작업중·
+ * 지연 수를 센다. 지연은 지금 시각으로 판정한다. 기사는 요청할 수 없다(403 SCHEDULE-005). 오류 확인 순서는 요청자 → 구간 입력이다.
  */
 @Service
 public class GetProgressBoardService implements GetProgressBoardUseCase {
 
     /** 보드의 열 순서. 진행 순서와 같다. */
-    static final List<WorkStatus> COLUMN_ORDER =
+    private static final List<WorkStatus> COLUMN_ORDER =
             List.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS, WorkStatus.COMPLETED);
 
     private static final Comparator<ProgressBoardInfo.Card> CARD_ORDER =
@@ -60,10 +60,18 @@ public class GetProgressBoardService implements GetProgressBoardUseCase {
                                 .sorted(CARD_ORDER)
                                 .toList()))
                 .toList();
-        int delayed = (int) works.stream().filter(work -> work.isDelayedAt(now)).count();
-        ProgressBoardInfo.Summary summary = new ProgressBoardInfo.Summary(
-                works.size(), count(works, WorkStatus.COMPLETED), count(works, WorkStatus.IN_PROGRESS), delayed);
-        return new ProgressBoardInfo(columns, summary);
+        return new ProgressBoardInfo(columns, summary(columns));
+    }
+
+    /** 열에 담긴 카드로 센다. 전체 수가 열 카드 수의 합과 늘 같다. */
+    private static ProgressBoardInfo.Summary summary(List<ProgressBoardInfo.Column> columns) {
+        List<ProgressBoardInfo.Card> cards =
+                columns.stream().flatMap(column -> column.cards().stream()).toList();
+        return new ProgressBoardInfo.Summary(
+                cards.size(),
+                cardCount(columns, WorkStatus.COMPLETED),
+                cardCount(columns, WorkStatus.IN_PROGRESS),
+                (int) cards.stream().filter(ProgressBoardInfo.Card::delayed).count());
     }
 
     private static ProgressBoardInfo.Card card(Work work, Instant now) {
@@ -77,7 +85,10 @@ public class GetProgressBoardService implements GetProgressBoardUseCase {
                 work.isDelayedAt(now));
     }
 
-    private static int count(List<Work> works, WorkStatus status) {
-        return (int) works.stream().filter(work -> work.status() == status).count();
+    private static int cardCount(List<ProgressBoardInfo.Column> columns, WorkStatus status) {
+        return columns.stream()
+                .filter(column -> column.status() == status)
+                .mapToInt(column -> column.cards().size())
+                .sum();
     }
 }
