@@ -39,6 +39,9 @@ class AccountJpaEntity {
     }
 
     static AccountJpaEntity from(Account account) {
+        if (account.id().isPresent()) {
+            throw new IllegalArgumentException("only new accounts can be saved");
+        }
         AccountJpaEntity entity = new AccountJpaEntity(account.registeredAt());
         account.identities()
                 .forEach(identity -> entity.credentials.add(OAuthCredentialJpaEntity.from(entity, identity)));

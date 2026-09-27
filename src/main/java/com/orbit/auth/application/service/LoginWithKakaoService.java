@@ -11,6 +11,7 @@ import com.orbit.auth.application.port.in.command.dto.LoginInfo;
 import com.orbit.auth.application.port.in.command.dto.LoginWithKakaoCommand;
 import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
+import com.orbit.auth.application.port.out.DuplicateIdentityException;
 import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.application.port.out.KakaoIdTokenClaims;
 import com.orbit.auth.application.port.out.LoginNoncePort;
@@ -58,8 +59,13 @@ public class LoginWithKakaoService implements LoginWithKakaoUseCase {
         boolean registered = false;
         Account account = accounts.findByIdentity(identity).orElse(null);
         if (account == null) {
-            account = accounts.save(Account.register(identity, clock.instant()));
-            registered = true;
+            try {
+                account = accounts.saveNew(Account.register(identity, clock.instant()));
+                registered = true;
+            } catch (DuplicateIdentityException exception) {
+                // 같은 사용자의 동시 첫 로그인에서 먼저 저장된 계정을 그대로 쓴다.
+                account = accounts.findByIdentity(identity).orElseThrow(() -> exception);
+            }
         }
         IssuedAccessToken issued = accessTokens.issue(account.id().orElseThrow());
         return new LoginInfo(

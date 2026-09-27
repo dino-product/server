@@ -27,6 +27,7 @@ import com.orbit.auth.application.port.in.command.dto.LoginInfo;
 import com.orbit.auth.application.port.in.command.dto.LoginWithKakaoCommand;
 import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
+import com.orbit.auth.application.port.out.DuplicateIdentityException;
 import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.application.port.out.KakaoIdTokenClaims;
 import com.orbit.auth.application.port.out.LoginNoncePort;
@@ -75,13 +76,13 @@ class LoginWithKakaoServiceTest {
         when(idTokens.verify("id-token")).thenReturn(Optional.of(CLAIMS));
         when(nonces.consume("nonce")).thenReturn(true);
         when(accounts.findByIdentity(IDENTITY)).thenReturn(Optional.empty());
-        when(accounts.save(any())).thenReturn(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW));
+        when(accounts.saveNew(any())).thenReturn(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW));
         when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
 
         LoginInfo info = service.login(COMMAND);
 
         ArgumentCaptor<Account> saved = ArgumentCaptor.forClass(Account.class);
-        verify(accounts).save(saved.capture());
+        verify(accounts).saveNew(saved.capture());
         assertThat(saved.getValue().identities()).containsExactly(IDENTITY);
         assertThat(saved.getValue().registeredAt()).isEqualTo(NOW);
         assertThat(info).isEqualTo(new LoginInfo(7L, true, "access-token", NOW.plus(Duration.ofHours(1))));
@@ -98,7 +99,24 @@ class LoginWithKakaoServiceTest {
 
         LoginInfo info = service.login(COMMAND);
 
-        verify(accounts, never()).save(any());
+        verify(accounts, never()).saveNew(any());
+        assertThat(info.accountId()).isEqualTo(7L);
+        assertThat(info.registered()).isFalse();
+    }
+
+    @Test
+    @DisplayName("동시 첫 로그인에서 저장에 지면 먼저 저장된 계정을 쓴다")
+    void reusesAccountRegisteredConcurrently() {
+        when(idTokens.verify("id-token")).thenReturn(Optional.of(CLAIMS));
+        when(nonces.consume("nonce")).thenReturn(true);
+        when(accounts.findByIdentity(IDENTITY))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW)));
+        when(accounts.saveNew(any())).thenThrow(new DuplicateIdentityException(IDENTITY, null));
+        when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
+
+        LoginInfo info = service.login(COMMAND);
+
         assertThat(info.accountId()).isEqualTo(7L);
         assertThat(info.registered()).isFalse();
     }
@@ -112,7 +130,7 @@ class LoginWithKakaoServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(AuthErrorCode.INVALID_ID_TOKEN));
         verify(nonces, never()).consume(any());
-        verify(accounts, never()).save(any());
+        verify(accounts, never()).saveNew(any());
     }
 
     @Test
@@ -125,7 +143,7 @@ class LoginWithKakaoServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(AuthErrorCode.INVALID_NONCE));
         verify(accounts, never()).findByIdentity(any());
-        verify(accounts, never()).save(any());
+        verify(accounts, never()).saveNew(any());
         verify(accessTokens, never()).issue(any());
     }
 }
