@@ -7,4 +7,5 @@
 - 회사·계정별 중복 정책에는 비활성 관계도 포함한다. 후속 Application은 최신 조회·정책 호출·저장의 원자성과 동시성을 함께 보장한다.
 - 직원 비활성화는 조직의 총관리자 보존 검사를 통한다. 권한 상태를 직원에 복제하지 않는다.
 - 회사 코드는 8자 대문자 Crockford Base32 형식을 따른다. 발급·변경 정책은 도메인 문서의 확정 범위만 적용하며 색상 매핑 TODO를 임의의 제품 정책으로 확정하지 않는다.
+- 회사 생성은 계정 ID와 회사명을 확인한 뒤 회사·최초 소속·총관리자 참조를 한 트랜잭션에 저장한다. 도메인 호출만 입력 오류로 변환하고 포트·시계 실패는 그대로 전파한다.
 - 도메인 변경의 집중 검사는 `com.orbit.organization.domain` 테스트와 `com.orbit.ArchitectureTest`, `com.orbit.ModularityTest`를 사용한다. 도메인 테스트는 Spring Context 없이 실행한다. 영속성 변경은 PostgreSQL 컨테이너 기반 `OrganizationPersistenceAdapterTest`와 프로필 설정 검사를 추가한다.

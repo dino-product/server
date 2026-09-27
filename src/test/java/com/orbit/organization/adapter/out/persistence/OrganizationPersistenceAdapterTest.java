@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.orbit.organization.application.port.out.CompanyCodeConflictException;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationIdentityPort;
 import com.orbit.organization.application.port.out.OrganizationRepository;
@@ -75,6 +76,7 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
                     .findByOrganizationAndAccount(organizationId, accountId)
                     .orElseThrow();
             assertThat(restoredOrganization.code()).isEqualTo(code);
+            assertThat(organizations.existsByCode(code)).isTrue();
             assertThat(restoredOrganization.industry()).isEqualTo(Industry.OTHER);
             assertThat(restoredOrganization.ownerMembershipId()).isEqualTo(membershipId);
             assertThat(restoredMembership.id()).isEqualTo(membershipId);
@@ -188,9 +190,10 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
         var failure = catchThrowable(() -> transaction().executeWithoutResult(status -> {
             savePair(first);
             savePair(second);
-            entityManager.flush();
+            organizations.flush();
         }));
 
+        assertThat(failure).isInstanceOf(CompanyCodeConflictException.class);
         assertSqlState(failure, "23505");
         assertThat(rootCause(failure).getMessage()).contains("uq_organization_code");
     }
@@ -208,9 +211,10 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
         var failure = catchThrowable(() -> transaction().executeWithoutResult(status -> {
             savePair(pair);
             memberships.save(duplicate);
-            entityManager.flush();
+            organizations.flush();
         }));
 
+        assertThat(failure).isNotInstanceOf(CompanyCodeConflictException.class);
         assertSqlState(failure, "23505");
     }
 
