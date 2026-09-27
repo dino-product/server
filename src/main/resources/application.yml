@@ -78,3 +78,8 @@ logging:
 app:
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:5173}
+  auth:
+    kakao:
+      issuer: https://kauth.kakao.com
+      jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
+      allowed-audiences: ${KAKAO_ALLOWED_AUDIENCES}

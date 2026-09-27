@@ -20,3 +20,8 @@ logging:
   level:
     root: WARN
     org.testcontainers: INFO
+
+app:
+  auth:
+    kakao:
+      allowed-audiences: test-kakao-app-key
