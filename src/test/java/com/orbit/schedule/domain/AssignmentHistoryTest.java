@@ -73,7 +73,7 @@ class AssignmentHistoryTest {
         assertThat(history.assignedAt()).isEqualTo(ASSIGNED_AT);
         assertThat(history.result()).isEqualTo(AssignmentResult.PENDING);
         assertThat(history.decidedAt()).isEmpty();
-        assertThat(history.rejectionReason()).isEmpty();
+        assertThat(history.rejection()).isEmpty();
     }
 
     @Test
@@ -95,7 +95,7 @@ class AssignmentHistoryTest {
         history.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), DECIDED_AT);
 
         assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
-        assertThat(history.rejectionReason()).contains(RejectionReason.SCHEDULE_CONFLICT);
+        assertThat(history.rejection()).contains(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null));
         assertThat(history.decidedAt()).contains(DECIDED_AT);
     }
 
@@ -187,7 +187,7 @@ class AssignmentHistoryTest {
                 null);
 
         assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
-        assertThat(history.rejectionReason()).contains(RejectionReason.OTHER);
+        assertThat(history.rejection()).contains(new Rejection(RejectionReason.OTHER, "기타 사유"));
         assertThat(history.assignedAt()).isEqualTo(ASSIGNED_AT);
         assertThat(history.decidedAt()).contains(DECIDED_AT);
     }
@@ -221,7 +221,7 @@ class AssignmentHistoryTest {
         assertThat(history.assignedBy()).isEqualTo(MANAGER_ID);
         assertThat(history.result()).isEqualTo(AssignmentResult.WITHDRAWN);
         assertThat(history.decidedAt()).contains(DECIDED_AT);
-        assertThat(history.rejectionReason()).isEmpty();
+        assertThat(history.rejection()).isEmpty();
         assertThat(history.ending()).contains(ending);
     }
 

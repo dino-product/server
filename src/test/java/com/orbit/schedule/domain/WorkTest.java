@@ -235,7 +235,7 @@ class WorkTest {
                             history.schedule(),
                             history.assignedAt(),
                             history.result(),
-                            history.rejectionReason(),
+                            history.rejection(),
                             history.decidedAt()))
                     .toList();
         }
@@ -443,7 +443,7 @@ class WorkTest {
 
             AssignmentHistory history = work.assignmentHistory().getLast();
             assertThat(history.result()).isEqualTo(AssignmentResult.REJECTED);
-            assertThat(history.rejectionReason()).contains(RejectionReason.SCHEDULE_CONFLICT);
+            assertThat(history.rejection()).contains(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null));
             assertThat(work.schedule()).isEmpty();
             assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
         }
