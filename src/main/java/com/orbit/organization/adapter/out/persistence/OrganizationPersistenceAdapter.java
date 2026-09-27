@@ -48,6 +48,11 @@ class OrganizationPersistenceAdapter implements OrganizationRepository, Membersh
     }
 
     @Override
+    public Optional<Organization> findByIdForUpdate(OrganizationId id) {
+        return organizations.findByIdForUpdate(id.value()).map(OrganizationJpaEntity::toDomain);
+    }
+
+    @Override
     public boolean existsByCode(CompanyCode code) {
         return organizations.existsByCode(code.value());
     }

@@ -13,6 +13,8 @@ public interface OrganizationRepository {
 
     Optional<Organization> findById(OrganizationId id);
 
+    Optional<Organization> findByIdForUpdate(OrganizationId id);
+
     boolean existsByCode(CompanyCode code);
 
     void flush();

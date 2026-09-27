@@ -5,12 +5,16 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import jakarta.persistence.EntityManager;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -45,6 +49,9 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void savesOrganizationAndOwnerMembershipInOneCommittedTransaction() {
@@ -107,6 +114,34 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
             assertThat(restored.name().value()).isEqualTo("수정된 회사");
             assertThat(restored.industry()).isEqualTo(Industry.OTHER);
         });
+    }
+
+    @Test
+    void forUpdateReadHoldsTheOrganizationRowUntilTransactionEnds() throws Exception {
+        var pair = newPair(new AuthAccountId(111L));
+        transaction().executeWithoutResult(status -> savePair(pair));
+        var locked = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var holder = executor.submit(() -> transaction().executeWithoutResult(status -> {
+                assertThat(organizations.findByIdForUpdate(pair.organization.id()))
+                        .isPresent();
+                locked.countDown();
+                awaitRelease(release);
+            }));
+            try {
+                assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+                var failure = catchThrowable(() -> transaction().executeWithoutResult(status -> {
+                    jdbcTemplate.execute("SET LOCAL lock_timeout = '500ms'");
+                    organizations.findByIdForUpdate(pair.organization.id());
+                }));
+                assertSqlState(failure, "55P03");
+            } finally {
+                release.countDown();
+                holder.get(10, TimeUnit.SECONDS);
+            }
+        }
     }
 
     @Test
@@ -289,6 +324,17 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
             cause = cause.getCause();
         }
         return cause;
+    }
+
+    private void awaitRelease(CountDownLatch release) {
+        try {
+            if (!release.await(10, TimeUnit.SECONDS)) {
+                throw new AssertionError("row lock holder was not released");
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("row lock holder was interrupted", interrupted);
+        }
     }
 
     private record Pair(Organization organization, Membership membership) {}

@@ -20,7 +20,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
+import com.orbit.organization.application.port.in.command.UpdateOrganizationDetailsUseCase;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
+import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationDetailsCommand;
 import com.orbit.organization.application.port.in.query.GetOrganizationDetailsUseCase;
 import com.orbit.organization.application.port.in.query.dto.GetOrganizationDetailsQuery;
 import com.orbit.organization.application.port.out.CompanyCodeGenerator;
@@ -29,6 +31,7 @@ import com.orbit.organization.application.port.out.OrganizationIdentityPort;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.AuthAccountId;
 import com.orbit.organization.domain.CompanyCode;
+import com.orbit.organization.domain.Industry;
 import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
@@ -45,6 +48,9 @@ class OrganizationModuleTest {
 
     @Autowired
     private GetOrganizationDetailsUseCase details;
+
+    @Autowired
+    private UpdateOrganizationDetailsUseCase update;
 
     @MockitoSpyBean
     private OrganizationRepository organizations;
@@ -85,6 +91,25 @@ class OrganizationModuleTest {
         assertThatThrownBy(() -> details.get(new GetOrganizationDetailsQuery(307L, created.organizationId())))
                 .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
                         .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
+    }
+
+    @Test
+    void ownerUpdatesDetailsAndSeesCommittedValuesWithoutChangingCodeOrOwner() {
+        var created = create.create(new CreateOrganizationCommand(308L, "기존 회사", Industry.OTHER));
+        var ownerId = new MembershipId(created.membershipId());
+
+        var changed =
+                update.update(new UpdateOrganizationDetailsCommand(308L, created.organizationId(), "변경 회사", null));
+        var reread = details.get(new GetOrganizationDetailsQuery(308L, created.organizationId()));
+        var organization = organizations
+                .findById(new OrganizationId(created.organizationId()))
+                .orElseThrow();
+
+        assertThat(changed).isEqualTo(reread);
+        assertThat(reread.name()).isEqualTo("변경 회사");
+        assertThat(reread.industry()).isNull();
+        assertThat(organization.code().value()).isEqualTo(created.code());
+        assertThat(organization.ownerMembershipId()).isEqualTo(ownerId);
     }
 
     @Test
