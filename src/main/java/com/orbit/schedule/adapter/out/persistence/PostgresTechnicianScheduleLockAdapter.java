@@ -19,8 +19,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianId;
 
 /**
  * PostgreSQL 트랜잭션 단위 advisory lock으로 조직·기사의 일정 변경을 한 줄로 세운다. 테이블 없이 조직·기사로 만든 64비트 키(SHA-256 앞 8바이트)를 잠그고,
@@ -49,7 +49,7 @@ class PostgresTechnicianScheduleLockAdapter implements LockTechnicianSchedulePor
     }
 
     @Override
-    public void lock(OrganizationId organizationId, MembershipId technicianId) {
+    public void lock(OrganizationId organizationId, TechnicianId technicianId) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         Objects.requireNonNull(technicianId, "technicianId must not be null");
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
@@ -79,7 +79,7 @@ class PostgresTechnicianScheduleLockAdapter implements LockTechnicianSchedulePor
         }
     }
 
-    static long keyOf(OrganizationId organizationId, MembershipId technicianId) {
+    static long keyOf(OrganizationId organizationId, TechnicianId technicianId) {
         String name = KEY_NAMESPACE + organizationId.value() + ":" + technicianId.value();
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(name.getBytes(StandardCharsets.UTF_8));

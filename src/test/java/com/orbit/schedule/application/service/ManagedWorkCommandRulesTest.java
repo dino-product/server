@@ -29,7 +29,7 @@ import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 기존 작업을 바꾸는 유즈케이스가 공통 오류 순서(schedule 지침)의 앞부분 — 계정 → 조직 식별자 → 구성원 → 역할 → 작업 식별자 → 작업 조회 — 을 같게 지키는지
+ * 기존 작업을 바꾸는 유즈케이스가 공통 오류 순서(schedule 지침)의 앞부분 — 계정 → 조직 식별자 → 구성원 → 요청자 종류(관리자) → 작업 식별자 → 작업 조회 — 을 같게 지키는지
  * 확인한다. 유즈케이스별 규칙은 각 서비스 테스트가 다룬다.
  */
 @DisplayName("작업 변경 유즈케이스 공통 오류 순서")
@@ -113,8 +113,8 @@ class ManagedWorkCommandRulesTest {
     @ParameterizedTest
     @MethodSource("useCases")
     @DisplayName("요청한 조직의 구성원이 아니면 작업·입력이 잘못돼도 비구성원 오류다")
-    void checksMembershipBeforeLookupAndInput(UseCase useCase) {
-        fixture.actorPort.givenActor(ACCOUNT_ID, OTHER_ORGANIZATION_ID, 11L, ActorRole.OWNER);
+    void checksActiveActorBeforeLookupAndInput(UseCase useCase) {
+        fixture.actorPort.givenManager(ACCOUNT_ID, OTHER_ORGANIZATION_ID, 11L, ActorRole.OWNER);
 
         fixture.assertRejected(
                 () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), UNKNOWN_WORK_ID, false)),
@@ -124,8 +124,8 @@ class ManagedWorkCommandRulesTest {
     @ParameterizedTest
     @MethodSource("useCases")
     @DisplayName("기사는 작업 식별자·존재·입력과 관계없이 권한 오류다")
-    void checksRoleBeforeLookupAndInput(UseCase useCase) {
-        fixture.givenActor(ActorRole.TECHNICIAN);
+    void checksActorKindBeforeLookupAndInput(UseCase useCase) {
+        fixture.givenTechnician(TECHNICIAN_ID);
         WorkId otherOrganizationWork =
                 fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
 

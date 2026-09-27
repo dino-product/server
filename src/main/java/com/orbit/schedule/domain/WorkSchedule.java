@@ -10,7 +10,7 @@ import java.time.temporal.ChronoUnit;
  * 시간대로 변환한다. 예상소요시간은 0보다 길고 {@link #MAX_EXPECTED_DURATION} 이하이며, 지난 시각에 시작하는 일정(사후 기록)도 허용한다. 시작시각과
  * 예상소요시간은 저장소(PostgreSQL)의 정밀도인 마이크로초로 잘라 두어, 저장 전후의 같은 일정이 같게 비교되게 한다.
  */
-public record WorkSchedule(MembershipId technicianId, Instant startTime, Duration expectedDuration) {
+public record WorkSchedule(TechnicianId technicianId, Instant startTime, Duration expectedDuration) {
 
     /** 한 작업의 예상소요시간 상한. 하루를 넘는 작업은 없다고 본다. */
     public static final Duration MAX_EXPECTED_DURATION = Duration.ofHours(24);

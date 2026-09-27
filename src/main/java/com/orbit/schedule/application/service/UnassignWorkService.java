@@ -10,7 +10,7 @@ import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
-import com.orbit.schedule.domain.Actor;
+import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.Work;
 
 /**
@@ -33,7 +33,8 @@ public class UnassignWorkService implements UnassignWorkUseCase {
     @Override
     @Transactional
     public void unassign(UnassignWorkCommand command) {
-        Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
+        ManagerActor actor =
+                OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
 
         Instant now = clock.instant();

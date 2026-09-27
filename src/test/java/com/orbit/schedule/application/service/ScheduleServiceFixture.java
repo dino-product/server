@@ -22,6 +22,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -41,8 +42,8 @@ final class ScheduleServiceFixture {
     /** 테스트 준비로 미리 배정·취소해 둔 관리자. 요청자({@link #MANAGER_ID})와 구분한다. */
     static final MembershipId SETUP_MANAGER_ID = new MembershipId(12L);
 
-    static final MembershipId TECHNICIAN_ID = new MembershipId(3L);
-    static final MembershipId OTHER_TECHNICIAN_ID = new MembershipId(4L);
+    static final TechnicianId TECHNICIAN_ID = new TechnicianId(3L);
+    static final TechnicianId OTHER_TECHNICIAN_ID = new TechnicianId(4L);
     static final Instant NOW = Instant.parse("2026-09-24T01:00:00Z");
     static final Instant ASSIGNED_AT = NOW.minus(Duration.ofHours(2));
     static final Instant ACCEPTED_AT = ASSIGNED_AT.plus(Duration.ofMinutes(30));
@@ -56,16 +57,17 @@ final class ScheduleServiceFixture {
     final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 
     void givenManager() {
-        givenActor(ActorRole.STAFF);
+        givenManager(ActorRole.STAFF);
     }
 
-    /** 요청자를 주어진 소속의 기사로 둔다. 담당 기사 본인 여부는 소속으로 판단한다. */
-    void givenTechnician(MembershipId technicianId) {
-        actorPort.givenActor(ACCOUNT_ID, ORGANIZATION_ID, technicianId.value(), ActorRole.TECHNICIAN);
+    /** 요청자를 주어진 역할의 관리자({@link #MANAGER_ID})로 둔다. */
+    void givenManager(ActorRole role) {
+        actorPort.givenManager(ACCOUNT_ID, ORGANIZATION_ID, MANAGER_ID.value(), role);
     }
 
-    void givenActor(ActorRole role) {
-        actorPort.givenActor(ACCOUNT_ID, ORGANIZATION_ID, MANAGER_ID.value(), role);
+    /** 요청자를 주어진 기사로 둔다. 담당 기사 본인 여부는 기사 식별자로 판단한다. */
+    void givenTechnician(TechnicianId technicianId) {
+        actorPort.givenTechnician(ACCOUNT_ID, ORGANIZATION_ID, technicianId.value());
     }
 
     /** 요청 조직의 작업을 주어진 상태까지 진행해 둔다. 대기함이 아니면 기사 {@link #TECHNICIAN_ID}의 {@link #TEN} 시작 2시간 일정으로 배정돼 있다. */
@@ -77,7 +79,7 @@ final class ScheduleServiceFixture {
      * 주어진 상태까지 진행한 작업을 저장소에 둔다. 배정은 {@link #ASSIGNED_AT}, 수락·시작·완료는 {@link #ACCEPTED_AT}에 했고, 취소는 수락대기에서 해 일정이 남아 있다.
      */
     WorkId givenWork(
-            OrganizationId organizationId, String name, WorkStatus status, MembershipId technicianId, Instant start) {
+            OrganizationId organizationId, String name, WorkStatus status, TechnicianId technicianId, Instant start) {
         Work work = Work.register(
                 organizationId,
                 name,

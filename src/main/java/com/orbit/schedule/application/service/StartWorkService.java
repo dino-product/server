@@ -13,8 +13,8 @@ import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
-import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.AssignmentHistory;
+import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkScheduleConflictPolicy;
 import com.orbit.shared.error.BusinessException;
@@ -49,7 +49,7 @@ public class StartWorkService implements StartWorkUseCase {
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public void start(StartWorkCommand command) {
-        Actor technician =
+        TechnicianActor technician =
                 OrganizationActors.requireTechnician(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, technician.organizationId(), command.workId());
         AssignedTechnicians.requireEverAssigned(work, technician);
@@ -63,11 +63,11 @@ public class StartWorkService implements StartWorkUseCase {
         Instant now = clock.instant();
         DomainRuleViolations.run(() -> work.start(now));
 
-        TechnicianScheduleLocks.lock(lockTechnicianSchedulePort, work.organizationId(), technician.membershipId());
+        TechnicianScheduleLocks.lock(lockTechnicianSchedulePort, work.organizationId(), technician.technicianId());
         if (WorkScheduleConflictPolicy.hasConcurrentInProgress(
-                technician.membershipId(),
+                technician.technicianId(),
                 work,
-                workRepository.listActiveByTechnician(work.organizationId(), technician.membershipId()))) {
+                workRepository.listActiveByTechnician(work.organizationId(), technician.technicianId()))) {
             throw new BusinessException(ScheduleErrorCode.TECHNICIAN_ALREADY_WORKING);
         }
         workRepository.save(work);

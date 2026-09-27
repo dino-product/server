@@ -33,8 +33,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.support.TestcontainersConfiguration;
 
 @DataJpaTest
@@ -73,7 +73,7 @@ class PostgresTechnicianScheduleLockAdapterTest {
     @Test
     @DisplayName("같은 기사는 앞선 트랜잭션이 커밋될 때까지 기다린다")
     void sameTechnicianWaitsUntilHolderCommits() throws Exception {
-        MembershipId technicianId = nextTechnician();
+        TechnicianId technicianId = nextTechnician();
         Future<?> holder = holdLock(technicianId);
 
         Future<?> waiter = lockInNewTransaction(technicianId, LONG_WAIT);
@@ -96,7 +96,7 @@ class PostgresTechnicianScheduleLockAdapterTest {
     @Test
     @DisplayName("대기 한도를 넘기면 포트의 기사 일정 변경 중 예외로 실패한다")
     void failsWhenWaitLimitExceeded() throws Exception {
-        MembershipId technicianId = nextTechnician();
+        TechnicianId technicianId = nextTechnician();
         holdLock(technicianId);
 
         Future<?> waiter = lockInNewTransaction(technicianId, SHORT_WAIT);
@@ -110,7 +110,7 @@ class PostgresTechnicianScheduleLockAdapterTest {
     @Test
     @DisplayName("롤백해도 잠금이 풀린다")
     void releasesOnRollback() throws Exception {
-        MembershipId technicianId = nextTechnician();
+        TechnicianId technicianId = nextTechnician();
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             adapter(SHORT_WAIT).lock(ORGANIZATION_ID, technicianId);
             status.setRollbackOnly();
@@ -156,18 +156,18 @@ class PostgresTechnicianScheduleLockAdapterTest {
     @Test
     @DisplayName("같은 조직·기사는 늘 같은 키, 다른 조직이나 기사는 다른 키가 된다")
     void derivesStableKeys() {
-        long key = PostgresTechnicianScheduleLockAdapter.keyOf(ORGANIZATION_ID, new MembershipId(3L));
+        long key = PostgresTechnicianScheduleLockAdapter.keyOf(ORGANIZATION_ID, new TechnicianId(3L));
 
-        assertThat(PostgresTechnicianScheduleLockAdapter.keyOf(new OrganizationId(100L), new MembershipId(3L)))
+        assertThat(PostgresTechnicianScheduleLockAdapter.keyOf(new OrganizationId(100L), new TechnicianId(3L)))
                 .isEqualTo(key);
-        assertThat(PostgresTechnicianScheduleLockAdapter.keyOf(new OrganizationId(200L), new MembershipId(3L)))
+        assertThat(PostgresTechnicianScheduleLockAdapter.keyOf(new OrganizationId(200L), new TechnicianId(3L)))
                 .isNotEqualTo(key);
-        assertThat(PostgresTechnicianScheduleLockAdapter.keyOf(ORGANIZATION_ID, new MembershipId(4L)))
+        assertThat(PostgresTechnicianScheduleLockAdapter.keyOf(ORGANIZATION_ID, new TechnicianId(4L)))
                 .isNotEqualTo(key);
     }
 
     /** 새 트랜잭션에서 잠근 뒤, release가 열릴 때까지 커밋하지 않고 잡고 있는다. 잠근 것을 확인한 뒤 돌아온다. */
-    private Future<?> holdLock(MembershipId technicianId) throws InterruptedException {
+    private Future<?> holdLock(TechnicianId technicianId) throws InterruptedException {
         CountDownLatch locked = new CountDownLatch(1);
         Future<?> holder =
                 executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
@@ -179,7 +179,7 @@ class PostgresTechnicianScheduleLockAdapterTest {
         return holder;
     }
 
-    private Future<?> lockInNewTransaction(MembershipId technicianId, Duration waitLimit) {
+    private Future<?> lockInNewTransaction(TechnicianId technicianId, Duration waitLimit) {
         return executor.submit(() -> new TransactionTemplate(transactionManager)
                 .executeWithoutResult(status -> adapter(waitLimit).lock(ORGANIZATION_ID, technicianId)));
     }
@@ -188,7 +188,7 @@ class PostgresTechnicianScheduleLockAdapterTest {
      * 다른 연결이 이 기사의 advisory lock을 얻지 못하고 기다리는 상태가 될 때까지 기다린다. bigint 키는 pg_locks에 상위 32비트(classid)·하위 32비트(objid)로
      * 나뉘어 보인다.
      */
-    private void awaitWaitingAdvisoryLock(MembershipId technicianId) throws InterruptedException {
+    private void awaitWaitingAdvisoryLock(TechnicianId technicianId) throws InterruptedException {
         long key = PostgresTechnicianScheduleLockAdapter.keyOf(ORGANIZATION_ID, technicianId);
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
         Instant deadline = Instant.now().plusSeconds(TEST_TIMEOUT_SECONDS);
@@ -223,7 +223,7 @@ class PostgresTechnicianScheduleLockAdapterTest {
         }
     }
 
-    private static MembershipId nextTechnician() {
-        return new MembershipId(NEXT_TECHNICIAN.incrementAndGet());
+    private static TechnicianId nextTechnician() {
+        return new TechnicianId(NEXT_TECHNICIAN.incrementAndGet());
     }
 }

@@ -13,8 +13,8 @@ import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
-import com.orbit.schedule.domain.Actor;
-import com.orbit.schedule.domain.MembershipId;
+import com.orbit.schedule.domain.ManagerActor;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
 
@@ -44,10 +44,11 @@ public class AssignWorkService implements AssignWorkUseCase {
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ScheduleChangeInfo assign(AssignWorkCommand command) {
-        Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
+        ManagerActor actor =
+                OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
         WorkSchedule schedule = DomainRuleViolations.call(() -> new WorkSchedule(
-                new MembershipId(command.technicianMembershipId()), command.startTime(), command.expectedDuration()));
+                new TechnicianId(command.technicianId()), command.startTime(), command.expectedDuration()));
 
         Instant now = clock.instant();
         DomainRuleViolations.run(() -> work.assign(schedule, now, actor.membershipId()));

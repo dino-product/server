@@ -21,6 +21,7 @@ import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -35,9 +36,9 @@ class InMemoryWorkRepositoryTest {
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkSchedule FIRST_SCHEDULE =
-            new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-25T01:00:00Z"), Duration.ofHours(2));
+            new WorkSchedule(new TechnicianId(3L), Instant.parse("2026-09-25T01:00:00Z"), Duration.ofHours(2));
     private static final WorkSchedule SECOND_SCHEDULE =
-            new WorkSchedule(new MembershipId(4L), Instant.parse("2026-09-25T05:00:00Z"), Duration.ofHours(1));
+            new WorkSchedule(new TechnicianId(4L), Instant.parse("2026-09-25T05:00:00Z"), Duration.ofHours(1));
     private static final Instant NOW = Instant.parse("2026-09-24T01:00:00Z");
 
     private final InMemoryWorkRepository repository = new InMemoryWorkRepository();
@@ -163,7 +164,7 @@ class InMemoryWorkRepositoryTest {
     @Test
     @DisplayName("조직 안에서 기사에게 현재 배정된 활성 작업(수락대기·수락됨·작업중)만 찾는다")
     void findsActiveWorksOfTechnicianInOrganization() {
-        MembershipId technician = FIRST_SCHEDULE.technicianId();
+        TechnicianId technician = FIRST_SCHEDULE.technicianId();
         WorkId pending = saveIn(FIRST_SCHEDULE, WorkStatus.PENDING_ACCEPTANCE);
         WorkId accepted = saveIn(FIRST_SCHEDULE, WorkStatus.ACCEPTED);
         WorkId inProgress = saveIn(FIRST_SCHEDULE, WorkStatus.IN_PROGRESS);

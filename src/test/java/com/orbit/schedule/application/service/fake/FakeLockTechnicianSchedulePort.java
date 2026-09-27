@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Objects;
 
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianId;
 
 /**
  * 서비스 단위 테스트용 LockTechnicianSchedulePort. 스캔되지 않도록 애너테이션을 붙이지 않는다. 실제로 잠그지 않고, 잠근 조직·기사와 그 시점까지 저장소가 기사의
@@ -25,7 +25,7 @@ public class FakeLockTechnicianSchedulePort implements LockTechnicianSchedulePor
     }
 
     @Override
-    public void lock(OrganizationId organizationId, MembershipId technicianId) {
+    public void lock(OrganizationId organizationId, TechnicianId technicianId) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         Objects.requireNonNull(technicianId, "technicianId must not be null");
         if (failure != null) {
@@ -50,5 +50,5 @@ public class FakeLockTechnicianSchedulePort implements LockTechnicianSchedulePor
     }
 
     /** 잠근 조직·기사와, 잠글 때까지 기사의 활성 작업을 조회한 횟수. */
-    public record Lock(OrganizationId organizationId, MembershipId technicianId, int activeQueriesBefore) {}
+    public record Lock(OrganizationId organizationId, TechnicianId technicianId, int activeQueriesBefore) {}
 }

@@ -60,7 +60,7 @@ class UpdateWorkDetailsServiceTest {
     @Test
     @DisplayName("총관리자도 기본정보를 수정한다")
     void ownerChangesDetails() {
-        fixture.givenActor(ActorRole.OWNER);
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
 
         service.update(command(id.value(), "보일러 점검", 80_000L, 9L));

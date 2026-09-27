@@ -43,6 +43,7 @@ import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.shared.error.BusinessException;
@@ -168,7 +169,7 @@ class ScheduleModuleTest {
     void assembledTechnicianScheduleLockJoinsTheServiceTransaction() {
         // 저장소와 다른 연결이면 어댑터가 거부하므로, 예외 없이 끝나면 자동 설정된 JdbcTemplate이 트랜잭션 연결을 쓴다는 뜻이다.
         new TransactionTemplate(transactionManager)
-                .executeWithoutResult(status -> lockTechnicianSchedulePort.lock(ORGANIZATION_ID, new MembershipId(3L)));
+                .executeWithoutResult(status -> lockTechnicianSchedulePort.lock(ORGANIZATION_ID, new TechnicianId(3L)));
     }
 
     private static void assertDenied(ThrowingCallable call) {

@@ -3,8 +3,8 @@ package com.orbit.schedule.application.service;
 import java.util.List;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
-import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.AssignmentHistory;
+import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.Work;
 import com.orbit.shared.error.BusinessException;
 
@@ -26,9 +26,9 @@ final class AssignedTechnicians {
 
     private AssignedTechnicians() {}
 
-    static void requireEverAssigned(Work work, Actor technician) {
+    static void requireEverAssigned(Work work, TechnicianActor technician) {
         boolean everAssigned = work.assignmentHistory().stream()
-                .anyMatch(history -> history.schedule().technicianId().equals(technician.membershipId()));
+                .anyMatch(history -> history.schedule().technicianId().equals(technician.technicianId()));
         if (!everAssigned) {
             throw new BusinessException(ScheduleErrorCode.WORK_NOT_FOUND);
         }
@@ -42,13 +42,13 @@ final class AssignedTechnicians {
     }
 
     /** 기사가 본 배정이 그 기사의 최신 배정이면 그 배정 이력을 돌려준다. */
-    static AssignmentHistory requireCurrentAssignmentOf(Work work, Actor technician, int assignmentNumber) {
+    static AssignmentHistory requireCurrentAssignmentOf(Work work, TechnicianActor technician, int assignmentNumber) {
         List<AssignmentHistory> histories = work.assignmentHistory();
         if (assignmentNumber > histories.size()) {
             throw new BusinessException(ScheduleErrorCode.NOT_ASSIGNED_TECHNICIAN);
         }
         AssignmentHistory assignment = histories.get(assignmentNumber - 1);
-        if (!assignment.schedule().technicianId().equals(technician.membershipId())) {
+        if (!assignment.schedule().technicianId().equals(technician.technicianId())) {
             throw new BusinessException(ScheduleErrorCode.NOT_ASSIGNED_TECHNICIAN);
         }
         if (assignmentNumber != histories.size()) {

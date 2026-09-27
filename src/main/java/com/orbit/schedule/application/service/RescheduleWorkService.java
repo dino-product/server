@@ -13,7 +13,7 @@ import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
-import com.orbit.schedule.domain.Actor;
+import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
 
@@ -44,7 +44,8 @@ public class RescheduleWorkService implements RescheduleWorkUseCase {
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ScheduleChangeInfo reschedule(RescheduleWorkCommand command) {
-        Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
+        ManagerActor actor =
+                OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
         DomainRuleViolations.run(() -> WorkSchedule.requireValidTime(command.startTime(), command.expectedDuration()));
 

@@ -33,7 +33,7 @@ import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 기사가 요청하는 배정 수락·거절·작업 시작·완료보고가 schedule 지침의 기사 유즈케이스 오류 순서 — 계정 → 조직 식별자 → 구성원 → 기사 역할 → 작업 식별자 →
+ * 기사가 요청하는 배정 수락·거절·작업 시작·완료보고가 schedule 지침의 기사 유즈케이스 오류 순서 — 계정 → 조직 식별자 → 구성원 → 요청자 종류(기사) → 작업 식별자 →
  * 작업 조회 → 배정된 적 있는 기사 → 배정 순번 형식 → 담당 기사 본인 → 최신 배정 → 처리할 수 있는 상태 — 를 같게 지키는지 확인한다. 거절 입력(사유·메모)과
  * 완료보고 입력의 순서는 각 서비스 테스트가 다룬다.
  */
@@ -107,8 +107,8 @@ class TechnicianWorkCommandRulesTest {
     @ParameterizedTest
     @MethodSource("useCases")
     @DisplayName("요청한 조직의 구성원이 아니면 작업·입력이 잘못돼도 비구성원 오류다")
-    void checksMembership(UseCase useCase) {
-        fixture.actorPort.givenActor(ACCOUNT_ID, OTHER_ORGANIZATION_ID, TECHNICIAN_ID.value(), ActorRole.TECHNICIAN);
+    void checksActiveActor(UseCase useCase) {
+        fixture.actorPort.givenTechnician(ACCOUNT_ID, OTHER_ORGANIZATION_ID, TECHNICIAN_ID.value());
 
         fixture.assertRejected(
                 () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), UNKNOWN_WORK_ID, 0)),
@@ -121,7 +121,7 @@ class TechnicianWorkCommandRulesTest {
     void rejectsManagers(UseCase useCase) {
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
         for (ActorRole role : new ActorRole[] {ActorRole.OWNER, ActorRole.STAFF}) {
-            fixture.givenActor(role);
+            fixture.givenManager(role);
 
             fixture.assertRejected(
                     () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), 1)),
