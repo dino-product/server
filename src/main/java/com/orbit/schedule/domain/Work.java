@@ -206,6 +206,15 @@ public final class Work {
         return List.copyOf(statusCorrections);
     }
 
+    /**
+     * 주어진 시각에 지연된 작업인지. 아직 끝나지 않은(수락대기·수락됨·작업중) 작업의 예정 종료시각이 그 시각이거나 이미 지났으면 지연이다. 지연은 상태가 아니라 조회
+     * 시각으로 계산하는 표시값이다.
+     */
+    public boolean isDelayedAt(Instant now) {
+        Objects.requireNonNull(now, "now must not be null");
+        return status.isActive() && !now.isBefore(schedule.endTime());
+    }
+
     /** 대기함 작업을 기사·일정에 배정하고 수락을 기다린다. 배정한 관리자(조직 소속)를 이력에 남긴다. */
     public void assign(WorkSchedule newSchedule, Instant assignedAt, MembershipId assignedBy) {
         requireStatus(WorkStatus.REGISTERED, "assign");
