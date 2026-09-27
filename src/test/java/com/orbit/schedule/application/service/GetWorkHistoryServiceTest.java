@@ -25,6 +25,8 @@ import com.orbit.schedule.application.port.in.query.dto.GetWorkHistoryQuery;
 import com.orbit.schedule.application.port.in.query.dto.WorkHistoryInfo;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CompletionReport;
+import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -120,6 +122,75 @@ class GetWorkHistoryServiceTest {
         assertThat(history.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(1, 0, 1, 0));
         assertThat(service.get(query(null, TO, TO.plus(Duration.ofDays(1)))).statistics())
                 .isEqualTo(new WorkHistoryInfo.Statistics(1, 0, 0, 0));
+    }
+
+    @Test
+    @DisplayName("구간 밖으로 일정이 옮겨졌거나 다시 배정된 작업의 구간 안 배정은 지금 담당이 아니고, 완료는 그 배정이 속한 구간에서 한 번만 센다")
+    void marksCurrentOnlyForLatestAssignment() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Instant later = TO.plus(Duration.ofHours(2));
+        Work movedOut =
+                fixture.stored(fixture.givenWork(ORGANIZATION_ID, "옮겨진 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN));
+        movedOut.reschedule(later, TWO_HOURS, NOW, SETUP_MANAGER_ID);
+        movedOut.accept(NOW);
+        movedOut.start(NOW);
+        movedOut.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        WorkId movedOutId = fixture.workRepository.store(movedOut);
+        Work returned =
+                fixture.stored(fixture.givenWork(ORGANIZATION_ID, "돌아온 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, at(1)));
+        returned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, at(1), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        returned.reassign(new WorkSchedule(TECHNICIAN_ID, later, TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        WorkId returnedId = fixture.workRepository.store(returned);
+
+        WorkHistoryInfo inPeriod = service.get(query(null, FROM, TO));
+        WorkHistoryInfo nextPeriod = service.get(query(null, TO, TO.plus(Duration.ofDays(1))));
+
+        assertThat(inPeriod.works())
+                .extracting(
+                        WorkHistoryInfo.AssignedWork::workId,
+                        WorkHistoryInfo.AssignedWork::current,
+                        WorkHistoryInfo.AssignedWork::assignmentNumber)
+                .containsExactly(tuple(returnedId.value(), false, 1), tuple(movedOutId.value(), false, 1));
+        assertThat(inPeriod.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(2, 0, 0, 0));
+        assertThat(nextPeriod.works())
+                .extracting(
+                        WorkHistoryInfo.AssignedWork::workId,
+                        WorkHistoryInfo.AssignedWork::current,
+                        WorkHistoryInfo.AssignedWork::assignmentNumber)
+                .containsExactly(tuple(returnedId.value(), true, 3), tuple(movedOutId.value(), true, 2));
+        assertThat(nextPeriod.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(2, 1, 0, 0));
+    }
+
+    @Test
+    @DisplayName("대기함으로 되돌린 취소는 배정 이력에 취소 종료로 남지만 지금 담당도 취소도 아니다")
+    void treatsRestoredCancellationAsNotCurrent() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.CANCELLED));
+        work.correctStatus(WorkStatus.REGISTERED, NOW, new MembershipId(13L), "잘못 취소");
+        WorkId id = fixture.workRepository.store(work);
+
+        WorkHistoryInfo history = service.get(query(null, FROM, TO));
+
+        assertThat(history.works())
+                .extracting(
+                        WorkHistoryInfo.AssignedWork::workId,
+                        WorkHistoryInfo.AssignedWork::status,
+                        WorkHistoryInfo.AssignedWork::current,
+                        WorkHistoryInfo.AssignedWork::endReason)
+                .containsExactly(tuple(id.value(), WorkStatus.REGISTERED, false, AssignmentEndReason.CANCELLED));
+        assertThat(history.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(1, 0, 0, 0));
+    }
+
+    @Test
+    @DisplayName("배정 시작시각이 같으면 작업 식별자 내림차순이다")
+    void ordersSameStartByIdDescending() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId first = fixture.givenWork(ORGANIZATION_ID, "첫 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
+        WorkId second = fixture.givenWork(ORGANIZATION_ID, "둘째 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
+
+        assertThat(service.get(query(null, FROM, TO)).works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(second.value(), first.value());
     }
 
     @Test

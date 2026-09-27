@@ -2,7 +2,6 @@ package com.orbit.schedule.application.service;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import org.springframework.stereotype.Service;
@@ -27,8 +26,9 @@ import com.orbit.shared.error.BusinessException;
 
 /**
  * 기사 작업 이력·통계 조회. 관리자는 조직의 어느 기사든, 기사는 본인 이력만 본다. 구간과 그 기사의 배정 일정이 겹치는 작업을 지금 상태와 관계없이 담고, 작업마다 그
- * 기사의 마지막 배정(구간과 겹치는 것 중)의 순번·일정·결과·종료 방식을 준다. 통계는 이력의 작업 수와, 그 기사가 담당인 채 완료·취소된 작업 수, 구간 안에서 거절한
- * 작업 수를 센다. 오류 확인 순서는 요청자 → 기사 식별자(관리자는 필수, 형식 400) → 기사가 다른 기사를 요청하면 403(SCHEDULE-005) → 구간 입력이다.
+ * 기사의 마지막 배정(구간과 겹치는 것 중)의 순번·일정·결과·종료 방식과 그 배정이 지금 담당인지를 준다. 통계는 이력의 작업 수, 그 배정이 지금 담당인 채 완료·취소된
+ * 작업 수(작업마다 그 배정이 속한 구간에서 한 번만 센다), 구간 안에서 거절한 작업 수다. 오류 확인 순서는 요청자 → 기사 식별자(관리자는 필수, 형식 400) →
+ * 기사가 다른 기사를 요청하면 403(SCHEDULE-005) → 구간 입력이다.
  */
 @Service
 public class GetWorkHistoryService implements GetWorkHistoryUseCase {
@@ -60,13 +60,14 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                 .sorted(RECENT_FIRST)
                 .toList();
         WorkHistoryInfo.Statistics statistics = new WorkHistoryInfo.Statistics(
-                assigned.size(),
-                count(assigned, work -> isCurrentAssignee(work, technicianId) && work.status() == WorkStatus.COMPLETED),
-                count(assigned, work -> assignmentsInPeriod(work, technicianId, period)
-                        .anyMatch(index -> work.assignmentHistory().get(index).result() == AssignmentResult.REJECTED)),
-                count(
-                        assigned,
-                        work -> isCurrentAssignee(work, technicianId) && work.status() == WorkStatus.CANCELLED));
+                works.size(),
+                countCurrent(works, WorkStatus.COMPLETED),
+                (int) assigned.stream()
+                        .filter(work -> assignmentsInPeriod(work, technicianId, period)
+                                .anyMatch(index ->
+                                        work.assignmentHistory().get(index).result() == AssignmentResult.REJECTED))
+                        .count(),
+                countCurrent(works, WorkStatus.CANCELLED));
         return new WorkHistoryInfo(technicianId.value(), works, statistics);
     }
 
@@ -95,11 +96,15 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
     private static WorkHistoryInfo.AssignedWork assignedWork(Work work, TechnicianId technicianId, QueryPeriod period) {
         int index = assignmentsInPeriod(work, technicianId, period).max().orElseThrow();
         AssignmentHistory history = work.assignmentHistory().get(index);
+        // 이 행의 배정이 작업의 마지막 배정이고 작업에 그 일정이 남아 있을 때만 지금 담당이다. 구간 밖에서 일정이 바뀌었거나 다시 배정됐으면 이 행은 지난
+        // 배정이고, 되돌린 취소·해제·거절로 일정이 비었으면 담당이 없다.
+        boolean current =
+                index == work.assignmentHistory().size() - 1 && work.schedule().isPresent();
         return new WorkHistoryInfo.AssignedWork(
                 work.id().orElseThrow().value(),
                 work.name(),
                 work.status(),
-                isCurrentAssignee(work, technicianId),
+                current,
                 index + 1,
                 history.schedule().startTime(),
                 history.schedule().endTime(),
@@ -115,13 +120,9 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                         && period.overlaps(histories.get(index).schedule()));
     }
 
-    private static boolean isCurrentAssignee(Work work, TechnicianId technicianId) {
-        return work.schedule()
-                .map(schedule -> schedule.technicianId().equals(technicianId))
-                .orElse(false);
-    }
-
-    private static int count(List<Work> works, Predicate<Work> condition) {
-        return (int) works.stream().filter(condition).count();
+    private static int countCurrent(List<WorkHistoryInfo.AssignedWork> works, WorkStatus status) {
+        return (int) works.stream()
+                .filter(work -> work.current() && work.status() == status)
+                .count();
     }
 }
