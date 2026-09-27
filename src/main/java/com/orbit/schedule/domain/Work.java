@@ -313,9 +313,9 @@ public final class Work {
         Cancellation newCancellation = new Cancellation(cancelledAt, cancelledBy, reason);
         WorkStatus cancelled = status.transitionTo(WorkStatus.CANCELLED);
         requireNotBeforeStart(newCancellation.cancelledAt(), "cancelledAt");
-        if (status == WorkStatus.REGISTERED) {
-            requireNotBeforeLatestAssignment(newCancellation.cancelledAt(), "cancelledAt");
-        } else {
+        // 현재 배정이 있어도 없어도 같은 이름(cancelledAt)으로 알리도록, 배정 종료의 하한보다 먼저 확인한다.
+        requireNotBeforeLatestAssignment(newCancellation.cancelledAt(), "cancelledAt");
+        if (status != WorkStatus.REGISTERED) {
             latestAssignment()
                     .end(new AssignmentEnding(
                             newCancellation.cancelledAt(),
@@ -348,7 +348,7 @@ public final class Work {
     }
 
     /**
-     * 새 배정·대기함 취소 시각이 최신 배정 이력의 마지막 시각(종료·응답·배정 시각 중 가장 늦은 것)보다 이르지 않은지 확인해 이력의 시간 순서를 지킨다.
+     * 새 배정·취소 시각이 최신 배정 이력의 마지막 시각(종료·응답·배정 시각 중 가장 늦은 것)보다 이르지 않은지 확인해 이력의 시간 순서를 지킨다.
      * field는 오류 메시지에 쓸 시각 이름이다.
      */
     private void requireNotBeforeLatestAssignment(Instant at, String field) {

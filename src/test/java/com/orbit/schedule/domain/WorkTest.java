@@ -993,13 +993,26 @@ class WorkTest {
         }
 
         @Test
+        @DisplayName("응답 전 작업은 배정 시각보다 앞선 시각으로 취소하지 않고 작업을 전혀 바꾸지 않는다")
+        void rejectsCancellingPendingWorkBeforeAssignment() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(() -> work.cancel(NOW.minusSeconds(1), MANAGER_ID, "고객 요청"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("cancelledAt must not be before the latest assignment");
+            assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(work.cancellation()).isEmpty();
+            assertThat(work.assignmentHistory().getLast().ending()).isEmpty();
+        }
+
+        @Test
         @DisplayName("수락 시각보다 앞선 시각으로는 취소하지 않고 작업을 전혀 바꾸지 않는다")
         void rejectsCancellingBeforeAcceptance() {
             Work work = acceptedWork();
 
             assertThatThrownBy(() -> work.cancel(NOW.minusSeconds(1), MANAGER_ID, "고객 요청"))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("endedAt must not be before the assignment was assigned or decided");
+                    .hasMessage("cancelledAt must not be before the latest assignment");
             assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
             assertThat(work.assignmentHistory().getLast().ending()).isEmpty();
         }
