@@ -42,11 +42,14 @@ import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReport
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
+import com.orbit.schedule.application.port.in.query.GetTimetableUseCase;
 import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
+import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
@@ -113,6 +116,12 @@ class ScheduleModuleTest {
 
     @Autowired
     private GetCompletionReportUseCase getCompletionReportUseCase;
+
+    @Autowired
+    private GetTimetableUseCase getTimetableUseCase;
+
+    @Autowired
+    private WorkQueryPort workQueryPort;
 
     @Autowired
     private LockTechnicianSchedulePort lockTechnicianSchedulePort;
@@ -194,6 +203,16 @@ class ScheduleModuleTest {
         assertDenied(() -> getWorkDetailUseCase.get(new GetWorkDetailQuery(1L, ORGANIZATION_ID.value(), 1L)));
         assertDenied(
                 () -> getCompletionReportUseCase.get(new GetCompletionReportQuery(1L, ORGANIZATION_ID.value(), 1L)));
+        Instant from = Instant.parse("2026-09-25T00:00:00Z");
+        assertDenied(() -> getTimetableUseCase.get(
+                new GetTimetableQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+    }
+
+    @Test
+    void assembledWorkQueryPortIsEmptyUntilJpaAdapter() {
+        workRepository.save(Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), null, null, null));
+
+        assertThat(workQueryPort.listBacklog(ORGANIZATION_ID)).isEmpty();
     }
 
     @Test

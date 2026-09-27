@@ -8,8 +8,8 @@ import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-@DisplayName("작업 지연 판정")
-class WorkDelayTest {
+@DisplayName("작업 조회 표시값(지연·거절 반환)")
+class WorkIndicatorTest {
 
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(1L);
     private static final MembershipId MANAGER_ID = new MembershipId(2L);
@@ -43,6 +43,25 @@ class WorkDelayTest {
         assertThat(backlog.isDelayedAt(END)).isFalse();
         assertThat(completed.isDelayedAt(END)).isFalse();
         assertThat(cancelled.isDelayedAt(END)).isFalse();
+    }
+
+    @Test
+    @DisplayName("최신 배정이 거절돼 대기함으로 돌아온 작업만 거절 반환이다")
+    void marksReturnByRejection() {
+        Work rejected = assignedWork();
+        rejected.reject(new Rejection(RejectionReason.OTHER, "장비 없음"), START.minusSeconds(60));
+        Work rejectedThenReassigned = assignedWork();
+        rejectedThenReassigned.reject(new Rejection(RejectionReason.OTHER, "장비 없음"), START.minusSeconds(60));
+        rejectedThenReassigned.assign(
+                new WorkSchedule(new TechnicianId(4L), START, TWO_HOURS), START.minusSeconds(30), MANAGER_ID);
+        Work unassigned = assignedWork();
+        unassigned.unassign(START.minusSeconds(60), MANAGER_ID);
+        Work fresh = Work.register(ORGANIZATION_ID, "대기 작업", MANAGER_ID, null, null, null);
+
+        assertThat(rejected.isReturnedByRejection()).isTrue();
+        assertThat(rejectedThenReassigned.isReturnedByRejection()).isFalse();
+        assertThat(unassigned.isReturnedByRejection()).isFalse();
+        assertThat(fresh.isReturnedByRejection()).isFalse();
     }
 
     private static Work assignedWork() {
