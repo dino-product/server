@@ -29,6 +29,8 @@ import com.orbit.organization.application.port.out.CompanyCodeGenerator;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationIdentityPort;
 import com.orbit.organization.application.port.out.OrganizationRepository;
+import com.orbit.organization.application.port.out.StaffTypeRepository;
+import com.orbit.organization.application.port.out.StaffTypeUsagePort;
 import com.orbit.organization.domain.AuthAccountId;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Industry;
@@ -57,6 +59,18 @@ class OrganizationModuleTest {
 
     @Autowired
     private MembershipRepository memberships;
+
+    @Autowired
+    private StaffTypeRepository staffTypes;
+
+    @Autowired
+    private StaffTypeUsagePort staffTypeUsage;
+
+    @Test
+    void assemblesStaffTypePersistencePorts() {
+        assertThat(staffTypes).isNotNull();
+        assertThat(staffTypeUsage).isNotNull();
+    }
 
     @MockitoSpyBean
     private OrganizationIdentityPort identities;
