@@ -6,7 +6,7 @@
 - 출력 포트 구현은 임시입니다: `adapter/out/memory/InMemoryWorkRepository`는 JPA 어댑터(HM-234), `adapter/out/organization/DenyingActorAdapter`(모두 거부)는 organization 소속 조회 계약으로 교체한 뒤 삭제합니다. 둘 다 `local`·`test` 프로필에서만 등록합니다. 이 포트를 쓰는 서비스(`CreateWorkService` 등)가 있으므로 현재 그 밖의 프로필(`prod`, 프로필 없음)은 Bean 부재로 기동하지 않으며, 이것이 의도입니다. 실제 어댑터를 추가하고 임시 구현을 지우지 않으면 Bean 중복으로 실패하니 `@Primary`로 덮지 않습니다.
 - JPA 어댑터는 `WorkRepository` 계약을 지킵니다: 조회 결과는 영속 상태와 분리된 사본이라 `save`하지 않은 변경은 커밋돼도 저장되지 않아야 하고(배정·재배정·일정 변경의 미확인 겹침이 여기에 기댑니다), 이를 실제 트랜잭션 커밋으로 검증하는 테스트를 둡니다.
 - 기사 일정을 차지하거나 옮기는 유즈케이스(배정·재배정·일정 변경)는 `ScheduleChanges`를 거칩니다. 기사의 활성 작업을 읽어 판정하는 다른 유즈케이스(시작의 동시 수행 판정, 관리자 강제 변경)도 읽기 전에 `TechnicianScheduleLocks`로 같은 기사를 잠급니다. 잠금으로 같은 기사를 동시에 바꾸는 요청을 한 줄로 세웁니다. 구현(`PostgresTechnicianScheduleLockAdapter`)은 PostgreSQL 트랜잭션 advisory lock이라 임시 어댑터와 달리 모든 프로필에서 등록되고, 저장소와 같은 트랜잭션 연결에서만 동작합니다. 대기 한도는 `app.schedule.technician-lock.wait-limit`(기본 2초)입니다.
-- 잠금은 잠근 뒤의 조회가 앞선 커밋을 볼 때만 유효합니다. JPA 어댑터는 READ COMMITTED를 유지하고, 기사 활성 작업 조회에 쿼리 캐시·2차 캐시를 쓰지 않습니다. 잠그기 전에 같은 기사의 다른 작업을 영속성 컨텍스트에 올려 두면 잠근 뒤 조회가 그 오래된 인스턴스를 돌려주므로, 잠금 전에는 대상 작업만 읽습니다.
+- 잠금은 잠근 뒤의 조회가 앞선 커밋을 볼 때만 유효합니다. 기사를 잠그는 서비스는 `@Transactional(isolation = Isolation.READ_COMMITTED)`를 명시하고 `TechnicianScheduleLockIsolationTest`가 이를 확인합니다. 이 설정은 그 서비스가 트랜잭션을 시작할 때만 적용되고 바깥 트랜잭션에 참여하면 무시되므로, 잠그는 서비스를 다른 트랜잭션 안에서 호출하지 않습니다. JPA 어댑터는 기사 활성 작업 조회에 쿼리 캐시·2차 캐시를 쓰지 않습니다. 잠그기 전에 같은 기사의 다른 작업을 영속성 컨텍스트에 올려 두면 잠근 뒤 조회가 그 오래된 인스턴스를 돌려주므로, 잠금 전에는 대상 작업만 읽습니다.
 - 서비스 단위 테스트용 fake는 `src/test`에 두고 `@Component` 등 스캔 대상 애너테이션을 붙이지 않습니다.
 - 도메인 불변식 예외는 서비스가 `DomainRuleViolations`로 감싸 오류 코드로 바꿉니다. 람다에는 도메인 호출만 넣습니다.
 - Domain은 Spring·JPA·Web 타입과 `Clock`에 의존하지 않습니다. 시각은 호출자가 UTC `Instant`로 넘깁니다.

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
@@ -53,14 +54,15 @@ import com.orbit.support.TestcontainersConfiguration;
 class ScheduleUseCaseFlowTest {
 
     private static final long ACCOUNT_ID = 1L;
-    private static final OrganizationId ORGANIZATION_ID = new OrganizationId(300L);
+    // 테스트들이 같은 메모리 저장소를 쓰므로 테스트마다 다른 조직을 써서, 앞선 테스트가 남긴 작업이 조회·겹침 판정에 섞이지 않게 한다.
+    private static final AtomicLong NEXT_ORGANIZATION_ID = new AtomicLong(300L);
     private static final long TECHNICIAN = 31L;
     private static final long OTHER_TECHNICIAN = 32L;
-    // 두 테스트가 같은 메모리 저장소를 쓰므로, 겹침 테스트는 흐름 테스트와 다른 기사를 써서 실행 순서와 관계없이 결과가 같게 한다.
-    private static final long CONFLICT_TECHNICIAN = 41L;
     private static final Instant TEN = Instant.parse("2030-01-02T01:00:00Z");
     private static final Duration TWO_HOURS = Duration.ofHours(2);
     private static final MembershipId MANAGER = new MembershipId(11L);
+
+    private final OrganizationId organizationId = new OrganizationId(NEXT_ORGANIZATION_ID.getAndIncrement());
 
     @Autowired
     private CreateWorkUseCase createWorkUseCase;
@@ -86,28 +88,28 @@ class ScheduleUseCaseFlowTest {
 
         assertThat(assignWorkUseCase
                         .assign(new AssignWorkCommand(
-                                ACCOUNT_ID, ORGANIZATION_ID.value(), workId, TECHNICIAN, TEN, TWO_HOURS, false))
+                                ACCOUNT_ID, organizationId.value(), workId, TECHNICIAN, TEN, TWO_HOURS, false))
                         .applied())
                 .isTrue();
         assertThat(reassignWorkUseCase
                         .reassign(new ReassignWorkCommand(
-                                ACCOUNT_ID, ORGANIZATION_ID.value(), workId, OTHER_TECHNICIAN, TEN, TWO_HOURS, false))
+                                ACCOUNT_ID, organizationId.value(), workId, OTHER_TECHNICIAN, TEN, TWO_HOURS, false))
                         .applied())
                 .isTrue();
         assertThat(rescheduleWorkUseCase
                         .reschedule(new RescheduleWorkCommand(
                                 ACCOUNT_ID,
-                                ORGANIZATION_ID.value(),
+                                organizationId.value(),
                                 workId,
                                 TEN.plus(Duration.ofHours(3)),
                                 TWO_HOURS,
                                 false))
                         .applied())
                 .isTrue();
-        unassignWorkUseCase.unassign(new UnassignWorkCommand(ACCOUNT_ID, ORGANIZATION_ID.value(), workId));
+        unassignWorkUseCase.unassign(new UnassignWorkCommand(ACCOUNT_ID, organizationId.value(), workId));
 
         Work stored = workRepository
-                .findInOrganization(ORGANIZATION_ID, new WorkId(workId))
+                .findInOrganization(organizationId, new WorkId(workId))
                 .orElseThrow();
         assertThat(stored.status()).isEqualTo(WorkStatus.REGISTERED);
         // 배정·재배정·일정 변경이 각각 이력을 남기고, 응답 전에 다음 조치로 회수됐다. 회수 방식과 처리자는 종료 기록에 남는다.
@@ -128,18 +130,18 @@ class ScheduleUseCaseFlowTest {
     void assembledAssignWithholdsUnconfirmedConflict() {
         long existing = create("기존 작업");
         long target = create("겹치는 작업");
-        assignWorkUseCase.assign(new AssignWorkCommand(
-                ACCOUNT_ID, ORGANIZATION_ID.value(), existing, CONFLICT_TECHNICIAN, TEN, TWO_HOURS, false));
+        assignWorkUseCase.assign(
+                new AssignWorkCommand(ACCOUNT_ID, organizationId.value(), existing, TECHNICIAN, TEN, TWO_HOURS, false));
 
-        ScheduleChangeInfo result = assignWorkUseCase.assign(new AssignWorkCommand(
-                ACCOUNT_ID, ORGANIZATION_ID.value(), target, CONFLICT_TECHNICIAN, TEN, TWO_HOURS, false));
+        ScheduleChangeInfo result = assignWorkUseCase.assign(
+                new AssignWorkCommand(ACCOUNT_ID, organizationId.value(), target, TECHNICIAN, TEN, TWO_HOURS, false));
 
         assertThat(result.applied()).isFalse();
         assertThat(result.conflicts())
                 .extracting(ScheduleChangeInfo.ConflictingWork::workId)
                 .containsExactly(existing);
         assertThat(workRepository
-                        .findInOrganization(ORGANIZATION_ID, new WorkId(target))
+                        .findInOrganization(organizationId, new WorkId(target))
                         .orElseThrow()
                         .status())
                 .isEqualTo(WorkStatus.REGISTERED);
@@ -148,7 +150,7 @@ class ScheduleUseCaseFlowTest {
     private long create(String name) {
         return createWorkUseCase
                 .create(new CreateWorkCommand(
-                        ACCOUNT_ID, ORGANIZATION_ID.value(), name, null, null, null, null, null, null))
+                        ACCOUNT_ID, organizationId.value(), name, null, null, null, null, null, null))
                 .workId();
     }
 
