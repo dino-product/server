@@ -23,6 +23,8 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.MyScheduleInfo;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.Rejection;
+import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -39,7 +41,7 @@ class GetMyScheduleServiceTest {
             new GetMyScheduleService(fixture.actorPort, fixture.workRepository, fixture.clock);
 
     @Test
-    @DisplayName("지금 본인이 담당인 구간 안 작업을 시작시각 순으로 담고, 지금 배정의 순번·현장 주소·지연을 표시한다")
+    @DisplayName("지금 본인이 담당인 구간 안 작업을 시작시각 순으로 담고(다른 기사로 바뀌었거나 거절로 대기함에 돌아간 작업 제외), 지금 배정의 순번·현장 주소·지연을 표시한다")
     void listsOwnWorks() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Instant pastStart = NOW.minus(Duration.ofHours(3));
@@ -56,6 +58,16 @@ class GetMyScheduleServiceTest {
         reassigned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
         fixture.workRepository.store(reassigned);
         fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
+        WorkId inProgress = fixture.givenWork(
+                ORGANIZATION_ID, "진행 중 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, TEN.plus(Duration.ofHours(1)));
+        Work reassignedBack = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        reassignedBack.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        reassignedBack.reassign(new WorkSchedule(TECHNICIAN_ID, TEN.plus(TWO_HOURS), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        reassignedBack.accept(NOW);
+        WorkId reassignedBackId = fixture.workRepository.store(reassignedBack);
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), NOW);
+        fixture.workRepository.store(rejected);
 
         MyScheduleInfo schedule = service.get(query(FROM, TO));
 
@@ -68,7 +80,9 @@ class GetMyScheduleServiceTest {
                 .containsExactly(
                         tuple(rescheduledId.value(), WorkStatus.PENDING_ACCEPTANCE, 2, true),
                         tuple(pending.value(), WorkStatus.PENDING_ACCEPTANCE, 1, false),
-                        tuple(completed.value(), WorkStatus.COMPLETED, 1, false));
+                        tuple(inProgress.value(), WorkStatus.IN_PROGRESS, 1, false),
+                        tuple(completed.value(), WorkStatus.COMPLETED, 1, false),
+                        tuple(reassignedBackId.value(), WorkStatus.ACCEPTED, 3, false));
         assertThat(schedule.works().get(1))
                 .isEqualTo(new MyScheduleInfo.ScheduledWork(
                         pending.value(),
@@ -79,6 +93,15 @@ class GetMyScheduleServiceTest {
                         TEN.plus(TWO_HOURS),
                         "서울시",
                         false));
+    }
+
+    @Test
+    @DisplayName("지금 담당인 작업이 없으면 빈 목록이다")
+    void returnsEmptySchedule() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.givenWork(ORGANIZATION_ID, "다른 기사 작업", WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, TEN);
+
+        assertThat(service.get(query(FROM, TO)).works()).isEmpty();
     }
 
     @Test

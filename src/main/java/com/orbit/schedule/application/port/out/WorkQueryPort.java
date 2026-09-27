@@ -15,7 +15,8 @@ import com.orbit.schedule.domain.Work;
  *
  * <ul>
  *   <li>종료시각은 저장 컬럼이 아니라 시작시각 + 예상소요시간이다. 구간 조회는 {@code start_time >= from - 24시간 AND start_time < to}로
- *       시작시각 인덱스를 범위 스캔한 뒤 {@code start_time + expected_duration > from}으로 거른다(예상소요시간 상한이 24시간).
+ *       시작시각 인덱스를 범위 스캔한 뒤 {@code start_time + expected_duration > from}으로 거른다(예상소요시간 상한이 24시간). 기사별 구간
+ *       조회는 {@code (organization_id, technician_id, start_time)} 인덱스로 같은 방식으로 스캔한다.
  *   <li>결과는 완전한 {@link Work} 애그리게잇이라 배정 이력·정정 기록·완료보고를 함께 읽는다. 목록마다 연관을 따로 읽는 N+1이 생기지 않게 일괄
  *       조회(fetch join·batch)로 읽거나, 목록 화면이 커지면 조회 전용 모델로 바꾼다. 쪽을 나누는 검색은 컬렉션을 fetch join한 채 쪽을 자르면
  *       전체를 읽은 뒤 메모리에서 자르므로, 식별자로 쪽을 먼저 고른 뒤 그 작업들을 일괄 조회한다.
