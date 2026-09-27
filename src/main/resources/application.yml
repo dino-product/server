@@ -28,6 +28,10 @@ spring:
       hibernate:
         show_sql: false
         default_schema: public
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   mvc:
     problemdetails:
       enabled: false
