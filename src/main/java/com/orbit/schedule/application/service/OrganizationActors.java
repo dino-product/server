@@ -5,6 +5,7 @@ import java.util.Objects;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.domain.Actor;
+import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianActor;
@@ -32,6 +33,15 @@ final class OrganizationActors {
             return manager;
         }
         throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
+    }
+
+    /** 관리자 강제 상태 변경처럼 총관리자만 하는 행위를 요청한 총관리자. 직원이면 403(SCHEDULE-005). */
+    static ManagerActor requireOwner(LoadActorPort loadActorPort, Long accountId, Long organizationIdValue) {
+        ManagerActor manager = requireManager(loadActorPort, accountId, organizationIdValue);
+        if (manager.role() != ActorRole.OWNER) {
+            throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
+        }
+        return manager;
     }
 
     /** 수락·거절·시작·완료보고를 요청한 기사. 그 작업의 담당 기사인지는 작업을 찾은 뒤 따로 확인한다. */

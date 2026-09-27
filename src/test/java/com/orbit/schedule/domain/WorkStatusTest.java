@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -36,6 +37,24 @@ class WorkStatusTest {
         boolean hasNoTransition = Arrays.stream(WorkStatus.values()).noneMatch(status::canTransitionTo);
 
         assertThat(status.isTerminal()).isEqualTo(hasNoTransition);
+    }
+
+    @ParameterizedTest
+    @EnumSource(WorkStatus.class)
+    @DisplayName("강제 정정은 완료 → 작업중, 작업중 → 수락됨, 취소 → 대기함의 한 단계 되돌리기만 허용한다")
+    void correctsOnlyOneStepBack(WorkStatus from) {
+        List<WorkStatus> targets = Arrays.stream(WorkStatus.values())
+                .filter(from::canBeCorrectedTo)
+                .toList();
+
+        assertThat(targets)
+                .isEqualTo(
+                        switch (from) {
+                            case COMPLETED -> List.of(WorkStatus.IN_PROGRESS);
+                            case IN_PROGRESS -> List.of(WorkStatus.ACCEPTED);
+                            case CANCELLED -> List.of(WorkStatus.REGISTERED);
+                            case REGISTERED, PENDING_ACCEPTANCE, ACCEPTED -> List.of();
+                        });
     }
 
     @ParameterizedTest

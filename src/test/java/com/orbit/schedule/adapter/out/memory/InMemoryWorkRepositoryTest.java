@@ -153,7 +153,8 @@ class InMemoryWorkRepositoryTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                List.of());
 
         assertThatThrownBy(() -> repository.save(unknown))
                 .isInstanceOf(IllegalStateException.class)

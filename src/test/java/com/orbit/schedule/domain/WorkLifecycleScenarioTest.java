@@ -295,7 +295,8 @@ class WorkLifecycleScenarioTest {
                 work.completionReport().orElse(null),
                 work.startedAt().orElse(null),
                 work.completedAt().orElse(null),
-                work.cancellation().orElse(null));
+                work.cancellation().orElse(null),
+                work.statusCorrections());
 
         assertThat(restored).usingRecursiveComparison().ignoringFields("id").isEqualTo(work);
     }

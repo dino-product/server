@@ -144,7 +144,8 @@ class WorkTest {
                     COMPLETION_REPORT,
                     NOW.plusSeconds(60),
                     NOW.plusSeconds(120),
-                    null);
+                    null,
+                    List.of());
             histories.clear();
 
             assertThat(work.id()).contains(id);
@@ -245,7 +246,8 @@ class WorkTest {
                             null,
                             null,
                             null,
-                            null))
+                            null,
+                            List.of()))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessage("id must not be null");
         }
@@ -1330,7 +1332,8 @@ class WorkTest {
                 report,
                 startedAt,
                 completedAt,
-                cancellation);
+                cancellation,
+                List.of());
     }
 
     private static AssignmentHistory pendingHistory(WorkSchedule schedule) {
