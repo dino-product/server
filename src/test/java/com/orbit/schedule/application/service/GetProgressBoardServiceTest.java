@@ -81,6 +81,27 @@ class GetProgressBoardServiceTest {
     }
 
     @Test
+    @DisplayName("수락대기·수락됨 작업도 예정 종료시각이 지나면 지연 수에 든다")
+    void countsDelayedWaitingWorks() {
+        fixture.givenManager();
+        Instant pastStart = NOW.minus(Duration.ofHours(3));
+        fixture.givenWork(ORGANIZATION_ID, "늦은 대기", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, pastStart);
+        fixture.givenWork(ORGANIZATION_ID, "늦은 수락", WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, pastStart);
+
+        ProgressBoardInfo board = service.get(query(FROM, TO));
+
+        assertThat(board.columns().get(0).cards())
+                .singleElement()
+                .extracting(ProgressBoardInfo.Card::delayed)
+                .isEqualTo(true);
+        assertThat(board.columns().get(1).cards())
+                .singleElement()
+                .extracting(ProgressBoardInfo.Card::delayed)
+                .isEqualTo(true);
+        assertThat(board.summary()).isEqualTo(new ProgressBoardInfo.Summary(2, 0, 0, 2));
+    }
+
+    @Test
     @DisplayName("작업이 없으면 빈 열 네 개와 0 집계를 돌려준다")
     void returnsEmptyBoard() {
         fixture.givenManager();

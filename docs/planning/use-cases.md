@@ -179,7 +179,7 @@ flowchart LR
 - 로그인: [웹 로그인 화면](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=13-92), [웹 로그인 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1167), [모바일 로그인 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=151-805)
 - 소속: [모바일 회사 참여 플로우](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=151-800), [회사 참여 요청 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=861-1650), [마이페이지 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=152-1051)
 - 대기함·비활성화: [타임테이블 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1195), [작업 등록 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1199), [기사 관리 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1247)
-- 상태: [진행 보드 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1155), [진행 보드 화면](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=13-1512)
+- 상태('이동중'을 상태로 두지 않기로 확정): [진행 보드 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1155), [진행 보드 화면](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=13-1512)
 - 유형 삭제: [유형 설정 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1267), [삭제 확인 모달](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=13-3245)
 - 탈퇴·정산: [웹 탈퇴 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1283), [웹 탈퇴 차단 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1279), [모바일 탈퇴 화면](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=135-2334)
 

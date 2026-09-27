@@ -51,7 +51,7 @@ final class AssignedTechnicians {
         if (!assignment.schedule().technicianId().equals(technician.technicianId())) {
             throw new BusinessException(ScheduleErrorCode.NOT_ASSIGNED_TECHNICIAN);
         }
-        if (assignmentNumber != histories.size()) {
+        if (assignmentNumber != work.currentAssignmentNumber()) {
             throw new BusinessException(ScheduleErrorCode.ASSIGNMENT_CHANGED);
         }
         return assignment;
