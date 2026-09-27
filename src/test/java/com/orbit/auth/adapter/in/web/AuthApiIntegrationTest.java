@@ -1,22 +1,35 @@
 package com.orbit.auth.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
 import java.util.UUID;
+
+import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import com.orbit.support.IntegrationTestSupport;
 import com.orbit.support.KakaoJwksStub;
 
@@ -34,6 +47,12 @@ class AuthApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Value("${app.auth.jwt.secret}")
+    private String jwtSecret;
+
+    @Value("${app.auth.jwt.issuer}")
+    private String jwtIssuer;
 
     @DynamicPropertySource
     static void kakaoJwks(DynamicPropertyRegistry registry) {
@@ -112,6 +131,91 @@ class AuthApiIntegrationTest extends IntegrationTestSupport {
         login(" ")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON-400"));
+    }
+
+    @Test
+    @DisplayName("발급받은 Access Token으로 현재 계정을 조회한다")
+    void readsCurrentAccountWithAccessToken() throws Exception {
+        JsonNode login = loginAsNewAccount();
+
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.result.accountId")
+                        .value(login.path("result").path("accountId").asLong()))
+                .andExpect(jsonPath("$.result.accessTokenExpiresAt")
+                        .value(login.path("result").path("accessTokenExpiresAt").asText()));
+    }
+
+    @Test
+    @DisplayName("토큰 없이 보호 자원에 접근하면 401이다")
+    void requiresTokenForProtectedResource() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON-401"));
+    }
+
+    @Test
+    @DisplayName("위조된 토큰으로 접근하면 자원이 없는 것과 같은 404다")
+    void hidesResourceFromTamperedToken() throws Exception {
+        String token = bearer(loginAsNewAccount());
+        String tampered = token.substring(0, token.length() - 3) + "abc";
+
+        assertNotFoundLikeMissingResource(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, tampered));
+    }
+
+    @Test
+    @DisplayName("만료된 토큰으로 접근하면 자원이 없는 것과 같은 404다")
+    void hidesResourceFromExpiredToken() throws Exception {
+        assertNotFoundLikeMissingResource(
+                get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + expiredAccessToken()));
+    }
+
+    private void assertNotFoundLikeMissingResource(
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) throws Exception {
+        String hidden = mockMvc.perform(request)
+                .andExpect(status().isNotFound())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String missing = mockMvc.perform(
+                        get("/api/v1/no-such-resource").header(HttpHeaders.AUTHORIZATION, bearer(loginAsNewAccount())))
+                .andExpect(status().isNotFound())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(hidden).isEqualTo(missing);
+        assertThat(readTree(hidden).path("code").asText()).isEqualTo("COMMON-404");
+    }
+
+    private JsonNode loginAsNewAccount() throws Exception {
+        return login(KAKAO.idToken(UUID.randomUUID().toString(), issueNonce()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString()
+                .transform(this::readTree);
+    }
+
+    private static String bearer(JsonNode login) {
+        return "Bearer " + login.path("result").path("accessToken").asText();
+    }
+
+    private String expiredAccessToken() throws Exception {
+        Instant issuedAt = Instant.now().minusSeconds(7200);
+        SignedJWT jwt = new SignedJWT(
+                new JWSHeader(JWSAlgorithm.HS256),
+                new JWTClaimsSet.Builder()
+                        .issuer(jwtIssuer)
+                        .subject("1")
+                        .jwtID(UUID.randomUUID().toString())
+                        .issueTime(Date.from(issuedAt))
+                        .expirationTime(Date.from(issuedAt.plusSeconds(3600)))
+                        .claim("token_use", "access")
+                        .build());
+        jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
+        return jwt.serialize();
     }
 
     private String issueNonce() throws Exception {
