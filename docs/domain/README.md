@@ -9,7 +9,7 @@
 | `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`) | 없음 |
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
 | `auth` | subject 조회 예제와 등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `user` |
-| `organization` | 회사·총관리자·참여 요청·직원/기사 유형·직원 소속·기사 계약 도메인, 회사 생성 Application·영속성, 외부 계정 ID 참조 | 없음 | `shared::error` |
+| `organization` | 회사·총관리자·참여 요청·직원/기사 유형·직원 소속·기사 계약 도메인, 회사 생성·총관리자 정보 조회 Application·영속성, 외부 계정 ID 참조 | 없음 | `shared::error` |
 | `schedule` | 작업 생애주기 — `domain`(Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책)과 Application(작업 등록·기본정보 수정·배정·재배정·일정 변경·배정 해제·수락·거절·작업 시작·완료보고·취소 유즈케이스·출력 포트·오류 코드), 기사 일정 잠금 어댑터(PostgreSQL advisory lock), 임시 출력 어댑터(메모리 저장소·모두 거부 행위자, `local`·`test`에서만 등록 — 그 밖의 프로필은 현재 기동하지 않음) | 없음 | `shared::error` |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |
 

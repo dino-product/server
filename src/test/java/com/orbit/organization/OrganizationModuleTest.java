@@ -21,6 +21,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
+import com.orbit.organization.application.port.in.query.GetOrganizationDetailsUseCase;
+import com.orbit.organization.application.port.in.query.dto.GetOrganizationDetailsQuery;
 import com.orbit.organization.application.port.out.CompanyCodeGenerator;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationIdentityPort;
@@ -40,6 +42,9 @@ import com.orbit.support.TestcontainersConfiguration;
 class OrganizationModuleTest {
     @Autowired
     private CreateOrganizationUseCase create;
+
+    @Autowired
+    private GetOrganizationDetailsUseCase details;
 
     @MockitoSpyBean
     private OrganizationRepository organizations;
@@ -66,6 +71,20 @@ class OrganizationModuleTest {
         assertThat(organization.ownerMembershipId()).isEqualTo(membership.id());
         assertThat(organization.isManagedBy(membership)).isTrue();
         assertThat(organization.code().value()).isEqualTo(created.code()).matches("[0-9A-HJKMNP-TV-Z]{8}");
+    }
+
+    @Test
+    void ownerReadsCommittedDetailsAndOtherAccountCannot() {
+        var created = create.create(new CreateOrganizationCommand(306L, "조회 회사", null));
+
+        var result = details.get(new GetOrganizationDetailsQuery(306L, created.organizationId()));
+
+        assertThat(result.organizationId()).isEqualTo(created.organizationId());
+        assertThat(result.name()).isEqualTo("조회 회사");
+        assertThat(result.industry()).isNull();
+        assertThatThrownBy(() -> details.get(new GetOrganizationDetailsQuery(307L, created.organizationId())))
+                .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
+                        .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
     }
 
     @Test

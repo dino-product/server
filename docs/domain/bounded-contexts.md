@@ -36,7 +36,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 회사 설정·총관리자, 직원/기사 유형, 참여 요청, 직원 소속과 회사별 기사 계약 |
-| 상태 | 도메인, 회사·직원 소속 영속성, 회사 생성 Application 구현 — 정보 조회·수정 유스케이스와 모듈 루트 공개 계약은 아직 없음 |
+| 상태 | 도메인, 회사·직원 소속 영속성, 회사 생성·총관리자 정보 조회 Application 구현 — 정보 수정 유스케이스와 모듈 루트 공개 계약은 아직 없음 |
 | 소유 애그리게잇 | `Organization`, `Membership`, `Technician`, `StaffType`, `TechnicianType`, `ParticipantRequest`. 상세 계약은 [조직 도메인](organization.md#organization) 참조 |
 | 관계 | 인증 경계의 `accountId`를 자체 `authAccountId`로 변환하며 존재 확인은 후속 책임이다. `schedule`에 소속·기사 계약 조회를 공개하고 `notification`에 승인 결과 이벤트를 발행할 예정. 현재 오류 처리를 위해 `shared::error`에만 의존하며 이벤트는 없음 |
 
