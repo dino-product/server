@@ -1,18 +1,18 @@
 <a id="bounded-contexts"></a>
 # 바운디드 컨텍스트 지도 (P1~P4)
 
-- 상태: 설계 초안 — P1은 모듈 골격 생성과 `schedule`의 도메인·일부 Application·Adapter 구현, P2~P4는 코드 없음
-- 기준일: 2026-09-24
+- 상태: 설계 초안 — P1은 모듈 골격 생성과 `organization` 도메인, `schedule`의 도메인·일부 Application·Adapter 구현, P2~P4는 코드 없음
+- 기준일: 2026-09-28
 - 기준 자료: 기획/기획안.md(오빗 서비스 기획서), [오빗 유즈케이스 분리안](../planning/use-cases.md)
 
-이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter([작업 상태·배정 정책](#schedule-policies) 포함, 구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없고, 계획된 관계를 구현할 때 필요한 공개 계약과 의존성을 함께 추가한다.
+이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가, `organization`의 [도메인](organization.md#organization)과 `schedule`의 도메인·일부 Application·Adapter([작업 상태·배정 정책](#schedule-policies) 포함, 구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없고, 계획된 관계를 구현할 때 필요한 공개 계약과 의존성을 함께 추가한다.
 
 ## 범례
 
 | 구분 | 의미 |
 | --- | --- |
 | **서브도메인** | Core(핵심 경쟁력) / Supporting(핵심을 돕는) / Generic(범용) |
-| **상태** | `구현 중` — `domain`과 일부 Application·Adapter가 있으나 공개 계약·완성된 유즈케이스는 없음 / `골격 생성` — 모듈 루트의 `package-info.java`만 존재, 도메인 코드 없음 / `미착수` — 폴더도 없음 |
+| **상태** | `도메인 구현` — 순수 도메인 모델만 있고 Application·Adapter는 없음 / `구현 중` — `domain`과 일부 Application·Adapter가 있으나 공개 계약·완성된 유즈케이스는 없음 / `골격 생성` — 모듈 루트의 `package-info.java`만 존재, 도메인 코드 없음 / `미착수` — 폴더도 없음 |
 | **관계 표기** | `참조(ID)` — 동기 조회, 상대 공개 계약만 호출 / `이벤트` — 비동기, Published Language / `ACL` — 상대 모델을 자기 언어로 번역해 수용 |
 
 ---
@@ -35,12 +35,12 @@
 
 | 항목 | 내용 |
 | --- | --- |
-| 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 회사 참여 요청, 조직 소속(Membership) 관리 |
-| 상태 | 골격 생성 (`package-info.java`만 존재) |
-| 소유 애그리게잇 | **Organization**(Root) — 조직명·업종, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유, 대기→승인(유형 확정)/거절/취소(사용자)<br>**Membership**(Root) — role(Owner/Staff/Technician)·조직 소속·활성상태, authAccountId를 불투명 참조로만 보유. 사용자는 여러 조직에 소속될 수 있음(N:M), 같은 조직 내 중복 소속·대기 요청만 차단 |
-| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, ACL) · `schedule` → 참조(ID) 제공 (계정·조직으로 Membership 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
+| 책임 | 회사 설정·총관리자, 직원/기사 유형, 참여 요청, 직원 소속과 회사별 기사 계약 |
+| 상태 | 도메인 구현 — Application·Adapter·모듈 루트 공개 계약은 없음 |
+| 소유 애그리게잇 | `Organization`, `Membership`, `Technician`, `StaffType`, `TechnicianType`, `ParticipantRequest`. 상세 계약은 [조직 도메인](organization.md#organization) 참조 |
+| 관계 | 향후 인증 경계의 `accountId`를 자체 `authAccountId`로 변환하고 존재 확인. `schedule`에 소속·기사 계약 조회를 공개하고 `notification`에 승인 결과 이벤트를 발행할 예정. 현재 모듈 의존성과 이벤트는 없음 |
 
-**참여 요청을 별도 모듈로 분리하지 않은 이유**: 회사 코드와 참여 요청은 소속 생성 규칙에 포함되고, 승인과 소속 생성이 하나의 유즈케이스에서 함께 성공·실패해야 하므로 `organization` 안의 애그리게잇으로 둔다(`docs/planning/use-cases.md` §3). 요청 생명주기가 복잡해지거나(다중 소속 검증 등) 별도 팀 경계가 필요해지면 그때 모듈 분리를 검토한다.
+**참여 요청을 별도 모듈로 분리하지 않은 이유**: 회사 코드와 참여 요청은 직원 소속·기사 계약 생성 규칙에 포함된다. 승인과 관계 생성은 하나의 유즈케이스에서 함께 성공·실패해야 한다. 같은 회사에서는 한 계정이 비활성을 포함해 직원 소속과 기사 계약 중 하나만 가지며 전환하지 않는다. 모델 분리와 총관리자 단일 참조 결정은 [ADR-003](../adr/003-organization-domain.md#organization-domain)을 따른다. 작업 유형은 `schedule`의 책임이다.
 
 <a id="schedule"></a>
 ### 3. 스케줄 컨텍스트 (`schedule`) — Core Subdomain ★핵심
@@ -140,7 +140,7 @@
 | # | 이슈 | 비고 |
 | --- | --- | --- |
 | BC-001 | 개인 계정·프로필 관리(마이페이지, 탈퇴)를 어느 컨텍스트가 가질지 | `auth`가 가질지, 별도 "계정" 성격 컨텍스트를 새로 둘지 미정. "계정"이라는 이름을 `organization`에서 뺀 것과 직접 연결된 이슈 |
-| BC-002 | 참여 요청(MembershipRequest)을 `organization`에서 분리할 시점 | 현재는 승인·소속 생성의 원자성 때문에 `organization`에 둠 — 요청 생명주기가 복잡해지면 분리 검토 |
+| BC-002 | 참여 요청(ParticipantRequest)을 `organization`에서 분리할 시점 | 현재는 승인·직원 소속/기사 계약 생성의 원자성 때문에 `organization`에 둠 — 요청 생명주기가 복잡해지면 분리 검토 |
 | BC-004 | 정산 기능의 실제 포함 여부 | 탈퇴 차단 조건에 "미완료 정산"이 등장하지만 정산 업무 흐름 자체는 미확인 (`use-cases.md` §8) |
 | BC-005 | 여러 조직과 계약한 기사의 조직 간 일정 충돌 판정 여부 | 일정 충돌은 기사 계약(Technician, 조직별로 따로 존재)으로 판정해 같은 조직 안에서만 본다. 여러 조직과의 계약이 허용되고 기사 앱이 모든 조직의 작업을 합쳐 보여주므로, 한 사람의 조직 간 겹침을 막을지 제품 결정 필요 |
 
@@ -148,7 +148,7 @@
 
 ## 다음 단계
 
-1. `organization`/`schedule`/`notification`의 `domain` 패키지에 실제 애그리게잇 구현 (Organization/MembershipRequest/Membership, Work, Notification)
+1. `organization`의 Application·Adapter와 `notification` 도메인을 구현. `organization`·`schedule`의 현재 도메인 범위는 [도메인 지도](README.md) 참조
 2. 각 모듈 루트에 공개 계약 클래스 배치 (예: `schedule`의 `WorkLookup`처럼 `auth`/`user` 예제와 동일한 패턴)
-3. 모듈별 `AGENTS.md` 작성 (도메인 코드가 들어가는 시점에 함께)
+3. 새 모듈에 도메인 코드가 들어갈 때 모듈별 `AGENTS.md` 작성
 4. 이 문서와 [도메인 지도](README.md)를 실제 구현 진행에 맞춰 갱신
