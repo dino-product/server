@@ -44,9 +44,9 @@ public record WorkHistoryInfo(Long technicianId, List<AssignedWork> works, Stati
      * 이력의 작업 수 집계.
      *
      * @param assigned 이력의 모든 작업 수
-     * @param completed current인 채 완료된 작업 수. 완료 시각이 아니라 배정 일정이 속한 구간에서 센다
-     * @param rejected 그 기사가 구간 안에서 한 번이라도 거절한 작업 수
-     * @param cancelled current인 채 취소된 작업 수
+     * @param completed current인 채 완료된 작업 수. 완료 시각이 아니라 그 배정의 시작시각이 구간 안일 때만 센다(경계에 걸친 일정은 시작 쪽 구간)
+     * @param rejected 그 기사가 시작시각이 구간 안인 배정을 한 번이라도 거절한 작업 수
+     * @param cancelled current인 채 취소된 작업 수. completed와 같이 배정 시작시각이 구간 안일 때만 센다
      */
     public record Statistics(int assigned, int completed, int rejected, int cancelled) {}
 }

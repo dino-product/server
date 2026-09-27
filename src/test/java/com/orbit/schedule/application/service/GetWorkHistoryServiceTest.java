@@ -162,6 +162,31 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
+    @DisplayName("구간 경계에 걸친 일정은 두 구간 목록에 모두 나오지만 완료·거절은 시작이 속한 구간에서만 센다")
+    void countsBoundaryWorkOnlyInStartPeriod() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Instant crossingStart = TO.minus(Duration.ofHours(1));
+        WorkId crossing =
+                fixture.givenWork(ORGANIZATION_ID, "밤샘 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, crossingStart);
+        Work rejected = fixture.stored(fixture.givenWork(
+                ORGANIZATION_ID, "밤샘 거절", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, crossingStart));
+        rejected.reject(new Rejection(RejectionReason.OTHER, "장비 없음"), ACCEPTED_AT);
+        WorkId rejectedId = fixture.workRepository.store(rejected);
+
+        WorkHistoryInfo startPeriod = service.get(query(null, FROM, TO));
+        WorkHistoryInfo endPeriod = service.get(query(null, TO, TO.plus(Duration.ofDays(1))));
+
+        assertThat(startPeriod.works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(rejectedId.value(), crossing.value());
+        assertThat(endPeriod.works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(rejectedId.value(), crossing.value());
+        assertThat(startPeriod.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(2, 1, 1, 0));
+        assertThat(endPeriod.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(2, 0, 0, 0));
+    }
+
+    @Test
     @DisplayName("대기함으로 되돌린 취소는 배정 이력에 취소 종료로 남지만 지금 담당도 취소도 아니다")
     void treatsRestoredCancellationAsNotCurrent() {
         fixture.givenTechnician(TECHNICIAN_ID);

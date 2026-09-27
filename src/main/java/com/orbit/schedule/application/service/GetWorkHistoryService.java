@@ -27,7 +27,7 @@ import com.orbit.shared.error.BusinessException;
 /**
  * 기사 작업 이력·통계 조회. 관리자는 조직의 어느 기사든, 기사는 본인 이력만 본다. 구간과 그 기사의 배정 일정이 겹치는 작업을 지금 상태와 관계없이 담고, 작업마다 그
  * 기사의 마지막 배정(구간과 겹치는 것 중)의 순번·일정·결과·종료 방식과 그 배정이 지금 담당인지를 준다. 통계는 이력의 작업 수, 그 배정이 지금 담당인 채 완료·취소된
- * 작업 수(작업마다 그 배정이 속한 구간에서 한 번만 센다), 구간 안에서 거절한 작업 수다. 오류 확인 순서는 요청자 → 기사 식별자(관리자는 필수, 형식 400) →
+ * 작업 수, 거절한 작업 수다. 수는 배정 시작시각이 속한 구간에서만 센다(경계에 걸친 일정을 양쪽 구간에서 세지 않게). 오류 확인 순서는 요청자 → 기사 식별자(관리자는 필수, 형식 400) →
  * 기사가 다른 기사를 요청하면 403(SCHEDULE-005) → 구간 입력이다.
  */
 @Service
@@ -61,13 +61,14 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                 .toList();
         WorkHistoryInfo.Statistics statistics = new WorkHistoryInfo.Statistics(
                 works.size(),
-                countCurrent(works, WorkStatus.COMPLETED),
+                countCurrentStartedIn(works, WorkStatus.COMPLETED, period),
                 (int) assigned.stream()
                         .filter(work -> assignmentsInPeriod(work, technicianId, period)
-                                .anyMatch(index ->
-                                        work.assignmentHistory().get(index).result() == AssignmentResult.REJECTED))
+                                .mapToObj(index -> work.assignmentHistory().get(index))
+                                .anyMatch(history -> history.result() == AssignmentResult.REJECTED
+                                        && !history.schedule().startTime().isBefore(period.from())))
                         .count(),
-                countCurrent(works, WorkStatus.CANCELLED));
+                countCurrentStartedIn(works, WorkStatus.CANCELLED, period));
         return new WorkHistoryInfo(technicianId.value(), works, statistics);
     }
 
@@ -120,9 +121,12 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                         && period.overlaps(histories.get(index).schedule()));
     }
 
-    private static int countCurrent(List<WorkHistoryInfo.AssignedWork> works, WorkStatus status) {
+    /** 지금 담당인 채 그 상태가 된 작업 가운데 배정 시작시각이 구간 안인 것. 경계에 걸친 일정을 양쪽 구간에서 세지 않도록 시작이 속한 구간에서만 센다. */
+    private static int countCurrentStartedIn(
+            List<WorkHistoryInfo.AssignedWork> works, WorkStatus status, QueryPeriod period) {
         return (int) works.stream()
                 .filter(work -> work.current() && work.status() == status)
+                .filter(work -> !work.startTime().isBefore(period.from()))
                 .count();
     }
 }
