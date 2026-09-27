@@ -31,8 +31,11 @@ public final class WorkScheduleConflictPolicy {
                 .toList();
     }
 
-    /** 해당 기사에게 이미 작업중인 작업이 있는지 판정한다. */
-    public static boolean hasConcurrentInProgress(MembershipId technicianId, List<Work> works) {
+    /**
+     * 해당 기사에게 이미 작업중인 다른 작업이 있는지 판정한다. 시작하려는 작업 자신(target)은 같은 인스턴스이거나 같은 식별자면 제외해, 같은 작업의 시작이 먼저
+     * 저장된 뒤 다시 판정해도 자신을 다른 작업으로 세지 않는다. 자신이 없으면 target은 null이다.
+     */
+    public static boolean hasConcurrentInProgress(MembershipId technicianId, Work target, List<Work> works) {
         if (technicianId == null) {
             throw new IllegalArgumentException("technicianId must not be null");
         }
@@ -40,6 +43,7 @@ public final class WorkScheduleConflictPolicy {
             throw new IllegalArgumentException("works must not be null");
         }
         return works.stream()
+                .filter(work -> !isSameWork(work, target))
                 .filter(work -> work.status() == WorkStatus.IN_PROGRESS)
                 .anyMatch(work -> work.schedule()
                         .map(schedule -> schedule.technicianId().equals(technicianId))

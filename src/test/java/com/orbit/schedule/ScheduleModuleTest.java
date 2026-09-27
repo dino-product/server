@@ -23,6 +23,8 @@ import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RejectWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
+import com.orbit.schedule.application.port.in.command.StartWorkUseCase;
+import com.orbit.schedule.application.port.in.command.SubmitCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.UpdateWorkDetailsUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
@@ -31,6 +33,8 @@ import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
@@ -81,6 +85,12 @@ class ScheduleModuleTest {
 
     @Autowired
     private RejectWorkUseCase rejectWorkUseCase;
+
+    @Autowired
+    private StartWorkUseCase startWorkUseCase;
+
+    @Autowired
+    private SubmitCompletionReportUseCase submitCompletionReportUseCase;
 
     @Autowired
     private LockTechnicianSchedulePort lockTechnicianSchedulePort;
@@ -149,6 +159,9 @@ class ScheduleModuleTest {
         assertDenied(() -> acceptWorkUseCase.accept(new AcceptWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 1)));
         assertDenied(() -> rejectWorkUseCase.reject(
                 new RejectWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 1, RejectionReason.OTHER, "기타 사유")));
+        assertDenied(() -> startWorkUseCase.start(new StartWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 1)));
+        assertDenied(() -> submitCompletionReportUseCase.submit(new SubmitCompletionReportCommand(
+                1L, ORGANIZATION_ID.value(), 1L, 1, null, null, null, null, null, null)));
     }
 
     @Test
