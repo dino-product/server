@@ -171,6 +171,34 @@ class AuthApiIntegrationTest extends IntegrationTestSupport {
                 get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + expiredAccessToken()));
     }
 
+    @Test
+    @DisplayName("로그아웃한 토큰으로 접근하면 자원이 없는 것과 같은 404다")
+    void hidesResourceFromLoggedOutToken() throws Exception {
+        String token = bearer(loginAsNewAccount());
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isNoContent());
+
+        assertNotFoundLikeMissingResource(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, token));
+        assertNotFoundLikeMissingResource(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, token));
+    }
+
+    @Test
+    @DisplayName("로그아웃은 해당 토큰만 폐기하고 같은 계정의 다른 토큰은 유지한다")
+    void revokesOnlyTheLoggedOutToken() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        String first = bearer(loginAs(subject));
+        String second = bearer(loginAs(subject));
+
+        mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, first))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, second))
+                .andExpect(status().isOk());
+    }
+
     private void assertNotFoundLikeMissingResource(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) throws Exception {
         String hidden = mockMvc.perform(request)
@@ -190,7 +218,11 @@ class AuthApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private JsonNode loginAsNewAccount() throws Exception {
-        return login(KAKAO.idToken(UUID.randomUUID().toString(), issueNonce()))
+        return loginAs(UUID.randomUUID().toString());
+    }
+
+    private JsonNode loginAs(String subject) throws Exception {
+        return login(KAKAO.idToken(subject, issueNonce()))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()

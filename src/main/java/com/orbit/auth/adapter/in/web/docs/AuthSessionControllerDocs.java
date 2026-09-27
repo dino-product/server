@@ -31,4 +31,14 @@ public interface AuthSessionControllerDocs {
             enumClass = CommonErrorCode.class,
             includes = {"UNAUTHORIZED", "NOT_FOUND"})
     AuthenticatedAccountResponse me(@Parameter(hidden = true) AuthenticatedAccount account);
+
+    @Operation(
+            summary = "로그아웃",
+            description = "현재 Access Token을 만료까지 폐기합니다. 이후 같은 토큰으로 보호 자원에 접근하면 자원이 없는 것과 같은 404를 돌려줍니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(responseCode = "204", description = "로그아웃 성공")
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"UNAUTHORIZED", "NOT_FOUND"})
+    void logout(@Parameter(hidden = true) AuthenticatedAccount account);
 }
