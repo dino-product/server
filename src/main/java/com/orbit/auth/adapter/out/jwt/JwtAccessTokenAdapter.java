@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -67,7 +68,8 @@ class JwtAccessTokenAdapter implements AccessTokenPort {
 
     @Override
     public IssuedAccessToken issue(AccountId accountId) {
-        Instant issuedAt = clock.instant();
+        // JWT 시간 클레임은 초 단위이므로 발급 시각을 맞춰 파싱한 클레임이 발급 시 값과 같도록 한다.
+        Instant issuedAt = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         AccessToken token = new AccessToken(
                 UUID.randomUUID().toString(), accountId, issuedAt, issuedAt.plus(properties.accessTokenTtl()));
         JwtClaimsSet claims = JwtClaimsSet.builder()

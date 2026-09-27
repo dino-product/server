@@ -50,6 +50,18 @@ class JwtAccessTokenAdapterTest {
     }
 
     @Test
+    @DisplayName("발급 시각을 초 단위로 맞춰 토큰 클레임과 같게 한다")
+    void truncatesIssuedAtToSeconds() {
+        JwtAccessTokenAdapter fractional = new JwtAccessTokenAdapter(PROPERTIES, fixedClock(NOW.plusMillis(567)));
+
+        IssuedAccessToken issued = fractional.issue(ACCOUNT_ID);
+
+        assertThat(issued.token().issuedAt()).isEqualTo(NOW);
+        assertThat(issued.token().expiresAt()).isEqualTo(NOW.plus(TTL));
+        assertThat(fractional.parse(issued.value())).contains(issued.token());
+    }
+
+    @Test
     @DisplayName("발급마다 다른 식별자를 가진다")
     void issuesUniqueTokenIds() {
         assertThat(adapter.issue(ACCOUNT_ID).token().tokenId())
