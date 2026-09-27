@@ -5,10 +5,14 @@ public final class TechnicianType {
     private final OrganizationId organizationId;
     private PersonnelTypeName name;
     private TypeColor color;
-    private boolean active = true;
+    private boolean active;
 
     private TechnicianType(
-            TechnicianTypeId id, OrganizationId organizationId, PersonnelTypeName name, TypeColor color) {
+            TechnicianTypeId id,
+            OrganizationId organizationId,
+            PersonnelTypeName name,
+            TypeColor color,
+            boolean active) {
         if (id == null || organizationId == null || name == null || color == null) {
             throw new OrganizationRuleViolation("type fields must not be null");
         }
@@ -16,11 +20,22 @@ public final class TechnicianType {
         this.organizationId = organizationId;
         this.name = name;
         this.color = color;
+        this.active = active;
     }
 
     public static TechnicianType create(
             TechnicianTypeId id, OrganizationId organizationId, PersonnelTypeName name, TypeColor color) {
-        return new TechnicianType(id, organizationId, name, color);
+        return new TechnicianType(id, organizationId, name, color, true);
+    }
+
+    /** 저장된 활성 상태를 보존하며 신규 생성의 기본 활성 상태를 적용하지 않는다. */
+    public static TechnicianType reconstitute(
+            TechnicianTypeId id,
+            OrganizationId organizationId,
+            PersonnelTypeName name,
+            TypeColor color,
+            boolean active) {
+        return new TechnicianType(id, organizationId, name, color, active);
     }
 
     public void rename(PersonnelTypeName name) {

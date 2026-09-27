@@ -22,6 +22,7 @@ import com.orbit.organization.application.port.out.CompanyCodeConflictException;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationIdentityPort;
 import com.orbit.organization.application.port.out.OrganizationRepository;
+import com.orbit.organization.application.port.out.StaffTypeRepository;
 import com.orbit.organization.domain.AuthAccountId;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Industry;
@@ -29,7 +30,9 @@ import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
-import com.orbit.organization.domain.StaffTypeId;
+import com.orbit.organization.domain.PersonnelTypeName;
+import com.orbit.organization.domain.StaffType;
+import com.orbit.organization.domain.TypeColor;
 import com.orbit.support.IntegrationTestSupport;
 
 class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
@@ -43,6 +46,9 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
 
     @Autowired
     private OrganizationIdentityPort identities;
+
+    @Autowired
+    private StaffTypeRepository staffTypes;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -62,17 +68,20 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
         var membership = Membership.create(membershipId, organizationId, accountId, null, JOINED_AT);
         var organization =
                 Organization.create(organizationId, new OrganizationName("저장된 회사"), Industry.OTHER, code, membership);
+        var inactiveType =
+                StaffType.create(staffTypes.nextId(), organizationId, new PersonnelTypeName("상담"), new TypeColor(1));
         var inactiveMember = Membership.reconstitute(
                 identities.nextMembershipId(),
                 organizationId,
                 new AuthAccountId(105L),
-                new StaffTypeId(9L),
+                inactiveType.id(),
                 JOINED_AT,
                 false);
 
         transaction().executeWithoutResult(status -> {
             organizations.save(organization);
             memberships.save(membership);
+            staffTypes.save(inactiveType);
             memberships.save(inactiveMember);
             entityManager.flush();
         });

@@ -10,6 +10,38 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class TechnicianTypeTest {
     @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void reconstitutesStoredValuesAndActiveState(boolean active) {
+        var id = new TechnicianTypeId(7L);
+        var organizationId = new OrganizationId(2L);
+        var name = new PersonnelTypeName("전기");
+        var color = new TypeColor(3);
+
+        var type = TechnicianType.reconstitute(id, organizationId, name, color, active);
+
+        assertThat(type.id()).isEqualTo(id);
+        assertThat(type.organizationId()).isEqualTo(organizationId);
+        assertThat(type.name()).isEqualTo(name);
+        assertThat(type.color()).isEqualTo(color);
+        assertThat(type.active()).isEqualTo(active);
+    }
+
+    @Test
+    void rejectsAssigningReconstitutedInactiveType() {
+        var type = TechnicianType.reconstitute(
+                new TechnicianTypeId(7L), new OrganizationId(2L), new PersonnelTypeName("전기"), new TypeColor(3), false);
+        var technician = Technician.create(
+                new TechnicianId(1L),
+                new OrganizationId(2L),
+                new AuthAccountId(3L),
+                null,
+                java.time.Instant.parse("2026-09-28T00:00:00Z"));
+
+        assertThatThrownBy(() -> technician.changeType(type)).isInstanceOf(OrganizationRuleViolation.class);
+        assertThat(technician.typeId()).isNull();
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"상담", "가나다라마바사아자차"})
     void createsAndRenamesAtLengthBoundaries(String name) {
         var type = TechnicianType.create(
