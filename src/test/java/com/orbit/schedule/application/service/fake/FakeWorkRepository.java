@@ -76,6 +76,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
         Objects.requireNonNull(from, "from must not be null");
         Objects.requireNonNull(to, "to must not be null");
         return inOrganization(organizationId).stream()
+                .filter(work -> work.status() != WorkStatus.CANCELLED)
                 .filter(work -> work.schedule()
                         .map(schedule -> schedule.startTime().isBefore(to)
                                 && schedule.endTime().isAfter(from))

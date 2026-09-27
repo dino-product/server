@@ -215,7 +215,7 @@ public final class Work {
         return status.isActive() && !now.isBefore(schedule.endTime());
     }
 
-    /** 기사가 거절해 대기함으로 돌아온 작업인지. 대기함 작업의 최신 배정이 거절로 끝났으면 그렇다. 작업 목록의 거절 필터가 쓴다. */
+    /** 기사가 거절해 대기함으로 돌아온 작업인지. 대기함 작업의 최신 배정이 거절로 끝났으면 그렇다. 대기함 목록의 거절 반환 표시와 작업 목록의 거절 필터가 쓴다. */
     public boolean isReturnedByRejection() {
         return status == WorkStatus.REGISTERED
                 && !assignmentHistory.isEmpty()

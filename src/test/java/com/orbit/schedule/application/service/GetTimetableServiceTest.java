@@ -56,13 +56,13 @@ class GetTimetableServiceTest {
 
         TimetableInfo timetable = service.get(query(FROM, TO));
 
-        assertThat(timetable.entries())
+        assertThat(timetable.scheduledWorks())
                 .extracting(
-                        TimetableInfo.Entry::workId,
-                        TimetableInfo.Entry::technicianId,
-                        TimetableInfo.Entry::status,
-                        TimetableInfo.Entry::delayed,
-                        TimetableInfo.Entry::conflicting)
+                        TimetableInfo.ScheduledWork::workId,
+                        TimetableInfo.ScheduledWork::technicianId,
+                        TimetableInfo.ScheduledWork::status,
+                        TimetableInfo.ScheduledWork::delayed,
+                        TimetableInfo.ScheduledWork::conflicting)
                 .containsExactly(
                         tuple(first.value(), TECHNICIAN_ID.value(), WorkStatus.ACCEPTED, false, true),
                         tuple(later.value(), TECHNICIAN_ID.value(), WorkStatus.PENDING_ACCEPTANCE, false, true),
@@ -73,8 +73,8 @@ class GetTimetableServiceTest {
                                 WorkStatus.COMPLETED,
                                 false,
                                 false));
-        assertThat(timetable.entries().getFirst())
-                .isEqualTo(new TimetableInfo.Entry(
+        assertThat(timetable.scheduledWorks().getFirst())
+                .isEqualTo(new TimetableInfo.ScheduledWork(
                         first.value(),
                         "먼저 작업",
                         WorkStatus.ACCEPTED,
@@ -92,9 +92,42 @@ class GetTimetableServiceTest {
         WorkId completed = fixture.givenWork(ORGANIZATION_ID, "완료 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, TEN);
         WorkId accepted = fixture.givenWork(ORGANIZATION_ID, "수락 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
 
-        assertThat(service.get(query(FROM, TO)).entries())
-                .extracting(TimetableInfo.Entry::workId, TimetableInfo.Entry::conflicting)
+        assertThat(service.get(query(FROM, TO)).scheduledWorks())
+                .extracting(TimetableInfo.ScheduledWork::workId, TimetableInfo.ScheduledWork::conflicting)
                 .containsExactlyInAnyOrder(tuple(completed.value(), false), tuple(accepted.value(), false));
+    }
+
+    @Test
+    @DisplayName("겹치는 짝이 구간 밖에 있어도 겹침으로 표시하고, 짝은 칸에 넣지 않는다")
+    void marksConflictWithWorkOutsidePeriod() {
+        fixture.givenManager();
+        // 구간 전 작업(TEN ~ +2h)은 구간 시작(+2h) 전에 끝나고, 구간에 걸친 작업(+1h ~ +3h)과는 겹친다.
+        fixture.givenWork(ORGANIZATION_ID, "구간 전 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
+        WorkId inside = fixture.givenWork(
+                ORGANIZATION_ID, "구간에 걸친 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN.plus(Duration.ofHours(1)));
+        Instant from = TEN.plus(TWO_HOURS);
+
+        TimetableInfo timetable = service.get(query(from, from.plus(Duration.ofDays(1))));
+
+        assertThat(timetable.scheduledWorks())
+                .extracting(TimetableInfo.ScheduledWork::workId, TimetableInfo.ScheduledWork::conflicting)
+                .containsExactly(tuple(inside.value(), true));
+    }
+
+    @Test
+    @DisplayName("같은 기사의 이어 붙은 작업은 겹침이 아니고, 시작시각이 같으면 작업 식별자 순이다")
+    void ordersAndIgnoresAdjacentWorks() {
+        fixture.givenManager();
+        WorkId next =
+                fixture.givenWork(ORGANIZATION_ID, "이어지는 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN.plus(TWO_HOURS));
+        WorkId first = fixture.givenWork(ORGANIZATION_ID, "앞 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
+        WorkId sameStartLater =
+                fixture.givenWork(ORGANIZATION_ID, "같은 시각 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, TEN);
+
+        assertThat(service.get(query(FROM, TO)).scheduledWorks())
+                .extracting(TimetableInfo.ScheduledWork::workId, TimetableInfo.ScheduledWork::conflicting)
+                .containsExactly(
+                        tuple(first.value(), false), tuple(sameStartLater.value(), false), tuple(next.value(), false));
     }
 
     @Test
@@ -128,7 +161,7 @@ class GetTimetableServiceTest {
             fixture.assertRejected(
                     () -> service.get(query(period[0], period[1])), ScheduleErrorCode.INVALID_WORK_INPUT);
         }
-        assertThat(service.get(query(FROM, FROM.plus(Duration.ofDays(31)))).entries())
+        assertThat(service.get(query(FROM, FROM.plus(Duration.ofDays(31)))).scheduledWorks())
                 .isEmpty();
     }
 

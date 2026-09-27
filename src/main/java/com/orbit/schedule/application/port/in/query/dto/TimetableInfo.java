@@ -8,13 +8,13 @@ import com.orbit.schedule.domain.WorkStatus;
 /**
  * 타임테이블. 구간과 일정이 겹치는 기사별 작업 칸과 대기함 작업 목록이다.
  *
- * @param entries 기사 식별자, 시작시각, 작업 식별자 순으로 정렬한 작업 칸. 수락대기·수락됨·작업중·완료 작업만 담는다
- * @param backlog 작업 식별자(등록 순) 순으로 정렬한 대기함 작업
+ * @param scheduledWorks 기사 식별자, 시작시각, 작업 식별자 순으로 정렬한 작업 칸. 수락대기·수락됨·작업중·완료 작업만 담는다
+ * @param backlog 작업 식별자(등록) 순으로 정렬한 대기함 작업
  */
-public record TimetableInfo(List<Entry> entries, List<BacklogWork> backlog) {
+public record TimetableInfo(List<ScheduledWork> scheduledWorks, List<BacklogWork> backlog) {
 
     public TimetableInfo {
-        entries = List.copyOf(entries);
+        scheduledWorks = List.copyOf(scheduledWorks);
         backlog = List.copyOf(backlog);
     }
 
@@ -22,9 +22,9 @@ public record TimetableInfo(List<Entry> entries, List<BacklogWork> backlog) {
      * 기사 일정의 작업 칸 하나.
      *
      * @param delayed 조회 시각에 지연된 작업인지
-     * @param conflicting 같은 기사의 다른 활성 작업과 일정이 겹치는지(확인하고 겹침을 허용한 배정). 구간 안의 작업끼리만 비교한다
+     * @param conflicting 같은 기사의 다른 활성 작업과 일정이 겹치는지(확인하고 겹침을 허용한 배정). 겹치는 짝이 구간 밖에 있어도 표시한다
      */
-    public record Entry(
+    public record ScheduledWork(
             Long workId,
             String name,
             WorkStatus status,
