@@ -5,7 +5,7 @@
 
 ## 용어
 
-인증 경계에서 전달하는 식별자는 `accountId`, 조직이 보유하는 외부 계정 참조는 `authAccountId`다. `AuthAccountId(Long)`는 조직 자체 값객체이며 양수만 허용한다. 직원 소속은 `Membership`, 회사별 기사 계약은 `Technician`, 참여 요청은 `ParticipantRequest`(`participant_request`)다. 현재 JPA 매핑은 `Organization`과 `Membership`에 있으며 `participant_request`는 후속 영속성 작업의 매핑 이름이다.
+인증 경계에서 전달하는 식별자는 `accountId`, 조직이 보유하는 외부 계정 참조는 `authAccountId`다. `AuthAccountId(Long)`는 조직 자체 값객체이며 양수만 허용한다. 직원 소속은 `Membership`, 회사별 기사 계약은 `Technician`, 참여 요청은 `ParticipantRequest`(`participant_request`)다. 현재 JPA 매핑은 `Organization`, `Membership`, `StaffType`, `TechnicianType`에 있으며 기사 계약과 참여 요청의 영속성은 후속 범위다.
 
 ## 회사·총관리자
 
@@ -28,6 +28,7 @@
 - 세 처리는 `PENDING`에서만 허용한다. 처리 시각은 요청 시각보다 앞설 수 없다. 거부된 변경은 기존 상태를 보존한다.
 - 불변식 위반은 `OrganizationRuleViolation`으로 전달하며 HTTP·공통 오류 타입에 의존하지 않는다.
 
+<a id="personnel-types"></a>
 ## 직원·기사 유형
 
 `StaffType`과 `TechnicianType`은 각각 독립 애그리게잇·ID를 사용한다. 조직 ID는 생성 후 바뀌지 않는다. 이름은 `PersonnelTypeName`으로 앞뒤 공백 제거 후 유니코드 코드포인트 2~10자를 허용한다. `TypeColor`는 임시 숫자 1~8이며 실제 색상 매핑은 TODO다. 두 값객체만 공유하고 유형 모델은 합치지 않는다.
@@ -45,6 +46,10 @@
 기사 유형은 직원 유형과 별도 테이블·ID 시퀀스·회사별 이름 unique 제약을 사용한다. 같은 회사에서 직원 유형과 기사 유형의 이름이 같아도 허용한다. 저장된 활성 상태를 복원하고 목록은 ID 오름차순으로 조회하며, 변경을 위해 유형 행 쓰기 잠금을 제공한다. 기사 계약 테이블이 아직 없으므로 `TechnicianTypeUsagePort`의 현재 어댑터는 항상 미사용으로 응답한다. 기사 계약과 유형 FK를 도입하는 HM-263에서 비활성 계약도 포함한 현재 지정 조회와 삭제 제약으로 교체해야 한다.
 
 기사 유형 목록·추가·수정·비활성화·재활성화·삭제 Application은 직원 유형과 같은 총관리자 권한·오류 순서를 따른다. 목록은 활성·비활성 모두 반환하고, 추가·수정은 정규화한 이름과 색상을 함께 저장하며 비활성 유형과의 중복도 409로 거부한다. 상태 변경은 반복 요청에도 성공하고, 다른 회사 유형은 없는 유형처럼 404로 처리한다. 사용 조회가 false인 현 상태에서는 미사용 유형을 활성 여부와 관계없이 물리 삭제하며 삭제 후 이름을 재사용할 수 있다. HM-263이 사용 조회와 FK를 연결하면 현재 지정이 있는 기사 유형의 삭제는 선조회와 FK 충돌 모두 `PERSONNEL_TYPE_IN_USE`(409)로 처리하는 Application 계약을 유지한다.
+
+사용 여부는 현재 지정만으로 판단한다. 과거 지정이 해제되거나 다른 유형으로 바뀌었다면 삭제를 막지 않으며 지정 이력은 저장하지 않는다. 사용 중 삭제는 연결을 자동 해제하지 않고 거부한다. 신규 직원·기사 유형 지정(HM-264)은 유형 행 공유 잠금과 활성 상태 검사를 함께 수행해야 하며, 비활성화와 신규 지정의 통합 경합 검증도 해당 작업에서 수행한다.
+
+입력 포트는 요청자의 `accountId`를 받는다. 유형 결과는 조회가 소유하는 `StaffTypeInfo`·`TechnicianTypeInfo`를 생성·수정·상태 변경에서도 공유한다. HTTP Controller·OpenAPI 연결은 요청자 식별 HM-266 이후 HM-267 범위다. 기사 계약 도입 전의 임시 사용 조회와 운영 스키마 마이그레이션 미정 상태를 API 제공·운영 준비 완료로 해석하지 않는다.
 
 ## 직원 소속·기사 계약
 
