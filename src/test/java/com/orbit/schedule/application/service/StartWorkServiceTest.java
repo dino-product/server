@@ -116,7 +116,7 @@ class StartWorkServiceTest {
     void rejectsStartAfterCancellationInProgress() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Work work = fixture.stored(fixture.givenWork(WorkStatus.IN_PROGRESS));
-        work.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID);
+        work.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, "고객 요청");
         WorkId id = fixture.workRepository.store(work);
 
         fixture.assertRejected(() -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);

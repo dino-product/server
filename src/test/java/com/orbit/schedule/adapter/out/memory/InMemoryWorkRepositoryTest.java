@@ -152,6 +152,7 @@ class InMemoryWorkRepositoryTest {
                 List.of(),
                 null,
                 null,
+                null,
                 null);
 
         assertThatThrownBy(() -> repository.save(unknown))
@@ -237,7 +238,7 @@ class InMemoryWorkRepositoryTest {
                 work.start(NOW);
                 work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
             }
-            case CANCELLED -> work.cancel(NOW, MANAGER_ID);
+            case CANCELLED -> work.cancel(NOW, MANAGER_ID, "고객 요청");
             default -> throw new IllegalArgumentException("unsupported fixture status: " + status);
         }
         return repository.save(work).id().orElseThrow();

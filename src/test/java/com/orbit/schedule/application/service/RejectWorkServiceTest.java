@@ -98,7 +98,7 @@ class RejectWorkServiceTest {
     void treatsRepeatedRejectionAsSuccessAfterBacklogCancellation() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Work work = fixture.stored(rejectedWork(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null)));
-        work.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID);
+        work.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, "고객 요청");
         WorkId id = fixture.workRepository.store(work);
 
         service.reject(command(id.value(), 1, RejectionReason.SCHEDULE_CONFLICT, null));

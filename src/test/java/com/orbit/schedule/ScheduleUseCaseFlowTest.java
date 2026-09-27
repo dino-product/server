@@ -20,6 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
+import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
@@ -28,6 +29,7 @@ import com.orbit.schedule.application.port.in.command.SubmitCompletionReportUseC
 import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
@@ -90,6 +92,9 @@ class ScheduleUseCaseFlowTest {
 
     @Autowired
     private UnassignWorkUseCase unassignWorkUseCase;
+
+    @Autowired
+    private CancelWorkUseCase cancelWorkUseCase;
 
     @Autowired
     private AcceptWorkUseCase acceptWorkUseCase;
@@ -187,6 +192,27 @@ class ScheduleUseCaseFlowTest {
         assertThat(stored.completedAt()).isPresent();
         assertThat(stored.completionReport().flatMap(CompletionReport::workNote))
                 .contains("완료");
+    }
+
+    @Test
+    void assembledCancelRecordsReasonAndEndsTheAssignment() {
+        long workId = create("취소할 작업");
+        assignWorkUseCase.assign(
+                new AssignWorkCommand(ACCOUNT_ID, organizationId.value(), workId, TECHNICIAN, TEN, TWO_HOURS, false));
+
+        cancelWorkUseCase.cancel(new CancelWorkCommand(ACCOUNT_ID, organizationId.value(), workId, "고객 요청"));
+
+        Work stored = workRepository
+                .findInOrganization(organizationId, new WorkId(workId))
+                .orElseThrow();
+        assertThat(stored.status()).isEqualTo(WorkStatus.CANCELLED);
+        assertThat(stored.cancellation()).hasValueSatisfying(cancellation -> {
+            assertThat(cancellation.cancelledBy()).isEqualTo(MANAGER);
+            assertThat(cancellation.reason()).isEqualTo("고객 요청");
+        });
+        assertThat(stored.assignmentHistory().getLast().ending())
+                .map(AssignmentEnding::reason)
+                .contains(AssignmentEndReason.CANCELLED);
     }
 
     private long create(String name) {

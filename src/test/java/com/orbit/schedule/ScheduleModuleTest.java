@@ -19,6 +19,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
+import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RejectWorkUseCase;
@@ -29,6 +30,7 @@ import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.UpdateWorkDetailsUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
@@ -80,6 +82,9 @@ class ScheduleModuleTest {
 
     @Autowired
     private UnassignWorkUseCase unassignWorkUseCase;
+
+    @Autowired
+    private CancelWorkUseCase cancelWorkUseCase;
 
     @Autowired
     private AcceptWorkUseCase acceptWorkUseCase;
@@ -153,6 +158,7 @@ class ScheduleModuleTest {
         assertDenied(() -> rescheduleWorkUseCase.reschedule(
                 new RescheduleWorkCommand(1L, ORGANIZATION_ID.value(), 1L, startTime, Duration.ofHours(2), false)));
         assertDenied(() -> unassignWorkUseCase.unassign(new UnassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L)));
+        assertDenied(() -> cancelWorkUseCase.cancel(new CancelWorkCommand(1L, ORGANIZATION_ID.value(), 1L, "고객 요청")));
     }
 
     @Test

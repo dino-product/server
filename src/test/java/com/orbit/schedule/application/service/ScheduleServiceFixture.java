@@ -100,7 +100,7 @@ final class ScheduleServiceFixture {
             work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), ACCEPTED_AT);
         }
         if (status == WorkStatus.CANCELLED) {
-            work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID);
+            work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID, "고객 요청");
         }
         return workRepository.store(work);
     }
