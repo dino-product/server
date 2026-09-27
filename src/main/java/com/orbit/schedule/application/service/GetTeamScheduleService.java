@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.schedule.application.port.in.query.GetTeamScheduleUseCase;
@@ -23,7 +24,7 @@ import com.orbit.schedule.domain.WorkSchedule;
 /**
  * 기사의 팀 일정 조회. 구간과 일정이 겹치는 조직의 작업(수락대기·수락됨·작업중·완료)을 기사별로 보여 준다. 다른 기사의 작업은 시간·기사·상태만 담고 작업
  * 식별자·작업명·고객 정보는 담지 않는다. 본인 작업은 작업 식별자·작업명도 담아 상세로 이어 갈 수 있게 한다. 관리자는 타임테이블을 쓰므로 요청할 수 없다(403
- * SCHEDULE-005). 오류 확인 순서는 요청자 → 구간 입력이다.
+ * SCHEDULE-005). 작업 목록과 기사 이름을 한 스냅샷(REPEATABLE READ)에서 읽는다. 오류 확인 순서는 요청자 → 구간 입력이다.
  */
 @Service
 public class GetTeamScheduleService implements GetTeamScheduleUseCase {
@@ -49,7 +50,7 @@ public class GetTeamScheduleService implements GetTeamScheduleUseCase {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public TeamScheduleInfo get(GetTeamScheduleQuery query) {
         TechnicianActor technician =
                 OrganizationActors.requireTechnician(loadActorPort, query.accountId(), query.organizationId());

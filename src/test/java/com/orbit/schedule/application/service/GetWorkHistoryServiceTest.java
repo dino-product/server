@@ -187,6 +187,26 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
+    @DisplayName("거절한 뒤 같은 구간에서 다시 배정받아 완료한 작업은 완료와 거절에 함께 센다")
+    void countsRejectedThenCompletedWorkInBoth() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        work.assign(new WorkSchedule(TECHNICIAN_ID, at(3), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        work.accept(NOW);
+        work.start(NOW);
+        work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        fixture.workRepository.store(work);
+
+        WorkHistoryInfo history = service.get(query(null, FROM, TO));
+
+        assertThat(history.works())
+                .extracting(WorkHistoryInfo.AssignedWork::assignmentNumber, WorkHistoryInfo.AssignedWork::current)
+                .containsExactly(tuple(2, true));
+        assertThat(history.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(1, 1, 1, 0));
+    }
+
+    @Test
     @DisplayName("대기함으로 되돌린 취소는 배정 이력에 취소 종료로 남지만 지금 담당도 취소도 아니다")
     void treatsRestoredCancellationAsNotCurrent() {
         fixture.givenTechnician(TECHNICIAN_ID);
