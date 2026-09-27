@@ -10,19 +10,31 @@ public final class Organization {
 
     private Organization(
             OrganizationId id, OrganizationName name, Industry industry, CompanyCode code, Membership owner) {
-        if (id == null || name == null || code == null) {
-            throw new OrganizationRuleViolation("organization id, name and code must not be null");
+        this(id, name, industry, code, owner == null ? null : owner.id());
+        transferOwnership(owner);
+    }
+
+    private Organization(
+            OrganizationId id, OrganizationName name, Industry industry, CompanyCode code, MembershipId ownerId) {
+        if (id == null || name == null || code == null || ownerId == null) {
+            throw new OrganizationRuleViolation("organization id, name, code and owner id must not be null");
         }
         this.id = id;
         this.name = name;
         this.industry = industry;
         this.code = code;
-        transferOwnership(owner);
+        this.ownerMembershipId = ownerId;
     }
 
     public static Organization create(
             OrganizationId id, OrganizationName name, Industry industry, CompanyCode code, Membership owner) {
         return new Organization(id, name, industry, code, owner);
+    }
+
+    /** 저장된 필수 값만 확인하고 총관리자 소속의 현재 상태는 다시 검사하지 않는다. */
+    public static Organization reconstitute(
+            OrganizationId id, OrganizationName name, Industry industry, CompanyCode code, MembershipId ownerId) {
+        return new Organization(id, name, industry, code, ownerId);
     }
 
     public void updateDetails(OrganizationName name, Industry industry) {

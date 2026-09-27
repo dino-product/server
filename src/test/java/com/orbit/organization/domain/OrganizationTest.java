@@ -31,6 +31,39 @@ class OrganizationTest {
         assertThat(organization.isManagedBy(owner)).isFalse();
     }
 
+    @Test
+    void reconstitutesStoredDetailsWithoutAnOwnerObject() {
+        var name = new OrganizationName("저장된 회사");
+        var code = new CompanyCode("C0DE1234");
+        var ownerId = new MembershipId(17L);
+
+        var organization = Organization.reconstitute(ID, name, Industry.OTHER, code, ownerId);
+
+        assertThat(organization.id()).isEqualTo(ID);
+        assertThat(organization.name()).isEqualTo(name);
+        assertThat(organization.industry()).isEqualTo(Industry.OTHER);
+        assertThat(organization.code()).isEqualTo(code);
+        assertThat(organization.ownerMembershipId()).isEqualTo(ownerId);
+        assertThat(Organization.reconstitute(ID, name, null, code, ownerId).industry())
+                .isNull();
+    }
+
+    @Test
+    void rejectsMissingRequiredStoredOrganizationFields() {
+        var name = new OrganizationName("저장된 회사");
+        var code = new CompanyCode("C0DE1234");
+        var ownerId = new MembershipId(17L);
+
+        assertThatThrownBy(() -> Organization.reconstitute(null, name, null, code, ownerId))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Organization.reconstitute(ID, null, null, code, ownerId))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Organization.reconstitute(ID, name, null, null, ownerId))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Organization.reconstitute(ID, name, null, code, null))
+                .isInstanceOf(OrganizationRuleViolation.class);
+    }
+
     @ParameterizedTest
     @EnumSource(Industry.class)
     void changesDetailsAndClearsOptionalIndustry(Industry industry) {
