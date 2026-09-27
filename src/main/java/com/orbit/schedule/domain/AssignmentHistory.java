@@ -145,10 +145,6 @@ public final class AssignmentHistory {
         return Optional.ofNullable(rejection);
     }
 
-    public Optional<RejectionReason> rejectionReason() {
-        return rejection().map(Rejection::reason);
-    }
-
     public Optional<Instant> decidedAt() {
         return Optional.ofNullable(decidedAt);
     }

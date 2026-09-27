@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
@@ -45,7 +46,7 @@ public class StartWorkService implements StartWorkUseCase {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void start(StartWorkCommand command) {
         Actor technician =
                 OrganizationActors.requireTechnician(loadActorPort, command.accountId(), command.organizationId());

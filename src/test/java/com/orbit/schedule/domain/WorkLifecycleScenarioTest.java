@@ -81,7 +81,8 @@ class WorkLifecycleScenarioTest {
                 work,
                 tuple(FIRST_SCHEDULE, AssignmentResult.REJECTED, T1, Optional.of(T2), NOT_ENDED),
                 tuple(SECOND_SCHEDULE, AssignmentResult.ACCEPTED, T3, Optional.of(T4), NOT_ENDED));
-        assertThat(work.assignmentHistory().getFirst().rejectionReason()).contains(RejectionReason.SCHEDULE_CONFLICT);
+        assertThat(work.assignmentHistory().getFirst().rejection())
+                .contains(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null));
     }
 
     @Test
