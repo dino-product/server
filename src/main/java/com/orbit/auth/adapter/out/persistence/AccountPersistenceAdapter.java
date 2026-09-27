@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.DuplicateIdentityException;
 import com.orbit.auth.domain.Account;
+import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
 
 @Repository
@@ -37,5 +38,10 @@ class AccountPersistenceAdapter implements AccountRepository {
         return repository
                 .findByCredential(identity.provider(), identity.subject())
                 .map(AccountJpaEntity::toDomain);
+    }
+
+    @Override
+    public Optional<Account> findById(AccountId accountId) {
+        return repository.findWithCredentialsById(accountId.value()).map(AccountJpaEntity::toDomain);
     }
 }

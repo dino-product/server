@@ -143,6 +143,7 @@ class AuthApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.result.accountId")
                         .value(login.path("result").path("accountId").asLong()))
+                .andExpect(jsonPath("$.result.registeredAt").isString())
                 .andExpect(jsonPath("$.result.accessTokenExpiresAt")
                         .value(login.path("result").path("accessTokenExpiresAt").asText()));
     }

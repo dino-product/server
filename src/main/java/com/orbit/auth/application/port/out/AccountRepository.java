@@ -3,6 +3,7 @@ package com.orbit.auth.application.port.out;
 import java.util.Optional;
 
 import com.orbit.auth.domain.Account;
+import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
 
 public interface AccountRepository {
@@ -14,4 +15,6 @@ public interface AccountRepository {
     Account saveNew(Account account);
 
     Optional<Account> findByIdentity(ExternalIdentity identity);
+
+    Optional<Account> findById(AccountId accountId);
 }

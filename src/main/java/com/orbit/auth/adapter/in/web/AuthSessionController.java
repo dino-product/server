@@ -12,21 +12,26 @@ import com.orbit.auth.adapter.in.web.docs.AuthSessionControllerDocs;
 import com.orbit.auth.adapter.in.web.security.AuthenticatedAccount;
 import com.orbit.auth.application.port.in.command.LogoutUseCase;
 import com.orbit.auth.application.port.in.command.dto.LogoutCommand;
+import com.orbit.auth.application.port.in.query.GetAccountUseCase;
+import com.orbit.auth.application.port.in.query.dto.GetAccountQuery;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthSessionController implements AuthSessionControllerDocs {
 
+    private final GetAccountUseCase getAccountUseCase;
     private final LogoutUseCase logoutUseCase;
 
-    public AuthSessionController(LogoutUseCase logoutUseCase) {
+    public AuthSessionController(GetAccountUseCase getAccountUseCase, LogoutUseCase logoutUseCase) {
+        this.getAccountUseCase = getAccountUseCase;
         this.logoutUseCase = logoutUseCase;
     }
 
     @Override
     @GetMapping("/me")
     public AuthenticatedAccountResponse me(@AuthenticationPrincipal AuthenticatedAccount account) {
-        return AuthenticatedAccountResponse.from(account);
+        return AuthenticatedAccountResponse.from(
+                getAccountUseCase.getAccount(new GetAccountQuery(account.accountId())), account);
     }
 
     @Override

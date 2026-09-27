@@ -2,6 +2,7 @@ package com.orbit.auth.adapter.in.web.docs;
 
 import com.orbit.auth.adapter.in.web.AuthenticatedAccountResponse;
 import com.orbit.auth.adapter.in.web.security.AuthenticatedAccount;
+import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.shared.error.CommonErrorCode;
 import com.orbit.shared.openapi.ApiErrorCodes;
 
@@ -18,7 +19,8 @@ public interface AuthSessionControllerDocs {
 
     @Operation(
             summary = "현재 계정 조회",
-            description = "Access Token이 가리키는 계정을 돌려줍니다. 토큰이 없으면 401, 폐기·만료·위조된 토큰이면 자원이 없는 것과 같은 404를 돌려줍니다.",
+            description = "Access Token이 가리키는 계정을 저장소에서 확인해 돌려줍니다. 토큰이 없으면 401, "
+                    + "폐기·만료·위조된 토큰이면 자원이 없는 것과 같은 404, 계정이 삭제됐으면 AUTH-004를 돌려줍니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
@@ -30,6 +32,7 @@ public interface AuthSessionControllerDocs {
     @ApiErrorCodes(
             enumClass = CommonErrorCode.class,
             includes = {"UNAUTHORIZED", "NOT_FOUND"})
+    @ApiErrorCodes(enumClass = AuthErrorCode.class, includes = "ACCOUNT_NOT_FOUND")
     AuthenticatedAccountResponse me(@Parameter(hidden = true) AuthenticatedAccount account);
 
     @Operation(

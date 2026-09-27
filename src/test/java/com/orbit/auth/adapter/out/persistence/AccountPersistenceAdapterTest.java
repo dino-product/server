@@ -51,6 +51,10 @@ class AccountPersistenceAdapterTest {
             assertThat(found.identities()).containsExactly(identity);
             assertThat(found.registeredAt()).isEqualTo(REGISTERED_AT);
         });
+        assertThat(adapter.findById(saved.id().orElseThrow()))
+                .map(Account::identities)
+                .contains(List.of(identity));
+        assertThat(adapter.findById(new AccountId(Long.MAX_VALUE))).isEmpty();
     }
 
     @Test

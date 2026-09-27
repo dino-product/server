@@ -19,4 +19,7 @@ interface SpringDataAccountRepository extends JpaRepository<AccountJpaEntity, Lo
             """)
     Optional<AccountJpaEntity> findByCredential(
             @Param("provider") OAuthProvider provider, @Param("subject") String subject);
+
+    @Query("select distinct a from AccountJpaEntity a join fetch a.credentials where a.id = :id")
+    Optional<AccountJpaEntity> findWithCredentialsById(@Param("id") Long id);
 }
