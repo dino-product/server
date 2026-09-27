@@ -44,6 +44,15 @@ record QueryPeriod(Instant from, Instant to) {
         return new QueryPeriod(storedFrom, storedTo);
     }
 
+    /** 양쪽으로 margin만큼 넓힌 구간. 조회 구간에 받을 수 있는 범위({@link #EARLIEST}~{@link #LATEST}) 밖으로는 넓히지 않는다. */
+    QueryPeriod widenedBy(Duration margin) {
+        Instant widenedFrom = from.minus(margin);
+        Instant widenedTo = to.plus(margin);
+        return new QueryPeriod(
+                widenedFrom.isBefore(EARLIEST) ? EARLIEST : widenedFrom,
+                widenedTo.isAfter(LATEST) ? LATEST : widenedTo);
+    }
+
     /** 일정이 이 구간과 겹치는지. 한쪽 끝이 다른 쪽 시작과 같으면 겹치지 않는다. */
     boolean overlaps(WorkSchedule schedule) {
         return schedule.startTime().isBefore(to) && schedule.endTime().isAfter(from);

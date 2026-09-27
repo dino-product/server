@@ -22,7 +22,7 @@ import com.orbit.schedule.domain.WorkStatus;
  *     delayedAt). 저장소의 현재 시각이 아니라 이 값으로 판정해 목록과 전체 수가 같은 기준을 쓴다. 거르지 않으면 null
  * @param sort 정렬. null이 아니다
  * @param page 0부터 시작하는 쪽 번호. page × size는 {@link #MAX_OFFSET} 이하다
- * @param size 한 쪽의 작업 수(1 이상)
+ * @param size 한 쪽의 작업 수(1 이상 {@link #MAX_SIZE} 이하)
  */
 public record WorkSearchCriteria(
         String keyword,
@@ -39,6 +39,9 @@ public record WorkSearchCriteria(
     /** 건너뛸 수 있는 가장 많은 작업 수. 깊은 offset은 저장소가 앞의 행을 모두 읽어야 하므로 막는다. */
     public static final long MAX_OFFSET = 10_000;
 
+    /** 한 쪽에 담을 수 있는 가장 많은 작업 수. */
+    public static final int MAX_SIZE = 100;
+
     public WorkSearchCriteria {
         if (keyword != null && (keyword.isEmpty() || !keyword.equals(keyword.strip()))) {
             throw new IllegalArgumentException("keyword must be stripped and not empty");
@@ -48,8 +51,9 @@ public record WorkSearchCriteria(
         if ((startFrom == null) != (startTo == null) || (startFrom != null && !startFrom.isBefore(startTo))) {
             throw new IllegalArgumentException("startFrom must precede startTo and both must be given together");
         }
-        if (page < 0 || size < 1 || (long) page * size > MAX_OFFSET) {
-            throw new IllegalArgumentException("page and size must select at most " + MAX_OFFSET + " skipped works");
+        if (page < 0 || size < 1 || size > MAX_SIZE || (long) page * size > MAX_OFFSET) {
+            throw new IllegalArgumentException(
+                    "size must be 1.." + MAX_SIZE + " and page must skip at most " + MAX_OFFSET + " works");
         }
     }
 
