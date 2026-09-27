@@ -3,11 +3,23 @@ package com.orbit.organization.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class CompanyCodeTest {
+    @Test
+    void reconstitutesLegacyCodeWithoutApplyingCurrentInputRule() {
+        var restored = CompanyCode.reconstitute("legacy01");
+
+        assertThat(restored.value()).isEqualTo("legacy01");
+        assertThat(restored).isEqualTo(CompanyCode.reconstitute("legacy01"));
+        assertThat(restored.hashCode())
+                .isEqualTo(CompanyCode.reconstitute("legacy01").hashCode());
+        assertThatThrownBy(() -> CompanyCode.reconstitute(null)).isInstanceOf(OrganizationRuleViolation.class);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"01234567", "89ABCDEF", "HJKMNPQR", "STVWXYZ0"})
     void acceptsEightCrockfordBase32CharactersWithoutChangingThem(String value) {

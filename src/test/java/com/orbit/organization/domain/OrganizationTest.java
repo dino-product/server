@@ -129,6 +129,17 @@ class OrganizationTest {
         assertThat(new OrganizationName("가".repeat(length)).value()).hasSize(length);
     }
 
+    @Test
+    void reconstitutesLegacyNameWithoutTrimmingOrApplyingCurrentInputRule() {
+        var restored = OrganizationName.reconstitute(" A ");
+
+        assertThat(restored.value()).isEqualTo(" A ");
+        assertThat(restored).isEqualTo(OrganizationName.reconstitute(" A "));
+        assertThat(restored.hashCode())
+                .isEqualTo(OrganizationName.reconstitute(" A ").hashCode());
+        assertThatThrownBy(() -> OrganizationName.reconstitute(null)).isInstanceOf(OrganizationRuleViolation.class);
+    }
+
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"", " ", "가", "가나다라마바사아자차카타파하가나다라마바사아자차카타파하가나다"})
