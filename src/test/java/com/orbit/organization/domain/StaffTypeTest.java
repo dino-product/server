@@ -10,6 +10,38 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class StaffTypeTest {
     @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void reconstitutesStoredValuesAndActiveState(boolean active) {
+        var id = new StaffTypeId(7L);
+        var organizationId = new OrganizationId(2L);
+        var name = new PersonnelTypeName("상담");
+        var color = new TypeColor(3);
+
+        var type = StaffType.reconstitute(id, organizationId, name, color, active);
+
+        assertThat(type.id()).isEqualTo(id);
+        assertThat(type.organizationId()).isEqualTo(organizationId);
+        assertThat(type.name()).isEqualTo(name);
+        assertThat(type.color()).isEqualTo(color);
+        assertThat(type.active()).isEqualTo(active);
+    }
+
+    @Test
+    void rejectsAssigningReconstitutedInactiveType() {
+        var type = StaffType.reconstitute(
+                new StaffTypeId(7L), new OrganizationId(2L), new PersonnelTypeName("상담"), new TypeColor(3), false);
+        var membership = Membership.create(
+                new MembershipId(1L),
+                new OrganizationId(2L),
+                new AuthAccountId(3L),
+                null,
+                java.time.Instant.parse("2026-09-28T00:00:00Z"));
+
+        assertThatThrownBy(() -> membership.changeType(type)).isInstanceOf(OrganizationRuleViolation.class);
+        assertThat(membership.typeId()).isNull();
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"상담", "가나다라마바사아자차"})
     void createsAndRenamesAtLengthBoundaries(String name) {
         var type = StaffType.create(
