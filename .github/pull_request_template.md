@@ -1,6 +1,6 @@
 <!--
 작성 기준: docs/conventions/workflow/pull-requests/writing.md#writing
-공통 유형·라벨·AI 작성: docs/conventions/workflow/publishing.md#publishing
+공통 유형·라벨: docs/conventions/workflow/README.md#workflow
 제목은 type(scope): 최종 변경 결과 형식이며 scope는 생략할 수 있습니다.
 제목 유형과 일치하는 type:<유형> 라벨 하나를 지정합니다. 호환성 파괴는 type(scope)!: 형식으로 표시합니다.
 안내 주석은 제출 전에 삭제합니다. 작은 변경은 각 필수 항목을 한 문장으로 작성해도 됩니다.
