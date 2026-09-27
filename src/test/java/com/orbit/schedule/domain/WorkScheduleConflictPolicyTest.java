@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("일정 겹침·동시 수행 방지 정책")
 class WorkScheduleConflictPolicyTest {
 
+    private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId TECHNICIAN_ID = new MembershipId(3L);
     private static final MembershipId OTHER_TECHNICIAN_ID = new MembershipId(4L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
@@ -95,7 +96,7 @@ class WorkScheduleConflictPolicyTest {
             Work apart = pendingWork(scheduleOf(TECHNICIAN_ID, 15, 1));
             Work completed = completedWork(scheduleOf(TECHNICIAN_ID, 10, 2));
             Work cancelled = cancelledWork(scheduleOf(TECHNICIAN_ID, 10, 2));
-            Work unassigned = Work.register("미배정", REGISTRAR_ID, null, null, null);
+            Work unassigned = Work.register(ORGANIZATION_ID, "미배정", REGISTRAR_ID, null, null, null);
 
             List<Work> conflicts = WorkScheduleConflictPolicy.findConflictingWorks(
                     scheduleOf(TECHNICIAN_ID, 10, 2), // 10:00~12:00
@@ -224,7 +225,7 @@ class WorkScheduleConflictPolicyTest {
     }
 
     private static Work pendingWork(WorkSchedule schedule) {
-        Work work = Work.register("에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+        Work work = Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
         work.assign(schedule, NOW);
         return work;
     }
@@ -256,6 +257,7 @@ class WorkScheduleConflictPolicyTest {
     private static Work reconstitutedPendingWork(WorkId id, WorkSchedule schedule) {
         return Work.reconstitute(
                 id,
+                ORGANIZATION_ID,
                 "에어컨 수리",
                 REGISTRAR_ID,
                 WORK_TYPE_ID,

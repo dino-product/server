@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("작업 생애주기 통합 시나리오")
 class WorkLifecycleScenarioTest {
 
+    private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final MembershipId TECHNICIAN_ID = new MembershipId(3L);
     private static final MembershipId OTHER_TECHNICIAN_ID = new MembershipId(4L);
@@ -169,7 +170,7 @@ class WorkLifecycleScenarioTest {
     }
 
     private static Work registeredWork() {
-        return Work.register("에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+        return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
     }
 
     private static void assertHistory(Work work, Tuple... expected) {
