@@ -7,6 +7,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
+import com.orbit.schedule.domain.SameTechnicianException;
+import com.orbit.schedule.domain.UnchangedScheduleException;
 import com.orbit.shared.error.BusinessException;
 
 @DisplayName("도메인 규칙 위반 변환")
@@ -35,6 +37,32 @@ class DomainRuleViolationsTest {
                 }))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.INVALID_WORK_INPUT))
+                .hasCause(cause);
+    }
+
+    @Test
+    @DisplayName("현재 기사로의 재배정은 입력 오류가 아니라 같은 기사 오류로 바꾸고 원인을 보존한다")
+    void translatesSameTechnician() {
+        SameTechnicianException cause = new SameTechnicianException();
+
+        assertThatThrownBy(() -> DomainRuleViolations.call(() -> {
+                    throw cause;
+                }))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.SAME_TECHNICIAN))
+                .hasCause(cause);
+    }
+
+    @Test
+    @DisplayName("같은 시간으로의 일정 변경은 입력 오류가 아니라 일정 그대로 오류로 바꾸고 원인을 보존한다")
+    void translatesUnchangedSchedule() {
+        UnchangedScheduleException cause = new UnchangedScheduleException();
+
+        assertThatThrownBy(() -> DomainRuleViolations.call(() -> {
+                    throw cause;
+                }))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.SCHEDULE_UNCHANGED))
                 .hasCause(cause);
     }
 

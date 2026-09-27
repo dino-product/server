@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 @DisplayName("일정 겹침·동시 수행 방지 정책")
 class WorkScheduleConflictPolicyTest {
 
+    private static final MembershipId MANAGER_ID = new MembershipId(99L);
+
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId TECHNICIAN_ID = new MembershipId(3L);
     private static final MembershipId OTHER_TECHNICIAN_ID = new MembershipId(4L);
@@ -226,7 +228,7 @@ class WorkScheduleConflictPolicyTest {
 
     private static Work pendingWork(WorkSchedule schedule) {
         Work work = Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
-        work.assign(schedule, NOW);
+        work.assign(schedule, NOW, MANAGER_ID);
         return work;
     }
 
@@ -250,7 +252,7 @@ class WorkScheduleConflictPolicyTest {
 
     private static Work cancelledWork(WorkSchedule schedule) {
         Work work = pendingWork(schedule);
-        work.cancel(NOW);
+        work.cancel(NOW, MANAGER_ID);
         return work;
     }
 
@@ -265,7 +267,8 @@ class WorkScheduleConflictPolicyTest {
                 CUSTOMER_INFO,
                 PAYMENT_INFO,
                 WorkStatus.PENDING_ACCEPTANCE,
-                List.of(AssignmentHistory.restore(schedule, NOW, AssignmentResult.PENDING, null, null)),
+                List.of(AssignmentHistory.restore(
+                        schedule, NOW, MANAGER_ID, AssignmentResult.PENDING, null, null, null)),
                 null);
     }
 }

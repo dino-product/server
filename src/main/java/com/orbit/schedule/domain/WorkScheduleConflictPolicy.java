@@ -1,16 +1,12 @@
 package com.orbit.schedule.domain;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * 같은 기사의 일정 겹침·동시 수행을 판정하는 순수 정책. 리포지토리 조회는 이 정책의 범위 밖이며 호출자가 후보 작업을 넘긴다. 기사·상태·자기 자신은 호출자가 목록을
  * 좁혔는지와 관계없이 정책이 스스로 다시 걸러낸다.
  */
 public final class WorkScheduleConflictPolicy {
-
-    private static final Set<WorkStatus> ACTIVE_STATUSES =
-            Set.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS);
 
     private WorkScheduleConflictPolicy() {}
 
@@ -27,7 +23,7 @@ public final class WorkScheduleConflictPolicy {
         }
         return existingWorks.stream()
                 .filter(existing -> !isSameWork(existing, target))
-                .filter(existing -> ACTIVE_STATUSES.contains(existing.status()))
+                .filter(existing -> existing.status().isActive())
                 .filter(existing -> existing.schedule()
                         .filter(schedule -> schedule.technicianId().equals(candidate.technicianId()))
                         .filter(schedule -> timeRangesOverlap(candidate, schedule))

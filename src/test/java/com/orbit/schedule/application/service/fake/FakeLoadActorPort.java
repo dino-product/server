@@ -2,6 +2,7 @@ package com.orbit.schedule.application.service.fake;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import com.orbit.schedule.application.port.out.LoadActorPort;
@@ -23,6 +24,9 @@ public class FakeLoadActorPort implements LoadActorPort {
 
     @Override
     public Optional<Actor> findActiveActor(Long accountId, OrganizationId organizationId) {
+        // 실제 포트도 식별자를 요구하므로, 서비스가 누락을 먼저 거르지 않으면 여기서 다른 메시지로 드러난다.
+        Objects.requireNonNull(accountId, "fake port received null accountId");
+        Objects.requireNonNull(organizationId, "fake port received null organizationId");
         return Optional.ofNullable(actors.get(key(accountId, organizationId)));
     }
 

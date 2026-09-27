@@ -16,8 +16,8 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkTypeId;
 
 /**
- * 작업 등록. 요청한 조직의 총관리자·직원만 등록할 수 있고 등록자는 요청자의 소속이다. 권한을 입력 검증보다 먼저 확인해 권한 없는 요청에 입력 오류가 드러나지 않게 한다.
- * 작업 유형이 같은 조직의 것인지는 organization 계약이 연결될 때 검증하며, 그 전에는 이 유즈케이스를 컨트롤러로 노출하지 않는다.
+ * 작업 등록. 요청한 조직의 총관리자·직원이 대기함 작업을 만든다. 작업명만 필수이고 작업 유형·고객·결제 정보는 비워도 된다. 오류 확인 순서는
+ * schedule 지침의 공통 순서를 따른다. 작업 유형이 같은 조직의 것인지는 organization 계약이 연결될 때 검증한다.
  */
 @Service
 public class CreateWorkService implements CreateWorkUseCase {
