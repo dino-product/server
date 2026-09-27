@@ -44,12 +44,14 @@ import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsComma
 import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.query.GetMyScheduleUseCase;
 import com.orbit.schedule.application.port.in.query.GetProgressBoardUseCase;
+import com.orbit.schedule.application.port.in.query.GetTeamScheduleUseCase;
 import com.orbit.schedule.application.port.in.query.GetTimetableUseCase;
 import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
 import com.orbit.schedule.application.port.in.query.SearchWorksUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetTeamScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
@@ -134,6 +136,9 @@ class ScheduleModuleTest {
 
     @Autowired
     private GetMyScheduleUseCase getMyScheduleUseCase;
+
+    @Autowired
+    private GetTeamScheduleUseCase getTeamScheduleUseCase;
 
     @Autowired
     private WorkQueryPort workQueryPort;
@@ -227,6 +232,8 @@ class ScheduleModuleTest {
                 new GetProgressBoardQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
         assertDenied(() -> getMyScheduleUseCase.get(
                 new GetMyScheduleQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+        assertDenied(() -> getTeamScheduleUseCase.get(
+                new GetTeamScheduleQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
     }
 
     @Test
