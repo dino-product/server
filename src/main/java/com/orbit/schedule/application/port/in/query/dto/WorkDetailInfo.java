@@ -11,10 +11,11 @@ import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 작업 상세. 관리자는 모든 항목을 받고, 기사는 자기에게 보이는 항목만 받는다(보이지 않는 항목은 null 또는 빈 목록). 기사가 지금 담당이 아니면(다른 기사로 바뀌었거나
- * 대기함으로 돌아갔으면) 작업명·상태와 자기 배정 이력만 받는다.
+ * 작업 상세. 관리자는 모든 항목을 받고, 기사는 자기에게 보이는 항목만 받는다(보이지 않는 항목은 null·false·빈 목록). 기사가 지금 담당이 아니면(다른 기사로
+ * 바뀌었거나 대기함으로 돌아갔으면) 작업명·상태와 자기 배정 이력만 받는다.
  *
- * @param delayed 조회 시각에 지연된 작업인지(예정 종료시각이 지났는데 아직 끝나지 않음)
+ * @param delayed 조회 시각에 지연된 작업인지(아직 끝나지 않았는데 예정 종료시각과 같거나 지남). 기사가 지금 담당이 아니면 false
+ * @param workTypeId 작업 유형. 없거나 기사가 지금 담당이 아니면 null
  * @param customer 고객 정보. 기사가 지금 담당이 아니면 null
  * @param payment 결제 정보. 기사가 지금 담당이 아니면 null
  * @param schedule 현재 일정. 대기함 작업이거나 기사가 지금 담당이 아니면 null
@@ -31,15 +32,15 @@ public record WorkDetailInfo(
         WorkStatus status,
         boolean delayed,
         Long workTypeId,
-        CustomerView customer,
-        PaymentView payment,
-        ScheduleView schedule,
-        List<AssignmentView> assignments,
+        Customer customer,
+        Payment payment,
+        Schedule schedule,
+        List<Assignment> assignments,
         Instant startedAt,
         Instant completedAt,
-        CancellationView cancellation,
+        Cancellation cancellation,
         CompletionReportInfo completionReport,
-        List<StatusCorrectionView> statusCorrections) {
+        List<StatusCorrection> statusCorrections) {
 
     public WorkDetailInfo {
         assignments = List.copyOf(assignments);
@@ -47,21 +48,21 @@ public record WorkDetailInfo(
     }
 
     /** 입력하지 않은 항목은 null이다. */
-    public record CustomerView(String name, String phone, String address) {}
+    public record Customer(String name, String phone, String address) {}
 
     /** 입력하지 않은 항목은 null이다. */
-    public record PaymentView(Long fee, PaymentMethod method) {}
+    public record Payment(Long fee, PaymentMethod method) {}
 
-    public record ScheduleView(Long technicianId, Instant startTime, Duration expectedDuration, Instant endTime) {}
+    public record Schedule(Long technicianId, Instant startTime, Duration expectedDuration, Instant endTime) {}
 
     /**
-     * 배정 한 건. 응답·종료가 없으면 해당 항목이 null이다.
+     * 배정 한 건. 응답·거절·종료가 없으면 해당 항목이 null이다.
      *
      * @param assignmentNumber 배정 이력의 1부터 시작하는 순번. 기사의 수락·거절·시작·완료보고 요청에 쓴다
      */
-    public record AssignmentView(
+    public record Assignment(
             int assignmentNumber,
-            ScheduleView schedule,
+            Schedule schedule,
             Instant assignedAt,
             Long assignedBy,
             AssignmentResult result,
@@ -72,10 +73,15 @@ public record WorkDetailInfo(
             Instant endedAt,
             Long endedBy) {}
 
-    public record CancellationView(Instant cancelledAt, Long cancelledBy, String reason) {}
+    public record Cancellation(Instant cancelledAt, Long cancelledBy, String reason) {}
 
-    /** 관리자 강제 변경 한 건과 그때 작업에서 치운 기록. 치운 것이 없으면 해당 항목이 null이다. */
-    public record StatusCorrectionView(
+    /**
+     * 관리자 강제 변경 한 건과 그때 작업에서 치운 기록. 치운 것이 없으면 해당 항목이 null이다.
+     *
+     * @param restoredAssignmentNumber 배정 중 취소를 대기함으로 되돌렸을 때 그 배정의 순번. 배정 이력의 취소 종료는 그대로 남으므로 어느 취소가 되돌려졌는지는
+     *     이 값으로만 알 수 있다. 그 밖의 정정이면 null
+     */
+    public record StatusCorrection(
             WorkStatus from,
             WorkStatus to,
             Instant correctedAt,
@@ -84,5 +90,6 @@ public record WorkDetailInfo(
             CompletionReportInfo retiredReport,
             Instant retiredCompletedAt,
             Instant retiredStartedAt,
-            CancellationView retiredCancellation) {}
+            Cancellation retiredCancellation,
+            Integer restoredAssignmentNumber) {}
 }

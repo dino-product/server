@@ -1,7 +1,5 @@
 package com.orbit.schedule.application.service;
 
-import java.util.List;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,13 +7,11 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
 import com.orbit.schedule.application.port.in.query.dto.WorkCompletionReportInfo;
-import com.orbit.schedule.application.port.in.query.dto.WorkCompletionReportInfo.PhotoView;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.CompletionReport;
-import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.Work;
 import com.orbit.shared.error.BusinessException;
@@ -51,21 +47,11 @@ public class GetCompletionReportService implements GetCompletionReportUseCase {
         }
         CompletionReport report = work.completionReport()
                 .orElseThrow(() -> new BusinessException(ScheduleErrorCode.COMPLETION_REPORT_NOT_FOUND));
+        // 완료된 작업은 재배정·해제할 수 없으므로 현재 일정의 기사가 보고를 제출한 기사다.
         return new WorkCompletionReportInfo(
                 work.id().orElseThrow().value(),
                 work.schedule().orElseThrow().technicianId().value(),
                 work.completedAt().orElseThrow(),
-                photos(report.beforePhotos()),
-                photos(report.afterPhotos()),
-                report.usedParts().orElse(null),
-                report.workNote().orElse(null),
-                report.actualFee().map(Money::won).orElse(null),
-                report.actualPaymentMethod().orElse(null));
-    }
-
-    private List<PhotoView> photos(List<String> photoIds) {
-        return photoIds.stream()
-                .map(photoId -> new PhotoView(photoId, photoUrlPort.urlOf(photoId)))
-                .toList();
+                WorkViews.completionReport(report, photoUrlPort));
     }
 }

@@ -4,15 +4,12 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
-import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo.AssignmentView;
-import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo.CancellationView;
-import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo.CustomerView;
-import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo.PaymentView;
-import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo.ScheduleView;
-import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo.StatusCorrectionView;
+import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
+import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.Cancellation;
+import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
@@ -20,6 +17,7 @@ import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.StatusCorrection;
 import com.orbit.schedule.domain.TechnicianActor;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
 
@@ -35,46 +33,72 @@ final class WorkViews {
                 .orElse(false);
     }
 
-    static CustomerView customer(CustomerInfo customer) {
-        return new CustomerView(
+    static WorkDetailInfo.Customer customer(CustomerInfo customer) {
+        return new WorkDetailInfo.Customer(
                 customer.name().orElse(null),
                 customer.phone().orElse(null),
                 customer.address().orElse(null));
     }
 
-    static PaymentView payment(PaymentInfo payment) {
-        return new PaymentView(
+    static WorkDetailInfo.Payment payment(PaymentInfo payment) {
+        return new WorkDetailInfo.Payment(
                 payment.fee().map(Money::won).orElse(null), payment.method().orElse(null));
     }
 
-    static ScheduleView schedule(WorkSchedule schedule) {
-        return new ScheduleView(
+    static WorkDetailInfo.Schedule schedule(WorkSchedule schedule) {
+        return new WorkDetailInfo.Schedule(
                 schedule.technicianId().value(), schedule.startTime(), schedule.expectedDuration(), schedule.endTime());
     }
 
-    /** 배정 이력을 순번과 함께 옮긴다. technician이 있으면 그 기사의 배정만 남긴다(순번은 전체 이력 기준 그대로). */
-    static List<AssignmentView> assignments(Work work, TechnicianActor technician) {
+    /** 모든 배정 이력을 순번과 함께 옮긴다. */
+    static List<WorkDetailInfo.Assignment> assignments(Work work) {
+        return assignments(work, null);
+    }
+
+    /** 그 기사의 배정만 옮긴다. 순번은 전체 이력 기준 그대로다. */
+    static List<WorkDetailInfo.Assignment> assignmentsOf(Work work, TechnicianId technicianId) {
+        return assignments(work, technicianId);
+    }
+
+    static WorkDetailInfo.Cancellation cancellation(Cancellation cancellation) {
+        return new WorkDetailInfo.Cancellation(
+                cancellation.cancelledAt(), cancellation.cancelledBy().value(), cancellation.reason());
+    }
+
+    /** 사진은 식별자와 함께 내려받을 주소를 담는다. */
+    static CompletionReportInfo completionReport(CompletionReport report, PhotoUrlPort photoUrlPort) {
+        return new CompletionReportInfo(
+                photos(report.beforePhotos(), photoUrlPort),
+                photos(report.afterPhotos(), photoUrlPort),
+                report.usedParts().orElse(null),
+                report.workNote().orElse(null),
+                report.actualFee().map(Money::won).orElse(null),
+                report.actualPaymentMethod().orElse(null));
+    }
+
+    static List<WorkDetailInfo.StatusCorrection> statusCorrections(Work work, PhotoUrlPort photoUrlPort) {
+        return work.statusCorrections().stream()
+                .map(correction -> statusCorrection(correction, photoUrlPort))
+                .toList();
+    }
+
+    private static List<CompletionReportInfo.Photo> photos(List<String> photoIds, PhotoUrlPort photoUrlPort) {
+        return photoIds.stream()
+                .map(photoId -> new CompletionReportInfo.Photo(photoId, photoUrlPort.urlOf(photoId)))
+                .toList();
+    }
+
+    private static List<WorkDetailInfo.Assignment> assignments(Work work, TechnicianId technicianId) {
         List<AssignmentHistory> histories = work.assignmentHistory();
         return IntStream.range(0, histories.size())
-                .filter(index -> technician == null
-                        || histories.get(index).schedule().technicianId().equals(technician.technicianId()))
+                .filter(index -> technicianId == null
+                        || histories.get(index).schedule().technicianId().equals(technicianId))
                 .mapToObj(index -> assignment(index + 1, histories.get(index)))
                 .toList();
     }
 
-    static CancellationView cancellation(Cancellation cancellation) {
-        return new CancellationView(
-                cancellation.cancelledAt(), cancellation.cancelledBy().value(), cancellation.reason());
-    }
-
-    static List<StatusCorrectionView> statusCorrections(Work work) {
-        return work.statusCorrections().stream()
-                .map(WorkViews::statusCorrection)
-                .toList();
-    }
-
-    private static AssignmentView assignment(int number, AssignmentHistory history) {
-        return new AssignmentView(
+    private static WorkDetailInfo.Assignment assignment(int number, AssignmentHistory history) {
+        return new WorkDetailInfo.Assignment(
                 number,
                 schedule(history.schedule()),
                 history.assignedAt(),
@@ -91,16 +115,18 @@ final class WorkViews {
                         .orElse(null));
     }
 
-    private static StatusCorrectionView statusCorrection(StatusCorrection correction) {
-        return new StatusCorrectionView(
+    private static WorkDetailInfo.StatusCorrection statusCorrection(
+            StatusCorrection correction, PhotoUrlPort photoUrlPort) {
+        return new WorkDetailInfo.StatusCorrection(
                 correction.from(),
                 correction.to(),
                 correction.correctedAt(),
                 correction.correctedBy().value(),
                 correction.reason(),
-                correction.retiredReport() == null ? null : CompletionReportInfo.from(correction.retiredReport()),
+                correction.retiredReport() == null ? null : completionReport(correction.retiredReport(), photoUrlPort),
                 correction.retiredCompletedAt(),
                 correction.retiredStartedAt(),
-                correction.retiredCancellation() == null ? null : cancellation(correction.retiredCancellation()));
+                correction.retiredCancellation() == null ? null : cancellation(correction.retiredCancellation()),
+                correction.restoredAssignmentNumber());
     }
 }
