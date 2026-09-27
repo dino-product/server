@@ -21,18 +21,21 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
 
 /**
- * 기사의 팀 일정 조회. 구간과 일정이 겹치는 조직의 작업(수락대기·수락됨·작업중·완료)을 기사별로 보여 준다. 다른 기사의 작업은 시간·기사 이름·상태만 담고 작업
+ * 기사의 팀 일정 조회. 구간과 일정이 겹치는 조직의 작업(수락대기·수락됨·작업중·완료)을 기사별로 보여 준다. 다른 기사의 작업은 시간·기사·상태만 담고 작업
  * 식별자·작업명·고객 정보는 담지 않는다. 본인 작업은 작업 식별자·작업명도 담아 상세로 이어 갈 수 있게 한다. 관리자는 타임테이블을 쓰므로 요청할 수 없다(403
  * SCHEDULE-005). 오류 확인 순서는 요청자 → 구간 입력이다.
  */
 @Service
 public class GetTeamScheduleService implements GetTeamScheduleUseCase {
 
-    // 다른 기사 작업의 식별자는 응답에 없으므로, 같은 기사·같은 시작시각의 칸은 끝 시각으로만 순서를 정한다(식별자 순서가 드러나지 않게).
+    // 응답에 보이는 값만으로 순서를 끝까지 정해, 저장소가 돌려준 순서(대개 등록 순)가 다른 기사 작업의 순서로 드러나지 않게 한다. 모든 값이 같은
+    // 다른 기사 칸끼리는 서로 구분되지 않으므로 그 사이 순서는 아무것도 알려 주지 않는다. 본인 칸은 작업 식별자까지 보여 주므로 그것으로 가른다.
     private static final Comparator<TeamScheduleInfo.Slot> SLOT_ORDER = Comparator.comparing(
                     TeamScheduleInfo.Slot::technicianId)
             .thenComparing(TeamScheduleInfo.Slot::startTime)
-            .thenComparing(TeamScheduleInfo.Slot::endTime);
+            .thenComparing(TeamScheduleInfo.Slot::endTime)
+            .thenComparing(TeamScheduleInfo.Slot::status)
+            .thenComparing(TeamScheduleInfo.Slot::workId, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private final LoadActorPort loadActorPort;
     private final WorkQueryPort workQueryPort;

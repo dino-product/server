@@ -100,6 +100,26 @@ class GetTeamScheduleServiceTest {
     }
 
     @Test
+    @DisplayName("같은 기사·같은 시각의 칸은 상태 순이고, 저장 순서가 드러나지 않는다")
+    void ordersSameTimeSlotsByVisibleValues() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        // 가짜 저장소는 저장 역순으로 돌려주므로, 서비스가 정렬하지 않으면 아래 기대 순서와 반대로 나온다.
+        fixture.givenWork(ORGANIZATION_ID, "먼저 등록한 대기", WorkStatus.PENDING_ACCEPTANCE, OTHER_TECHNICIAN_ID, TEN);
+        fixture.givenWork(ORGANIZATION_ID, "나중 등록한 완료", WorkStatus.COMPLETED, OTHER_TECHNICIAN_ID, TEN);
+        WorkId mineFirst = fixture.givenWork(ORGANIZATION_ID, "내 첫 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
+        WorkId mineSecond = fixture.givenWork(ORGANIZATION_ID, "내 둘째 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
+
+        List<TeamScheduleInfo.Slot> slots = service.get(query(FROM, TO)).slots();
+
+        assertThat(slots)
+                .extracting(TeamScheduleInfo.Slot::workId)
+                .containsExactly(mineFirst.value(), mineSecond.value(), null, null);
+        assertThat(slots.subList(2, 4))
+                .extracting(TeamScheduleInfo.Slot::status)
+                .containsExactly(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.COMPLETED);
+    }
+
+    @Test
     @DisplayName("구간에 작업이 없으면 기사 이름을 찾지 않고 빈 목록이다")
     void returnsEmptySchedule() {
         fixture.givenTechnician(TECHNICIAN_ID);
