@@ -182,6 +182,11 @@ public final class Work {
         return List.copyOf(assignmentHistory);
     }
 
+    /** 지금 배정의 순번(배정 이력의 1부터 시작하는 위치). 현재 배정은 최신 이력이다. 배정된 적이 없으면 0이다. */
+    public int currentAssignmentNumber() {
+        return assignmentHistory.size();
+    }
+
     public Optional<CompletionReport> completionReport() {
         return Optional.ofNullable(completionReport);
     }

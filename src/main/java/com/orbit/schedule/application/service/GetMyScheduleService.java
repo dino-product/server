@@ -61,7 +61,7 @@ public class GetMyScheduleService implements GetMyScheduleUseCase {
                 work.id().orElseThrow().value(),
                 work.name(),
                 work.status(),
-                work.assignmentHistory().size(),
+                work.currentAssignmentNumber(),
                 schedule.startTime(),
                 schedule.endTime(),
                 work.customerInfo().address().orElse(null),
