@@ -186,6 +186,28 @@ class AuthApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("로그아웃한 토큰을 여전히 붙인 채로도 nonce 발급과 로그인은 된다")
+    void allowsReloginWithStaleTokenAttached() throws Exception {
+        String stale = bearer(loginAsNewAccount());
+        mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, stale))
+                .andExpect(status().isNoContent());
+
+        MvcResult nonce = mockMvc.perform(post("/api/v1/auth/kakao/nonces").header(HttpHeaders.AUTHORIZATION, stale))
+                .andExpect(status().isOk())
+                .andReturn();
+        String nonceValue = readTree(nonce.getResponse().getContentAsString())
+                .path("result")
+                .path("nonce")
+                .asText();
+        mockMvc.perform(post("/api/v1/auth/kakao/login")
+                        .header(HttpHeaders.AUTHORIZATION, stale)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new KakaoLoginRequest(
+                                KAKAO.idToken(UUID.randomUUID().toString(), nonceValue)))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("로그아웃은 해당 토큰만 폐기하고 같은 계정의 다른 토큰은 유지한다")
     void revokesOnlyTheLoggedOutToken() throws Exception {
         String subject = UUID.randomUUID().toString();

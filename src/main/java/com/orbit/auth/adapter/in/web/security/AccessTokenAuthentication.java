@@ -24,4 +24,10 @@ final class AccessTokenAuthentication extends AbstractAuthenticationToken {
     public AuthenticatedAccount getPrincipal() {
         return principal;
     }
+
+    /** 접근 로그·remoteUser에는 계정 식별자만 남기고 폐기 핸들인 토큰 식별자는 노출하지 않는다. */
+    @Override
+    public String getName() {
+        return Long.toString(principal.accountId());
+    }
 }

@@ -87,6 +87,43 @@ class AccessTokenAuthenticationFilterTest {
         verify(responseWriter).write(response, CommonErrorCode.NOT_FOUND);
     }
 
+    @Test
+    @DisplayName("카카오 로그인 경로는 토큰이 있어도 검사하지 않고 넘긴다")
+    void skipsLoginPathsEvenWithToken() throws Exception {
+        MockFilterChain chain = new MockFilterChain();
+        MockHttpServletRequest request = request("Bearer stale");
+        request.setRequestURI("/api/v1/auth/kakao/nonces");
+        request.setMethod("POST");
+
+        filter().doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(useCase, never()).authenticate(any());
+    }
+
+    @Test
+    @DisplayName("인증 처리 중 실패하면 공통 실패 봉투의 500으로 끝낸다")
+    void endsRequestWithServerErrorEnvelopeOnFailure() throws Exception {
+        when(useCase.authenticate(any())).thenThrow(new IllegalStateException("redis down"));
+        MockFilterChain chain = new MockFilterChain();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter().doFilter(request("Bearer token"), response, chain);
+
+        assertThat(chain.getRequest()).isNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(responseWriter).write(response, CommonErrorCode.INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    @DisplayName("Authentication 이름은 계정 식별자이며 토큰 식별자를 드러내지 않는다")
+    void exposesAccountIdAsName() {
+        AccessTokenAuthentication authentication =
+                new AccessTokenAuthentication(new AuthenticatedAccount(7L, "secret-jti", EXPIRES_AT));
+
+        assertThat(authentication.getName()).isEqualTo("7");
+    }
+
     private AccessTokenAuthenticationFilter filter() {
         return new AccessTokenAuthenticationFilter(useCase, responseWriter);
     }
