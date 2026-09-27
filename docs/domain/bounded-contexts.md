@@ -36,9 +36,9 @@
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 회사 설정·총관리자, 직원/기사 유형, 참여 요청, 직원 소속과 회사별 기사 계약 |
-| 상태 | 도메인과 회사·직원 소속 영속성 출력 포트/JPA Adapter 구현 — 생성·조회·수정 Application 유스케이스와 모듈 루트 공개 계약은 아직 없음 |
+| 상태 | 도메인, 회사·직원 소속 영속성, 회사 생성 Application 구현 — 정보 조회·수정 유스케이스와 모듈 루트 공개 계약은 아직 없음 |
 | 소유 애그리게잇 | `Organization`, `Membership`, `Technician`, `StaffType`, `TechnicianType`, `ParticipantRequest`. 상세 계약은 [조직 도메인](organization.md#organization) 참조 |
-| 관계 | 향후 인증 경계의 `accountId`를 자체 `authAccountId`로 변환하고 존재 확인. `schedule`에 소속·기사 계약 조회를 공개하고 `notification`에 승인 결과 이벤트를 발행할 예정. 현재 모듈 의존성과 이벤트는 없음 |
+| 관계 | 인증 경계의 `accountId`를 자체 `authAccountId`로 변환하며 존재 확인은 후속 책임이다. `schedule`에 소속·기사 계약 조회를 공개하고 `notification`에 승인 결과 이벤트를 발행할 예정. 현재 오류 처리를 위해 `shared::error`에만 의존하며 이벤트는 없음 |
 
 **참여 요청을 별도 모듈로 분리하지 않은 이유**: 회사 코드와 참여 요청은 직원 소속·기사 계약 생성 규칙에 포함된다. 승인과 관계 생성은 하나의 유즈케이스에서 함께 성공·실패해야 한다. 같은 회사에서는 한 계정이 비활성을 포함해 직원 소속과 기사 계약 중 하나만 가지며 전환하지 않는다. 모델 분리와 총관리자 단일 참조 결정은 [ADR-003](../adr/003-organization-domain.md#organization-domain)을 따른다. 작업 유형은 `schedule`의 책임이다.
 

@@ -4,11 +4,14 @@ import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.stereotype.Repository;
 
+import com.orbit.organization.application.port.out.CompanyCodeConflictException;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.AuthAccountId;
+import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
@@ -45,6 +48,23 @@ class OrganizationPersistenceAdapter implements OrganizationRepository, Membersh
     }
 
     @Override
+    public boolean existsByCode(CompanyCode code) {
+        return organizations.existsByCode(code.value());
+    }
+
+    @Override
+    public void flush() {
+        try {
+            entityManager.flush();
+        } catch (RuntimeException failure) {
+            if (isCompanyCodeUniqueViolation(failure)) {
+                throw new CompanyCodeConflictException(failure);
+            }
+            throw failure;
+        }
+    }
+
+    @Override
     public void save(Membership membership) {
         entityManager.persist(MembershipJpaEntity.from(membership));
     }
@@ -54,5 +74,16 @@ class OrganizationPersistenceAdapter implements OrganizationRepository, Membersh
         return memberships
                 .findByOrganizationIdAndAuthAccountId(organizationId.value(), accountId.value())
                 .map(MembershipJpaEntity::toDomain);
+    }
+
+    private boolean isCompanyCodeUniqueViolation(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation
+                    && "23505".equals(violation.getSQLState())
+                    && "uq_organization_code".equals(violation.getConstraintName())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
