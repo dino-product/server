@@ -1,37 +1,24 @@
 # Codex 협업 설정
 
-협업 설정을 추가·변경하거나 독립 검토를 위임할 때 읽습니다. 공식 [프로젝트 설정](https://learn.chatgpt.com/docs/config-file/config-basic), [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Rules](https://learn.chatgpt.com/docs/agent-configuration/rules), [Hooks](https://learn.chatgpt.com/docs/hooks)를 2026-09-12에 확인했습니다.
+설정·인계 방식 점검 때만 읽습니다. 일상 호출 조건과 주 에이전트 책임은 [Delegation](../../AGENTS.md#delegation), 실행 절차는 [역할 TOML](../../.codex/agents/)이 소유합니다.
 
-| 파일·기능 | 역할과 로딩 조건 | 이 저장소의 적용 |
-| --- | --- | --- |
-| `.codex/agents/*.toml` | 선택한 하위 에이전트의 역할 설정. 필수 값은 `name`, `description`, `developer_instructions` | 아래 검토 역할 2개. 모델·추론 강도·권한 설정은 부모 상속 |
-| `.codex/config.toml` | 신뢰한 프로젝트의 설정 계층. CLI 옵션이 우선하고, 프로젝트 내부에서는 작업 디렉터리에 가까운 설정이 우선 | 역할 외에 공통으로 덮어쓸 설정이 없어 추가하지 않음. 역할 파일을 별도로 중복 등록하지 않음 |
-| `.codex/rules/*.rules` | 신뢰한 프로젝트 계층에서 시작 시 읽는 실험적 명령 실행 정책. `prefix_rule`로 `allow`·`prompt`·`forbidden` 결정 | [프로젝트 실행 규칙](execution-policy.md) 배치. 승인 경계는 AGENTS, [커밋](../conventions/workflow/commits.md#commits)·[승인 요약](../conventions/workflow/approvals/README.md#approvals)이 원본 |
-| `.agents/skills/*/SKILL.md` | 특정 반복 작업의 선택형 절차. 메타데이터로 발견한 뒤 본문 로딩 | 현재 리뷰 절차는 기존 가이드와 역할 설정으로 충분하여 별도 스킬 없음 |
-| `.codex/hooks.json` | 신뢰한 프로젝트의 수명주기 이벤트에 연결하는 자동 동작 | 사용하지 않음. 자동 PR 리뷰·규약 검사는 [GitHub Actions](../conventions/workflow/review/automation.md#automation)로 운영 |
+## 설정과 모델
 
-프로젝트 `.codex/` 계층은 신뢰 상태의 영향을 받습니다. 신뢰되지 않아 설정이 로딩되지 않는 경우 임의로 사용자 신뢰·승인 설정을 바꾸지 않고, 기존 지침으로 작업하고 미적용 사실을 알립니다. 현재 클라이언트의 역할 목록에서 아래 이름이 보이는지 확인합니다. 사용자·프로젝트·관리자 설정의 우선순위와 권한은 공식 가이드에 따릅니다.
+- [config.toml](../../.codex/config.toml)은 위임 활성화·하위 기본 모델/effort·동시 실행 상한을, 각 역할 TOML은 이름·호출 설명·실행 지침·모델·권한을 소유합니다. 독립 TOML을 자동 발견하므로 config에 중복 등록하지 않습니다. 동시 상한은 항상 그 수만큼 실행하라는 뜻이 아닙니다.
+- 신뢰한 프로젝트의 `.codex/` 계층이 로딩됩니다. 역할 추가·변경은 새 세션에서 확인하며 메인 모델·신뢰·승인·MCP·개인 설정을 함께 변경하지 않습니다.
+- 공식 설정상 하위 모델/effort는 spawn 지정 → agents 기본값 → 부모 값으로 결정한 뒤 역할 TOML의 명시 값이 우선합니다. 모델만 바꾸면 effort가 남을 수 있어 둘을 함께 지정합니다. 같은 이름의 프로젝트 역할이 내장 역할보다 우선합니다. 실제 적용은 현재 클라이언트의 역할 목록·하위 스레드로 확인합니다.
+- 읽기 전용 역할은 sandbox와 수정 금지 지침을 함께 둡니다. 부모 런타임 권한이 우선할 수 있으며 검사 캐시·포맷에는 쓰기 권한이 필요합니다. 승인·권한을 우회하지 않습니다.
 
 ## 역할 선택과 인계
 
-현재 역할 목록에서 아래 역할을 사용할 수 있는지 확인합니다. 역할이 없거나 설정 적용을 점검할 때는 [설정·로딩 조건](#codex-협업-설정)을 확인합니다.
+공통 규칙은 `AGENTS.md`, 담당자만 필요한 실행 절차는 역할 TOML, 여러 역할·사람·CI가 공유하는 기준은 `conventions`에 한 번만 둡니다. 절차를 역할로 옮기면 기존 본문과 읽기 지시를 제거합니다. 승인·제품·아키텍처 계약을 특정 역할만의 지식으로 바꾸지 않습니다.
 
-| 역할 | 맡길 범위 | 원본 설정 |
-| --- | --- | --- |
-| `module_reviewer` | 모듈 책임·공개 계약·계층 의존성의 실제 변경과 소비자 영향 | [모듈 검토자](../../.codex/agents/module_reviewer.toml) |
-| `verification_reviewer` | 테스트가 변경을 검출하는지, 린트·CI와 실행 보고에 빈틈이 있는지 | [검증 검토자](../../.codex/agents/verification_reviewer.toml) |
+인계 형식·직렬화·독립 검토·역할 부재 처리는 [Delegation](../../AGENTS.md#delegation)을 따릅니다. 역할은 재위임하지 않습니다. 구현자는 재현 테스트 작성 후 주 에이전트를 통해 verifier의 의도한 실패 결과를 받아 구현합니다. 변경 후 집중 검사와 최종 검사는 같은 verifier에 이어 맡기며 포맷된 최종 상태를 리뷰 기준으로 전달합니다.
 
-두 역할은 검토 업무를 위한 지시문이며, 파일 쓰기를 막는 별도 sandbox 설정은 아닙니다. PR에 게시되는 자동 리뷰는 이 역할이 아니라 GitHub Actions의 Claude 워크플로이며 [자동 리뷰 운영](../conventions/workflow/review/automation.md#automation)이 소유합니다. 실제 권한은 부모 세션을 상속합니다. 기본 `worker`·`explorer` 역할과 함께 선택적으로 사용하고, 단순 수정에 병렬 실행을 강제하지 않습니다.
+## 적용 확인
 
-주 에이전트는 [기존 리뷰 기준](../conventions/workflow/review/procedure.md#procedure)에 따라 같은 변경 기준과 요구사항, 담당 파일·diff 범위, 기대 결과를 전달합니다. 커밋 리뷰는 base/head SHA를, 미커밋 변경은 검토 시작 시 diff 범위를 명시합니다. 검토 중 변경이 생기면 영향받는 범위를 다시 확인합니다. 수정 위임이 필요한 작업은 파일 소유권을 나누고 공유 파일의 동시 수정을 피합니다. 하위 결과를 수집한 뒤 중복 지적·계약 연결·최종 검증은 주 에이전트가 확인합니다.
+1. `codex --version`과 해당 `--help`로 지원 명령을 확인하고 TOML 구문·필수 필드·역할 이름을 검사합니다.
+2. [새 입력 확인](context.md#이-저장소에서-확인할-것)으로 루트/하위 지침과 역할 카탈로그를 확인합니다. 주 입력에 역할 본문이 없다는 사실만으로 미로딩을 판단하지 않습니다. 실제 역할 모델·effort·지침 적용은 새 하위 스레드에서 확인하며 정적 검사와 구분합니다.
+3. 문서 정리는 삭제한 원본·갱신한 참조와 `conventions`/역할 설정을 합친 크기로 확인합니다. 실행 비용 비교가 필요하면 같은 완료 조건에서 메인·하위의 캐시/비캐시 입력·출력·추론·재작업을 함께 측정합니다. 파일 크기 감소를 토큰·과금 절감률로 보고하지 않습니다.
 
-[검사 근거의 재사용 기준](../conventions/testing/evidence.md#evidence)에 따라 완료한 검사·대상 상태·미검증 범위를 함께 전달하고, 자동 검사가 이미 판정한 동일 조건의 재확인만을 위해 검토를 위임하지 않습니다.
-
-호출 예시:
-
-```text
-현재 미커밋 변경을 검토해줘. module_reviewer에게 모듈 계약과 소비자 영향을,
-verification_reviewer에게 테스트·CI 검증 공백을 맡겨줘.
-두 에이전트에는 각각 담당 diff 범위를 전달하고 파일은 수정하지 않게 해줘.
-결과를 모아 파일 위치·영향·근거·미확인 사항을 정리해줘.
-```
+근거: 2026-09-28 확인한 [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)·[설정 우선순위](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence). 명령 정책과 PR 자동 리뷰는 각각 [실행 정책](execution-policy.md)과 [CI 운영 계약](../conventions/workflow/review/automation.md#automation)이 소유합니다.

@@ -1,9 +1,9 @@
 <a id="selection"></a>
 # 집중 검사 선택
 
-`./gradlew test --tests '<정확한 클래스명>'`으로 변경 범위를 먼저 검사합니다. 아래 표와 대상 모듈 `AGENTS.md`에서 관련 테스트를 선택합니다.
+아래 표와 대상 모듈 `AGENTS.md`에서 변경 범위에 맞는 테스트를 선택합니다.
 
-DB·컨테이너 검사는 전용 자원도 삭제할 수 있어 [DB 승인](../workflow/approvals/database.md#database)을 따릅니다. `test`와 간접 실행하는 `build`·`check` 모두 실제 task graph·테스트 구성을 확인합니다. 클래스 이름·`--tests`만으로 DB 삭제가 없다고 판단하지 않습니다. DB 없는 집중 검사는 추가 승인 없이 수행합니다.
+DB·컨테이너 검사는 전용 자원도 삭제할 수 있어 [DB 승인](../workflow/approvals/database.md#database)을 따릅니다.
 
 | 변경 | 테스트 클래스 |
 | --- | --- |
