@@ -3,7 +3,6 @@ package com.orbit.schedule.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -21,8 +20,7 @@ class WorkScheduleConflictPolicyTest {
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
     private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
     private static final Instant NOW = Instant.parse("2026-09-21T00:00:00Z");
-    private static final PaymentInfo PAYMENT_INFO =
-            new PaymentInfo(new BigDecimal("150000"), PaymentMethod.ON_SITE_CARD);
+    private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(null, null, null, null, null, null);
 
     @Nested

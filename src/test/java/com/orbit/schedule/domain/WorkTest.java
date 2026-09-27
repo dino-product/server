@@ -3,7 +3,6 @@ package com.orbit.schedule.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,8 +24,7 @@ class WorkTest {
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
     private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
-    private static final PaymentInfo PAYMENT_INFO =
-            new PaymentInfo(new BigDecimal("150000"), PaymentMethod.ON_SITE_CARD);
+    private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);
     private static final WorkSchedule FIRST_SCHEDULE =
             new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T01:00:00Z"), Duration.ofHours(2));
     private static final WorkSchedule SECOND_SCHEDULE =
@@ -39,7 +37,7 @@ class WorkTest {
             List.of("after.jpg"),
             "필터 1개",
             "필터 교체 완료",
-            new BigDecimal("150000"),
+            new Money(150000L),
             ActualPaymentMethod.CREDIT_CARD);
 
     @Nested
@@ -188,6 +186,33 @@ class WorkTest {
         }
 
         @Test
+        @DisplayName("배정 시각이 null이면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsNullAssignedAtWithoutPartialChange() {
+            Work work = registeredWork();
+
+            assertThatThrownBy(() -> work.assign(FIRST_SCHEDULE, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be null");
+            assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
+            assertThat(work.schedule()).isEmpty();
+            assertThat(work.assignmentHistory()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("직전 배정 이력보다 이른 시각으로 다시 배정하면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsAssignedAtBeforeLatestAssignmentWithoutPartialChange() {
+            Work work = pendingWork();
+            work.reject(RejectionReason.OTHER, NOW.plusSeconds(60));
+
+            assertThatThrownBy(() -> work.assign(SECOND_SCHEDULE, NOW.plusSeconds(59)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be before the latest assignment");
+            assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
+            assertThat(work.schedule()).isEmpty();
+            assertThat(work.assignmentHistory()).hasSize(1);
+        }
+
+        @Test
         @DisplayName("등록 외 상태에서는 배정을 거부한다")
         void rejectsAssignmentOutsideRegisteredStatus() {
             Work work = acceptedWork();
@@ -304,6 +329,28 @@ class WorkTest {
         }
 
         @Test
+        @DisplayName("수락된 작업을 재배정할 때 시각이 null이면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsNullTimeOnAcceptedWorkWithoutPartialChange() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.reassign(SECOND_SCHEDULE, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be null");
+            assertUnchangedAcceptedWork(work);
+        }
+
+        @Test
+        @DisplayName("수락된 작업을 재배정할 때 수락 시각보다 이른 시각이면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsTimeBeforeAcceptanceWithoutPartialChange() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.reassign(SECOND_SCHEDULE, NOW.minusSeconds(1)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be before the latest assignment");
+            assertUnchangedAcceptedWork(work);
+        }
+
+        @Test
         @DisplayName("수락된 작업을 재배정하면 수락 이력은 두고 새 기사에게 다시 수락받는다")
         void reassignsAcceptedWorkAndRequiresReacceptance() {
             Work work = acceptedWork();
@@ -356,6 +403,28 @@ class WorkTest {
             work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW);
 
             assertChangedAssignment(work, RESCHEDULED_FIRST_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("수락된 작업의 일정을 바꿀 때 시각이 null이면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsNullTimeOnAcceptedWorkWithoutPartialChange() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be null");
+            assertUnchangedAcceptedWork(work);
+        }
+
+        @Test
+        @DisplayName("수락된 작업의 일정을 바꿀 때 수락 시각보다 이른 시각이면 거부하고 작업을 전혀 바꾸지 않는다")
+        void rejectsTimeBeforeAcceptanceWithoutPartialChange() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.reschedule(RESCHEDULED_FIRST_SCHEDULE, NOW.minusSeconds(1)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("assignedAt must not be before the latest assignment");
+            assertUnchangedAcceptedWork(work);
         }
 
         @Test
@@ -727,7 +796,21 @@ class WorkTest {
                         SECOND_SCHEDULE,
                         List.of(pendingHistory(FIRST_SCHEDULE), pendingHistory(SECOND_SCHEDULE)),
                         null,
-                        "Only the latest assignment history can be PENDING"));
+                        "Only the latest assignment history can be PENDING"),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(
+                                AssignmentHistory.restore(
+                                        FIRST_SCHEDULE,
+                                        NOW,
+                                        AssignmentResult.REJECTED,
+                                        RejectionReason.OTHER,
+                                        NOW.plusSeconds(100)),
+                                AssignmentHistory.restore(
+                                        SECOND_SCHEDULE, NOW.plusSeconds(50), AssignmentResult.PENDING, null, null)),
+                        null,
+                        "assignment histories must be in chronological order"));
     }
 
     private static void assertChangedAssignment(Work work, WorkSchedule newSchedule) {
@@ -737,6 +820,13 @@ class WorkTest {
         assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.REASSIGNED);
         assertThat(work.assignmentHistory().getLast().schedule()).isSameAs(newSchedule);
         assertThat(work.assignmentHistory().getLast().result()).isEqualTo(AssignmentResult.PENDING);
+    }
+
+    private static void assertUnchangedAcceptedWork(Work work) {
+        assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
+        assertThat(work.schedule()).contains(FIRST_SCHEDULE);
+        assertThat(work.assignmentHistory()).hasSize(1);
+        assertThat(work.assignmentHistory().getFirst().result()).isEqualTo(AssignmentResult.ACCEPTED);
     }
 
     private static void assertReacceptanceRequired(Work work, WorkSchedule newSchedule) {

@@ -140,9 +140,13 @@ public final class Work {
     public void assign(WorkSchedule newSchedule, Instant assignedAt) {
         requireStatus(WorkStatus.REGISTERED, "assign");
         requireSchedule(newSchedule);
+        // 검증을 모두 마친 뒤 반영해, 예외가 나도 작업이 부분적으로 바뀌지 않게 한다.
+        AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, assignedAt);
+        requireNotBeforeLatestAssignment(assignedAt);
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
         schedule = newSchedule;
-        assignmentHistory.add(new AssignmentHistory(newSchedule, assignedAt));
-        status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
+        assignmentHistory.add(newAssignment);
+        status = nextStatus;
     }
 
     public void accept(Instant decidedAt) {
@@ -224,13 +228,26 @@ public final class Work {
 
     /** 응답 대기 중인 배정은 마감하고, 이미 수락된 이력은 그대로 둔 채 새 배정을 추가해 다시 수락받는다. */
     private void changeAssignment(WorkSchedule newSchedule, Instant changedAt) {
+        // 새 배정 이력을 먼저 만들어 시각을 검증한 뒤 반영해, 예외가 나도 작업이 부분적으로 바뀌지 않게 한다.
+        AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, changedAt);
+        requireNotBeforeLatestAssignment(changedAt);
+        WorkStatus nextStatus =
+                status == WorkStatus.ACCEPTED ? status.transitionTo(WorkStatus.PENDING_ACCEPTANCE) : status;
         if (status == WorkStatus.PENDING_ACCEPTANCE) {
             latestAssignment().reassign(changedAt);
         }
         schedule = newSchedule;
-        assignmentHistory.add(new AssignmentHistory(newSchedule, changedAt));
-        if (status == WorkStatus.ACCEPTED) {
-            status = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
+        assignmentHistory.add(newAssignment);
+        status = nextStatus;
+    }
+
+    /** 새 배정 시각이 최신 배정 이력의 마지막 시각(응답 시각, 없으면 배정 시각)보다 이르지 않은지 확인해 이력의 시간 순서를 지킨다. */
+    private void requireNotBeforeLatestAssignment(Instant at) {
+        if (assignmentHistory.isEmpty()) {
+            return;
+        }
+        if (at.isBefore(lastMomentOf(assignmentHistory.getLast()))) {
+            throw new IllegalArgumentException("assignedAt must not be before the latest assignment");
         }
     }
 
@@ -239,6 +256,10 @@ public final class Work {
         for (int i = 0; i < assignmentHistory.size() - 1; i++) {
             if (assignmentHistory.get(i).result() == AssignmentResult.PENDING) {
                 throw new IllegalArgumentException("Only the latest assignment history can be PENDING");
+            }
+            AssignmentHistory next = assignmentHistory.get(i + 1);
+            if (next.assignedAt().isBefore(lastMomentOf(assignmentHistory.get(i)))) {
+                throw new IllegalArgumentException("assignment histories must be in chronological order");
             }
         }
         AssignmentHistory latest = assignmentHistory.isEmpty() ? null : assignmentHistory.getLast();
@@ -276,6 +297,11 @@ public final class Work {
         if (latest != null && latest.result() == AssignmentResult.PENDING) {
             throw new IllegalArgumentException(status + " work must not have a PENDING assignment");
         }
+    }
+
+    /** 배정 이력의 마지막 시각. 응답·마감됐으면 응답 시각, 대기 중이면 배정 시각이다. */
+    private static Instant lastMomentOf(AssignmentHistory history) {
+        return history.decidedAt().orElse(history.assignedAt());
     }
 
     private void requireStatus(WorkStatus requiredStatus, String action) {
