@@ -9,11 +9,11 @@
 | `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`) | 없음 |
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
 | `auth` | subject 조회 예제와 등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `user` |
-| `organization` | 골격 — 조직·소속·참여 요청 관리 예정 | 없음 | 없음 |
+| `organization` | 참여 요청 도메인 — 생성·승인·거절·취소와 외부 계정 ID 참조. 회사·직원 소속·기사 계약·유형은 구현 예정 | 없음 | 없음 |
 | `schedule` | 작업 생애주기 — `domain`(Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책)과 Application(작업 등록·기본정보 수정·배정·재배정·일정 변경·배정 해제·수락·거절·작업 시작·완료보고·취소 유즈케이스·출력 포트·오류 코드), 기사 일정 잠금 어댑터(PostgreSQL advisory lock), 임시 출력 어댑터(메모리 저장소·모두 거부 행위자, `local`·`test`에서만 등록 — 그 밖의 프로필은 현재 기동하지 않음) | 없음 | `shared::error` |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |
 
-골격 모듈(`organization`, `notification`)은 `package-info.java`만 존재합니다. 골격 두 모듈은 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. `schedule`은 공개 계약이 없고 오류 코드를 위해 `shared::error`만 허용합니다. 실제 공개 계약을 사용하는 구현을 추가할 때 필요한 의존성과 이 지도를 함께 갱신합니다.
+`notification`은 `package-info.java`만 존재합니다. `organization`과 `notification`은 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. `schedule`은 공개 계약이 없고 오류 코드를 위해 `shared::error`만 허용합니다. 실제 공개 계약을 사용하는 구현을 추가할 때 필요한 의존성과 이 지도를 함께 갱신합니다.
 
 ## 작업 경로와 추가 지침
 
@@ -24,7 +24,7 @@
 | `src/main/java/com/orbit/user/**` | [user 지침](../../src/main/java/com/orbit/user/AGENTS.md) → [User](user.md) | 불변식·공개 정보·발행 시점과 auth 영향 |
 | `src/main/java/com/orbit/auth/**` | [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md) → [Auth](auth.md) | 예제 한계·소유 모델 변환·커밋 후 처리 |
 | `src/main/java/com/orbit/shared/**` | [shared 지침](../../src/main/java/com/orbit/shared/AGENTS.md) → [공개 타입·소비자](#모듈별-책임과-공개-계약)·[공개 경계 규칙](../conventions/architecture/shared.md#shared) | named interface와 내부 구현, 소비 모듈 영향 |
-| `src/main/java/com/orbit/organization/**` | 하위 지침 없음 → [조직 설계](bounded-contexts.md#organization) | 골격만 존재; 조직·소속·참여 요청 소유권과 미결정 정책 |
+| `src/main/java/com/orbit/organization/**` | 하위 지침 없음 → [조직 도메인](organization.md#organization)·[조직 설계](bounded-contexts.md#organization) | 참여 요청 도메인과 후속 계층 책임 |
 | `src/main/java/com/orbit/schedule/**` | [schedule 지침](../../src/main/java/com/orbit/schedule/AGENTS.md) → [작업 설계](bounded-contexts.md#schedule)·[작업 상태·배정 정책](bounded-contexts.md#schedule-policies) | `domain`, `application` 일부, 기사 일정 잠금 어댑터, 임시 출력 어댑터 구현; 공통 오류 순서, 상태 전이·배정 이력 불변식, 도메인 예외 변환, organization ID 참조 경계, 임시 어댑터 교체 조건 |
 | `src/main/java/com/orbit/notification/**` | 하위 지침 없음 → [알림 설계](bounded-contexts.md#notification) | 골격만 존재; 이벤트 소비 경계 |
 | `src/test/java/com/orbit/**` | [테스트 지침](../../src/test/java/com/orbit/AGENTS.md) → 위 대상 소스 모듈 지침·계약 | 테스트가 다루는 소유 모듈·소비 경계 |
