@@ -10,6 +10,8 @@ import java.util.Optional;
 
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
+import com.orbit.schedule.application.port.out.WorkSearchCriteria;
+import com.orbit.schedule.application.port.out.WorkSearchResult;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianId;
@@ -29,6 +31,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private final List<Work> saved = new ArrayList<>();
     private long sequence;
     private int activeByTechnicianQueryCount;
+    private final List<WorkSearchCriteria> searches = new ArrayList<>();
 
     @Override
     public Work save(Work work) {
@@ -86,6 +89,21 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
         return inOrganization(organizationId).stream()
                 .filter(work -> work.status() == WorkStatus.REGISTERED)
                 .toList();
+    }
+
+    /** 검색 조건은 거르지 않고 기록만 한다(조건 해석은 실제 어댑터의 몫). 조직의 모든 작업을 저장 역순으로 돌려준다. */
+    @Override
+    public WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(criteria, "criteria must not be null");
+        searches.add(criteria);
+        List<Work> works = inOrganization(organizationId);
+        return new WorkSearchResult(works, works.size());
+    }
+
+    /** 서비스가 검색한 조건. */
+    public List<WorkSearchCriteria> searches() {
+        return List.copyOf(searches);
     }
 
     /** 서비스가 저장할 때마다 그 시점의 작업. */

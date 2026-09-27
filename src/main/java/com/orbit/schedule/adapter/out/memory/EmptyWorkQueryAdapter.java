@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import com.orbit.schedule.application.port.out.WorkQueryPort;
+import com.orbit.schedule.application.port.out.WorkSearchCriteria;
+import com.orbit.schedule.application.port.out.WorkSearchResult;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.Work;
 
@@ -26,5 +28,10 @@ class EmptyWorkQueryAdapter implements WorkQueryPort {
     @Override
     public List<Work> listBacklog(OrganizationId organizationId) {
         return List.of();
+    }
+
+    @Override
+    public WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria) {
+        return new WorkSearchResult(List.of(), 0);
     }
 }

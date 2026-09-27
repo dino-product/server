@@ -44,9 +44,11 @@ import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsComma
 import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.query.GetTimetableUseCase;
 import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
+import com.orbit.schedule.application.port.in.query.SearchWorksUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
+import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
@@ -119,6 +121,9 @@ class ScheduleModuleTest {
 
     @Autowired
     private GetTimetableUseCase getTimetableUseCase;
+
+    @Autowired
+    private SearchWorksUseCase searchWorksUseCase;
 
     @Autowired
     private WorkQueryPort workQueryPort;
@@ -206,6 +211,8 @@ class ScheduleModuleTest {
         Instant from = Instant.parse("2026-09-25T00:00:00Z");
         assertDenied(() -> getTimetableUseCase.get(
                 new GetTimetableQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+        assertDenied(() -> searchWorksUseCase.search(new SearchWorksQuery(
+                1L, ORGANIZATION_ID.value(), null, null, null, null, null, false, false, null, null, null)));
     }
 
     @Test
