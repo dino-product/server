@@ -42,10 +42,12 @@ import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReport
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
+import com.orbit.schedule.application.port.in.query.GetProgressBoardUseCase;
 import com.orbit.schedule.application.port.in.query.GetTimetableUseCase;
 import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
 import com.orbit.schedule.application.port.in.query.SearchWorksUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
@@ -124,6 +126,9 @@ class ScheduleModuleTest {
 
     @Autowired
     private SearchWorksUseCase searchWorksUseCase;
+
+    @Autowired
+    private GetProgressBoardUseCase getProgressBoardUseCase;
 
     @Autowired
     private WorkQueryPort workQueryPort;
@@ -213,6 +218,8 @@ class ScheduleModuleTest {
                 new GetTimetableQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
         assertDenied(() -> searchWorksUseCase.search(new SearchWorksQuery(
                 1L, ORGANIZATION_ID.value(), null, null, null, null, null, false, false, null, null, null)));
+        assertDenied(() -> getProgressBoardUseCase.get(
+                new GetProgressBoardQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
     }
 
     @Test
