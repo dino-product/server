@@ -20,23 +20,35 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.ActivateStaffTypeUseCase;
+import com.orbit.organization.application.port.in.command.ActivateTechnicianTypeUseCase;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.CreateStaffTypeUseCase;
+import com.orbit.organization.application.port.in.command.CreateTechnicianTypeUseCase;
 import com.orbit.organization.application.port.in.command.DeactivateStaffTypeUseCase;
+import com.orbit.organization.application.port.in.command.DeactivateTechnicianTypeUseCase;
 import com.orbit.organization.application.port.in.command.DeleteStaffTypeUseCase;
+import com.orbit.organization.application.port.in.command.DeleteTechnicianTypeUseCase;
 import com.orbit.organization.application.port.in.command.UpdateOrganizationDetailsUseCase;
 import com.orbit.organization.application.port.in.command.UpdateStaffTypeUseCase;
+import com.orbit.organization.application.port.in.command.UpdateTechnicianTypeUseCase;
 import com.orbit.organization.application.port.in.command.dto.ActivateStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.ActivateTechnicianTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.CreateTechnicianTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.DeactivateStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.DeactivateTechnicianTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.DeleteStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.DeleteTechnicianTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationDetailsCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateStaffTypeCommand;
+import com.orbit.organization.application.port.in.command.dto.UpdateTechnicianTypeCommand;
 import com.orbit.organization.application.port.in.query.GetOrganizationDetailsUseCase;
 import com.orbit.organization.application.port.in.query.GetStaffTypesUseCase;
+import com.orbit.organization.application.port.in.query.GetTechnicianTypesUseCase;
 import com.orbit.organization.application.port.in.query.dto.GetOrganizationDetailsQuery;
 import com.orbit.organization.application.port.in.query.dto.GetStaffTypesQuery;
+import com.orbit.organization.application.port.in.query.dto.GetTechnicianTypesQuery;
 import com.orbit.organization.application.port.out.CompanyCodeGenerator;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationIdentityPort;
@@ -85,6 +97,24 @@ class OrganizationModuleTest {
 
     @Autowired
     private DeleteStaffTypeUseCase deleteStaffType;
+
+    @Autowired
+    private GetTechnicianTypesUseCase listTechnicianTypes;
+
+    @Autowired
+    private CreateTechnicianTypeUseCase createTechnicianType;
+
+    @Autowired
+    private UpdateTechnicianTypeUseCase updateTechnicianType;
+
+    @Autowired
+    private ActivateTechnicianTypeUseCase activateTechnicianType;
+
+    @Autowired
+    private DeactivateTechnicianTypeUseCase deactivateTechnicianType;
+
+    @Autowired
+    private DeleteTechnicianTypeUseCase deleteTechnicianType;
 
     @MockitoSpyBean
     private OrganizationRepository organizations;
@@ -155,6 +185,33 @@ class OrganizationModuleTest {
                 createStaffType.create(new CreateStaffTypeCommand(310L, organization.organizationId(), "상담", 3));
         assertThat(recreated.id()).isNotEqualTo(type.id());
         assertThat(recreated.name()).isEqualTo("상담");
+    }
+
+    @Test
+    void ownerManagesTechnicianTypesThroughCommittedTransactions() {
+        var organization = create.create(new CreateOrganizationCommand(311L, "기사 유형 회사", null));
+        var organizationId = organization.organizationId();
+        var created = createTechnicianType.create(new CreateTechnicianTypeCommand(311L, organizationId, " 전기 ", 2));
+        var updated = updateTechnicianType.update(
+                new UpdateTechnicianTypeCommand(311L, organizationId, created.id(), "냉방", 7));
+        assertThat(listTechnicianTypes.get(new GetTechnicianTypesQuery(311L, organizationId)))
+                .containsExactly(updated);
+
+        var inactive = deactivateTechnicianType.deactivate(
+                new DeactivateTechnicianTypeCommand(311L, organizationId, created.id()));
+        assertThat(inactive.active()).isFalse();
+        assertThat(listTechnicianTypes.get(new GetTechnicianTypesQuery(311L, organizationId)))
+                .containsExactly(inactive);
+        var active =
+                activateTechnicianType.activate(new ActivateTechnicianTypeCommand(311L, organizationId, created.id()));
+        assertThat(active.active()).isTrue();
+
+        deleteTechnicianType.delete(new DeleteTechnicianTypeCommand(311L, organizationId, created.id()));
+        assertThat(listTechnicianTypes.get(new GetTechnicianTypesQuery(311L, organizationId)))
+                .isEmpty();
+        var recreated = createTechnicianType.create(new CreateTechnicianTypeCommand(311L, organizationId, "냉방", 3));
+        assertThat(recreated.id()).isNotEqualTo(created.id());
+        assertThat(recreated.name()).isEqualTo("냉방");
     }
 
     @MockitoSpyBean
