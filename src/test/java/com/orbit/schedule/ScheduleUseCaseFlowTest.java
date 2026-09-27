@@ -37,15 +37,17 @@ import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReport
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
-import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CompletionReport;
+import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianActor;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
@@ -202,8 +204,8 @@ class ScheduleUseCaseFlowTest {
         LoadActorPort actorPortByAccount() {
             return (accountId, organizationId) -> Optional.of(
                     accountId == TECHNICIAN_ACCOUNT_ID
-                            ? new Actor(new MembershipId(ACCEPTING_TECHNICIAN), organizationId, ActorRole.TECHNICIAN)
-                            : new Actor(MANAGER, organizationId, ActorRole.STAFF));
+                            ? new TechnicianActor(new TechnicianId(ACCEPTING_TECHNICIAN), organizationId)
+                            : new ManagerActor(MANAGER, organizationId, ActorRole.STAFF));
         }
     }
 }

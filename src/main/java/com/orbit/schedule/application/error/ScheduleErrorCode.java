@@ -14,7 +14,7 @@ public enum ScheduleErrorCode implements BaseCode {
     WORK_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE-001", "작업을 찾을 수 없습니다."),
     INVALID_WORK_STATE(HttpStatus.CONFLICT, "SCHEDULE-002", "작업의 현재 상태에서는 요청한 처리를 할 수 없습니다."),
     INVALID_WORK_INPUT(HttpStatus.BAD_REQUEST, "SCHEDULE-003", "작업 요청 값이 올바르지 않습니다."),
-    NOT_ORGANIZATION_MEMBER(HttpStatus.FORBIDDEN, "SCHEDULE-004", "해당 조직의 활성 구성원이 아닙니다."),
+    NOT_ORGANIZATION_MEMBER(HttpStatus.FORBIDDEN, "SCHEDULE-004", "해당 조직의 활성 구성원(관리자·기사)이 아닙니다."),
     ACTION_NOT_ALLOWED(HttpStatus.FORBIDDEN, "SCHEDULE-005", "이 작업을 처리할 권한이 없습니다."),
     TECHNICIAN_SCHEDULE_BUSY(HttpStatus.CONFLICT, "SCHEDULE-006", "같은 기사의 일정이 다른 요청으로 변경 중입니다. 잠시 후 다시 시도해 주세요."),
     SAME_TECHNICIAN(HttpStatus.CONFLICT, "SCHEDULE-007", "이미 해당 기사에게 배정된 작업입니다."),

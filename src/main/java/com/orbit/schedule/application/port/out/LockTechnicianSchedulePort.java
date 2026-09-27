@@ -1,7 +1,7 @@
 package com.orbit.schedule.application.port.out;
 
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianId;
 
 /**
  * 같은 조직·같은 기사의 활성 작업을 읽어 판정하는 요청(일정 변경, 작업 시작의 동시 수행 판정 등)을 한 줄로 세우는 출력 포트. 일정 겹침·동시 수행은 서로 다른 작업
@@ -20,5 +20,5 @@ import com.orbit.schedule.domain.OrganizationId;
  */
 public interface LockTechnicianSchedulePort {
 
-    void lock(OrganizationId organizationId, MembershipId technicianId);
+    void lock(OrganizationId organizationId, TechnicianId technicianId);
 }

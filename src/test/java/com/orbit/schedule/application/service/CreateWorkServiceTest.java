@@ -3,6 +3,7 @@ package com.orbit.schedule.application.service;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -17,9 +18,9 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
-import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.CustomerInfo;
+import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
@@ -41,7 +42,7 @@ class CreateWorkServiceTest {
             names = {"OWNER", "STAFF"})
     @DisplayName("총관리자·직원은 요청한 조직에 자신을 등록자로 작업을 등록한다")
     void registersWorkForManager(ActorRole role) {
-        fixture.givenActor(role);
+        fixture.givenManager(role);
 
         CreatedWorkInfo created = service.create(command("에어컨 수리", 150_000L));
 
@@ -91,16 +92,16 @@ class CreateWorkServiceTest {
 
     @Test
     @DisplayName("요청한 조직의 구성원이 아니면 입력이 잘못돼도 비구성원 오류다")
-    void checksMembershipBeforeInput() {
-        fixture.actorPort.givenActor(ACCOUNT_ID, OTHER_ORGANIZATION_ID, 11L, ActorRole.OWNER);
+    void checksActiveActorBeforeInput() {
+        fixture.actorPort.givenManager(ACCOUNT_ID, OTHER_ORGANIZATION_ID, 11L, ActorRole.OWNER);
 
         fixture.assertRejected(() -> service.create(command(" ", -1L)), ScheduleErrorCode.NOT_ORGANIZATION_MEMBER);
     }
 
     @Test
     @DisplayName("기사는 입력이 잘못돼도 권한 오류다")
-    void checksRoleBeforeInput() {
-        fixture.givenActor(ActorRole.TECHNICIAN);
+    void checksActorKindBeforeInput() {
+        fixture.givenTechnician(TECHNICIAN_ID);
 
         fixture.assertRejected(() -> service.create(command(" ", -1L)), ScheduleErrorCode.ACTION_NOT_ALLOWED);
     }
@@ -140,7 +141,7 @@ class CreateWorkServiceTest {
     @DisplayName("행위자 포트가 요청과 다른 조직의 행위자를 돌려주면 프로그래밍 오류로 멈추고 저장하지 않는다")
     void failsFastWhenActorBelongsToOtherOrganization() {
         LoadActorPort misbehavingPort = (accountId, organizationId) ->
-                Optional.of(new Actor(new MembershipId(11L), OTHER_ORGANIZATION_ID, ActorRole.OWNER));
+                Optional.of(new ManagerActor(new MembershipId(11L), OTHER_ORGANIZATION_ID, ActorRole.OWNER));
         CreateWorkService serviceWithMisbehavingPort = new CreateWorkService(misbehavingPort, fixture.workRepository);
 
         assertThatThrownBy(() -> serviceWithMisbehavingPort.create(command("에어컨 수리", null)))

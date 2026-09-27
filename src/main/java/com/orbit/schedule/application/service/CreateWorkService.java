@@ -8,8 +8,8 @@ import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
-import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.CustomerInfo;
+import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.Work;
@@ -33,7 +33,8 @@ public class CreateWorkService implements CreateWorkUseCase {
     @Override
     @Transactional
     public CreatedWorkInfo create(CreateWorkCommand command) {
-        Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
+        ManagerActor actor =
+                OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
 
         Work work = DomainRuleViolations.call(() -> Work.register(
                 actor.organizationId(),

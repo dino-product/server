@@ -9,8 +9,8 @@ import java.util.Optional;
 
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.AssignmentHistory;
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 
@@ -48,7 +48,7 @@ public class FakeWorkRepository implements WorkRepository {
     }
 
     @Override
-    public List<Work> listActiveByTechnician(OrganizationId organizationId, MembershipId technicianId) {
+    public List<Work> listActiveByTechnician(OrganizationId organizationId, TechnicianId technicianId) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         Objects.requireNonNull(technicianId, "technicianId must not be null");
         activeByTechnicianQueryCount++;

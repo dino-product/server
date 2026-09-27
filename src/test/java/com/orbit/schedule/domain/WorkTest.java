@@ -33,11 +33,11 @@ class WorkTest {
     private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
     private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);
     private static final WorkSchedule FIRST_SCHEDULE =
-            new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T01:00:00Z"), Duration.ofHours(2));
+            new WorkSchedule(new TechnicianId(3L), Instant.parse("2026-09-22T01:00:00Z"), Duration.ofHours(2));
     private static final WorkSchedule SECOND_SCHEDULE =
-            new WorkSchedule(new MembershipId(4L), Instant.parse("2026-09-23T05:00:00Z"), Duration.ofMinutes(90));
+            new WorkSchedule(new TechnicianId(4L), Instant.parse("2026-09-23T05:00:00Z"), Duration.ofMinutes(90));
     private static final WorkSchedule RESCHEDULED_FIRST_SCHEDULE =
-            new WorkSchedule(new MembershipId(3L), Instant.parse("2026-09-22T05:00:00Z"), Duration.ofHours(2));
+            new WorkSchedule(new TechnicianId(3L), Instant.parse("2026-09-22T05:00:00Z"), Duration.ofHours(2));
     private static final Instant NOW = Instant.parse("2026-09-21T01:00:00Z");
     private static final Instant LATER = NOW.plusSeconds(60);
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(

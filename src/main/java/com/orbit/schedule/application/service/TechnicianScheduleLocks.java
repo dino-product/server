@@ -3,8 +3,8 @@ package com.orbit.schedule.application.service;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.shared.error.BusinessException;
 
 /**
@@ -15,7 +15,7 @@ final class TechnicianScheduleLocks {
 
     private TechnicianScheduleLocks() {}
 
-    static void lock(LockTechnicianSchedulePort port, OrganizationId organizationId, MembershipId technicianId) {
+    static void lock(LockTechnicianSchedulePort port, OrganizationId organizationId, TechnicianId technicianId) {
         try {
             port.lock(organizationId, technicianId);
         } catch (TechnicianScheduleBusyException e) {

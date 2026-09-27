@@ -16,7 +16,7 @@ class AssignmentHistoryTest {
     private static final MembershipId OTHER_MANAGER_ID = new MembershipId(98L);
 
     private static final WorkSchedule SCHEDULE =
-            new WorkSchedule(new MembershipId(1L), Instant.parse("2026-09-21T01:00:00Z"), Duration.ofMinutes(90));
+            new WorkSchedule(new TechnicianId(1L), Instant.parse("2026-09-21T01:00:00Z"), Duration.ofMinutes(90));
     private static final Instant ASSIGNED_AT = Instant.parse("2026-09-20T01:00:00Z");
     private static final Instant DECIDED_AT = Instant.parse("2026-09-20T02:00:00Z");
 

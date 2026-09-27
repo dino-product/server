@@ -23,8 +23,8 @@ class WorkLifecycleScenarioTest {
 
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
-    private static final MembershipId TECHNICIAN_ID = new MembershipId(3L);
-    private static final MembershipId OTHER_TECHNICIAN_ID = new MembershipId(4L);
+    private static final TechnicianId TECHNICIAN_ID = new TechnicianId(3L);
+    private static final TechnicianId OTHER_TECHNICIAN_ID = new TechnicianId(4L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
     private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
     private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);

@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("작업 일정")
 class WorkScheduleTest {
 
-    private static final MembershipId TECHNICIAN_ID = new MembershipId(1L);
+    private static final TechnicianId TECHNICIAN_ID = new TechnicianId(1L);
     private static final Instant START_TIME = Instant.parse("2026-09-20T01:00:00Z");
 
     @Test

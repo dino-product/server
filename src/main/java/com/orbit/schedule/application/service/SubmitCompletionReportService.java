@@ -11,9 +11,9 @@ import com.orbit.schedule.application.port.in.command.SubmitCompletionReportUseC
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
-import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.Money;
+import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkStatus;
 
@@ -39,7 +39,7 @@ public class SubmitCompletionReportService implements SubmitCompletionReportUseC
     @Override
     @Transactional
     public void submit(SubmitCompletionReportCommand command) {
-        Actor technician =
+        TechnicianActor technician =
                 OrganizationActors.requireTechnician(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, technician.organizationId(), command.workId());
         AssignedTechnicians.requireEverAssigned(work, technician);
