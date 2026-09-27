@@ -96,7 +96,7 @@ class SubmitCompletionReportServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId accepted = fixture.givenWork(WorkStatus.ACCEPTED);
         Work cancelled = fixture.stored(fixture.givenWork(WorkStatus.IN_PROGRESS));
-        cancelled.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID);
+        cancelled.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, "고객 요청");
         WorkId cancelledInProgress = fixture.workRepository.store(cancelled);
 
         for (WorkId id : new WorkId[] {accepted, cancelledInProgress}) {

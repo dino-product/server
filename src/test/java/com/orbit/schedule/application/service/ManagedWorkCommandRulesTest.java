@@ -20,6 +20,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
@@ -82,7 +83,13 @@ class ManagedWorkCommandRulesTest {
                                 false))),
                 new UseCase("배정 해제", (f, request) -> new UnassignWorkService(f.actorPort, f.workRepository, f.clock)
                         .unassign(new UnassignWorkCommand(
-                                request.accountId(), request.organizationId(), request.workId()))));
+                                request.accountId(), request.organizationId(), request.workId()))),
+                new UseCase("취소", (f, request) -> new CancelWorkService(f.actorPort, f.workRepository, f.clock)
+                        .cancel(new CancelWorkCommand(
+                                request.accountId(),
+                                request.organizationId(),
+                                request.workId(),
+                                request.validInput() ? "고객 요청" : " "))));
     }
 
     @ParameterizedTest

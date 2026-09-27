@@ -166,7 +166,7 @@ class WorkLifecycleScenarioTest {
         work.reschedule(
                 RESCHEDULED_FIRST_SCHEDULE.startTime(), RESCHEDULED_FIRST_SCHEDULE.expectedDuration(), T2, MANAGER_ID);
         work.reassign(SECOND_SCHEDULE, T3, MANAGER_ID);
-        work.cancel(T4, MANAGER_ID);
+        work.cancel(T4, MANAGER_ID, "고객 요청");
 
         assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         assertThat(work.completionReport()).isEmpty();
@@ -200,7 +200,7 @@ class WorkLifecycleScenarioTest {
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
         work.accept(T2);
         work.start(T3);
-        work.cancel(T5, MANAGER_ID);
+        work.cancel(T5, MANAGER_ID, "고객 요청");
 
         assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         assertHistory(
@@ -245,7 +245,7 @@ class WorkLifecycleScenarioTest {
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
         work.accept(T2);
         work.unassign(T3, MANAGER_ID);
-        work.cancel(T4, MANAGER_ID);
+        work.cancel(T4, MANAGER_ID, "고객 요청");
 
         assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         assertThat(work.schedule()).isEmpty();
@@ -294,7 +294,8 @@ class WorkLifecycleScenarioTest {
                 histories,
                 work.completionReport().orElse(null),
                 work.startedAt().orElse(null),
-                work.completedAt().orElse(null));
+                work.completedAt().orElse(null),
+                work.cancellation().orElse(null));
 
         assertThat(restored).usingRecursiveComparison().ignoringFields("id").isEqualTo(work);
     }

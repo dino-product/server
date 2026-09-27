@@ -270,7 +270,7 @@ class WorkScheduleConflictPolicyTest {
 
     private static Work cancelledWork(WorkSchedule schedule) {
         Work work = pendingWork(schedule);
-        work.cancel(NOW, MANAGER_ID);
+        work.cancel(NOW, MANAGER_ID, "고객 요청");
         return work;
     }
 
@@ -289,6 +289,7 @@ class WorkScheduleConflictPolicyTest {
                         schedule, NOW, MANAGER_ID, AssignmentResult.ACCEPTED, null, NOW, null)),
                 null,
                 NOW,
+                null,
                 null);
     }
 
@@ -305,6 +306,7 @@ class WorkScheduleConflictPolicyTest {
                 WorkStatus.PENDING_ACCEPTANCE,
                 List.of(AssignmentHistory.restore(
                         schedule, NOW, MANAGER_ID, AssignmentResult.PENDING, null, null, null)),
+                null,
                 null,
                 null,
                 null);
