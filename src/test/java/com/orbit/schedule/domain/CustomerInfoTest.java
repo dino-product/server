@@ -1,6 +1,7 @@
 package com.orbit.schedule.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,5 +78,30 @@ class CustomerInfoTest {
 
         assertThat(blank).isEqualTo(absent);
         assertThat(blank.hashCode()).isEqualTo(absent.hashCode());
+    }
+
+    @Test
+    @DisplayName("이름 50자·연락처 20자·주소 200자까지 받는다")
+    void acceptsValuesUpToLimits() {
+        CustomerInfo info = new CustomerInfo("가".repeat(50), "0".repeat(20), "가".repeat(200));
+
+        assertThat(info.name()).hasValueSatisfying(name -> assertThat(name).hasSize(50));
+        assertThat(info.phone()).hasValueSatisfying(phone -> assertThat(phone).hasSize(20));
+        assertThat(info.address())
+                .hasValueSatisfying(address -> assertThat(address).hasSize(200));
+    }
+
+    @Test
+    @DisplayName("상한을 넘는 이름·연락처·주소는 거부한다")
+    void rejectsValuesOverLimits() {
+        assertThatThrownBy(() -> new CustomerInfo("가".repeat(51), null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("customer name must be at most 50 characters");
+        assertThatThrownBy(() -> new CustomerInfo(null, "0".repeat(21), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("customer phone must be at most 20 characters");
+        assertThatThrownBy(() -> new CustomerInfo(null, null, "가".repeat(201)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("customer address must be at most 200 characters");
     }
 }

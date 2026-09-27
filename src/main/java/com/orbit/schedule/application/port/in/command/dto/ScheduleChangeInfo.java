@@ -10,6 +10,9 @@ import java.util.List;
 public record ScheduleChangeInfo(boolean applied, List<ConflictingWork> conflicts) {
 
     public ScheduleChangeInfo {
+        if (conflicts == null) {
+            throw new IllegalArgumentException("conflicts must not be null");
+        }
         conflicts = List.copyOf(conflicts);
         if (!applied && conflicts.isEmpty()) {
             throw new IllegalArgumentException("withheld result must have conflicts");

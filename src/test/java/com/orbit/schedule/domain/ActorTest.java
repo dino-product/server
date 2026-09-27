@@ -22,6 +22,14 @@ class ActorTest {
                 .isEqualTo(expected);
     }
 
+    @ParameterizedTest
+    @CsvSource({"OWNER, false", "STAFF, false", "TECHNICIAN, true"})
+    @DisplayName("작업 수행(수락·거절·시작·완료보고)은 기사만 할 수 있다")
+    void onlyTechnicianCanPerformWorks(ActorRole role, boolean expected) {
+        assertThat(new Actor(MEMBERSHIP_ID, ORGANIZATION_ID, role).canPerformWorks())
+                .isEqualTo(expected);
+    }
+
     @Test
     @DisplayName("소속이 null이면 거부한다")
     void rejectsNullMembershipId() {

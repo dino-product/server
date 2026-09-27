@@ -17,15 +17,19 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
+import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
+import com.orbit.schedule.application.port.in.command.RejectWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
 import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.UpdateWorkDetailsUseCase;
+import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
@@ -34,6 +38,7 @@ import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.shared.error.BusinessException;
@@ -70,6 +75,12 @@ class ScheduleModuleTest {
 
     @Autowired
     private UnassignWorkUseCase unassignWorkUseCase;
+
+    @Autowired
+    private AcceptWorkUseCase acceptWorkUseCase;
+
+    @Autowired
+    private RejectWorkUseCase rejectWorkUseCase;
 
     @Autowired
     private LockTechnicianSchedulePort lockTechnicianSchedulePort;
@@ -131,6 +142,13 @@ class ScheduleModuleTest {
         assertDenied(() -> rescheduleWorkUseCase.reschedule(
                 new RescheduleWorkCommand(1L, ORGANIZATION_ID.value(), 1L, startTime, Duration.ofHours(2), false)));
         assertDenied(() -> unassignWorkUseCase.unassign(new UnassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L)));
+    }
+
+    @Test
+    void assembledTechnicianUseCasesDenyEveryoneUntilOrganizationIsWired() {
+        assertDenied(() -> acceptWorkUseCase.accept(new AcceptWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 1)));
+        assertDenied(() -> rejectWorkUseCase.reject(
+                new RejectWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 1, RejectionReason.OTHER, "기타 사유")));
     }
 
     @Test

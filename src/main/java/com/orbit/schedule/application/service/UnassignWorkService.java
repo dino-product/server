@@ -33,7 +33,7 @@ public class UnassignWorkService implements UnassignWorkUseCase {
     @Override
     @Transactional
     public void unassign(UnassignWorkCommand command) {
-        Actor actor = ManagingActors.require(loadActorPort, command.accountId(), command.organizationId());
+        Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
 
         Instant now = clock.instant();

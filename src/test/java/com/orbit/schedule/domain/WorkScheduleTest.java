@@ -61,9 +61,33 @@ class WorkScheduleTest {
         assertThat(new WorkSchedule(TECHNICIAN_ID, START_TIME, Duration.ofHours(24)).expectedDuration())
                 .isEqualTo(WorkSchedule.MAX_EXPECTED_DURATION);
         assertThatThrownBy(() -> new WorkSchedule(
-                        TECHNICIAN_ID, START_TIME, Duration.ofHours(24).plusNanos(1)))
+                        TECHNICIAN_ID, START_TIME, Duration.ofHours(24).plusNanos(1_000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("expectedDuration must not exceed PT24H");
+    }
+
+    @Test
+    @DisplayName("시작시각·소요시간은 마이크로초로 잘라, 그보다 작은 단위만 다른 일정은 같은 일정이다")
+    void truncatesToMicroseconds() {
+        WorkSchedule withNanos = new WorkSchedule(
+                TECHNICIAN_ID, START_TIME.plusNanos(1_999), Duration.ofHours(1).plusNanos(999));
+
+        assertThat(withNanos.startTime()).isEqualTo(START_TIME.plusNanos(1_000));
+        assertThat(withNanos.expectedDuration()).isEqualTo(Duration.ofHours(1));
+        assertThat(withNanos)
+                .isEqualTo(new WorkSchedule(TECHNICIAN_ID, START_TIME.plusNanos(1_000), Duration.ofHours(1)));
+        assertThat(new WorkSchedule(
+                                TECHNICIAN_ID, START_TIME, Duration.ofHours(24).plusNanos(999))
+                        .expectedDuration())
+                .isEqualTo(Duration.ofHours(24));
+    }
+
+    @Test
+    @DisplayName("마이크로초로 자르면 0이 되는 소요시간은 양수가 아니라 거부한다")
+    void rejectsDurationShorterThanMicrosecond() {
+        assertThatThrownBy(() -> new WorkSchedule(TECHNICIAN_ID, START_TIME, Duration.ofNanos(999)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("expectedDuration must be positive");
     }
 
     @Test

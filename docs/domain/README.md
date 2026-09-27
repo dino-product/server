@@ -10,7 +10,7 @@
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
 | `auth` | subject 조회 예제와 등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `user` |
 | `organization` | 골격 — 조직·소속·참여 요청 관리 예정 | 없음 | 없음 |
-| `schedule` | 작업 생애주기 — `domain`(Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책)과 Application(작업 등록·기본정보 수정·배정·재배정·일정 변경·배정 해제 유즈케이스·출력 포트·오류 코드), 기사 일정 잠금 어댑터(PostgreSQL advisory lock), 임시 출력 어댑터(메모리 저장소·모두 거부 행위자, `local`·`test`에서만 등록 — 그 밖의 프로필은 현재 기동하지 않음) | 없음 | `shared::error` |
+| `schedule` | 작업 생애주기 — `domain`(Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책)과 Application(작업 등록·기본정보 수정·배정·재배정·일정 변경·배정 해제·수락·거절 유즈케이스·출력 포트·오류 코드), 기사 일정 잠금 어댑터(PostgreSQL advisory lock), 임시 출력 어댑터(메모리 저장소·모두 거부 행위자, `local`·`test`에서만 등록 — 그 밖의 프로필은 현재 기동하지 않음) | 없음 | `shared::error` |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |
 
 골격 모듈(`organization`, `notification`)은 `package-info.java`만 존재합니다. 골격 두 모듈은 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. `schedule`은 공개 계약이 없고 오류 코드를 위해 `shared::error`만 허용합니다. 실제 공개 계약을 사용하는 구현을 추가할 때 필요한 의존성과 이 지도를 함께 갱신합니다.

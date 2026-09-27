@@ -32,7 +32,7 @@ public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
     @Override
     @Transactional
     public void update(UpdateWorkDetailsCommand command) {
-        Actor actor = ManagingActors.require(loadActorPort, command.accountId(), command.organizationId());
+        Actor actor = OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
 
         DomainRuleViolations.run(() -> work.changeDetails(

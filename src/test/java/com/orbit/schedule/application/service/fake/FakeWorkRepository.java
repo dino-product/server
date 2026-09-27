@@ -89,7 +89,7 @@ public class FakeWorkRepository implements WorkRepository {
                         history.assignedAt(),
                         history.assignedBy(),
                         history.result(),
-                        history.rejectionReason().orElse(null),
+                        history.rejection().orElse(null),
                         history.decidedAt().orElse(null),
                         history.ending().orElse(null)))
                 .toList();
