@@ -20,11 +20,17 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
+import com.orbit.organization.application.port.in.command.CreateStaffTypeUseCase;
 import com.orbit.organization.application.port.in.command.UpdateOrganizationDetailsUseCase;
+import com.orbit.organization.application.port.in.command.UpdateStaffTypeUseCase;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
+import com.orbit.organization.application.port.in.command.dto.CreateStaffTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationDetailsCommand;
+import com.orbit.organization.application.port.in.command.dto.UpdateStaffTypeCommand;
 import com.orbit.organization.application.port.in.query.GetOrganizationDetailsUseCase;
+import com.orbit.organization.application.port.in.query.GetStaffTypesUseCase;
 import com.orbit.organization.application.port.in.query.dto.GetOrganizationDetailsQuery;
+import com.orbit.organization.application.port.in.query.dto.GetStaffTypesQuery;
 import com.orbit.organization.application.port.out.CompanyCodeGenerator;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationIdentityPort;
@@ -54,6 +60,15 @@ class OrganizationModuleTest {
     @Autowired
     private UpdateOrganizationDetailsUseCase update;
 
+    @Autowired
+    private GetStaffTypesUseCase listStaffTypes;
+
+    @Autowired
+    private CreateStaffTypeUseCase createStaffType;
+
+    @Autowired
+    private UpdateStaffTypeUseCase updateStaffType;
+
     @MockitoSpyBean
     private OrganizationRepository organizations;
 
@@ -70,6 +85,23 @@ class OrganizationModuleTest {
     void assemblesStaffTypePersistencePorts() {
         assertThat(staffTypes).isNotNull();
         assertThat(staffTypeUsage).isNotNull();
+    }
+
+    @Test
+    void ownerCreatesUpdatesAndListsCommittedStaffTypes() {
+        var organization = create.create(new CreateOrganizationCommand(309L, "유형 관리 회사", null));
+
+        var created =
+                createStaffType.create(new CreateStaffTypeCommand(309L, organization.organizationId(), " 상담 ", 2));
+        var updated = updateStaffType.update(
+                new UpdateStaffTypeCommand(309L, organization.organizationId(), created.id(), "팀장", 7));
+        var listed = listStaffTypes.get(new GetStaffTypesQuery(309L, organization.organizationId()));
+
+        assertThat(created.name()).isEqualTo("상담");
+        assertThat(updated.id()).isEqualTo(created.id());
+        assertThat(updated.name()).isEqualTo("팀장");
+        assertThat(updated.color()).isEqualTo(7);
+        assertThat(listed).containsExactly(updated);
     }
 
     @MockitoSpyBean
