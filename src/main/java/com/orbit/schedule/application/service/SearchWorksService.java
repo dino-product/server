@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
@@ -25,6 +26,7 @@ import com.orbit.shared.error.BusinessException;
 /**
  * 관리자 작업 목록 검색. 검색어·상태·담당 기사·일정 시작 구간·거절 반환·지연으로 거르고 정렬·쪽 나누기를 적용한다. 검색 조건마다 유즈케이스를 나누지 않고 이
  * 입력으로 표현한다. 기사는 요청할 수 없다(403 SCHEDULE-005). 조건 형식이 틀리면 요청자 확인 뒤 400(SCHEDULE-003)이다. 지연은 지금 시각으로 판정한다.
+ * 저장소가 목록과 전체 수를 따로 읽어도 같은 시점을 보도록 한 스냅샷(REPEATABLE READ)에서 검색한다.
  */
 @Service
 public class SearchWorksService implements SearchWorksUseCase {
@@ -44,7 +46,7 @@ public class SearchWorksService implements SearchWorksUseCase {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public WorkSearchInfo search(SearchWorksQuery query) {
         ManagerActor manager =
                 OrganizationActors.requireManager(loadActorPort, query.accountId(), query.organizationId());

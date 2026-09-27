@@ -40,10 +40,13 @@ public record WorkSearchCriteria(
     public static final long MAX_OFFSET = 10_000;
 
     public WorkSearchCriteria {
+        if (keyword != null && (keyword.isEmpty() || !keyword.equals(keyword.strip()))) {
+            throw new IllegalArgumentException("keyword must be stripped and not empty");
+        }
         statuses = Set.copyOf(Objects.requireNonNull(statuses, "statuses must not be null"));
         Objects.requireNonNull(sort, "sort must not be null");
-        if ((startFrom == null) != (startTo == null)) {
-            throw new IllegalArgumentException("startFrom and startTo must be given together");
+        if ((startFrom == null) != (startTo == null) || (startFrom != null && !startFrom.isBefore(startTo))) {
+            throw new IllegalArgumentException("startFrom must precede startTo and both must be given together");
         }
         if (page < 0 || size < 1 || (long) page * size > MAX_OFFSET) {
             throw new IllegalArgumentException("page and size must select at most " + MAX_OFFSET + " skipped works");

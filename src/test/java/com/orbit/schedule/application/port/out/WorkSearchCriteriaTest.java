@@ -18,13 +18,20 @@ class WorkSearchCriteriaTest {
     private static final Instant AT = Instant.parse("2026-09-25T01:00:00Z");
 
     @Test
-    @DisplayName("상태 집합·정렬은 비울 수 없고, 시작 구간은 함께 주며, 건너뛰는 작업은 최대 10,000건이다")
+    @DisplayName("검색어는 다듬어진 값이고, 상태 집합·정렬은 비울 수 없고, 시작 구간은 앞뒤가 맞게 함께 주며, 건너뛰는 작업은 최대 10,000건이다")
     void guardsInvariants() {
         assertThatThrownBy(() -> criteria(null, Sort.REGISTERED_DESC, null, null, 0, 20))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> criteria(Set.of(), null, null, null, 0, 20)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> criteria(Set.of(), Sort.REGISTERED_DESC, AT, null, 0, 20))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> criteria(Set.of(), Sort.REGISTERED_DESC, AT, AT, 0, 20))
+                .isInstanceOf(IllegalArgumentException.class);
+        for (String keyword : new String[] {"", " 보일러", "보일러 "}) {
+            assertThatThrownBy(() -> new WorkSearchCriteria(
+                            keyword, Set.of(), null, null, null, false, null, Sort.REGISTERED_DESC, 0, 20))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
         assertThatThrownBy(() -> criteria(Set.of(), Sort.REGISTERED_DESC, null, null, -1, 20))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> criteria(Set.of(), Sort.REGISTERED_DESC, null, null, 0, 0))
