@@ -41,7 +41,9 @@ import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
+import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
+import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
@@ -108,6 +110,9 @@ class ScheduleModuleTest {
 
     @Autowired
     private GetWorkDetailUseCase getWorkDetailUseCase;
+
+    @Autowired
+    private GetCompletionReportUseCase getCompletionReportUseCase;
 
     @Autowired
     private LockTechnicianSchedulePort lockTechnicianSchedulePort;
@@ -187,6 +192,8 @@ class ScheduleModuleTest {
     @Test
     void assembledQueryUseCasesDenyEveryoneUntilOrganizationIsWired() {
         assertDenied(() -> getWorkDetailUseCase.get(new GetWorkDetailQuery(1L, ORGANIZATION_ID.value(), 1L)));
+        assertDenied(
+                () -> getCompletionReportUseCase.get(new GetCompletionReportQuery(1L, ORGANIZATION_ID.value(), 1L)));
     }
 
     @Test
