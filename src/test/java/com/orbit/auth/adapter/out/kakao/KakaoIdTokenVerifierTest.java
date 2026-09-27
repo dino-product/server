@@ -116,6 +116,14 @@ class KakaoIdTokenVerifierTest {
     }
 
     @Test
+    @DisplayName("서명은 유효해도 만료 시각이 없으면 거부한다")
+    void rejectsMissingExpiry() throws JOSEException {
+        String token = sign(kakaoKey, claims().expirationTime(null).build());
+
+        assertThat(verifier.verify(token)).isEmpty();
+    }
+
+    @Test
     @DisplayName("nonce가 없으면 거부한다")
     void rejectsMissingNonce() throws JOSEException {
         String token = sign(kakaoKey, claims().claim("nonce", null).build());

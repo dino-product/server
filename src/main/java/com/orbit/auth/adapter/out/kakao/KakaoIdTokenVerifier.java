@@ -2,8 +2,10 @@ package com.orbit.auth.adapter.out.kakao;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -77,7 +79,13 @@ class KakaoIdTokenVerifier implements VerifyKakaoIdTokenPort {
         OAuth2TokenValidator<Jwt> audienceValidator = new JwtClaimValidator<Collection<String>>(
                 JwtClaimNames.AUD,
                 audience -> audience != null && audience.stream().anyMatch(allowedAudiences::contains));
+        // Spring 시간 검증기는 exp가 없으면 만료를 검사하지 않으므로 exp 존재를 따로 요구한다.
+        OAuth2TokenValidator<Jwt> expiryPresentValidator =
+                new JwtClaimValidator<Instant>(JwtClaimNames.EXP, Objects::nonNull);
         return new DelegatingOAuth2TokenValidator<>(
-                timestampValidator, new JwtIssuerValidator(properties.issuer()), audienceValidator);
+                expiryPresentValidator,
+                timestampValidator,
+                new JwtIssuerValidator(properties.issuer()),
+                audienceValidator);
     }
 }
