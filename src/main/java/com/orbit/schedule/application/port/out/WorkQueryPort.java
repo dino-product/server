@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 
 /**
@@ -29,6 +30,10 @@ public interface WorkQueryPort {
      * 현재 일정이 [from, to) 구간과 겹치는, 일정을 차지하거나 차지했던 작업(수락대기·수락됨·작업중·완료). 취소된 작업은 일정이 남아 있어도 담지 않는다.
      */
     List<Work> listScheduledBetween(OrganizationId organizationId, Instant from, Instant to);
+
+    /** {@link #listScheduledBetween} 가운데 현재 일정의 담당이 그 기사인 작업. */
+    List<Work> listScheduledForTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to);
 
     /** 대기함 작업(등록 상태). */
     List<Work> listBacklog(OrganizationId organizationId);
