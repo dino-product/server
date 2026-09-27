@@ -153,6 +153,16 @@ class GetWorkDetailServiceTest {
     }
 
     @Test
+    @DisplayName("지금 담당인 기사도 지연된 작업은 지연으로 본다")
+    void currentTechnicianSeesDelay() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId late = fixture.givenWork(
+                ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, NOW.minus(TWO_HOURS));
+
+        assertThat(service.get(query(late.value())).delayed()).isTrue();
+    }
+
+    @Test
     @DisplayName("배정 중 취소된 작업의 담당 기사는 취소 기록을 본다")
     void currentTechnicianSeesCancellation() {
         fixture.givenTechnician(TECHNICIAN_ID);
