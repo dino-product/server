@@ -43,6 +43,8 @@ import com.orbit.organization.application.port.out.OrganizationIdentityPort;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.application.port.out.StaffTypeRepository;
 import com.orbit.organization.application.port.out.StaffTypeUsagePort;
+import com.orbit.organization.application.port.out.TechnicianTypeRepository;
+import com.orbit.organization.application.port.out.TechnicianTypeUsagePort;
 import com.orbit.organization.domain.AuthAccountId;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Industry;
@@ -96,10 +98,22 @@ class OrganizationModuleTest {
     @Autowired
     private StaffTypeUsagePort staffTypeUsage;
 
+    @Autowired
+    private TechnicianTypeRepository technicianTypes;
+
+    @Autowired
+    private TechnicianTypeUsagePort technicianTypeUsage;
+
     @Test
     void assemblesStaffTypePersistencePorts() {
         assertThat(staffTypes).isNotNull();
         assertThat(staffTypeUsage).isNotNull();
+    }
+
+    @Test
+    void assemblesTechnicianTypePersistenceAndTemporaryUsagePorts() {
+        assertThat(technicianTypes).isNotNull();
+        assertThat(technicianTypeUsage).isNotNull();
     }
 
     @Test
