@@ -55,10 +55,9 @@ public class GetTimetableService implements GetTimetableUseCase {
         Instant now = clock.instant();
 
         // 구간 안 작업과 겹칠 수 있는 작업은 시작·종료가 구간에서 예상소요시간 상한 이내에 있다.
+        QueryPeriod candidateWindow = period.widenedBy(WorkSchedule.MAX_EXPECTED_DURATION);
         List<Work> candidates = workQueryPort.listScheduledBetween(
-                manager.organizationId(),
-                period.from().minus(WorkSchedule.MAX_EXPECTED_DURATION),
-                period.to().plus(WorkSchedule.MAX_EXPECTED_DURATION));
+                manager.organizationId(), candidateWindow.from(), candidateWindow.to());
         Map<TechnicianId, List<Work>> activeByTechnician = candidates.stream()
                 .filter(work -> work.status().isActive())
                 .collect(Collectors.groupingBy(

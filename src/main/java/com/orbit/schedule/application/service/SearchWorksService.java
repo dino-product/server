@@ -33,7 +33,6 @@ public class SearchWorksService implements SearchWorksUseCase {
 
     static final int MAX_KEYWORD_LENGTH = 100;
     static final int DEFAULT_PAGE_SIZE = 20;
-    static final int MAX_PAGE_SIZE = 100;
 
     private final LoadActorPort loadActorPort;
     private final WorkQueryPort workQueryPort;
@@ -77,7 +76,10 @@ public class SearchWorksService implements SearchWorksUseCase {
         }
         int page = query.page() == null ? 0 : query.page();
         int size = query.size() == null ? DEFAULT_PAGE_SIZE : query.size();
-        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE || (long) page * size > WorkSearchCriteria.MAX_OFFSET) {
+        if (page < 0
+                || size < 1
+                || size > WorkSearchCriteria.MAX_SIZE
+                || (long) page * size > WorkSearchCriteria.MAX_OFFSET) {
             throw invalidInput();
         }
         return new WorkSearchCriteria(
