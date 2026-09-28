@@ -3,7 +3,6 @@ package com.orbit.schedule.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -15,14 +14,16 @@ import org.junit.jupiter.api.Test;
 @DisplayName("일정 겹침·동시 수행 방지 정책")
 class WorkScheduleConflictPolicyTest {
 
-    private static final MembershipId TECHNICIAN_ID = new MembershipId(3L);
-    private static final MembershipId OTHER_TECHNICIAN_ID = new MembershipId(4L);
+    private static final MembershipId MANAGER_ID = new MembershipId(99L);
+
+    private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
+    private static final TechnicianId TECHNICIAN_ID = new TechnicianId(3L);
+    private static final TechnicianId OTHER_TECHNICIAN_ID = new TechnicianId(4L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
     private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
     private static final Instant NOW = Instant.parse("2026-09-21T00:00:00Z");
-    private static final PaymentInfo PAYMENT_INFO =
-            new PaymentInfo(new BigDecimal("150000"), PaymentMethod.ON_SITE_CARD);
+    private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(null, null, null, null, null, null);
 
     @Nested
@@ -97,7 +98,7 @@ class WorkScheduleConflictPolicyTest {
             Work apart = pendingWork(scheduleOf(TECHNICIAN_ID, 15, 1));
             Work completed = completedWork(scheduleOf(TECHNICIAN_ID, 10, 2));
             Work cancelled = cancelledWork(scheduleOf(TECHNICIAN_ID, 10, 2));
-            Work unassigned = Work.register("미배정", REGISTRAR_ID, null, null, null);
+            Work unassigned = Work.register(ORGANIZATION_ID, "미배정", REGISTRAR_ID, null, null, null);
 
             List<Work> conflicts = WorkScheduleConflictPolicy.findConflictingWorks(
                     scheduleOf(TECHNICIAN_ID, 10, 2), // 10:00~12:00
@@ -165,7 +166,24 @@ class WorkScheduleConflictPolicyTest {
         void detectsConcurrentInProgress() {
             Work work = inProgressWork(scheduleOf(TECHNICIAN_ID, 10, 2));
 
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, List.of(work)))
+            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, null, List.of(work)))
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("시작하려는 작업 자신은 같은 인스턴스든 같은 식별자의 사본이든 동시 수행으로 보지 않고, 그 밖의 작업중 작업은 센다")
+        void ignoresTargetItself() {
+            Work target = inProgressWork(scheduleOf(TECHNICIAN_ID, 10, 2));
+            Work storedCopy = reconstitutedInProgressWork(new WorkId(1L), scheduleOf(TECHNICIAN_ID, 10, 2));
+            Work targetWithSameId = reconstitutedInProgressWork(new WorkId(1L), scheduleOf(TECHNICIAN_ID, 10, 2));
+
+            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, target, List.of(target)))
+                    .isFalse();
+            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(
+                            TECHNICIAN_ID, targetWithSameId, List.of(storedCopy)))
+                    .isFalse();
+            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(
+                            TECHNICIAN_ID, targetWithSameId, List.of(storedCopy, target)))
                     .isTrue();
         }
 
@@ -176,7 +194,7 @@ class WorkScheduleConflictPolicyTest {
             Work acceptedWork = acceptedWork(scheduleOf(TECHNICIAN_ID, 13, 1));
 
             assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(
-                            TECHNICIAN_ID, List.of(otherTechnicianWork, acceptedWork)))
+                            TECHNICIAN_ID, null, List.of(otherTechnicianWork, acceptedWork)))
                     .isFalse();
         }
 
@@ -186,21 +204,22 @@ class WorkScheduleConflictPolicyTest {
             Work accepted = acceptedWork(scheduleOf(TECHNICIAN_ID, 10, 2));
             Work completed = completedWork(scheduleOf(TECHNICIAN_ID, 8, 1));
 
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, List.of(accepted, completed)))
+            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(
+                            TECHNICIAN_ID, null, List.of(accepted, completed)))
                     .isFalse();
         }
 
         @Test
         @DisplayName("목록이 비어 있으면 동시 수행이 아니다")
         void noConcurrentWhenEmpty() {
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, List.of()))
+            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, null, List.of()))
                     .isFalse();
         }
 
         @Test
         @DisplayName("기사가 null이면 거부한다")
         void rejectsNullTechnician() {
-            assertThatThrownBy(() -> WorkScheduleConflictPolicy.hasConcurrentInProgress(null, List.of()))
+            assertThatThrownBy(() -> WorkScheduleConflictPolicy.hasConcurrentInProgress(null, null, List.of()))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("technicianId must not be null");
         }
@@ -208,7 +227,7 @@ class WorkScheduleConflictPolicyTest {
         @Test
         @DisplayName("목록이 null이면 거부한다")
         void rejectsNullList() {
-            assertThatThrownBy(() -> WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, null))
+            assertThatThrownBy(() -> WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("works must not be null");
         }
@@ -218,7 +237,7 @@ class WorkScheduleConflictPolicyTest {
         return WorkScheduleConflictPolicy.findConflictingWorks(candidate, null, List.of(existing));
     }
 
-    private static WorkSchedule scheduleOf(MembershipId technicianId, int hour, int durationHours) {
+    private static WorkSchedule scheduleOf(TechnicianId technicianId, int hour, int durationHours) {
         return new WorkSchedule(
                 technicianId,
                 Instant.parse("2026-09-22T00:00:00Z").plus(Duration.ofHours(hour)),
@@ -226,8 +245,8 @@ class WorkScheduleConflictPolicyTest {
     }
 
     private static Work pendingWork(WorkSchedule schedule) {
-        Work work = Work.register("에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
-        work.assign(schedule, NOW);
+        Work work = Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+        work.assign(schedule, NOW, MANAGER_ID);
         return work;
     }
 
@@ -239,25 +258,45 @@ class WorkScheduleConflictPolicyTest {
 
     private static Work inProgressWork(WorkSchedule schedule) {
         Work work = acceptedWork(schedule);
-        work.start();
+        work.start(NOW);
         return work;
     }
 
     private static Work completedWork(WorkSchedule schedule) {
         Work work = inProgressWork(schedule);
-        work.submitCompletionReport(COMPLETION_REPORT);
+        work.submitCompletionReport(COMPLETION_REPORT, NOW);
         return work;
     }
 
     private static Work cancelledWork(WorkSchedule schedule) {
         Work work = pendingWork(schedule);
-        work.cancel(NOW);
+        work.cancel(NOW, MANAGER_ID, "고객 요청");
         return work;
+    }
+
+    private static Work reconstitutedInProgressWork(WorkId id, WorkSchedule schedule) {
+        return Work.reconstitute(
+                id,
+                ORGANIZATION_ID,
+                "에어컨 수리",
+                REGISTRAR_ID,
+                WORK_TYPE_ID,
+                schedule,
+                CUSTOMER_INFO,
+                PAYMENT_INFO,
+                WorkStatus.IN_PROGRESS,
+                List.of(AssignmentHistory.restore(
+                        schedule, NOW, MANAGER_ID, AssignmentResult.ACCEPTED, null, NOW, null)),
+                null,
+                NOW,
+                null,
+                null);
     }
 
     private static Work reconstitutedPendingWork(WorkId id, WorkSchedule schedule) {
         return Work.reconstitute(
                 id,
+                ORGANIZATION_ID,
                 "에어컨 수리",
                 REGISTRAR_ID,
                 WORK_TYPE_ID,
@@ -265,7 +304,11 @@ class WorkScheduleConflictPolicyTest {
                 CUSTOMER_INFO,
                 PAYMENT_INFO,
                 WorkStatus.PENDING_ACCEPTANCE,
-                List.of(AssignmentHistory.restore(schedule, NOW, AssignmentResult.PENDING, null, null)),
+                List.of(AssignmentHistory.restore(
+                        schedule, NOW, MANAGER_ID, AssignmentResult.PENDING, null, null, null)),
+                null,
+                null,
+                null,
                 null);
     }
 }

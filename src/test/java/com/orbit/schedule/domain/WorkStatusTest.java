@@ -3,6 +3,7 @@ package com.orbit.schedule.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -18,14 +19,7 @@ class WorkStatusTest {
     @Test
     @DisplayName("거절은 상태가 아니라 배정 이력의 결과라 진행 상태에 없다")
     void doesNotDefineRejectedStatus() {
-        assertThat(WorkStatus.values())
-                .containsExactly(
-                        WorkStatus.REGISTERED,
-                        WorkStatus.PENDING_ACCEPTANCE,
-                        WorkStatus.ACCEPTED,
-                        WorkStatus.IN_PROGRESS,
-                        WorkStatus.COMPLETED,
-                        WorkStatus.CANCELLED);
+        assertThat(WorkStatus.values()).extracting(WorkStatus::name).doesNotContain("REJECTED");
     }
 
     @ParameterizedTest
@@ -33,6 +27,34 @@ class WorkStatusTest {
     @DisplayName("상태가 그대로인 변경은 전이가 아니므로 자기 자신으로의 전이는 허용하지 않는다")
     void rejectsSelfTransition(WorkStatus status) {
         assertThat(status.canTransitionTo(status)).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(WorkStatus.class)
+    @DisplayName("어떤 상태로도 전이할 수 없는 완료·취소만 종료 상태다")
+    void terminalStatusesAreThoseWithoutAnyTransition(WorkStatus status) {
+        boolean hasNoTransition = Arrays.stream(WorkStatus.values()).noneMatch(status::canTransitionTo);
+
+        assertThat(status.isTerminal()).isEqualTo(hasNoTransition);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = WorkStatus.class,
+            names = {"PENDING_ACCEPTANCE", "ACCEPTED", "IN_PROGRESS"})
+    @DisplayName("수락대기·수락됨·작업중은 일정을 점유하는 활성 상태다")
+    void activeStatusesOccupySchedule(WorkStatus status) {
+        assertThat(status.isActive()).isTrue();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = WorkStatus.class,
+            mode = EnumSource.Mode.EXCLUDE,
+            names = {"PENDING_ACCEPTANCE", "ACCEPTED", "IN_PROGRESS"})
+    @DisplayName("그 밖의 상태(등록·완료·취소)는 일정을 점유하지 않는다")
+    void inactiveStatusesDoNotOccupySchedule(WorkStatus status) {
+        assertThat(status.isActive()).isFalse();
     }
 
     @ParameterizedTest

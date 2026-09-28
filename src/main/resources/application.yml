@@ -87,3 +87,6 @@ app:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}
       access-token-ttl: ${AUTH_ACCESS_TOKEN_TTL:PT1H}
+  schedule:
+    technician-lock:
+      wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
