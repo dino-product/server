@@ -23,7 +23,9 @@ import com.orbit.organization.application.port.in.command.CreateOrganizationUseC
 import com.orbit.organization.application.port.in.command.UpdateOrganizationDetailsUseCase;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationDetailsCommand;
+import com.orbit.organization.application.port.in.query.GetCompanyCodeUseCase;
 import com.orbit.organization.application.port.in.query.GetOrganizationDetailsUseCase;
+import com.orbit.organization.application.port.in.query.dto.GetCompanyCodeQuery;
 import com.orbit.organization.application.port.in.query.dto.GetOrganizationDetailsQuery;
 import com.orbit.organization.application.port.out.CompanyCodeGenerator;
 import com.orbit.organization.application.port.out.MembershipRepository;
@@ -48,6 +50,9 @@ class OrganizationModuleTest {
 
     @Autowired
     private GetOrganizationDetailsUseCase details;
+
+    @Autowired
+    private GetCompanyCodeUseCase companyCodes;
 
     @Autowired
     private UpdateOrganizationDetailsUseCase update;
@@ -89,6 +94,19 @@ class OrganizationModuleTest {
         assertThat(result.name()).isEqualTo("조회 회사");
         assertThat(result.industry()).isNull();
         assertThatThrownBy(() -> details.get(new GetOrganizationDetailsQuery(307L, created.organizationId())))
+                .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
+                        .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
+    }
+
+    @Test
+    void ownerReadsCommittedCompanyCodeAndOtherAccountCannot() {
+        var created = create.create(new CreateOrganizationCommand(309L, "코드 조회 회사", null));
+
+        var result = companyCodes.get(new GetCompanyCodeQuery(309L, created.organizationId()));
+
+        assertThat(result.organizationId()).isEqualTo(created.organizationId());
+        assertThat(result.code()).isEqualTo(created.code());
+        assertThatThrownBy(() -> companyCodes.get(new GetCompanyCodeQuery(310L, created.organizationId())))
                 .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
                         .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
     }
