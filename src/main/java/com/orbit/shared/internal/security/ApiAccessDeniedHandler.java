@@ -11,6 +11,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 
 import com.orbit.shared.error.CommonErrorCode;
+import com.orbit.shared.security.ApiErrorResponseWriter;
 
 import lombok.RequiredArgsConstructor;
 
