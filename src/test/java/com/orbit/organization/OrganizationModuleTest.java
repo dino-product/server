@@ -13,17 +13,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
+import com.orbit.organization.application.port.in.command.ChangeCompanyCodeUseCase;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.UpdateOrganizationDetailsUseCase;
+import com.orbit.organization.application.port.in.command.dto.ChangeCompanyCodeCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationDetailsCommand;
+import com.orbit.organization.application.port.in.query.GetCompanyCodeUseCase;
 import com.orbit.organization.application.port.in.query.GetOrganizationDetailsUseCase;
+import com.orbit.organization.application.port.in.query.dto.GetCompanyCodeQuery;
 import com.orbit.organization.application.port.in.query.dto.GetOrganizationDetailsQuery;
 import com.orbit.organization.application.port.out.CompanyCodeGenerator;
 import com.orbit.organization.application.port.out.MembershipRepository;
@@ -47,7 +52,13 @@ class OrganizationModuleTest {
     private CreateOrganizationUseCase create;
 
     @Autowired
+    private ChangeCompanyCodeUseCase changeCompanyCode;
+
+    @Autowired
     private GetOrganizationDetailsUseCase details;
+
+    @Autowired
+    private GetCompanyCodeUseCase companyCodes;
 
     @Autowired
     private UpdateOrganizationDetailsUseCase update;
@@ -91,6 +102,44 @@ class OrganizationModuleTest {
         assertThatThrownBy(() -> details.get(new GetOrganizationDetailsQuery(307L, created.organizationId())))
                 .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
                         .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
+    }
+
+    @Test
+    void ownerReadsCommittedCompanyCodeAndOtherAccountCannot() {
+        var created = create.create(new CreateOrganizationCommand(309L, "코드 조회 회사", null));
+
+        var result = companyCodes.get(new GetCompanyCodeQuery(309L, created.organizationId()));
+
+        assertThat(result.organizationId()).isEqualTo(created.organizationId());
+        assertThat(result.code()).isEqualTo(created.code());
+        assertThatThrownBy(() -> companyCodes.get(new GetCompanyCodeQuery(310L, created.organizationId())))
+                .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
+                        .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
+    }
+
+    @Test
+    void ownerChangesCompanyCodeAndReadsNewValueWhileOtherAccountCannotChangeIt() {
+        var created = create.create(new CreateOrganizationCommand(311L, "코드 변경 회사", Industry.OTHER));
+        var ownerId = new MembershipId(created.membershipId());
+        var before = companyCodes.get(new GetCompanyCodeQuery(311L, created.organizationId()));
+        assertThat(before.code()).isEqualTo(created.code());
+
+        var changed = changeCompanyCode.change(new ChangeCompanyCodeCommand(311L, created.organizationId()));
+        var reread = companyCodes.get(new GetCompanyCodeQuery(311L, created.organizationId()));
+        var organization = organizations
+                .findById(new OrganizationId(created.organizationId()))
+                .orElseThrow();
+
+        assertThat(changed).isEqualTo(reread);
+        assertThat(changed.code()).isNotEqualTo(created.code());
+        assertThat(organization.name().value()).isEqualTo("코드 변경 회사");
+        assertThat(organization.industry()).isEqualTo(Industry.OTHER);
+        assertThat(organization.ownerMembershipId()).isEqualTo(ownerId);
+        assertThatThrownBy(() -> changeCompanyCode.change(new ChangeCompanyCodeCommand(312L, created.organizationId())))
+                .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
+                        .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
+        assertThat(companyCodes.get(new GetCompanyCodeQuery(311L, created.organizationId())))
+                .isEqualTo(changed);
     }
 
     @Test
@@ -156,6 +205,31 @@ class OrganizationModuleTest {
         assertThat(organizations.findById(attemptedOrganizationId)).isEmpty();
         assertThat(memberships.findByOrganizationAndAccount(attemptedOrganizationId, new AuthAccountId(305L)))
                 .isEmpty();
+    }
+
+    @Test
+    void changingToAnotherCurrentCodeMapsDatabaseConflictAndKeepsPreviousCode() {
+        var existing = create.create(new CreateOrganizationCommand(313L, "기존 코드 회사", null));
+        var changing = create.create(new CreateOrganizationCommand(314L, "변경 대상 회사", null));
+        var duplicateCode = new CompanyCode(existing.code());
+        doReturn(duplicateCode).when(codes).generate();
+        doReturn(false).when(organizations).existsByCode(duplicateCode);
+
+        assertThatThrownBy(
+                        () -> changeCompanyCode.change(new ChangeCompanyCodeCommand(314L, changing.organizationId())))
+                .isInstanceOfSatisfying(BusinessException.class, error -> {
+                    assertThat(error.getErrorCode()).isEqualTo(OrganizationErrorCode.COMPANY_CODE_CONFLICT);
+                    assertThat(error.getErrorCode().getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+                });
+
+        assertThat(companyCodes
+                        .get(new GetCompanyCodeQuery(314L, changing.organizationId()))
+                        .code())
+                .isEqualTo(changing.code());
+        assertThat(companyCodes
+                        .get(new GetCompanyCodeQuery(313L, existing.organizationId()))
+                        .code())
+                .isEqualTo(existing.code());
     }
 
     private Throwable rootCause(Throwable failure) {

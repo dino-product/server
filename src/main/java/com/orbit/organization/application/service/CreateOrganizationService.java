@@ -17,7 +17,6 @@ import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationIdentityPort;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.AuthAccountId;
-import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationName;
@@ -25,8 +24,6 @@ import com.orbit.shared.error.BusinessException;
 
 @Service
 public class CreateOrganizationService implements CreateOrganizationUseCase {
-    private static final int MAX_CODE_ATTEMPTS = 5;
-
     private final OrganizationRepository organizations;
     private final MembershipRepository memberships;
     private final OrganizationIdentityPort identities;
@@ -54,7 +51,7 @@ public class CreateOrganizationService implements CreateOrganizationUseCase {
         var name = OrganizationRuleViolations.call(() -> new OrganizationName(command.name()));
         var organizationId = identities.nextOrganizationId();
         var membershipId = identities.nextMembershipId();
-        var code = nextAvailableCode();
+        var code = CompanyCodes.nextAvailableCode(codes, organizations);
         Instant joinedAt = clock.instant();
         var owner = OrganizationRuleViolations.call(
                 () -> Membership.create(membershipId, organizationId, accountId, null, joinedAt));
@@ -69,15 +66,5 @@ public class CreateOrganizationService implements CreateOrganizationUseCase {
             throw new BusinessException(OrganizationErrorCode.COMPANY_CODE_CONFLICT, conflict);
         }
         return new CreatedOrganizationInfo(organizationId.value(), membershipId.value(), code.value());
-    }
-
-    private CompanyCode nextAvailableCode() {
-        for (int attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
-            var code = codes.generate();
-            if (!organizations.existsByCode(code)) {
-                return code;
-            }
-        }
-        throw new BusinessException(OrganizationErrorCode.COMPANY_CODE_EXHAUSTED);
     }
 }
