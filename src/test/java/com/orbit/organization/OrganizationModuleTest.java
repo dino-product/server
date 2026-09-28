@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -204,6 +205,31 @@ class OrganizationModuleTest {
         assertThat(organizations.findById(attemptedOrganizationId)).isEmpty();
         assertThat(memberships.findByOrganizationAndAccount(attemptedOrganizationId, new AuthAccountId(305L)))
                 .isEmpty();
+    }
+
+    @Test
+    void changingToAnotherCurrentCodeMapsDatabaseConflictAndKeepsPreviousCode() {
+        var existing = create.create(new CreateOrganizationCommand(313L, "기존 코드 회사", null));
+        var changing = create.create(new CreateOrganizationCommand(314L, "변경 대상 회사", null));
+        var duplicateCode = new CompanyCode(existing.code());
+        doReturn(duplicateCode).when(codes).generate();
+        doReturn(false).when(organizations).existsByCode(duplicateCode);
+
+        assertThatThrownBy(
+                        () -> changeCompanyCode.change(new ChangeCompanyCodeCommand(314L, changing.organizationId())))
+                .isInstanceOfSatisfying(BusinessException.class, error -> {
+                    assertThat(error.getErrorCode()).isEqualTo(OrganizationErrorCode.COMPANY_CODE_CONFLICT);
+                    assertThat(error.getErrorCode().getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+                });
+
+        assertThat(companyCodes
+                        .get(new GetCompanyCodeQuery(314L, changing.organizationId()))
+                        .code())
+                .isEqualTo(changing.code());
+        assertThat(companyCodes
+                        .get(new GetCompanyCodeQuery(313L, existing.organizationId()))
+                        .code())
+                .isEqualTo(existing.code());
     }
 
     private Throwable rootCause(Throwable failure) {
