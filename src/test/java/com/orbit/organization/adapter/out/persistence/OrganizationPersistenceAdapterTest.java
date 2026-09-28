@@ -117,6 +117,59 @@ class OrganizationPersistenceAdapterTest extends IntegrationTestSupport {
     }
 
     @Test
+    void changesCompanyCodeAfterCommitWhileKeepingMembership() {
+        var pair = newPair(new AuthAccountId(112L));
+        var oldCode = pair.organization.code();
+        var newCode = codeFor(identities.nextOrganizationId());
+        transaction().executeWithoutResult(status -> savePair(pair));
+
+        transaction().executeWithoutResult(status -> {
+            var organization =
+                    organizations.findByIdForUpdate(pair.organization.id()).orElseThrow();
+            organization.changeCode(newCode);
+            organizations.update(organization);
+            organizations.flush();
+        });
+
+        transaction().executeWithoutResult(status -> {
+            var restored = organizations.findById(pair.organization.id()).orElseThrow();
+            assertThat(restored.code()).isEqualTo(newCode);
+            assertThat(organizations.existsByCode(oldCode)).isFalse();
+            assertThat(organizations.existsByCode(newCode)).isTrue();
+            var restoredMembership = memberships
+                    .findByOrganizationAndAccount(pair.organization.id(), pair.membership.authAccountId())
+                    .orElseThrow();
+            assertThat(restoredMembership.id()).isEqualTo(pair.membership.id());
+            assertThat(restoredMembership.active()).isTrue();
+        });
+    }
+
+    @Test
+    void changingToAnotherOrganizationsCurrentCodeFailsAtFlush() {
+        var first = newPair(new AuthAccountId(113L));
+        var second = newPair(new AuthAccountId(114L));
+        transaction().executeWithoutResult(status -> {
+            savePair(first);
+            savePair(second);
+        });
+
+        var failure = catchThrowable(() -> transaction().executeWithoutResult(status -> {
+            var organization =
+                    organizations.findByIdForUpdate(second.organization.id()).orElseThrow();
+            organization.changeCode(first.organization.code());
+            organizations.update(organization);
+            organizations.flush();
+        }));
+
+        assertThat(failure).isInstanceOf(CompanyCodeConflictException.class);
+        assertThat(organizations
+                        .findById(second.organization.id())
+                        .orElseThrow()
+                        .code())
+                .isEqualTo(second.organization.code());
+    }
+
+    @Test
     void forUpdateReadHoldsTheOrganizationRowUntilTransactionEnds() throws Exception {
         var pair = newPair(new AuthAccountId(111L));
         transaction().executeWithoutResult(status -> savePair(pair));

@@ -19,8 +19,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
+import com.orbit.organization.application.port.in.command.ChangeCompanyCodeUseCase;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.UpdateOrganizationDetailsUseCase;
+import com.orbit.organization.application.port.in.command.dto.ChangeCompanyCodeCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationDetailsCommand;
 import com.orbit.organization.application.port.in.query.GetCompanyCodeUseCase;
@@ -47,6 +49,9 @@ import com.orbit.support.TestcontainersConfiguration;
 class OrganizationModuleTest {
     @Autowired
     private CreateOrganizationUseCase create;
+
+    @Autowired
+    private ChangeCompanyCodeUseCase changeCompanyCode;
 
     @Autowired
     private GetOrganizationDetailsUseCase details;
@@ -109,6 +114,31 @@ class OrganizationModuleTest {
         assertThatThrownBy(() -> companyCodes.get(new GetCompanyCodeQuery(310L, created.organizationId())))
                 .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
                         .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
+    }
+
+    @Test
+    void ownerChangesCompanyCodeAndReadsNewValueWhileOtherAccountCannotChangeIt() {
+        var created = create.create(new CreateOrganizationCommand(311L, "코드 변경 회사", Industry.OTHER));
+        var ownerId = new MembershipId(created.membershipId());
+        var before = companyCodes.get(new GetCompanyCodeQuery(311L, created.organizationId()));
+        assertThat(before.code()).isEqualTo(created.code());
+
+        var changed = changeCompanyCode.change(new ChangeCompanyCodeCommand(311L, created.organizationId()));
+        var reread = companyCodes.get(new GetCompanyCodeQuery(311L, created.organizationId()));
+        var organization = organizations
+                .findById(new OrganizationId(created.organizationId()))
+                .orElseThrow();
+
+        assertThat(changed).isEqualTo(reread);
+        assertThat(changed.code()).isNotEqualTo(created.code());
+        assertThat(organization.name().value()).isEqualTo("코드 변경 회사");
+        assertThat(organization.industry()).isEqualTo(Industry.OTHER);
+        assertThat(organization.ownerMembershipId()).isEqualTo(ownerId);
+        assertThatThrownBy(() -> changeCompanyCode.change(new ChangeCompanyCodeCommand(312L, created.organizationId())))
+                .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.getErrorCode())
+                        .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_OWNER));
+        assertThat(companyCodes.get(new GetCompanyCodeQuery(311L, created.organizationId())))
+                .isEqualTo(changed);
     }
 
     @Test
