@@ -1,11 +1,11 @@
 # Spring Modulith Backend Template
 
-새 백엔드 프로젝트의 출발점으로 사용하는 단일 JAR 모듈러 모놀리스 템플릿입니다. `user`·`auth` 예제로 DDD 모듈 경계, 내부 Hexagonal Architecture, 공개 API와 비동기 이벤트 연동을 보여줍니다.
+새 백엔드 프로젝트의 출발점으로 사용하는 단일 JAR 모듈러 모놀리스 템플릿입니다. `user` 예제와 `auth`의 카카오 OIDC 로그인으로 DDD 모듈 경계, 내부 Hexagonal Architecture, 공개 API와 비동기 이벤트 연동을 보여줍니다.
 
 ## 기술 스택
 
 Java 21 · Spring Boot · Spring Modulith · Gradle Kotlin DSL. 정확한 버전은 [버전 카탈로그](gradle/libs.versions.toml)와 [빌드 설정](build.gradle.kts)에서 관리합니다.
-Spring MVC/Validation/Security/Actuator/OpenAPI, Spring Data JPA/QueryDSL/PostgreSQL을 사용합니다.
+Spring MVC/Validation/Security/Actuator/OpenAPI, Spring Data JPA/QueryDSL/PostgreSQL, Spring Data Redis를 사용합니다.
 테스트는 JUnit Jupiter(Boot BOM 관리), Mockito, Modulith Test, Testcontainers입니다.
 
 ## 빠른 시작
@@ -16,12 +16,12 @@ JDK 21과 Docker/Compose가 필요합니다. 별도 Gradle 설치 없이 Wrapper
 
 ```bash
 cp .env.example .env
-docker compose --env-file .env up -d postgres
+docker compose --env-file .env up -d postgres redis
 set -a && source .env && set +a
 ./gradlew bootRun
 ```
 
-활성 프로필은 자동 선택하지 않습니다. 위 명령은 `.env`의 `SPRING_PROFILES_ACTIVE=local`을 적용합니다. 로컬/테스트는 `create-drop`이므로 보존할 데이터를 넣지 마세요.
+활성 프로필은 자동 선택하지 않습니다. 위 명령은 `.env`의 `SPRING_PROFILES_ACTIVE=local`을 적용합니다. 로컬/테스트는 `create-drop`이므로 보존할 데이터를 넣지 마세요. 카카오 로그인을 실제로 쓰려면 `.env`의 `KAKAO_ALLOWED_AUDIENCES`를 카카오 개발자 콘솔의 앱 키로, `AUTH_JWT_SECRET`을 무작위 값으로 바꿉니다([Auth 설정](docs/domain/auth.md#설정)).
 
 기본 포트: API `8080`, Actuator `9090`.
 
@@ -29,7 +29,7 @@ set -a && source .env && set +a
 - Health: `http://localhost:9090/actuator/health`
 - Prometheus: `http://localhost:9090/actuator/prometheus`
 
-예제 API와 Health는 공개이고 Prometheus·Info는 인증이 필요합니다. 실행 전 [Auth의 인증 지원 범위](docs/domain/auth.md#책임과-범위)를 확인하고 운영 수집기의 인증·접근 정책을 구성해야 합니다.
+예제 API·카카오 로그인 경로·Health는 공개이고 그 밖의 API와 Prometheus·Info는 Bearer Access Token이 필요합니다. 실행 전 [Auth의 인증 지원 범위](docs/domain/auth.md#책임과-범위)를 확인하고 운영 수집기의 인증·접근 정책을 구성해야 합니다.
 
 ## 예제 API
 
@@ -39,6 +39,13 @@ curl -X POST http://localhost:8080/api/v1/users \
   -d '{"displayName":"홍길동"}'
 
 curl http://localhost:8080/api/v1/auth/examples/subjects/1
+
+# 카카오 SDK 로그인 직전 nonce 발급 → id_token 제출 → Bearer 사용
+curl -X POST http://localhost:8080/api/v1/auth/kakao/nonces
+curl -X POST http://localhost:8080/api/v1/auth/kakao/login \
+  -H 'Content-Type: application/json' \
+  -d '{"idToken":"<카카오 id_token>"}'
+curl http://localhost:8080/api/v1/auth/me -H 'Authorization: Bearer <accessToken>'
 ```
 
 ## 아키텍처
