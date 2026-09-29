@@ -6,9 +6,9 @@
 
 | 모듈 | 소유 책임 | 공개 계약 | 허용 의존성 |
 | --- | --- | --- | --- |
-| `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`) | 없음 |
+| `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`), `shared::security` (`SecurityFilterChainCustomizer`, `ApiErrorResponseWriter`) | 없음 |
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
-| `auth` | subject 조회 예제와 등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `user` |
+| `auth` | 카카오 OIDC 로그인, 계정(`Account`) 발급·조회, Access Token 발급·검증·로그아웃과 예제 subject 조회·등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `shared::security`, `user` |
 | `organization` | 골격 — 조직·직원 소속·기사 계약·참여 요청 관리 예정 | 없음 | 없음 |
 | `schedule` | 작업 생애주기 — 현재 `domain`(Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책)만 구현 | 없음 | 없음 |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |
@@ -22,7 +22,7 @@
 | 대상 경로 (저장소 루트 기준) | 추가 지침 → 계약 원본 | 확인할 내용 |
 | --- | --- | --- |
 | `src/main/java/com/orbit/user/**` | [user 지침](../../src/main/java/com/orbit/user/AGENTS.md) → [User](user.md) | 불변식·공개 정보·발행 시점과 auth 영향 |
-| `src/main/java/com/orbit/auth/**` | [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md) → [Auth](auth.md) | 예제 한계·소유 모델 변환·커밋 후 처리 |
+| `src/main/java/com/orbit/auth/**` | [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md) → [Auth](auth.md) | id_token·nonce·Access Token 검증 조건, 404 정책, 계정 소유 범위, 예제 변환·커밋 후 처리 |
 | `src/main/java/com/orbit/shared/**` | [shared 지침](../../src/main/java/com/orbit/shared/AGENTS.md) → [공개 타입·소비자](#모듈별-책임과-공개-계약)·[공개 경계 규칙](../conventions/architecture/shared.md#shared) | named interface와 내부 구현, 소비 모듈 영향 |
 | `src/main/java/com/orbit/organization/**` | 하위 지침 없음 → [조직 설계](bounded-contexts.md#organization) | 골격만 존재; 조직·직원 소속·기사 계약·참여 요청 소유권과 미결정 정책 |
 | `src/main/java/com/orbit/schedule/**` | [schedule 지침](../../src/main/java/com/orbit/schedule/AGENTS.md) → [작업 설계](bounded-contexts.md#schedule)·[작업 상태·배정 정책](bounded-contexts.md#schedule-policies) | `domain`만 구현; 상태 전이·배정 이력 불변식과 organization ID 참조 경계 |
@@ -31,4 +31,4 @@
 
 모듈 목록·책임 요약·허용 의존성은 이 지도, 공개 타입·필드·동작은 개별 모듈 문서가 소유합니다. 새 모듈은 지도에 진입점을 추가하고 상세 계약은 해당 문서에 기록합니다. 같은 타입 목록을 지도·하위 지침에 복제하지 않습니다. 별도 문서가 없는 shared의 공개 타입 목록은 [모듈별 책임과 공개 계약](#모듈별-책임과-공개-계약) 표가 소유합니다.
 
-검증할 때는 [집중 검사 표](../conventions/testing/selection.md#selection)를 적용합니다. `user`·`auth`는 구조를 보여주는 예제이며, 새 프로젝트에서는 실제 유스케이스와 데이터 소유권에 맞춰 교체합니다.
+검증할 때는 [집중 검사 표](../conventions/testing/selection.md#selection)를 적용합니다. `user`와 `auth`의 subject 조회·이벤트 후속 처리는 구조를 보여주는 예제이며, 새 프로젝트에서는 실제 유즈케이스와 데이터 소유권에 맞춰 교체합니다.
