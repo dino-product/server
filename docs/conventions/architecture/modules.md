@@ -8,6 +8,7 @@ com.orbit
 ├── shared
 │   ├── error          # named interface
 │   ├── openapi        # named interface
+│   ├── security       # named interface
 │   └── internal
 └── {business-module}
     ├── package-info.java
