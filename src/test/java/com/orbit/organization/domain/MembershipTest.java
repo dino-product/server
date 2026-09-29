@@ -31,6 +31,41 @@ class MembershipTest {
     }
 
     @Test
+    void reconstitutesStoredTypeAndInactiveStateWithoutATypeObject() {
+        var id = new MembershipId(7L);
+        var accountId = new AuthAccountId(2L);
+        var typeId = new StaffTypeId(9L);
+
+        var relation = Membership.reconstitute(id, ORGANIZATION, accountId, typeId, NOW, false);
+
+        assertThat(relation.id()).isEqualTo(id);
+        assertThat(relation.organizationId()).isEqualTo(ORGANIZATION);
+        assertThat(relation.authAccountId()).isEqualTo(accountId);
+        assertThat(relation.typeId()).isEqualTo(typeId);
+        assertThat(relation.joinedAt()).isEqualTo(NOW);
+        assertThat(relation.active()).isFalse();
+
+        var untyped = Membership.reconstitute(id, ORGANIZATION, accountId, null, NOW, true);
+        assertThat(untyped.typeId()).isNull();
+        assertThat(untyped.active()).isTrue();
+    }
+
+    @Test
+    void rejectsMissingRequiredStoredMembershipFields() {
+        var id = new MembershipId(7L);
+        var accountId = new AuthAccountId(2L);
+
+        assertThatThrownBy(() -> Membership.reconstitute(null, ORGANIZATION, accountId, null, NOW, false))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Membership.reconstitute(id, null, accountId, null, NOW, false))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Membership.reconstitute(id, ORGANIZATION, null, null, NOW, false))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Membership.reconstitute(id, ORGANIZATION, accountId, null, null, false))
+                .isInstanceOf(OrganizationRuleViolation.class);
+    }
+
+    @Test
     void assignsAndClearsOptionalType() {
         var type = type(ORGANIZATION);
         var relation = create(type);

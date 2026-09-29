@@ -30,7 +30,20 @@ class ApplicationProfileConfigurationTest {
             assertThat(environment.getProperty("spring.datasource.url"))
                     .isEqualTo("jdbc:postgresql://localhost:54321/postgres");
             assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("create-drop");
+            assertThat(environment.getProperty("spring.jpa.properties.jakarta.persistence.sql-load-script-source"))
+                    .isEqualTo("db/organization-schema.sql");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("true");
+        }
+    }
+
+    @Test
+    void testProfileUsesOrganizationSchemaScript() {
+        try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=test")) {
+            Environment environment = context.getEnvironment();
+
+            assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("create-drop");
+            assertThat(environment.getProperty("spring.jpa.properties.jakarta.persistence.sql-load-script-source"))
+                    .isEqualTo("db/organization-schema.sql");
         }
     }
 
@@ -61,6 +74,8 @@ class ApplicationProfileConfigurationTest {
             Environment environment = context.getEnvironment();
 
             assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(environment.getProperty("spring.jpa.properties.jakarta.persistence.sql-load-script-source"))
+                    .isNull();
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
         }
@@ -72,10 +87,23 @@ class ApplicationProfileConfigurationTest {
             Environment environment = context.getEnvironment();
 
             assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(environment.getProperty("spring.jpa.properties.jakarta.persistence.sql-load-script-source"))
+                    .isNull();
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
             assertThatThrownBy(() -> environment.getRequiredProperty("spring.datasource.url"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("DATABASE_URL");
+        }
+    }
+
+    @Test
+    void prodProfileCannotBeOverriddenByTestProfile() {
+        try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=prod,test")) {
+            Environment environment = context.getEnvironment();
+
+            assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(environment.getProperty("spring.jpa.properties.jakarta.persistence.sql-load-script-source"))
+                    .isNull();
         }
     }
 

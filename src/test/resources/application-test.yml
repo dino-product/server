@@ -1,8 +1,13 @@
 spring:
+  config:
+    activate:
+      on-profile: "test & !prod"
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: create-drop
+    properties:
+      jakarta.persistence.sql-load-script-source: db/organization-schema.sql
   docker:
     compose:
       enabled: false

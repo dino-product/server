@@ -7,5 +7,6 @@
 - `prod,local` 동시 지정에도 로컬 설정이 활성화되지 않도록 프로필 표현식으로 보호합니다. 운영 OpenAPI UI는 비활성화합니다.
 - 설정은 `application-{profile}.yml`로 분리하고 공통 설정을 중복하지 않습니다.
 - 현재 마이그레이션 도구는 없습니다. 운영 배포 전에 마이그레이션 전략을 ADR로 결정합니다.
+- 로컬·테스트의 `create-drop` 직후 `db/organization-schema.sql`을 실행해 조직·직원 소속 ID 시퀀스와 지연 검사 순환 FK를 만듭니다. `prod` 및 `prod,local`·`prod,test` 조합에는 이 스크립트를 적용하지 않습니다. 운영 스키마 적용 방식은 마이그레이션 ADR에서 결정합니다.
 
 실행 명령: [빠른 시작](../../../README.md#빠른-시작). 참고: [영속성 결정](../../adr/001-backend-architecture.md#영속성과-이벤트).

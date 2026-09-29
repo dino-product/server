@@ -9,7 +9,7 @@ public final class Membership {
     private final AuthAccountId authAccountId;
     private final Instant joinedAt;
     private StaffTypeId typeId;
-    private boolean active = true;
+    private boolean active;
 
     private Membership(
             MembershipId id,
@@ -17,14 +17,26 @@ public final class Membership {
             AuthAccountId authAccountId,
             StaffType type,
             Instant joinedAt) {
+        this(id, organizationId, authAccountId, null, joinedAt, true);
+        changeType(type);
+    }
+
+    private Membership(
+            MembershipId id,
+            OrganizationId organizationId,
+            AuthAccountId authAccountId,
+            StaffTypeId typeId,
+            Instant joinedAt,
+            boolean active) {
         if (id == null || organizationId == null || authAccountId == null || joinedAt == null) {
             throw new OrganizationRuleViolation("relationship fields must not be null");
         }
         this.id = id;
         this.organizationId = organizationId;
         this.authAccountId = authAccountId;
+        this.typeId = typeId;
         this.joinedAt = joinedAt;
-        changeType(type);
+        this.active = active;
     }
 
     public static Membership create(
@@ -34,6 +46,17 @@ public final class Membership {
             StaffType type,
             Instant joinedAt) {
         return new Membership(id, organizationId, authAccountId, type, joinedAt);
+    }
+
+    /** 저장된 유형 ID와 활성 상태를 보존하고 현재 유형 정책은 다시 검사하지 않는다. */
+    public static Membership reconstitute(
+            MembershipId id,
+            OrganizationId organizationId,
+            AuthAccountId authAccountId,
+            StaffTypeId typeId,
+            Instant joinedAt,
+            boolean active) {
+        return new Membership(id, organizationId, authAccountId, typeId, joinedAt, active);
     }
 
     public void changeType(StaffType type) {

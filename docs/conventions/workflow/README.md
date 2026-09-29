@@ -5,15 +5,14 @@
 
 | 작업 조건 | 진입점 |
 | --- | --- |
-| 구현 전 변경 단위 계획 | [체크포인트](checkpoints.md#checkpoints)·[기능 PR 계획](pull-requests/planning.md#planning) |
+| 구현 전 변경 단위 계획 | [체크포인트](commits.md#checkpoints)·[기능 PR 계획](pull-requests/planning.md#planning) |
 | 브랜치·스테이징·커밋 | [커밋](commits.md#commits) |
 | 유형 선택 | [작업 유형](change-types.md#change-types) |
 | 확인 대상 실행 | [행위별 승인](approvals/README.md#approvals) |
-| 이슈 초안·작성 | [이슈](issues/writing.md#writing)·[양식](issues/forms.md#forms) |
+| 이슈 초안·작성 | [이슈 양식·작성](issues/forms.md#forms) |
 | 라벨 지정 | [라벨](labels.md#labels) |
 | PR 초안·작성 | [PR](pull-requests/writing.md#writing) |
-| AI 게시물 작성 | [공통 작성](publishing.md#publishing) |
-| 선행 PR 변경·반영 | [stack 관리](pull-requests/maintenance.md#maintenance) |
-| PR 크기 판단 / 리뷰 | [크기](review/size.md#size) / [리뷰 절차](review/procedure.md#procedure) |
+| 선행 PR 변경·반영 | [stack 관리](pull-requests/planning.md#maintenance) |
+| PR 크기 판단 / 리뷰 | [크기](pull-requests/planning.md#size) / [리뷰 절차](review/procedure.md#procedure) |
 | 자동 리뷰·규약 검사 운영 | [자동 리뷰](review/automation.md#automation) |
 | 라벨 저장소 적용 | [적용](labels.md#저장소-적용) |

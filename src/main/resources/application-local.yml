@@ -9,6 +9,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+    properties:
+      jakarta.persistence.sql-load-script-source: db/organization-schema.sql
 
 decorator:
   datasource:

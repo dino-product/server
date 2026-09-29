@@ -31,6 +31,39 @@ class OrganizationTest {
         assertThat(organization.isManagedBy(owner)).isFalse();
     }
 
+    @Test
+    void reconstitutesStoredDetailsWithoutAnOwnerObject() {
+        var name = new OrganizationName("저장된 회사");
+        var code = new CompanyCode("C0DE1234");
+        var ownerId = new MembershipId(17L);
+
+        var organization = Organization.reconstitute(ID, name, Industry.OTHER, code, ownerId);
+
+        assertThat(organization.id()).isEqualTo(ID);
+        assertThat(organization.name()).isEqualTo(name);
+        assertThat(organization.industry()).isEqualTo(Industry.OTHER);
+        assertThat(organization.code()).isEqualTo(code);
+        assertThat(organization.ownerMembershipId()).isEqualTo(ownerId);
+        assertThat(Organization.reconstitute(ID, name, null, code, ownerId).industry())
+                .isNull();
+    }
+
+    @Test
+    void rejectsMissingRequiredStoredOrganizationFields() {
+        var name = new OrganizationName("저장된 회사");
+        var code = new CompanyCode("C0DE1234");
+        var ownerId = new MembershipId(17L);
+
+        assertThatThrownBy(() -> Organization.reconstitute(null, name, null, code, ownerId))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Organization.reconstitute(ID, null, null, code, ownerId))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Organization.reconstitute(ID, name, null, null, ownerId))
+                .isInstanceOf(OrganizationRuleViolation.class);
+        assertThatThrownBy(() -> Organization.reconstitute(ID, name, null, code, null))
+                .isInstanceOf(OrganizationRuleViolation.class);
+    }
+
     @ParameterizedTest
     @EnumSource(Industry.class)
     void changesDetailsAndClearsOptionalIndustry(Industry industry) {
@@ -46,8 +79,8 @@ class OrganizationTest {
     void changesCompanyCodeWithoutChangingOwnership() {
         var owner = member(1L, ID);
         var organization = create(owner);
-        organization.changeCode(new CompanyCode("new-code"));
-        assertThat(organization.code().value()).isEqualTo("new-code");
+        organization.changeCode(new CompanyCode("NEWC0DE1"));
+        assertThat(organization.code().value()).isEqualTo("NEWC0DE1");
         assertThat(organization.ownerMembershipId()).isEqualTo(owner.id());
     }
 
@@ -96,6 +129,17 @@ class OrganizationTest {
         assertThat(new OrganizationName("가".repeat(length)).value()).hasSize(length);
     }
 
+    @Test
+    void reconstitutesLegacyNameWithoutTrimmingOrApplyingCurrentInputRule() {
+        var restored = OrganizationName.reconstitute(" A ");
+
+        assertThat(restored.value()).isEqualTo(" A ");
+        assertThat(restored).isEqualTo(OrganizationName.reconstitute(" A "));
+        assertThat(restored.hashCode())
+                .isEqualTo(OrganizationName.reconstitute(" A ").hashCode());
+        assertThatThrownBy(() -> OrganizationName.reconstitute(null)).isInstanceOf(OrganizationRuleViolation.class);
+    }
+
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"", " ", "가", "가나다라마바사아자차카타파하가나다라마바사아자차카타파하가나다"})
@@ -114,7 +158,7 @@ class OrganizationTest {
     void rejectsMissingFieldsAndPreservesDetailsOnFailure() {
         var owner = member(1L, ID);
         var name = new OrganizationName("오빗");
-        var code = new CompanyCode("code");
+        var code = new CompanyCode("C0DE1234");
         assertThatThrownBy(() -> Organization.create(null, name, null, code, owner))
                 .isInstanceOf(OrganizationRuleViolation.class);
         assertThatThrownBy(() -> Organization.create(ID, null, null, code, owner))
@@ -131,7 +175,7 @@ class OrganizationTest {
     }
 
     private Organization create(Membership owner) {
-        return Organization.create(ID, new OrganizationName("오빗"), null, new CompanyCode("code"), owner);
+        return Organization.create(ID, new OrganizationName("오빗"), null, new CompanyCode("C0DE1234"), owner);
     }
 
     private Membership member(Long id, OrganizationId organizationId) {
