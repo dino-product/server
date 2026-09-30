@@ -43,4 +43,4 @@ description: src/main/java 아래 Java 코드를 작성·수정·설계할 때 �
 
 - 포맷과 검사: `./gradlew spotlessApply` → `./gradlew spotlessCheck checkstyleMain checkstyleTest` → `./gradlew compileJava compileTestJava`. 테스트는 `dino-testing` 스킬을 따릅니다.
 - 모듈 루트 공개 타입·named interface·이벤트·`allowedDependencies`·Domain/Application 의존성을 바꿨다면 구현 뒤 `module-reviewer` 서브에이전트의 독립 검토가 **필수**입니다.
-- 구조·정책을 바꿨다면 [도메인 지도](../../../docs/domain/README.md)와 관련 ADR을 함께 갱신합니다. 기능 추가만으로 문서를 늘리지 않습니다.
+- **문서는 기본적으로 고치지 않습니다.** 모듈 책임·공개 계약·허용 의존성·모듈 공통 규칙을 바꿨을 때만 [도메인 지도](../../../docs/domain/README.md)·모듈 `AGENTS.md`·관련 ADR을 갱신합니다. 유즈케이스 추가, 권한·필드·흐름 같은 기능 규칙은 노션과 PR의 핵심 다이어그램·구현 내용 표가 설명하므로 도메인 지도·`bounded-contexts.md`·모듈 지침에 행을 추가하지 않습니다.
