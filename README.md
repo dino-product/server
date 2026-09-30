@@ -70,7 +70,7 @@ docs/
 
 - 작업별 규칙·원본·검증 경로: [컨벤션 목차](AGENTS.md#읽기-경로)
 - API 스키마: [OpenAPI](.claude/skills/dino-architecture/references/web.md#controllers)
-- AI 작업 방식: [AGENTS.md](AGENTS.md)
+- AI 작업 방식: [AGENTS.md](AGENTS.md) (Claude Code 스킬 목록은 [도구별 실행](AGENTS.md#delegation))
 - Codex 협업 역할·설정: [협업 안내](docs/agents/collaboration.md#codex-협업-설정)
 - 커밋·브랜치·승인·이슈·라벨·PR과 AI 리뷰: [GitHub 작업 가이드](AGENTS.md#읽기-경로)
 - 구조 선택의 이유와 제약: [현재 ADR 요약](docs/adr/README.md)에서 유효한 결정 확인
