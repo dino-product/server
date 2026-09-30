@@ -148,3 +148,38 @@ class SummaryTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+HOOK = SCRIPTS.parents[1] / ".claude" / "hooks" / "check_commit_message.py"
+
+
+def run_hook(command: str) -> tuple[int, str]:
+    proc = subprocess.run([sys.executable, str(HOOK)], input=json.dumps({"tool_input": {"command": command}}),
+                          capture_output=True, text=True)
+    return proc.returncode, proc.stderr
+
+
+class CommitHookTest(unittest.TestCase):
+    def test_valid_titles_pass(self):
+        for cmd in [
+            'git commit -m "fix(auth): 다른 발급자의 Access Token 거부"',
+            "git commit -q -F - <<'EOF'\nfeat(schedule): 작업 상세 조회 추가\n\n본문.\nEOF",
+            'git commit -m "$(cat <<\'EOF\'\ndocs: 링크 정리\nEOF\n)"',
+        ]:
+            code, err = run_hook(cmd)
+            self.assertEqual(code, 0, err)
+
+    def test_invalid_titles_blocked(self):
+        cases = {
+            'git commit -m "작업 상세 조회 추가"': "형식",
+            'git commit -m "feat(schedule): add work detail"': "한국어",
+            'git commit -m "feat(schedule): 작업 상세 조회를 추가한다"': "명사형",
+        }
+        for cmd, msg in cases.items():
+            code, err = run_hook(cmd)
+            self.assertEqual(code, 2, cmd)
+            self.assertIn(msg, err)
+
+    def test_non_commit_or_unknown_message_passes(self):
+        for cmd in ["git status", "git commit", "git commit --amend --no-edit", "echo git commit-tree"]:
+            self.assertEqual(run_hook(cmd)[0], 0, cmd)
