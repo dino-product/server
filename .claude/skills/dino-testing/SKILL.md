@@ -1,6 +1,6 @@
 ---
 name: dino-testing
-description: 테스트를 작성·수정할 때, 기능·버그 구현 전에 재현(실패) 테스트를 만들 때, 집중 검사나 전체 검증(gradle test·spotless·checkstyle·bootJar)을 실행하고 결과를 보고할 때 사용합니다. 검사 선택표, Testcontainers DB 검사 승인, 완료 기준을 적용합니다.
+description: 테스트 파일을 만들거나 고치기 전, 기능·버그 구현 전에 재현(실패) 테스트를 만들 때, 그리고 `./gradlew test`·spotless·checkstyle·bootJar를 처음 실행하기 전에 사용합니다. 검사 결과를 보고할 때도 사용합니다. 검사 선택표, Testcontainers DB 검사 승인, 완료 기준을 적용합니다.
 ---
 
 # 테스트와 검증
