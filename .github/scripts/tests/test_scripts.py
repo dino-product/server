@@ -192,9 +192,6 @@ class SummaryTest(unittest.TestCase):
         self.assertFalse(summary.same_head(None, "a5384b9"))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 HOOK = SCRIPTS.parents[1] / ".claude" / "hooks" / "check_commit_message.py"
 
@@ -229,3 +226,7 @@ class CommitHookTest(unittest.TestCase):
     def test_non_commit_or_unknown_message_passes(self):
         for cmd in ["git status", "git commit", "git commit --amend --no-edit", "echo git commit-tree"]:
             self.assertEqual(run_hook(cmd)[0], 0, cmd)
+
+
+if __name__ == "__main__":
+    unittest.main()
