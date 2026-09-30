@@ -2,7 +2,7 @@
 
 [루트 지침](../../../../../../AGENTS.md)에 추가 적용합니다. 책임·애그리게잇은 [작업 설계](../../../../../../docs/domain/bounded-contexts.md#schedule), 상태 전이·배정·취소·권한 규칙은 [작업 상태·배정 정책](../../../../../../docs/domain/bounded-contexts.md#schedule-policies)이 원본입니다. 여기에 타입 목록·전이표를 복제하지 않습니다.
 
-- `domain`, `application`, `adapter/out`이 있고 구현 범위는 [도메인 지도](../../../../../../docs/domain/README.md#모듈별-책임과-공개-계약)가 원본입니다. 모듈 루트 공개 계약은 없습니다. `allowedDependencies`는 `shared::error`입니다. 추가할 때 도메인 지도와 허용 의존성을 함께 갱신합니다.
+- `domain`, `application`, `adapter/out`이 있고 구현 범위는 [도메인 지도](../../../../../../docs/domain/README.md#모듈별-책임과-공개-계약)가 원본입니다. 모듈 루트 공개 계약은 없습니다. `allowedDependencies`는 `shared::error`입니다.
 - 출력 포트 구현은 임시입니다: `adapter/out/memory/InMemoryWorkRepository`는 JPA 어댑터(HM-234), `adapter/out/organization/DenyingActorAdapter`(모두 거부)는 organization의 소속·기사 계약 조회 공개 계약으로 교체한 뒤 삭제합니다. 둘 다 `local`·`test` 프로필에서만 등록합니다. 이 포트를 쓰는 서비스(`CreateWorkService` 등)가 있으므로 현재 그 밖의 프로필(`prod`, 프로필 없음)은 Bean 부재로 기동하지 않으며, 이것이 의도입니다. 실제 어댑터를 추가하고 임시 구현을 지우지 않으면 Bean 중복으로 실패하니 `@Primary`로 덮지 않습니다.
 - JPA 어댑터는 `WorkRepository` 계약을 지킵니다: 조회 결과는 영속 상태와 분리된 사본이라 `save`하지 않은 변경은 커밋돼도 저장되지 않아야 하고(배정·재배정·일정 변경의 미확인 겹침이 여기에 기댑니다), 이를 실제 트랜잭션 커밋으로 검증하는 테스트를 둡니다.
 - 기사 일정을 차지하거나 옮기는 유즈케이스(배정·재배정·일정 변경)는 `ScheduleChanges`를 거칩니다. 기사의 활성 작업을 읽어 판정하는 다른 유즈케이스(시작의 동시 수행 판정, 관리자 강제 변경)도 읽기 전에 `TechnicianScheduleLocks`로 같은 기사를 잠급니다. 잠금으로 같은 기사를 동시에 바꾸는 요청을 한 줄로 세웁니다. 구현(`PostgresTechnicianScheduleLockAdapter`)은 PostgreSQL 트랜잭션 advisory lock이라 임시 어댑터와 달리 모든 프로필에서 등록되고, 저장소와 같은 트랜잭션 연결에서만 동작합니다. 대기 한도는 `app.schedule.technician-lock.wait-limit`(기본 2초)입니다.
@@ -12,7 +12,7 @@
 - Domain은 Spring·JPA·Web 타입과 `Clock`에 의존하지 않습니다. 시각은 호출자가 UTC `Instant`로 넘깁니다.
 - 상태는 업무별 메서드로만 바꾸고 상태만 주입하는 경로를 두지 않습니다. 새 전이는 정책 절과 전이 규칙·테스트를 함께 바꿉니다.
 - 배정 이력은 추가만 합니다. 수락·거절로 확정된 결과는 바꾸지 않고 현재 배정은 최신 이력입니다. 관리자 조치로 끝난 배정에는 종료 기록(`AssignmentEnding`)만 더합니다. 저장값 복원도 결과·시각·사유·종료 기록의 정합성을 검증하므로, JPA 저장에는 배정자와 종료(시각·처리자·방식), 작업의 시작·완료 시각과 취소 기록(시각·처리자·사유)을 모두 담습니다.
-- 조직과 조직이 소유한 소속·기사 계약·작업 유형은 ID 값객체로만 참조하고 organization 내부 타입에 의존하지 않습니다. 관리자(조직 소속)와 기사(기사 계약)는 서로 다른 ID로 참조합니다.
+- 조직과 조직이 소유한 소속·기사 계약·작업 유형은 ID 값객체로만 참조합니다. 관리자(조직 소속)와 기사(기사 계약)는 서로 다른 ID로 참조합니다.
 
 ## 오류 순서
 

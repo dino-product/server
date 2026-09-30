@@ -37,7 +37,7 @@
 | 변경 대상 | 공통 계약 |
 | --- | --- |
 | Java | [포맷·명명](docs/conventions/java/style.md#style) |
-| 모듈·계층·외부 정보 소비 | [경계](docs/conventions/architecture/modules.md#modules) / [계층](docs/conventions/architecture/layers.md#layers) / [소비 모델](docs/conventions/architecture/external-models.md#external-models) 중 해당 항목 |
+| 모듈·계층·모듈 간 통신 | [경계](docs/conventions/architecture/modules.md#modules) / [계층](docs/conventions/architecture/layers.md#layers) / [모듈 간 통신](docs/conventions/architecture/communication.md#communication) 중 해당 항목 |
 | Shared·오류 | [Shared](docs/conventions/architecture/shared.md#shared) / [오류](docs/conventions/architecture/errors.md#errors) |
 | 영속성·트랜잭션·이벤트·프로필 | [JPA](docs/conventions/persistence/jpa.md#jpa) / [트랜잭션](docs/conventions/persistence/transactions.md#transactions) / [이벤트](docs/conventions/persistence/events.md#events) / [프로필](docs/conventions/runtime/profiles.md#profiles) |
 | HTTP·Web DTO | [HTTP](docs/conventions/web/http.md#http) / [DTO](docs/conventions/web/dto.md#dto) |
@@ -51,7 +51,7 @@
 ## 핵심 경계
 
 - 비즈니스 모듈은 루트 타입, `shared`는 named interface로 계약을 공개합니다. 내부 타입 공개로 검증을 우회하지 않습니다. Domain은 Spring/JPA/Web·Application/Adapter에 의존하지 않습니다.
-- Controller의 Repository 직접 호출·JPA Entity 반환, 모듈 간 Entity 공유·이유 없는 `shared` 이동을 금지합니다. 소비 의미·정보·규칙이 다르면 자체 Domain 모델을 두고 공개 조회·이벤트를 경계에서 변환합니다.
+- Controller의 Repository 직접 호출·JPA Entity 반환, 모듈 간 Entity 공유·이유 없는 `shared` 이동을 금지합니다. 다른 비즈니스 모듈과는 모듈 루트의 공개 인터페이스·이벤트로만 통신하고 Domain은 다른 모듈 타입을 참조하지 않습니다.
 - 실제 환경값·비밀 파일은 커밋하거나 `src/main/resources`에 배치하지 않습니다. 비밀 없는 `.env.example`은 유지합니다. 생성 Q 클래스·`build/`는 직접 편집하지 않으며 로컬/테스트 외 스키마 자동 변경을 금지합니다.
 - 기능·버그 수정은 재현 테스트의 의도한 실패 확인 → 구현 → 집중 검사 순서를 지킵니다. 구조·정책 변경은 관련 공통 계약·도메인 문서·해당 ADR을 함께 갱신합니다.
 

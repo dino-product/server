@@ -22,6 +22,6 @@ com.orbit
 - 비즈니스 모듈의 공개 계약은 모듈 루트, `shared`는 명시적 `@NamedInterface`에 둡니다. 다른 모듈의 `domain`, `application`, `adapter` 접근과 모듈 간 JPA Entity 공유는 금지합니다.
 - `package-info.java`의 `allowedDependencies`는 실제 의존성만 `shared::error`처럼 한정합니다. `shared::*` 일괄 허용은 금지합니다.
 - 내부 타입 공개로 검증을 우회하지 않고 필요한 최소 계약을 설계합니다.
-- 즉시 응답은 공개 인터페이스, 완료 사실 전파는 공개 이벤트를 사용합니다.
+- 다른 모듈과의 통신 방식과 선택 기준은 [모듈 간 통신](communication.md#communication)을 따릅니다.
 
 참고: [배포와 모듈 경계 결정](../../adr/001-backend-architecture.md#배포와-모듈-경계).

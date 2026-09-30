@@ -2,10 +2,10 @@
 # 바운디드 컨텍스트 지도 (P1~P4)
 
 - 상태: 설계 초안 — P1은 모듈 골격 생성과 `schedule`의 도메인·일부 Application·Adapter 구현, P2~P4는 코드 없음
-- 기준일: 2026-09-24
+- 기준일: 2026-10-01
 - 기준 자료: 기획/기획안.md(오빗 서비스 기획서), [오빗 유즈케이스 분리안](../planning/use-cases.md)
 
-이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter([작업 상태·배정 정책](#schedule-policies) 포함, 구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없고, 계획된 관계를 구현할 때 필요한 공개 계약과 의존성을 함께 추가한다.
+이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter([작업 상태·배정 정책](#schedule-policies) 포함, 구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없다.
 
 ## 범례
 
@@ -13,7 +13,7 @@
 | --- | --- |
 | **서브도메인** | Core(핵심 경쟁력) / Supporting(핵심을 돕는) / Generic(범용) |
 | **상태** | `구현 중` — `domain`과 일부 Application·Adapter가 있으나 공개 계약·완성된 유즈케이스는 없음 / `골격 생성` — 모듈 루트의 `package-info.java`만 존재, 도메인 코드 없음 / `미착수` — 폴더도 없음 |
-| **관계 표기** | `참조(ID)` — 동기 조회, 상대 공개 계약만 호출 / `이벤트` — 비동기, Published Language / `ACL` — 상대 모델을 자기 언어로 번역해 수용 |
+| **관계 표기** | `참조(ID)` — 동기 조회 / `이벤트` — 비동기, Published Language / `ACL` — 상대 모델을 자기 언어로 번역해 수용 / `Conformist` — 상대 계약을 그대로 수용. 통신 방식과 ACL 적용 규칙은 [모듈 간 통신](../conventions/architecture/communication.md#communication)을 따른다 |
 
 ---
 
@@ -38,7 +38,7 @@
 | 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 회사 참여 요청, 조직 소속(Membership) 관리 |
 | 상태 | 골격 생성 (`package-info.java`만 존재) |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유, 대기→승인(유형 확정)/거절/취소(사용자)<br>**Membership**(Root) — role(Owner/Staff/Technician)·조직 소속·활성상태, authAccountId를 불투명 참조로만 보유. 사용자는 여러 조직에 소속될 수 있음(N:M), 같은 조직 내 중복 소속·대기 요청만 차단 |
-| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, ACL) · `schedule` → 참조(ID) 제공 (계정·조직으로 Membership 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
+| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, Conformist) · `schedule` → 참조(ID) 제공 (계정·조직으로 Membership 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
 
 **참여 요청을 별도 모듈로 분리하지 않은 이유**: 회사 코드와 참여 요청은 소속 생성 규칙에 포함되고, 승인과 소속 생성이 하나의 유즈케이스에서 함께 성공·실패해야 하므로 `organization` 안의 애그리게잇으로 둔다(`docs/planning/use-cases.md` §3). 요청 생명주기가 복잡해지거나(다중 소속 검증 등) 별도 팀 경계가 필요해지면 그때 모듈 분리를 검토한다.
 
@@ -52,7 +52,7 @@
 | 소유 애그리게잇 | **Work**(Root) — 소속 조직(Organization ID 참조), 작업명(사용자 입력 중 유일한 필수 항목), 등록자(Membership ID 참조)·담당기사(Technician ID 참조), 시간, 상태<br>├ AssignmentHistory(내부 엔티티) — 배정 시도마다 일정·배정한 관리자·배정/응답 시각·결과·관리자 조치로 끝난 기록, 최신 이력이 현재 배정<br>├ CompletionReport(내부 엔티티) — 완료보고(사진·메모·실제 결제), Work와 생명주기 완전히 묶임<br>└ WorkSchedule/CustomerInfo/PaymentInfo/Money/Cancellation(VO) — 담당기사·시작시각·예상소요시간 / 고객정보 / 결제정보 / 원 단위 금액 / 취소 시각·처리자·사유 |
 | 상태 전이 | 등록(대기함) → 수락대기 → 수락됨 → 작업중 → 완료. 거절·배정 해제는 대기함으로 복귀, 취소는 소프트 삭제인 별도 종료 경로 — 상세는 [작업 상태·배정 정책](#schedule-policies) |
 | 읽기 모델 | Timetable/Backlog — **애그리게잇 아님.** Work를 기사×시간 축으로 투영한 조회 결과일 뿐, 자체 쓰기 불변식이 없음 |
-| 관계 | `organization` → 참조(ID) (등록자가 Work의 조직에 속한 활성 Membership인지, 담당기사가 그 조직의 활성 기사 계약인지, 작업 유형이 같은 조직의 WorkType인지 확인, ACL — 도메인은 ID만 보유하므로 Application이 등록·기본정보 수정·배정·재배정 때 검증. 작업 유형은 요청에 값이 있으면(비우지 않았으면) 매번 확인. 일정 변경 때 현재 담당기사를 다시 확인할지는 organization 공개 계약 연결 때 정한다) · `notification` ← 이벤트 발행(작업 상태 변경) |
+| 관계 | `organization` → 참조(ID) (등록자가 Work의 조직에 속한 활성 Membership인지, 담당기사가 그 조직의 활성 기사 계약인지, 작업 유형이 같은 조직의 WorkType인지 확인, ACL — organization의 소속·기사 계약을 schedule의 요청자(`Actor`)로 번역해 역할별 규칙을 적용하기 때문. 도메인은 ID만 보유하므로 Application이 등록·기본정보 수정·배정·재배정 때 검증. 작업 유형은 요청에 값이 있으면(비우지 않았으면) 매번 확인. 일정 변경 때 현재 담당기사를 다시 확인할지는 organization 공개 계약 연결 때 정한다) · `notification` ← 이벤트 발행(작업 상태 변경) |
 
 > **명명 정정**: 기획안 원문·이전 대화에서는 이 애그리게잇을 "Job"이라 불렀으나, 저장소의 기존 계획 문서(`use-cases.md`)가 이미 `*WorkUseCase` 명명을 쓰고 있어 **애그리게잇명은 "Work"로 통일**한다. 이후 모든 문서·코드에서 Job이라는 이름은 쓰지 않는다.
 >
