@@ -51,7 +51,7 @@
 | 문서·구조·정책 | [문서 관리](docs/agents/documents/maintenance.md#maintenance)와 [관련 ADR](docs/adr/README.md) |
 | 이슈·PR·리뷰 | [양식](.claude/skills/dino-issue/references/forms.md#forms) / [PR 계약](.claude/skills/dino-pr/references/writing.md#writing) / [리뷰 기준](.claude/skills/dino-review/references/procedure.md#procedure); 자동 리뷰·규약 검사 변경 시 [운영 계약](.claude/skills/dino-review/references/automation.md#automation) |
 
-실행 문제는 [빠른 시작](README.md#빠른-시작)과 관련 [트러블슈팅](docs/troubleshooting/README.md), 제품 정책은 [기획 초안](docs/planning/use-cases.md)의 관련 유즈케이스·미결정만 확인하고 현재 구현과 구분합니다. Codex 로딩·입력 크기 점검 때만 [문서 탐색](docs/agents/context.md)을, 명령 승인 모드 진단 때만 [실행 정책](docs/agents/execution-policy.md)을 읽습니다.
+실행 문제는 [빠른 시작](README.md#빠른-시작)과 관련 [트러블슈팅](docs/troubleshooting/README.md), 기능·정책은 [노션 기능명세](docs/domain/README.md#노션-기능명세)의 관련 절만 확인하고 현재 구현과 구분합니다. Codex 로딩·입력 크기 점검 때만 [문서 탐색](docs/agents/context.md)을, 명령 승인 모드 진단 때만 [실행 정책](docs/agents/execution-policy.md)을 읽습니다.
 
 ## 핵심 경계
 
