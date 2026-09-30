@@ -130,6 +130,11 @@ class MetadataTest(unittest.TestCase):
         code, out = run_meta("refactor(schedule): 잠금 추출", ["type:refactor"], body("구조 변경", diagram=FLOW))
         self.assertEqual(code, 0, out)
 
+    def test_placeholder_rejected(self):
+        code, out = run_meta("ci: 제목", ["type:ci"], GOOD_BODY.replace("명령과 결과.", "VERIFICATION_PENDING"))
+        self.assertEqual(code, 1)
+        self.assertIn("자리표시자", out)
+
     def test_unknown_or_missing_diagram_rejected(self):
         code, out = run_meta("ci: 제목", ["type:ci"], body("기능 추가"))
         self.assertIn("PR 종류", out)

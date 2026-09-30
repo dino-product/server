@@ -32,6 +32,7 @@ OPTIONAL_SECTIONS = ["## 리뷰 포인트"]
 ISSUE_LINK_RE = re.compile(r"\b(Closes|Refs)\s+#\d+\b|(^|\n)\s*없음\s*($|\n)")
 NOTION_RE = re.compile(r"https://(www\.|app\.)?notion\.(so|site|com)/\S+|https://\S+\.notion\.site/\S+")
 MERMAID_RE = re.compile(r"```mermaid\s*\n\s*(?:%%[^\n]*\n\s*)*(\w+)")
+PLACEHOLDER_RE = re.compile(r"\b(TODO|TBD|FIXME|[A-Z]+_PENDING)\b")
 NONE_RE = re.compile(r"(^|\n)\s*없음\s*($|\n)")
 ANY_DIAGRAM = {"sequenceDiagram", "flowchart", "graph", "classDiagram", "erDiagram", "stateDiagram"}
 # 종류 -> (허용 제목 type, 노션 링크 필수, 허용 다이어그램 또는 None=없음 허용)
@@ -125,6 +126,10 @@ def check_body(body: str, errors: list[str], pr_type: str | None = None) -> None
     for h in REQUIRED_SECTIONS:
         if h in sections and not sections[h].strip():
             errors.append(f"`{h}` 절이 비어 있습니다.")
+    for h, text in sections.items():
+        found = PLACEHOLDER_RE.findall(re.sub(r"```.*?```", "", text, flags=re.S))
+        if found:
+            errors.append(f"`{h}` 절에 자리표시자 {sorted(set(found))} 가 남아 있습니다. 실제 내용으로 채운 뒤 제출합니다.")
     issues = sections.get("## 관련 이슈", "")
     if issues.strip() and not ISSUE_LINK_RE.search(issues):
         errors.append("`## 관련 이슈` 는 `Closes #번호`, `Refs #번호` 또는 `없음` 으로 적습니다.")

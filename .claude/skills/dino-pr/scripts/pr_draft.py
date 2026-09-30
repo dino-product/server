@@ -116,7 +116,7 @@ mermaid.run().then(() => document.body.dataset.rendered = 'ok').catch(e => {{ do
 
 
 def cmd_preview(args) -> int:
-    path = Path(args.draft)
+    path = Path(args.draft).resolve()
     meta, body = parse(path)
     out = path.with_suffix(".html")
     out.write_text(PAGE.format(
