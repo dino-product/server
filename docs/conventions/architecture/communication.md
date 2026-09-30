@@ -41,6 +41,36 @@ Application Service ── 공개 인터페이스 호출 ──▶ 모듈 루트
 - 기본은 Application Service가 제공 모듈의 공개 인터페이스를 주입받아 호출하는 것입니다. 소비 쪽 출력 Port·Adapter를 따로 만들지 않습니다.
 - Domain에는 계약 DTO 대신 필요한 값만 넘깁니다. Domain은 다른 모듈 타입을 참조하지 않으며 외부 DTO를 받는 생성자·변환 메서드를 두지 않습니다. 이 규칙은 `ArchitectureTest`가 검사하지 않으므로 리뷰에서 확인합니다.
 
+기본 방식의 예시입니다. 타입 이름은 설명용이며 실제 계약이 아닙니다.
+
+```java
+// 제공 모듈 루트 (예: com.orbit.organization)
+public interface OrganizationLookup {
+    Optional<OrganizationSummary> findById(Long organizationId);
+}
+
+public record OrganizationSummary(Long organizationId, String name) {}
+
+// 소비 모듈 application/service (com.orbit.{consumer})
+@Service
+public class CreateNoticeService implements CreateNoticeUseCase {
+
+    private final OrganizationLookup organizationLookup; // 소비 쪽 Port 없이 바로 주입
+    private final NoticeRepository noticeRepository;
+
+    // 생성자 생략
+
+    @Override
+    @Transactional
+    public void create(CreateNoticeCommand command) {
+        String organizationName = organizationLookup.findById(command.organizationId())
+                .map(OrganizationSummary::name)
+                .orElseThrow(() -> new BusinessException(NoticeErrorCode.ORGANIZATION_NOT_FOUND));
+        noticeRepository.save(Notice.create(command.title(), organizationName)); // Domain에는 값만
+    }
+}
+```
+
 예외 — ACL:
 
 - 두 모듈의 모델·언어가 크게 달라 소비 모듈의 모델을 보호해야 하면 소비 모듈 `application/port/out`에 자기 언어로 Port를 정의하고, `adapter/out/{제공 모듈}`에서 공개 인터페이스를 호출해 자체 모델로 변환합니다.
