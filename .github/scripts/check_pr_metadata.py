@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PR 제목·라벨·본문 양식의 기계적 규약 검사.
 
-규칙 원본: docs/conventions/workflow/pull-requests/writing.md, labels.md,
+규칙 원본: .claude/skills/dino-pr/references/writing.md, labels.md,
 .github/pull_request_template.md. 크기(약 500줄)·커밋 완결성처럼 맥락 판단이 필요한
 항목은 검사하지 않고 리뷰에 맡긴다.
 
@@ -44,7 +44,7 @@ def check_title(title: str, labels: set[str], errors: list[str]) -> None:
     type_labels = {l for l in labels if l.startswith("type:")}
     if not type_labels:
         errors.append(
-            f"`type:{pr_type}` 라벨이 없습니다. 저장소에 라벨이 없으면 docs/conventions/workflow/labels.md#저장소-적용 의 명령을 먼저 실행합니다."
+            f"`type:{pr_type}` 라벨이 없습니다. 저장소에 라벨이 없으면 .claude/skills/dino-issue/references/labels.md#저장소-적용 의 명령을 먼저 실행합니다."
         )
     elif type_labels != {f"type:{pr_type}"}:
         errors.append(
@@ -112,7 +112,7 @@ def main() -> int:
     for e in errors:
         annotate("error", e)
     if errors:
-        print(f"PR 규약 검사 실패: {len(errors)}건. 기준: docs/conventions/workflow/pull-requests/writing.md")
+        print(f"PR 규약 검사 실패: {len(errors)}건. 기준: .claude/skills/dino-pr/references/writing.md")
         return 1
     annotate("notice", "PR 제목·라벨·본문 양식이 규약과 일치합니다.")
     return 0

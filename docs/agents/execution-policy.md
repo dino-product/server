@@ -1,6 +1,6 @@
 # 실행 정책을 검토할 때
 
-승인 대상은 [루트 작업 원칙](../../AGENTS.md#작업-원칙), 요약할 정보는 [승인 절차](../conventions/workflow/approvals/README.md#approvals)를 따릅니다. 선택 배경은 [ADR-002의 승인과 외부 작업](../adr/002-agentic-coding-rules.md#승인과-외부-작업)에 있습니다.
+승인 대상은 [루트 작업 원칙](../../AGENTS.md#작업-원칙), 요약할 정보는 [승인 절차](../../AGENTS.md#approvals)를 따릅니다. 선택 배경은 [ADR-002의 승인과 외부 작업](../adr/002-agentic-coding-rules.md#승인과-외부-작업)에 있습니다.
 
 [codex-commands.rules](../../.codex/rules/codex-commands.rules)는 **프로젝트 실행 규칙**입니다. `.codex/` 프로젝트 계층을 신뢰한 Codex가 시작 시 로딩하므로, 이동 전부터 실행 중인 세션에 자동 반영된다고 가정하지 않습니다. 규칙은 Git 이력 변경·푸시·브랜치/stash 삭제, Docker 자원 삭제, 앱 실행, PR 병합·닫기와 릴리스 생성의 일부 명령 형태에 `prompt`를 지정합니다. `git -C .`·`git branch -r -d`와 빠른 시작에서 사용하는 Compose `--env-file .env` 형태도 포함합니다. `allow` 규칙은 없으며, 자동 작업은 기존 세션 권한 안에서 수행한다는 뜻입니다.
 

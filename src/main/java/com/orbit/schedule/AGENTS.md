@@ -54,4 +54,4 @@ organization 계약이 연결되기 전에는 요청자·기사·작업 유형�
 - Adapter: `com.orbit.schedule.adapter` 패키지의 관련 테스트(잠금 어댑터는 Docker의 PostgreSQL 필요).
 - 모듈 조립: `com.orbit.schedule.ScheduleModuleTest`, `com.orbit.schedule.ScheduleUseCaseFlowTest`(둘 다 Docker의 PostgreSQL 필요).
 - 모듈 경계: `com.orbit.ModularityTest`, `com.orbit.ArchitectureTest`.
-- 그 밖의 선택은 [공통 검사 표](../../../../../../docs/conventions/testing/selection.md#selection)를 따릅니다.
+- 그 밖의 선택은 [공통 검사 표](../../../../../../.claude/skills/dino-testing/references/verification.md#selection)를 따릅니다.

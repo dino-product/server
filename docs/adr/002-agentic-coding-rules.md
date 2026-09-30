@@ -12,10 +12,10 @@
 
 - **소유권:** `AGENTS.md`는 공통 제약·역할 호출·공유 계약 진입점을, `.codex/agents/`는 담당자의 실행 절차를 소유합니다. 검사 실행은 `test_verifier`, 이슈·PR 문안은 `workflow_writer`에 통합합니다. 여러 역할·사람·CI가 쓰는 기준과 승인 정책은 `conventions`에 남깁니다. 문서 통합 시 이전 본문·읽기 지시를 제거하고 실제 소비자의 참조를 갱신합니다.
 - **조회·인계:** 담당자가 필요한 계약만 확인하고 결과와 근거를 반환합니다. 주 에이전트가 위임 단계의 원문을 먼저 읽지 않습니다. 충분한 규칙 인계는 재사용하며 새 경로·충돌·원본 변경은 확인합니다. 전체 대화 상속을 피하고 역할별 모델/effort를 적용합니다. 자세한 조건은 [읽기 경로·위임](../../AGENTS.md#delegation), 로딩 한계는 [문서 탐색](../agents/context.md)이 소유합니다.
-- **변경 단위:** 한 이유의 변경을 검사한 직후 커밋하여 검증 상태와 이력을 일치시킵니다. 사람이 판단할 PR 단위는 커밋보다 클 수 있지만 독립 목적을 누적하지 않습니다. 중간 상태의 실행 가능성·집중 검사와 최종 전체 검증을 구분합니다. 기준은 [변경·커밋 계약](../conventions/workflow/commits.md#checkpoints)과 [PR 계획](../conventions/workflow/pull-requests/planning.md#planning)에 통합합니다.
-- **검증:** 기계적 판정은 실제 검사 결과를 재사용하고 요구사항·계약 의미·검증 설계는 별도로 판단합니다. 구현 후 모듈·공개 계약·계층 변경의 독립 검토를 유지합니다. [검사 보장 범위](../conventions/testing/evidence.md#evidence), [검사 선택](../conventions/testing/selection.md#selection), [전체 검증](../../AGENTS.md#검증과-완료)이 기준이며 문서 정리를 이유로 백엔드·CI 검사를 약화하지 않습니다.
-- <a id="승인과-외부-작업"></a> **승인:** 자율 완료는 데이터·Git 이력·외부 환경 변경 권한을 늘리지 않습니다. 로컬/테스트 DB의 생성·삭제도 사전 승인 대상입니다. 요청한 이슈·PR 게시의 허용 범위와 추가 확인 대상은 [작업 원칙](../../AGENTS.md#작업-원칙)·[승인 계약](../conventions/workflow/approvals/README.md#approvals)이 소유합니다. 문안 작성 역할은 게시하지 않습니다.
-- **외부 자동화:** PR 자동 리뷰는 로컬 하위 역할과 분리된 [CI 계약](../conventions/workflow/review/automation.md#automation)을 유지합니다. 명시 위임한 요약·인라인 게시만 허용하며 승인·변경 요청·수정·병합은 포함하지 않습니다. `.rules`는 명령 접두사의 보조 정책으로 SQL·프로필·의도를 판별하지 못합니다. 승인 불가 모드의 충돌은 [실행 정책](../agents/execution-policy.md)에 따라 보고하고 우회하지 않습니다.
+- **변경 단위:** 한 이유의 변경을 검사한 직후 커밋하여 검증 상태와 이력을 일치시킵니다. 사람이 판단할 PR 단위는 커밋보다 클 수 있지만 독립 목적을 누적하지 않습니다. 중간 상태의 실행 가능성·집중 검사와 최종 전체 검증을 구분합니다. 기준은 [변경·커밋 계약](../../.claude/skills/dino-commit/references/commits.md#checkpoints)과 [PR 계획](../../.claude/skills/dino-pr/references/planning.md#planning)에 통합합니다.
+- **검증:** 기계적 판정은 실제 검사 결과를 재사용하고 요구사항·계약 의미·검증 설계는 별도로 판단합니다. 구현 후 모듈·공개 계약·계층 변경의 독립 검토를 유지합니다. [검사 보장 범위](../../.claude/skills/dino-testing/references/verification.md#evidence), [검사 선택](../../.claude/skills/dino-testing/references/verification.md#selection), [전체 검증](../../AGENTS.md#검증과-완료)이 기준이며 문서 정리를 이유로 백엔드·CI 검사를 약화하지 않습니다.
+- <a id="승인과-외부-작업"></a> **승인:** 자율 완료는 데이터·Git 이력·외부 환경 변경 권한을 늘리지 않습니다. 로컬/테스트 DB의 생성·삭제도 사전 승인 대상입니다. 요청한 이슈·PR 게시의 허용 범위와 추가 확인 대상은 [작업 원칙](../../AGENTS.md#작업-원칙)·[승인 계약](../../AGENTS.md#approvals)이 소유합니다. 문안 작성 역할은 게시하지 않습니다.
+- **외부 자동화:** PR 자동 리뷰는 로컬 하위 역할과 분리된 [CI 계약](../../.claude/skills/dino-review/references/automation.md#automation)을 유지합니다. 명시 위임한 요약·인라인 게시만 허용하며 승인·변경 요청·수정·병합은 포함하지 않습니다. `.rules`는 명령 접두사의 보조 정책으로 SQL·프로필·의도를 판별하지 못합니다. 승인 불가 모드의 충돌은 [실행 정책](../agents/execution-policy.md)에 따라 보고하고 우회하지 않습니다.
 - **현재판:** 상세 규칙을 ADR에 반복 전재하지 않습니다. [문서 관리](../agents/documents/maintenance.md#maintenance)에 따라 현재 선택·이유만 유지하고 이전 결정은 Git 이력에 보존합니다.
 
 ## 영향과 검증

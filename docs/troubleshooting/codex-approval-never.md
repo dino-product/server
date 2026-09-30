@@ -22,4 +22,4 @@ approval required by policy, but AskForApproval is set to Never
 
 `codex exec --help`로 해당 설치 버전의 옵션을 확인하고, 실행 규칙 평가는 [실행 정책 안내](../agents/execution-policy.md)의 명령으로 수행합니다. 규칙 평가만으로 세션의 실제 로딩이나 승인 UI가 검증되지는 않습니다. 확인을 위해 푸시 등 외부 변경을 시험 실행하지 않습니다.
 
-정책 원본은 [승인 절차](../conventions/workflow/approvals/README.md#approvals)입니다. 승인 모드·규칙 변경, 명령 별칭·다른 도구를 통한 우회는 해결책으로 사용하지 않습니다.
+정책 원본은 [승인 절차](../../AGENTS.md#approvals)입니다. 승인 모드·규칙 변경, 명령 별칭·다른 도구를 통한 우회는 해결책으로 사용하지 않습니다.

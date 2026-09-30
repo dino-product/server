@@ -1,5 +1,5 @@
 # Project rules: loaded at startup when the project .codex layer is trusted.
-# Sources (repository root): AGENTS.md and docs/conventions/workflow/approvals/README.md#approvals.
+# Sources (repository root): AGENTS.md#approvals.
 # Prefix matching is partial coverage, not a complete action/SQL permission boundary.
 # No allow rules: automatic local work still uses the session's existing permissions.
 
