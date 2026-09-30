@@ -30,7 +30,7 @@ public interface WorkRepository {
 
     /**
      * 조직 안에서 기사에게 현재 배정된 활성 작업(수락대기·수락됨·작업중). 현재 배정(작업의 일정)의 기사로 찾으며 과거 배정 이력은 보지 않는다. 일정 겹침과 동시 수행
-     * 판정의 후보이고 판정은 도메인 정책이 다시 거른다. 조직 간 겹침은 보지 않는다(BC-005). 순서는 보장하지 않으므로 표시 순서는 호출자가 정한다. 인자는 null이
+     * 판정의 후보이고 판정은 도메인 정책이 다시 거른다. 조직 간 겹침은 보지 않는다(S-31). 순서는 보장하지 않으므로 표시 순서는 호출자가 정한다. 인자는 null이
      * 아니다.
      */
     List<Work> listActiveByTechnician(OrganizationId organizationId, TechnicianId technicianId);
