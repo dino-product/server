@@ -45,22 +45,41 @@ def run_meta(title: str, labels: list[str], body: str, draft: bool = False) -> t
     return code, out.getvalue()
 
 
-GOOD_BODY = """## 변경 목적과 결과
+def body(kind: str = "유지보수", spec: str = "없음", diagram: str = "없음") -> str:
+    return f"""## PR 종류
 
-목적.
+{kind}
+
+## 기능 명세
+
+{spec}
 
 ## 관련 이슈
 
 없음
 
-## 주요 변경
+## 핵심 다이어그램
+
+{diagram}
+
+## 구현 내용
 
 내용.
+
+## 기술적 선택
+
+없음
 
 ## 검증
 
 명령과 결과.
 """
+
+
+GOOD_BODY = body()
+NOTION = "[작업] 기능명세 §4 https://www.notion.so/3cef190e1166819b9f21ca729f69fc97"
+SEQ = "```mermaid\nsequenceDiagram\n    A->>B: call\n```"
+FLOW = "```mermaid\nflowchart LR\n    A --> B\n```"
 
 
 class MetadataTest(unittest.TestCase):
@@ -78,22 +97,44 @@ class MetadataTest(unittest.TestCase):
         self.assertIn("라벨이 없습니다", out)
 
     def test_breaking_marker_pairs_with_label(self):
-        _, out = run_meta("feat(api)!: 계약 변경", ["type:feat"], GOOD_BODY)
+        compat = body("호환성 변경", diagram=FLOW)
+        _, out = run_meta("feat(api)!: 계약 변경", ["type:feat"], compat)
         self.assertIn("compatibility:breaking", out)
-        code, _ = run_meta("feat(api)!: 계약 변경", ["type:feat", "compatibility:breaking"], GOOD_BODY)
-        self.assertEqual(code, 0)
+        code, out = run_meta("feat(api)!: 계약 변경", ["type:feat", "compatibility:breaking"], compat)
+        self.assertEqual(code, 0, out)
 
     def test_body_template_rules(self):
-        bad = "<!-- 안내 -->\n## 검증\n\n## 변경 목적과 결과\n\n## 관련 이슈\n\n뭔가\n## 주요 변경\n"
+        bad = "<!-- 안내 -->\n## 검증\n\n## PR 종류\n\n## 관련 이슈\n\n뭔가\n## 구현 내용\n"
         code, out = run_meta("ci: 제목", ["type:ci"], bad)
         self.assertEqual(code, 1)
-        for msg in ["안내 주석", "절 순서", "비어 있습니다", "Closes #번호"]:
+        for msg in ["안내 주석", "절 순서", "비어 있습니다", "Closes #번호", "필수 절이 없습니다"]:
             self.assertIn(msg, out)
 
     def test_draft_skips_body(self):
         code, out = run_meta("ci: 제목", ["type:ci"], "<!-- 미완성 -->", draft=True)
         self.assertEqual(code, 0, out)
         self.assertIn("Draft", out)
+
+    def test_usecase_requires_notion_and_sequence_diagram(self):
+        code, out = run_meta("feat(schedule): 작업 상세 조회 추가", ["type:feat"], body("유즈케이스", NOTION, SEQ))
+        self.assertEqual(code, 0, out)
+        code, out = run_meta("feat(schedule): 작업 상세 조회 추가", ["type:feat"], body("유즈케이스", "없음", FLOW))
+        self.assertEqual(code, 1)
+        self.assertIn("노션 기능명세 링크", out)
+        self.assertIn("sequenceDiagram", out)
+
+    def test_kind_and_title_type_must_match(self):
+        code, out = run_meta("feat(schedule): 구조 정리", ["type:feat"], body("구조 변경", diagram=FLOW))
+        self.assertEqual(code, 1)
+        self.assertIn("refactor", out)
+        code, out = run_meta("refactor(schedule): 잠금 추출", ["type:refactor"], body("구조 변경", diagram=FLOW))
+        self.assertEqual(code, 0, out)
+
+    def test_unknown_or_missing_diagram_rejected(self):
+        code, out = run_meta("ci: 제목", ["type:ci"], body("기능 추가"))
+        self.assertIn("PR 종류", out)
+        code, out = run_meta("refactor: 정리", ["type:refactor"], body("구조 변경"))
+        self.assertIn("mermaid 블록", out)
 
 
 class LinkCheckTest(unittest.TestCase):
