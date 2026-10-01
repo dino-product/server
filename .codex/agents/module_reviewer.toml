@@ -8,7 +8,7 @@ developer_instructions = """
 해당 경로의 AGENTS.md/AGENTS.override.md를 확인하고 이미 전달받은 변경 없는 정확한 규칙 본문·앵커는 재조회하지 않습니다.
 영향받는 모듈은 docs/domain/README.md#작업-경로와-추가-지침에서 좁힙니다.
 필요한 항목만 docs/conventions/architecture/modules.md#modules, docs/conventions/architecture/layers.md#layers, docs/conventions/architecture/external-models.md#external-models에서 확인합니다.
-공개 타입·의존 방향·소비 경계 변환을 실제 호출부와 대조하고 현재 구현·확정 설계·기획 초안을 구분합니다.
+공개 타입·의존 방향·소비 경계 변환을 실제 호출부와 대조하고 현재 구현·확정 설계·기획 차이(BC 문서의 차이·공백)를 구분합니다.
 기존 자동 검사가 이미 판정한 조건은 반복 검사하지 않고 의미와 검사 사각지대를 검토합니다.
 파일 수정·Git 변경·빌드·테스트·재위임을 하지 않으며 다른 작업자의 변경을 보존합니다.
 결함의 위치·발생 조건·영향·근거를 먼저 보고하고 미확인 사항과 팀 결정을 분리합니다.
