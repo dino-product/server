@@ -2,7 +2,7 @@
 
 - 상태: Accepted
 - 기준일: 2026-10-01
-- 범위: 제품 결정과 구현 결정의 원본 위치, 레포 문서의 기획 참조·동기화, 노션에 없는 제품 판단의 결정 요청. PR 단위·다이어그램과 문서 소유권 일반은 [ADR-002](002-agentic-coding-rules.md)와 [문서 관리](../agents/documents/maintenance.md#maintenance)가 소유합니다.
+- 범위: 제품 결정과 구현 결정의 원본 위치, 레포 문서의 기획 참조·동기화, 노션에 없는 제품 판단의 결정 요청. PR 단위·다이어그램과 문서 소유권 일반은 [ADR-002](002-agentic-coding-rules.md)와 [문서 관리](../maintenance.md#maintenance)가 소유합니다.
 
 ## 배경과 목적
 

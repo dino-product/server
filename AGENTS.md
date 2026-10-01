@@ -1,6 +1,6 @@
 # AI 개발 지침
 
-경로·명령은 저장소 루트 기준입니다. Java 21·Spring Boot/Modulith 단일 JAR이며 버전 원본은 `build.gradle.kts`, `gradle/libs.versions.toml`입니다. Claude Code와 Codex가 이 파일과 하위 `AGENTS.md`를 공통 지침으로 읽습니다.
+경로·명령은 저장소 루트 기준입니다. Java 21·Spring Boot/Modulith 단일 JAR이며 버전 원본은 `build.gradle.kts`, `gradle/libs.versions.toml`입니다. Claude Code가 이 파일과 하위 `AGENTS.md`를 지침으로 읽습니다.
 
 ## 작업 원칙
 
@@ -16,16 +16,14 @@
 <a id="approvals"></a>
 ### 실행 전 승인
 
-대상·변경·실행 범위를 요약해 승인받고, 범위가 바뀌면 다시 확인합니다. 대화 승인과 도구 권한 검사는 별개이며 도구 거부를 모드·규칙 변경이나 다른 경로로 우회하지 않습니다. 권한 규칙(`.claude/settings.json`, `.codex/rules`) 일치 여부로 승인 필요성을 판단하지 않습니다. 행위별 요약 항목: [DB 자원](.claude/skills/dino-testing/references/database-approvals.md#database) / [Git](.claude/skills/dino-commit/references/git-approvals.md#git) / [게시·배포](.claude/skills/dino-pr/references/publishing-approvals.md#publishing). 이유는 [ADR-002](docs/adr/002-agentic-coding-rules.md#승인과-외부-작업)에 있습니다.
+대상·변경·실행 범위를 요약해 승인받고, 범위가 바뀌면 다시 확인합니다. 대화 승인과 도구 권한 검사는 별개이며 도구 거부를 모드·규칙 변경이나 다른 경로로 우회하지 않습니다. 권한 규칙(`.claude/settings.json`) 일치 여부로 승인 필요성을 판단하지 않습니다. 행위별 요약 항목: [DB 자원](.claude/skills/dino-testing/references/database-approvals.md#database) / [Git](.claude/skills/dino-commit/references/git-approvals.md#git) / [게시·배포](.claude/skills/dino-pr/references/publishing-approvals.md#publishing). 이유는 [ADR-002](docs/adr/002-agentic-coding-rules.md#승인과-외부-작업)에 있습니다.
 
 <a id="delegation"></a>
-## 도구별 실행과 위임
+## 스킬과 위임
 
-**Claude Code**: 작업 시점에 스킬이 자동 트리거되며 `/스킬명`으로 직접 부를 수도 있습니다. 착수 `dino-feature-start`, Java 편집 `dino-architecture`, 테스트·검증 `dino-testing`, 커밋 `dino-commit`, PR `dino-pr`, 리뷰 `dino-review`, 이슈 `dino-issue`. 팀 권한·hook은 `.claude/settings.json`, 개인 설정은 `.claude/settings.local.json`에 둡니다.
+작업 시점에 스킬이 자동 트리거되며 `/스킬명`으로 직접 부를 수도 있습니다. 착수 `dino-feature-start`, Java 편집 `dino-architecture`, 테스트·검증 `dino-testing`, 커밋 `dino-commit`, PR `dino-pr`, 리뷰 `dino-review`, 이슈 `dino-issue`. 팀 권한·hook은 `.claude/settings.json`, 개인 설정은 `.claude/settings.local.json`에 둡니다.
 
-**Codex**: [`.codex/agents/`](.codex/agents/) 역할이 실행 절차를 소유합니다. 탐색 `explorer`, 구현 `implementer`, 검사 실행 `test_verifier`, 검증 설계 공백 `verification_reviewer`, 이슈·PR 문안 `workflow_writer`(게시는 주 에이전트). 설정·인계 방식 변경 때만 [협업 설정](docs/agents/collaboration.md#역할-선택과-인계)을 봅니다.
-
-**공통**: 모듈 경계·공개 계약·Domain/Application 의존성을 바꾸면 구현 후 독립 검토(Claude `module-reviewer`, Codex `module_reviewer`)가 **필수**이며 자기 검토로 대체하지 않습니다. 인계에는 목적·파일 소유권·기준 SHA/diff·적용할 규칙 경로·제품 동작이 걸리면 관련 Notion 정책서 절의 적용 내용과 차이·공백 ID·완료 조건·검사 근거·승인 범위만 담습니다. 같은 파일 편집과 같은 작업 트리의 Gradle/포맷은 직렬화하고 하위 에이전트는 재위임하지 않습니다.
+모듈 경계·공개 계약·Domain/Application 의존성을 바꾸면 구현 후 독립 검토(`module-reviewer` 서브에이전트)가 **필수**이며 자기 검토로 대체하지 않습니다. 인계에는 목적·파일 소유권·기준 SHA/diff·적용할 규칙 경로·제품 동작이 걸리면 관련 Notion 정책서 절의 적용 내용과 차이·공백 ID·완료 조건·검사 근거·승인 범위만 담습니다. 같은 파일 편집과 같은 작업 트리의 Gradle/포맷은 직렬화하고 하위 에이전트는 재위임하지 않습니다.
 
 ## 읽기 경로
 
@@ -40,9 +38,9 @@
 | PR 종류·단위·작성 / 로컬 리뷰·마커 | [kinds](.claude/skills/dino-pr/references/kinds.md) / [planning](.claude/skills/dino-pr/references/planning.md) / [writing](.claude/skills/dino-pr/references/writing.md) (`dino-pr`), [procedure](.claude/skills/dino-review/references/procedure.md) / [report](.claude/skills/dino-review/references/report.md) (`dino-review`) |
 | 이슈·라벨 | [forms](.claude/skills/dino-issue/references/forms.md) / [labels](.claude/skills/dino-issue/references/labels.md) (`dino-issue`) |
 | 제품 동작(권한·상태 전이·시간·입력 제한·사유 목록·조회 범위) | Claude는 `dino-feature-start`가 수행. 세션의 첫 작업 전 [동기화 상태 확인](docs/planning/README.md#status)(기획 DB 검색 한 번으로 기준 버전 비교, 결과는 세션 안에서 재사용) → 대상 BC의 제품 규칙 참조가 가리키는 Notion 절 원문과 차이·공백. `밀림`이면 구현 전에 알리고, 원문을 읽지 못하면 참조만 확인한 범위를 보고 |
-| 문서·구조·정책 | [문서 관리](docs/agents/documents/maintenance.md#maintenance)와 [ADR](docs/adr/README.md) |
+| 문서·구조·정책 | [문서 관리](docs/maintenance.md#maintenance)와 [ADR](docs/adr/README.md) |
 
-실행 문제는 [빠른 시작](README.md#빠른-시작)과 [트러블슈팅](docs/troubleshooting/README.md)을 봅니다. 차이·공백 항목은 [대역별 구현 규칙](docs/planning/README.md#gap-actions)대로 다룹니다. 지침 로딩·입력 크기 점검 때만 [문서 탐색](docs/agents/context.md)을, 명령 승인 모드 진단 때만 [실행 정책](docs/agents/execution-policy.md)을 읽습니다.
+실행 문제는 [빠른 시작](README.md#빠른-시작)과 [트러블슈팅](docs/troubleshooting/README.md)을 봅니다. 차이·공백 항목은 [대역별 구현 규칙](docs/planning/README.md#gap-actions)대로 다룹니다. 지침 누락·출력 잘림이 반복될 때만 [컨텍스트 진단](docs/troubleshooting/agent-context-verification.md)을 읽습니다.
 
 ## 핵심 경계
 
