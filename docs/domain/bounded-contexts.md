@@ -89,7 +89,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 책임 | 작업 등록부터 완료까지 전체 생애주기. 발주–배정–수행의 최소 단위를 다룸 |
 | 상태 | 구현 중 — 설계·구현 결정·기획 차이는 [schedule 문서](schedule.md#schedule) |
 | 소유 애그리게잇 | **Work**(Root) + AssignmentHistory·CompletionReport(내부 엔티티) + 값객체. 읽기 모델 Timetable/Backlog/ProgressBoard는 애그리게잇이 아님 |
-| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — organization의 소속·기사 계약을 schedule의 요청자(`Actor`)로 번역해 역할별 규칙을 적용하기 때문) · `notification` ← 이벤트 발행(작업 상태 변경) |
+| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — 이유는 [schedule 문서](schedule.md#schedule)) · `notification` ← 이벤트 발행(작업 상태 변경) |
 
 <a id="notification"></a>
 ### 4. 알림 컨텍스트 (`notification`) — Generic Subdomain
@@ -148,6 +148,6 @@ P2~P4의 포함 여부·시점은 제품 결정이며 각 정책서의 MVP 제�
 ## 다음 단계
 
 1. `organization`/`notification`의 `domain` 패키지에 실제 애그리게잇 구현 (Organization/MembershipRequest/Membership, Notification)
-2. 각 모듈 루트에 공개 계약 클래스 배치 (예: `schedule`의 `WorkLookup`처럼 `auth`/`user` 예제와 동일한 패턴)
+2. 각 모듈 루트에 공개 계약 클래스 배치 (예: `schedule`의 `WorkLookup`처럼 `user`의 `UserLookup`과 같은 패턴)
 3. 모듈별 `AGENTS.md` 작성 (도메인 코드가 들어가는 시점에 함께)
 4. 이 문서와 [도메인 지도](README.md)를 실제 구현 진행과 [기획 원본 색인](../planning/README.md#planning)의 기준 버전에 맞춰 갱신

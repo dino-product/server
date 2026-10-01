@@ -74,7 +74,7 @@ public class CreateNoticeService implements CreateNoticeUseCase {
 예외 — ACL:
 
 - 두 모듈의 모델·언어가 크게 달라 소비 모듈의 모델을 보호해야 하면 소비 모듈 `application/port/out`에 자기 언어로 Port를 정의하고, `adapter/out/{제공 모듈}`에서 공개 인터페이스를 호출해 자체 모델로 변환합니다.
-- 호출마다 정하지 않고 두 모듈의 관계마다 한 번 정합니다. ACL로 정한 관계와 그 이유는 제품 모듈이면 [바운디드 컨텍스트 지도](../../domain/bounded-contexts.md#bounded-contexts)의 관계 항목, 예제 모듈이면 해당 모듈 문서에 남깁니다.
+- 호출마다 정하지 않고 두 모듈의 관계마다 한 번 정합니다. ACL로 정한 관계와 그 이유는 구현이 시작된 모듈이면 해당 모듈 문서, 아직 설계 단계인 제품 모듈이면 [바운디드 컨텍스트 지도](../../domain/bounded-contexts.md#bounded-contexts)의 관계 항목에 남깁니다.
 
 ## 공개 이벤트
 
