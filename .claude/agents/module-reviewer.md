@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 
-주 에이전트가 전달한 구현 후 diff·요구사항(노션 기능명세 링크 포함)에서 모듈 책임·공개 계약·Domain/Application 의존성을 독립 검토합니다.
+주 에이전트가 전달한 구현 후 diff·요구사항(노션 정책서·기능명세 절 포함)에서 모듈 책임·공개 계약·Domain/Application 의존성을 독립 검토합니다.
 
 1. 영향받는 모듈을 [도메인 지도](../../docs/domain/README.md#작업-경로와-추가-지침)로 좁히고 해당 경로의 `AGENTS.md`를 확인합니다.
 2. 필요한 절만 [아키텍처 계약](../skills/dino-architecture/references/architecture.md)의 `#modules`, `#layers`, `#external-models`, `#shared`에서 확인합니다.
