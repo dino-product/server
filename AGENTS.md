@@ -24,7 +24,7 @@
 
 **Codex**: [`.codex/agents/`](.codex/agents/) 역할이 실행 절차를 소유합니다. 탐색 `explorer`, 구현 `implementer`, 검사 실행 `test_verifier`, 검증 설계 공백 `verification_reviewer`, 이슈·PR 문안 `workflow_writer`(게시는 주 에이전트). 설정·인계 방식 변경 때만 [협업 설정](docs/agents/collaboration.md#역할-선택과-인계)을 봅니다.
 
-**공통**: 모듈 경계·공개 계약·Domain/Application 의존성을 바꾸면 구현 후 독립 검토(Claude `module-reviewer`, Codex `module_reviewer`)가 **필수**이며 자기 검토로 대체하지 않습니다. 인계에는 목적·파일 소유권·기준 SHA/diff·적용할 규칙 경로·완료 조건·검사 근거·승인 범위만 담습니다. 같은 파일 편집과 같은 작업 트리의 Gradle/포맷은 직렬화하고 하위 에이전트는 재위임하지 않습니다.
+**공통**: 모듈 경계·공개 계약·Domain/Application 의존성을 바꾸면 구현 후 독립 검토(Claude `module-reviewer`, Codex `module_reviewer`)가 **필수**이며 자기 검토로 대체하지 않습니다. 인계에는 목적·파일 소유권·기준 SHA/diff·적용할 규칙 경로·제품 동작이 걸리면 관련 Notion 정책서 절의 적용 내용과 차이·공백 ID·완료 조건·검사 근거·승인 범위만 담습니다. 같은 파일 편집과 같은 작업 트리의 Gradle/포맷은 직렬화하고 하위 에이전트는 재위임하지 않습니다.
 
 ## 읽기 경로
 
@@ -38,9 +38,10 @@
 | 브랜치·커밋·유형 | [commits](.claude/skills/dino-commit/references/commits.md) / [change-types](.claude/skills/dino-commit/references/change-types.md) (`dino-commit`) |
 | PR 종류·단위·작성 / 리뷰·자동 리뷰 | [kinds](.claude/skills/dino-pr/references/kinds.md) / [planning](.claude/skills/dino-pr/references/planning.md) / [writing](.claude/skills/dino-pr/references/writing.md) (`dino-pr`), [procedure](.claude/skills/dino-review/references/procedure.md) / [automation](.claude/skills/dino-review/references/automation.md) (`dino-review`) |
 | 이슈·라벨 | [forms](.claude/skills/dino-issue/references/forms.md) / [labels](.claude/skills/dino-issue/references/labels.md) (`dino-issue`) |
+| 제품 동작(권한·상태 전이·시간·입력 제한·사유 목록·조회 범위) | 세션의 첫 작업 전 [동기화 상태 확인](docs/planning/README.md#status)(기획 DB 검색 한 번으로 기준 버전 비교, 결과는 세션 안에서 재사용) → 대상 BC의 제품 규칙 참조가 가리키는 Notion 절 원문과 차이·공백. `밀림`이면 구현 전에 알리고, 원문을 읽지 못하면 참조만 확인한 범위를 보고 |
 | 문서·구조·정책 | [문서 관리](docs/agents/documents/maintenance.md#maintenance)와 [ADR](docs/adr/README.md) |
 
-실행 문제는 [빠른 시작](README.md#빠른-시작)과 [트러블슈팅](docs/troubleshooting/README.md)을 봅니다. 지침 로딩·입력 크기 점검 때만 [문서 탐색](docs/agents/context.md)을, 명령 승인 모드 진단 때만 [실행 정책](docs/agents/execution-policy.md)을 읽습니다.
+실행 문제는 [빠른 시작](README.md#빠른-시작)과 [트러블슈팅](docs/troubleshooting/README.md)을 봅니다. 차이·공백 항목은 [대역별 구현 규칙](docs/planning/README.md#gap-actions)대로 다룹니다. 지침 로딩·입력 크기 점검 때만 [문서 탐색](docs/agents/context.md)을, 명령 승인 모드 진단 때만 [실행 정책](docs/agents/execution-policy.md)을 읽습니다.
 
 ## 핵심 경계
 

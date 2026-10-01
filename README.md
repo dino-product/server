@@ -57,6 +57,7 @@ docs/
 ├── adr/                    아키텍처·에이전트 규칙 결정 이력
 ├── agents/                 상황별 에이전트 탐색·협업·실행 정책 안내
 ├── domain/                 모듈 책임과 공개 계약
+├── planning/               기획 원본(Notion 정책서) 색인·기준 버전
 └── troubleshooting/        반복 조사에서 얻은 문제 해결 사례
 ```
 
@@ -74,4 +75,4 @@ docs/
 - Codex 협업 역할·설정: [협업 안내](docs/agents/collaboration.md#codex-협업-설정)
 - 커밋·브랜치·승인·이슈·라벨·PR과 AI 리뷰: [GitHub 작업 가이드](AGENTS.md#읽기-경로)
 - 구조 선택의 이유와 제약: [현재 ADR 요약](docs/adr/README.md)에서 유효한 결정 확인
-- 기능·정책·화면 흐름: [노션 기능명세](docs/domain/README.md#노션-기능명세)가 원본이며 레포에 복사하지 않음
+- 제품 정책: [기획 원본 색인](docs/planning/README.md#planning)에서 Notion 정책서와 기준 버전 확인
