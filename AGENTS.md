@@ -39,7 +39,7 @@
 | 브랜치·커밋·유형 | [commits](.claude/skills/dino-commit/references/commits.md) / [change-types](.claude/skills/dino-commit/references/change-types.md) (`dino-commit`) |
 | PR 종류·단위·작성 / 리뷰·자동 리뷰 | [kinds](.claude/skills/dino-pr/references/kinds.md) / [planning](.claude/skills/dino-pr/references/planning.md) / [writing](.claude/skills/dino-pr/references/writing.md) (`dino-pr`), [procedure](.claude/skills/dino-review/references/procedure.md) / [automation](.claude/skills/dino-review/references/automation.md) (`dino-review`) |
 | 이슈·라벨 | [forms](.claude/skills/dino-issue/references/forms.md) / [labels](.claude/skills/dino-issue/references/labels.md) (`dino-issue`) |
-| 제품 동작(권한·상태 전이·시간·입력 제한·사유 목록·조회 범위) | 세션의 첫 작업 전 [동기화 상태 확인](docs/planning/README.md#status)(기획 DB 검색 한 번으로 기준 버전 비교, 결과는 세션 안에서 재사용) → 대상 BC의 제품 규칙 참조가 가리키는 Notion 절 원문과 차이·공백. `밀림`이면 구현 전에 알리고, 원문을 읽지 못하면 참조만 확인한 범위를 보고 |
+| 제품 동작(권한·상태 전이·시간·입력 제한·사유 목록·조회 범위) | Claude는 `dino-feature-start`가 수행. 세션의 첫 작업 전 [동기화 상태 확인](docs/planning/README.md#status)(기획 DB 검색 한 번으로 기준 버전 비교, 결과는 세션 안에서 재사용) → 대상 BC의 제품 규칙 참조가 가리키는 Notion 절 원문과 차이·공백. `밀림`이면 구현 전에 알리고, 원문을 읽지 못하면 참조만 확인한 범위를 보고 |
 | 문서·구조·정책 | [문서 관리](docs/agents/documents/maintenance.md#maintenance)와 [ADR](docs/adr/README.md) |
 
 실행 문제는 [빠른 시작](README.md#빠른-시작)과 [트러블슈팅](docs/troubleshooting/README.md)을 봅니다. 차이·공백 항목은 [대역별 구현 규칙](docs/planning/README.md#gap-actions)대로 다룹니다. 지침 로딩·입력 크기 점검 때만 [문서 탐색](docs/agents/context.md)을, 명령 승인 모드 진단 때만 [실행 정책](docs/agents/execution-policy.md)을 읽습니다.
