@@ -3,8 +3,9 @@
 
 규칙 원본: .claude/skills/dino-pr/references/writing.md, kinds.md,
 .claude/skills/dino-issue/references/labels.md, .github/pull_request_template.md.
-PR 종류·제목 type 조합, 노션 링크, 종류별 mermaid 다이어그램의 존재까지만 판정한다.
-다이어그램과 코드의 일치·PR 단위·커밋 완결성처럼 맥락 판단이 필요한 항목은 리뷰에 맡긴다.
+PR 종류·제목 type 조합, 노션 링크, 종류별 mermaid 다이어그램의 존재, 로컬 리뷰 마커의 head 일치까지만
+판정한다. 다이어그램과 코드의 일치·PR 단위·커밋 완결성처럼 맥락 판단이 필요한 항목은 로컬 리뷰
+(.claude/skills/dino-review/references/procedure.md)에 맡긴다.
 
 입력: GITHUB_EVENT_PATH의 pull_request 이벤트 JSON (또는 --event 파일).
 출력: GitHub annotation(::error::) + 실패 시 종료 코드 1.
@@ -33,6 +34,8 @@ ISSUE_LINK_RE = re.compile(r"\b(Closes|Refs)\s+#\d+\b|(^|\n)\s*없음\s*($|\n)")
 NOTION_RE = re.compile(r"https://(www\.|app\.)?notion\.(so|site|com)/\S+|https://\S+\.notion\.site/\S+")
 MERMAID_RE = re.compile(r"```mermaid\s*\n\s*(?:%%[^\n]*\n\s*)*(\w+)")
 PLACEHOLDER_RE = re.compile(r"\b(TODO|TBD|FIXME|[A-Z]+_PENDING)\b")
+REVIEW_MARKER_RE = re.compile(r"<!--\s*dino-review\s+head=(?P<head>[0-9a-f]{40})\b[^>]*-->")
+REVIEW_DOC = ".claude/skills/dino-review/references/report.md#marker"
 NONE_RE = re.compile(r"(^|\n)\s*없음\s*($|\n)")
 ANY_DIAGRAM = {"sequenceDiagram", "flowchart", "graph", "classDiagram", "erDiagram", "stateDiagram"}
 # 종류 -> (허용 제목 type, 노션 링크 필수, 허용 다이어그램 또는 None=없음 허용)
@@ -112,8 +115,20 @@ def check_kind(sections: dict[str, str], pr_type: str | None, errors: list[str])
         errors.append(f"PR 종류 `{kind}` 의 핵심 다이어그램은 {', '.join(sorted(diagrams))} 중 하나를 포함합니다(현재 {found}).")
 
 
-def check_body(body: str, errors: list[str], pr_type: str | None = None) -> None:
-    if "<!--" in body:
+def check_review_marker(sections: dict[str, str], head: str | None, errors: list[str]) -> None:
+    found = REVIEW_MARKER_RE.findall(sections.get("## 검증", ""))
+    if not found:
+        errors.append(f"`## 검증` 에 로컬 리뷰 마커가 없습니다. PR 전에 dino-review 로 리뷰하고 마커를 남깁니다. 기준: {REVIEW_DOC}")
+    elif len(found) > 1:
+        errors.append("`## 검증` 에 리뷰 마커가 여러 개입니다. 마지막 리뷰의 마커 하나만 둡니다.")
+    elif head and found[0] != head:
+        errors.append(
+            f"리뷰 마커의 head `{found[0][:7]}` 가 PR head `{head[:7]}` 와 다릅니다. 리뷰 뒤에 커밋이 바뀌었으니 다시 리뷰하고 마커를 갱신합니다."
+        )
+
+
+def check_body(body: str, errors: list[str], pr_type: str | None = None, head: str | None = None) -> None:
+    if "<!--" in REVIEW_MARKER_RE.sub("", body):
         errors.append("본문에 양식 안내 주석(`<!-- -->`)이 남아 있습니다. 제출 전에 삭제합니다.")
     sections = split_sections(body)
     order = [h for h in sections if h in REQUIRED_SECTIONS + OPTIONAL_SECTIONS]
@@ -134,11 +149,13 @@ def check_body(body: str, errors: list[str], pr_type: str | None = None) -> None
     if issues.strip() and not ISSUE_LINK_RE.search(issues):
         errors.append("`## 관련 이슈` 는 `Closes #번호`, `Refs #번호` 또는 `없음` 으로 적습니다.")
     check_kind(sections, pr_type, errors)
+    check_review_marker(sections, head, errors)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--event", default=os.environ.get("GITHUB_EVENT_PATH"))
+    parser.add_argument("--head", help="리뷰 마커와 비교할 head SHA. 없으면 이벤트의 pull_request.head.sha")
     args = parser.parse_args()
     if not args.event:
         print("GITHUB_EVENT_PATH 또는 --event 가 필요합니다.", file=sys.stderr)
@@ -149,18 +166,19 @@ def main() -> int:
     body = pr.get("body") or ""
     labels = {l["name"] for l in pr.get("labels", [])}
     draft = bool(pr.get("draft"))
+    head = args.head or (pr.get("head") or {}).get("sha")
 
     errors: list[str] = []
     pr_type = check_title(title, labels, errors)
     if draft:
         annotate("notice", "Draft PR이라 본문 양식 검사는 건너뜁니다. 제목·라벨만 확인했습니다.")
     else:
-        check_body(body, errors, pr_type)
+        check_body(body, errors, pr_type, head)
 
     for e in errors:
         annotate("error", e)
     if errors:
-        print(f"PR 규약 검사 실패: {len(errors)}건. 기준: .claude/skills/dino-pr/references/writing.md, kinds.md")
+        print(f"PR 규약 검사 실패: {len(errors)}건. 기준: .claude/skills/dino-pr/references/writing.md, kinds.md, dino-review/references/report.md")
         return 1
     annotate("notice", "PR 제목·라벨·본문 양식이 규약과 일치합니다.")
     return 0

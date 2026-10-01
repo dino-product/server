@@ -65,7 +65,7 @@ docs/
 
 ## 검증
 
-[전체 검증 명령](AGENTS.md#검증과-완료)을 사용합니다. 전체 테스트에는 Docker가 필요하며 일부 건너뛰기를 통과로 보지 않습니다. [집중 검사](.claude/skills/dino-testing/references/verification.md#selection)와 [CI 보고서 정책](.claude/skills/dino-testing/references/verification.md#completion)은 해당 절에서 확인합니다. PR에는 CI `verify`, [PR 규약 검사](.github/workflows/pr-conventions.yml), 비차단 [자동 리뷰](.claude/skills/dino-review/references/automation.md#automation)가 실행됩니다.
+[전체 검증 명령](AGENTS.md#검증과-완료)을 사용합니다. 전체 테스트에는 Docker가 필요하며 일부 건너뛰기를 통과로 보지 않습니다. [집중 검사](.claude/skills/dino-testing/references/verification.md#selection)와 [CI 보고서 정책](.claude/skills/dino-testing/references/verification.md#completion)은 해당 절에서 확인합니다. PR에는 CI `verify`와 [PR 규약 검사](.github/workflows/pr-conventions.yml)가 실행됩니다. 리뷰는 PR 전에 로컬 [`dino-review`](.claude/skills/dino-review/references/procedure.md#procedure)로 하고, 규약 검사는 본문의 [리뷰 마커](.claude/skills/dino-review/references/report.md#marker)가 PR head와 같은지 확인합니다.
 
 ## 문서 안내
 

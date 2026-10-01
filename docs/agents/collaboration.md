@@ -21,4 +21,4 @@
 2. [새 입력 확인](context.md#이-저장소에서-확인할-것)으로 루트/하위 지침과 역할 카탈로그를 확인합니다. 주 입력에 역할 본문이 없다는 사실만으로 미로딩을 판단하지 않습니다. 실제 역할 모델·effort·지침 적용은 새 하위 스레드에서 확인하며 정적 검사와 구분합니다.
 3. 문서 정리는 삭제한 원본·갱신한 참조와 `conventions`/역할 설정을 합친 크기로 확인합니다. 실행 비용 비교가 필요하면 같은 완료 조건에서 메인·하위의 캐시/비캐시 입력·출력·추론·재작업을 함께 측정합니다. 파일 크기 감소를 토큰·과금 절감률로 보고하지 않습니다.
 
-근거: 2026-09-28 확인한 [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)·[설정 우선순위](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence). 명령 정책과 PR 자동 리뷰는 각각 [실행 정책](execution-policy.md)과 [CI 운영 계약](../../.claude/skills/dino-review/references/automation.md#automation)이 소유합니다.
+근거: 2026-09-28 확인한 [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)·[설정 우선순위](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence). 명령 정책과 리뷰는 각각 [실행 정책](execution-policy.md)과 [리뷰 절차](../../.claude/skills/dino-review/references/procedure.md#procedure)가 소유합니다.

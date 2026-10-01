@@ -1,7 +1,7 @@
 name: PR conventions
 
 # 기계적으로 판정할 PR 규약만 검사한다. 크기·커밋 완결성·의미 판단은 리뷰가 맡는다.
-# 기준: .claude/skills/dino-pr/references/writing.md, dino-issue/references/labels.md, dino-testing/references/verification.md#evidence
+# 기준: .claude/skills/dino-pr/references/writing.md, dino-issue/references/labels.md, dino-testing/references/verification.md#evidence, dino-review/references/report.md#marker
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]

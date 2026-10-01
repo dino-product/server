@@ -30,7 +30,7 @@ Claude Code에서는 dino-pr 스킬이 이 양식을 채웁니다. 안내 주석
 
 ## 검증
 
-<!-- head SHA, 실제 명령·결과, mock과 실제 통합 검사 구분, 마지막 줄에 base…head · 파일 · +/− · 커밋 -->
+<!-- head SHA, 실제 명령·결과, mock과 실제 통합 검사 구분, 마지막 줄에 base…head · 파일 · +/− · 커밋. 그 아래 dino-review 리뷰 마커 -->
 
 ## 리뷰 포인트
 

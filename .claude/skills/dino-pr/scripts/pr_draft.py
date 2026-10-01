@@ -13,7 +13,7 @@
 
 하위 명령
     context [--base develop]   base…HEAD 커밋·변경 통계·모듈/계층별 파일 요약
-    check <초안>               .github/scripts/check_pr_metadata.py 와 같은 규약으로 검사
+    check <초안>               .github/scripts/check_pr_metadata.py 와 같은 규약으로 검사(리뷰 마커는 현재 HEAD와 비교)
     preview <초안>             mermaid까지 렌더링하는 HTML 미리보기(<초안>.html) 생성
     body <초안>                front matter를 뺀 본문 출력(gh pr create --body-file - 용)
 """
@@ -86,7 +86,7 @@ def cmd_check(args) -> int:
                               "labels": [{"name": l} for l in meta["labels"]]}}
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
         json.dump(event, f)
-    return subprocess.run([sys.executable, str(CHECKER), "--event", f.name]).returncode
+    return subprocess.run([sys.executable, str(CHECKER), "--event", f.name, "--head", git("rev-parse", "HEAD")]).returncode
 
 
 PAGE = """<!doctype html>

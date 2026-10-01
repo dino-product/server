@@ -30,7 +30,7 @@ DB·컨테이너 검사는 전용 자원도 삭제할 수 있어 [DB 승인](dat
 완료 명령·문서-only 예외는 [루트 검증 기준](../../../../AGENTS.md#검증과-완료)을 따릅니다.
 
 - 각 PR의 변경·알려진 수정을 마친 최종 상태는 전체 검증을 통과해야 합니다. 중간 커밋에는 [단위별 집중 검사·계약 검토](../../dino-commit/references/commits.md#checkpoints)가 필요합니다. 완료 검증에 `--tests` 필터를 쓰지 않습니다.
-- 현재 [CI](../../../../.github/workflows/ci.yml)는 PR 최종 병합 결과를 검사하며 내부 커밋을 순회하지 않습니다. 커밋별 조립·실행 가능성은 해당 상태의 검사 근거로 확인합니다. `verify` 뒤의 [자동 리뷰](../../dino-review/references/automation.md#automation) 잡은 결과를 인용해 게시하며 병합을 막지 않고, 제목·라벨·양식·문서 링크는 별도 [PR 규약 검사](../../../../.github/workflows/pr-conventions.yml)가 판정합니다. [GitHub PR 이벤트](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)
+- 현재 [CI](../../../../.github/workflows/ci.yml)는 PR 최종 병합 결과를 검사하며 내부 커밋을 순회하지 않습니다. 커밋별 조립·실행 가능성은 해당 상태의 검사 근거로 확인합니다. 제목·라벨·양식·문서 링크·리뷰 마커는 별도 [PR 규약 검사](../../../../.github/workflows/pr-conventions.yml)가 판정하고, 리뷰는 PR 전에 로컬 [`dino-review`](../../dino-review/references/procedure.md#procedure)가 합니다. [GitHub PR 이벤트](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)
 - 로컬 `./gradlew test`는 Docker가 없으면 컨테이너 테스트를 건너뜁니다. 전체 실행은 `./gradlew test -PrequireAllTests=true`를 사용합니다.
 - `CI=true` 또는 `-PrequireAllTests=true`는 0건 실행·건너뛴 테스트가 있으면 실패합니다. `-PrequireAllTests=false`로 CI 정책을 해제할 수 없습니다. 이 옵션은 `--tests` 필터를 감지하지 않으므로 전체 실행 여부는 실제 명령도 확인합니다.
 - Docker 부재로 건너뛴 검사가 있으면 전체 통과가 아닙니다. 성공·실패·건너뛰기·필터 여부와 검사 대상 상태를 구분합니다.
@@ -50,6 +50,6 @@ DB·컨테이너 검사는 전용 자원도 삭제할 수 있어 [DB 승인](dat
 | 프로필 | [ApplicationProfileConfigurationTest](../../../../src/test/java/com/orbit/shared/internal/config/ApplicationProfileConfigurationTest.java) | 실제 배포 환경의 인증·접근·마이그레이션 정책 |
 | 전체 테스트·보고서 | [테스트 설정](../../../../gradle/testing.gradle.kts), [CI](../../../../.github/workflows/ci.yml) | 필터 없는 실행 여부; JaCoCo는 보고서 생성이며 최소 커버리지 게이트는 없음 |
 | Markdown·ADR·PR 작성 | [문서 검증](../../../../AGENTS.md#검증과-완료), [ADR 관리](../../../../docs/agents/documents/maintenance.md#maintenance), [PR 규약 검사](../../../../.github/workflows/pr-conventions.yml)의 제목·라벨·양식·변경 문서 링크/앵커 | ADR 상태·크기 적정성·커밋별 완결성·검증 절의 실제성은 리뷰로 확인 |
-| PR 리뷰 | [자동 리뷰](../../dino-review/references/automation.md#automation)가 verify·규약 검사 결과를 인용해 비차단 게시 | 결함·의미 판단의 채택과 병합 여부는 사람 |
+| PR 리뷰 | PR 전 로컬 [`dino-review`](../../dino-review/references/procedure.md#procedure)의 보고서, 규약 검사의 [리뷰 마커](../../dino-review/references/report.md#marker) head 일치 | 마커는 리뷰 실행의 자기 신고이며 리뷰 품질·지적의 채택과 병합 여부는 사람 |
 
 선택 배경: [포맷과 검증 결정](../../../../docs/adr/001-backend-architecture.md#포맷과-검증).
