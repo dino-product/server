@@ -24,7 +24,7 @@
 | 테스트·빌드·CI 변경의 검증 설계 또는 구체적 검사 공백 | `verification_reviewer`; 실행 검사 반복 용도가 아님 |
 | 요청한 이슈·PR의 문안 작성 | `workflow_writer`; 게시 실행은 주 에이전트 |
 
-인계에는 목적·파일 소유권·기준 SHA/diff·필요한 규칙의 경로와 적용 내용·완료 조건·검사 근거/미검증 범위·승인 범위를 담습니다. 전체 대화·원문·로그를 복제하지 않으며 같은 작업은 기존 에이전트에 이어 맡깁니다. 역할별 모델·effort를 사용하고 전체 대화 상속을 피합니다. 지원하는 도구에서는 필요한 인계만 보내는 `fork_turns="none"`을 선택합니다.
+인계에는 목적·파일 소유권·기준 SHA/diff·필요한 규칙의 경로와 적용 내용·제품 동작이 걸리면 관련 Notion 정책서 절의 적용 내용과 차이·공백 ID·완료 조건·검사 근거/미검증 범위·승인 범위를 담습니다. 전체 대화·원문·로그를 복제하지 않으며 같은 작업은 기존 에이전트에 이어 맡깁니다. 역할별 모델·effort를 사용하고 전체 대화 상속을 피합니다. 지원하는 도구에서는 필요한 인계만 보내는 `fork_turns="none"`을 선택합니다.
 
 독립 작업만 병렬화하고 같은 파일 편집·작업 트리의 Gradle/포맷은 직렬화합니다. 검토는 대상 구현이 끝난 뒤 시작하며 하위 에이전트는 재위임하지 않습니다. 작은 문서·주석 작업은 직접 처리할 수 있습니다. 역할이 없으면 동등 역할 또는 주 에이전트가 역할 지침을 적용하고 제한을 보고하되, 필수 독립 검토를 자기 검토로 완료 처리하지 않습니다. 설정·인계 방식 변경 때만 [협업 설정](docs/agents/collaboration.md#역할-선택과-인계)을 확인합니다.
 
@@ -43,10 +43,11 @@
 | HTTP·Web DTO | [HTTP](docs/conventions/web/http.md#http) / [DTO](docs/conventions/web/dto.md#dto) |
 | OpenAPI | [ControllerDocs](docs/conventions/web/openapi/controllers.md#controllers) / [응답](docs/conventions/web/openapi/responses.md#responses) / [파라미터](docs/conventions/web/openapi/parameters.md#parameters); 변경 후 [검증](docs/conventions/web/openapi/verification.md#verification) |
 | 테스트 작성·검사 범위·CI | [설계](docs/conventions/testing/design.md#design) / [선택](docs/conventions/testing/selection.md#selection) / [CI 계약](docs/conventions/testing/completion.md#completion); 테스트 수정 시 [하위 지침](src/test/java/com/orbit/AGENTS.md) |
+| 제품 동작(권한·상태 전이·시간·입력 제한·사유 목록·조회 범위) | 세션의 첫 작업 전 [동기화 상태 확인](docs/planning/README.md#status)(기획 DB 검색 한 번으로 기준 버전 비교, 결과는 세션 안에서 재사용) → 대상 BC의 제품 규칙 참조가 가리키는 Notion 절 원문과 차이·공백. `밀림`이면 구현 전에 알리고, 원문을 읽지 못하면 참조만 확인한 범위를 보고 |
 | 문서·구조·정책 | [문서 관리](docs/agents/documents/maintenance.md#maintenance)와 [관련 ADR](docs/adr/README.md) |
 | 이슈·PR·리뷰 | [양식](docs/conventions/workflow/issues/forms.md#forms) / [PR 계약](docs/conventions/workflow/pull-requests/writing.md#writing) / [리뷰 기준](docs/conventions/workflow/review/procedure.md#procedure); 자동 리뷰·규약 검사 변경 시 [운영 계약](docs/conventions/workflow/review/automation.md#automation) |
 
-실행 문제는 [빠른 시작](README.md#빠른-시작)과 관련 [트러블슈팅](docs/troubleshooting/README.md), 제품 정책은 [기획 초안](docs/planning/use-cases.md)의 관련 유즈케이스·미결정만 확인하고 현재 구현과 구분합니다. Codex 로딩·입력 크기 점검 때만 [문서 탐색](docs/agents/context.md)을, 명령 승인 모드 진단 때만 [실행 정책](docs/agents/execution-policy.md)을 읽습니다.
+실행 문제는 [빠른 시작](README.md#빠른-시작)과 관련 [트러블슈팅](docs/troubleshooting/README.md), 제품 정책은 위 표의 제품 동작 행을 따르며 차이·공백 항목은 [대역별 구현 규칙](docs/planning/README.md#gap-actions)대로 다룹니다. Codex 로딩·입력 크기 점검 때만 [문서 탐색](docs/agents/context.md)을, 명령 승인 모드 진단 때만 [실행 정책](docs/agents/execution-policy.md)을 읽습니다.
 
 ## 핵심 경계
 

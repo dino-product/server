@@ -1,6 +1,6 @@
 # 도메인과 모듈 지도
 
-현재 Application Module로 등록된 예제 모듈과 제품 골격의 책임·공개 계약·허용 의존성을 찾는 출발점입니다. 대상 모듈만 아래 문서·지침으로 이어서 읽습니다. 제품 골격의 설계와 향후 확장은 [바운디드 컨텍스트 지도](bounded-contexts.md#bounded-contexts), 유즈케이스·미결정 정책은 [기획 초안](../planning/use-cases.md)을 참고합니다. 계획된 관계는 현재 허용 의존성과 구분합니다.
+현재 Application Module로 등록된 예제 모듈과 제품 골격의 책임·공개 계약·허용 의존성을 찾는 출발점입니다. 대상 모듈만 아래 문서·지침으로 이어서 읽습니다. 제품 골격의 설계와 향후 확장은 [바운디드 컨텍스트 지도](bounded-contexts.md#bounded-contexts), 제품 정책은 [기획 원본 색인](../planning/README.md#planning)이 가리키는 Notion 정책서를 따릅니다. 계획된 관계는 현재 허용 의존성과 구분합니다.
 
 ## 모듈별 책임과 공개 계약
 
@@ -24,8 +24,8 @@
 | `src/main/java/com/orbit/user/**` | [user 지침](../../src/main/java/com/orbit/user/AGENTS.md) → [User](user.md) | 불변식·공개 정보·발행 조건과 auth 영향 |
 | `src/main/java/com/orbit/auth/**` | [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md) → [Auth](auth.md) | 예제 한계·ACL 변환 |
 | `src/main/java/com/orbit/shared/**` | [shared 지침](../../src/main/java/com/orbit/shared/AGENTS.md) → [공개 타입·소비자](#모듈별-책임과-공개-계약)·[공개 경계 규칙](../conventions/architecture/shared.md#shared) | named interface와 내부 구현, 소비 모듈 영향 |
-| `src/main/java/com/orbit/organization/**` | 하위 지침 없음 → [조직 설계](bounded-contexts.md#organization) | 골격만 존재; 조직·소속·참여 요청 소유권과 미결정 정책 |
-| `src/main/java/com/orbit/schedule/**` | [schedule 지침](../../src/main/java/com/orbit/schedule/AGENTS.md) → [작업 설계](bounded-contexts.md#schedule)·[작업 상태·배정 정책](bounded-contexts.md#schedule-policies) | `domain`, `application` 일부, 기사 일정 잠금 어댑터, 임시 출력 어댑터 구현; 공통 오류 순서, 상태 전이·배정 이력 불변식, 도메인 예외 변환, organization ID 참조 경계, 임시 어댑터 교체 조건 |
+| `src/main/java/com/orbit/organization/**` | 하위 지침 없음 → [조직 설계](bounded-contexts.md#organization)·[설계 결정](bounded-contexts.md#organization-design)·[차이·공백](bounded-contexts.md#organization-gaps) | 골격만 존재; 조직·소속·참여 요청 소유권, 총관리자 복수 지정(O-01) |
+| `src/main/java/com/orbit/schedule/**` | [schedule 지침](../../src/main/java/com/orbit/schedule/AGENTS.md) → [schedule 문서](schedule.md#schedule)의 [구현 결정](schedule.md#schedule-implementation)·[차이·공백](schedule.md#schedule-gaps) | `domain`, `application` 일부, 기사 일정 잠금 어댑터, 임시 출력 어댑터 구현; 공통 오류 순서, 상태 전이·배정 이력 불변식, 도메인 예외 변환, organization ID 참조 경계, 임시 어댑터 교체 조건 |
 | `src/main/java/com/orbit/notification/**` | 하위 지침 없음 → [알림 설계](bounded-contexts.md#notification) | 골격만 존재; 이벤트 소비 경계 |
 | `src/test/java/com/orbit/**` | [테스트 지침](../../src/test/java/com/orbit/AGENTS.md) → 위 대상 소스 모듈 지침·계약 | 테스트가 다루는 소유 모듈·소비 경계 |
 
