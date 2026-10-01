@@ -9,6 +9,7 @@
 - 요청 범위의 조회·DB 정리 없는 로컬 검사/빌드·생성물 정리는 자동 진행합니다. 기본 브랜치에서 시작하면 작업 브랜치로 전환하고, 첫 편집 전 [작업 단위와 커밋](.claude/skills/dino-commit/references/commits.md#checkpoints)을 계획해 한 이유가 완결될 때마다 집중 검사·diff 검토 후 커밋합니다. 명시된 커밋 금지는 우선합니다.
 - 제품 결정(권한·시간 제한·사유 목록 등)은 노션 정책서, 필드·화면 흐름은 기능명세가 원본입니다([기획 원본 색인](docs/planning/README.md#planning)). 레포에는 링크와 절만 남기고, 기능은 [PR 종류](.claude/skills/dino-pr/references/kinds.md#kinds)별로 나눕니다.
 - **추가 확인 대상:** 푸시·브랜치 삭제·DB 데이터/볼륨 삭제·테스트/로컬 `create-drop`·배포·amend/rebase/reset·작업을 잃는 Git 정리/복원·PR 병합/닫기/삭제·릴리스 게시. 직접 요청받아도 [실행 전 승인](#approvals)을 따릅니다.
+- Notion에 없는 제품 판단은 [기획 결정 요청](docs/planning/README.md#plan-request)으로 Slack `#plan`에 올리고 Notion 반영 전에 구현하지 않습니다. 이 게시는 초안을 보여 확인받은 뒤에만 합니다.
 - 요청한 PR·이슈 생성/수정/댓글은 추가 확인 없이 수행합니다. 동반 푸시·DB 삭제 승인은 별도입니다. 막히면 완료한 준비·필요한 결정을 알립니다.
 - 같은 문제가 반복되면 [트러블슈팅 기록 규칙](docs/troubleshooting/README.md#기록-규칙)에 재사용 가능한 발견을 남깁니다.
 
