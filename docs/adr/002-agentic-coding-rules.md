@@ -2,7 +2,7 @@
 
 - 상태: Accepted
 - 기준일: 2026-10-01
-- 범위: 지침·스킬·역할의 소유권, 기능 명세 원본, PR 단위, 변경·검증·승인·협업. 기술 결정은 [ADR-001](001-backend-architecture.md)이 소유합니다.
+- 범위: 지침·스킬·역할의 소유권, PR 단위, 변경·검증·승인·협업. 기술 결정은 [ADR-001](001-backend-architecture.md), 기획 원본은 [ADR-003](003-planning-source-of-truth.md)이 소유합니다.
 
 ## 배경과 목적
 
@@ -12,7 +12,7 @@
 
 - **소유권:** `AGENTS.md`는 Claude Code와 Codex가 함께 읽는 공통 제약·도구별 진입점입니다. 여러 역할·사람·CI가 쓰는 공통 계약은 사용 시점별 Claude 스킬의 `.claude/skills/*/references/`에 한 번만 둡니다. `SKILL.md`는 절차와 진입점만, `.codex/agents/`는 Codex 역할 절차만 소유합니다. 문서 통합 시 이전 본문·읽기 지시를 제거하고 실제 소비자의 참조를 갱신합니다.
 - **자동 적용과 강제:** 스킬은 설명에 적힌 작업 시점에 모델 판단으로 트리거되므로 보조 수단입니다. 반드시 지켜야 하는 조건은 결정적 수단으로 강제합니다. 승인 대상 명령은 `.claude/settings.json`의 확인·차단 규칙, 커밋 제목은 PreToolUse hook, PR 양식·종류·다이어그램 존재는 CI 규약 검사가 맡습니다. 모듈 경계 변경의 독립 검토는 서브에이전트(`module-reviewer`)로 유지합니다.
-- **기능 명세 원본:** 제품 결정은 노션 정책서, 필드·화면 흐름·수용 기준은 기능명세가 원본입니다. 레포는 코드 기준의 모듈 책임·공개 계약·모듈 관계만 다루고, 계획과 PR에는 링크와 절만 첨부합니다. 문서 링크와 모듈 매핑은 [기획 원본 색인](../planning/README.md#baseline)이 소유합니다.
+- **기획 원본:** 노션을 원본으로 두고 계획·PR에는 링크와 절만 첨부합니다. 원본 범위·동기화·차이 관리·기획 결정 요청은 [ADR-003](003-planning-source-of-truth.md)이 소유합니다.
 - **PR 단위:** 줄 수 대신 [PR 종류](../../.claude/skills/dino-pr/references/kinds.md#kinds)(유즈케이스·모듈 연동·호환성 변경·구조 변경·결함 수정·유지보수)로 나누고, 한 PR에는 한 종류만 둡니다. 사람은 종류별 핵심 다이어그램과 규칙↔테스트 표로 판단하며, 리뷰는 그 둘이 코드와 일치하는지를 가장 먼저 확인합니다. 유즈케이스는 수직 슬라이스로 완결하고, 리팩터링과 호환성 변경은 별도 PR로 나눕니다. 근거는 Google Small CLs, Vertical Slice, Parallel Change입니다.
 - **변경 단위:** 한 이유의 변경을 검사한 직후 커밋해 검증 상태와 이력을 일치시킵니다. 중간 상태의 실행 가능성·집중 검사와 최종 전체 검증을 구분합니다. 기준은 [커밋 계약](../../.claude/skills/dino-commit/references/commits.md#checkpoints)과 [PR 계획](../../.claude/skills/dino-pr/references/planning.md#planning)에 있습니다.
 - **검증:** 기계적 판정은 실제 검사 결과를 재사용하고, 요구사항·계약 의미·검증 설계는 별도로 판단합니다. 기준은 [검사 보장 범위](../../.claude/skills/dino-testing/references/verification.md#evidence)와 [전체 검증](../../AGENTS.md#검증과-완료)입니다. 문서 정리를 이유로 백엔드·CI 검사를 약화하지 않습니다.
