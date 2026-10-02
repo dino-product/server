@@ -45,7 +45,7 @@ com.orbit
 - 모듈 간 공개 계약은 내부 분류와 별개로 모듈 루트에 유지합니다. 다른 모듈이 내부 Port를 참조하지 않습니다.
 - Request는 Adapter에서 Command/Query로 변환합니다. Controller의 Repository/Persistence Adapter 직접 호출과 JPA Entity 반환은 금지합니다.
 - 트랜잭션·시간 변경은 [트랜잭션](persistence.md#transactions), Entity 변경은 [JPA](persistence.md#jpa), 오류 변경은 [오류 계약](#errors)을 적용합니다.
-- `ModularityTest`는 모듈 간 계약, `ArchitectureTest`는 내부 의존성·Domain의 다른 모듈 참조·JPA Entity 위치를 검사합니다. 실행 선택은 [집중 검사](../../dino-testing/references/verification.md#selection)를 따릅니다.
+- `ModularityTest`는 모듈 간 계약, `ArchitectureTest`는 내부 의존성·Domain의 다른 비즈니스 모듈 참조·JPA Entity 위치를 검사합니다. 실행 선택은 [집중 검사](../../dino-testing/references/verification.md#selection)를 따릅니다.
 
 참고: [Application과 모델 분리](../../../../docs/adr/001-backend-architecture.md#application과-모델-분리), [예제 모듈 결정](../../../../docs/adr/001-backend-architecture.md#예제-모듈).
 

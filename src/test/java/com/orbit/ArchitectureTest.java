@@ -19,6 +19,7 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 class ArchitectureTest {
 
     private static final String ROOT_PACKAGE = "com.orbit";
+    private static final String SHARED_MODULE = "shared";
 
     private static final JavaClasses APPLICATION_CLASSES = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
@@ -43,12 +44,12 @@ class ArchitectureTest {
     }
 
     @Test
-    void domainDoesNotDependOnOtherModules() {
+    void domainDoesNotDependOnOtherBusinessModules() {
         classes()
                 .that()
                 .resideInAPackage("..domain..")
-                .should(dependOnlyOnOwnModule())
-                .because("Domain은 다른 모듈의 공개 계약도 참조하지 않고 필요한 값만 받는다")
+                .should(notDependOnOtherBusinessModules())
+                .because("Domain은 다른 비즈니스 모듈의 공개 계약도 참조하지 않고 필요한 값만 받는다")
                 .check(APPLICATION_CLASSES);
     }
 
@@ -111,16 +112,19 @@ class ArchitectureTest {
                 .check(APPLICATION_CLASSES);
     }
 
-    private static ArchCondition<JavaClass> dependOnlyOnOwnModule() {
-        return new ArchCondition<>("자기 모듈 밖의 " + ROOT_PACKAGE + " 타입에 의존하지 않는다") {
+    private static ArchCondition<JavaClass> notDependOnOtherBusinessModules() {
+        return new ArchCondition<>("다른 비즈니스 모듈 타입에 의존하지 않는다") {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
                 String ownModule = moduleOf(item.getPackageName());
                 for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
                     String targetPackage =
                             dependency.getTargetClass().getBaseComponentType().getPackageName();
-                    if (targetPackage.startsWith(ROOT_PACKAGE + ".")
-                            && !moduleOf(targetPackage).equals(ownModule)) {
+                    if (!targetPackage.startsWith(ROOT_PACKAGE + ".")) {
+                        continue;
+                    }
+                    String targetModule = moduleOf(targetPackage);
+                    if (!targetModule.equals(ownModule) && !targetModule.equals(SHARED_MODULE)) {
                         events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                     }
                 }
