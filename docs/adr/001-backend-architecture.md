@@ -38,7 +38,7 @@
 - 소비 모듈의 Application Service는 제공 모듈의 공개 인터페이스를 주입받아 호출하는 것을 기본으로 합니다. Domain에는 계약 DTO 대신 필요한 값만 넘깁니다.
 - 소비 쪽 출력 Port·Adapter(ACL)는 두 모듈의 모델이 크게 달라 소비 모델을 보호해야 하는 관계에서만 둡니다. 호출마다가 아니라 모듈 관계마다 정합니다.
 
-필요 이상의 추상화를 피한다는 팀 원칙에 따라 모든 모듈 간 호출에 소비 쪽 Port·Adapter를 두지 않기로 했습니다. 제공 모듈의 공개 계약이 이미 인터페이스이므로 테스트 대체와 경계 검증은 유지되고, Domain이 다른 모듈 타입을 모르므로 모듈을 분리할 때의 영향은 Application 계층에서 멈춥니다. Spring Modulith도 공개 Spring Bean과 이벤트를 모듈이 제공하는 계약으로 봅니다. 대신 Application이 계약 DTO에 의존하는 결합은 감수하며, 모델 차이가 큰 관계에서만 ACL 변환 비용을 들입니다. Domain의 다른 모듈 타입 참조는 현재 `ArchitectureTest`가 막지 않으므로 리뷰로 확인합니다.
+필요 이상의 추상화를 피한다는 팀 원칙에 따라 모든 모듈 간 호출에 소비 쪽 Port·Adapter를 두지 않기로 했습니다. 제공 모듈의 공개 계약이 이미 인터페이스이므로 테스트 대체와 경계 검증은 유지되고, Domain이 다른 모듈 타입을 모르므로 모듈을 분리할 때의 영향은 Application 계층에서 멈춥니다. Spring Modulith도 공개 Spring Bean과 이벤트를 모듈이 제공하는 계약으로 봅니다. 대신 Application이 계약 DTO에 의존하는 결합은 감수하며, 모델 차이가 큰 관계에서만 ACL 변환 비용을 들입니다. Domain의 다른 비즈니스 모듈 타입 참조는 `ArchitectureTest`가 막습니다.
 
 방식 선택과 세부 규칙은 [모듈 간 통신](../../.claude/skills/dino-architecture/references/communication.md#communication)을 따릅니다.
 
@@ -71,7 +71,7 @@
 ## 포맷과 검증
 
 - Spotless의 Palantir Java Format으로 Java 레이아웃을 통일하고 Checkstyle로 명명·코드 규칙을 검사합니다.
-- `ModularityTest`는 모듈 경계, `ArchitectureTest`는 내부 의존성과 JPA Entity 위치를 검사합니다. API·OpenAPI 통합 테스트는 공개 계약을, `UserRegistrationEventIntegrationTest`는 실제 커밋·롤백·스레드·트랜잭션 경계를 확인합니다.
+- `ModularityTest`는 모듈 경계, `ArchitectureTest`는 내부 의존성·Domain의 다른 비즈니스 모듈 참조와 JPA Entity 위치를 검사합니다. API·OpenAPI 통합 테스트는 공개 계약을, `UserRegistrationEventIntegrationTest`는 실제 커밋·롤백·스레드·트랜잭션 경계를 확인합니다.
 - CI는 Docker와 필터 없는 전체 테스트를 요구하고 건너뛰기를 실패로 처리합니다. 로컬 집중 검사는 빠른 피드백에 사용하며 전체 검증을 대체하지 않습니다.
 
 포맷 규칙은 [포맷·명명](../../.claude/skills/dino-architecture/references/style.md#style), 테스트 설계·CI 정책은 [테스트](../../.claude/skills/dino-testing/references/design.md#design), 완료 명령은 [루트 지침](../../AGENTS.md#검증과-완료)이 원본입니다.
