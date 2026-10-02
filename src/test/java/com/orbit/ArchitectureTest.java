@@ -7,15 +7,22 @@ import jakarta.persistence.Entity;
 
 import org.junit.jupiter.api.Test;
 
+import com.tngtech.archunit.core.domain.Dependency;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.lang.ArchCondition;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 class ArchitectureTest {
 
+    private static final String ROOT_PACKAGE = "com.orbit";
+
     private static final JavaClasses APPLICATION_CLASSES = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
-            .importPackages("com.orbit");
+            .importPackages(ROOT_PACKAGE);
 
     @Test
     void domainDoesNotDependOnFrameworksOrOuterLayers() {
@@ -32,6 +39,16 @@ class ArchitectureTest {
                         "..application..",
                         "..adapter..")
                 .because("Domain은 기술 프레임워크와 Application, Adapter에 의존하지 않는다")
+                .check(APPLICATION_CLASSES);
+    }
+
+    @Test
+    void domainDoesNotDependOnOtherModules() {
+        classes()
+                .that()
+                .resideInAPackage("..domain..")
+                .should(dependOnlyOnOwnModule())
+                .because("Domain은 다른 모듈의 공개 계약도 참조하지 않고 필요한 값만 받는다")
                 .check(APPLICATION_CLASSES);
     }
 
@@ -92,5 +109,28 @@ class ArchitectureTest {
                 .resideInAPackage("..adapter.out.persistence..")
                 .because("JPA Entity는 Domain 모델 및 Web 응답과 분리한다")
                 .check(APPLICATION_CLASSES);
+    }
+
+    private static ArchCondition<JavaClass> dependOnlyOnOwnModule() {
+        return new ArchCondition<>("자기 모듈 밖의 " + ROOT_PACKAGE + " 타입에 의존하지 않는다") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                String ownModule = moduleOf(item.getPackageName());
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    String targetPackage =
+                            dependency.getTargetClass().getBaseComponentType().getPackageName();
+                    if (targetPackage.startsWith(ROOT_PACKAGE + ".")
+                            && !moduleOf(targetPackage).equals(ownModule)) {
+                        events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                    }
+                }
+            }
+        };
+    }
+
+    private static String moduleOf(String packageName) {
+        String rest = packageName.substring(ROOT_PACKAGE.length() + 1);
+        int dot = rest.indexOf('.');
+        return dot < 0 ? rest : rest.substring(0, dot);
     }
 }

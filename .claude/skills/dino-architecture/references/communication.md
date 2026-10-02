@@ -39,7 +39,7 @@ Application Service ── 공개 인터페이스 호출 ──▶ 모듈 루트
 소비 모듈:
 
 - 기본은 Application Service가 제공 모듈의 공개 인터페이스를 주입받아 호출하는 것입니다. 소비 쪽 출력 Port·Adapter를 따로 만들지 않습니다.
-- Domain에는 계약 DTO 대신 필요한 값만 넘깁니다. Domain은 다른 모듈 타입을 참조하지 않으며 외부 DTO를 받는 생성자·변환 메서드를 두지 않습니다. 이 규칙은 `ArchitectureTest`가 검사하지 않으므로 리뷰에서 확인합니다.
+- Domain에는 계약 DTO 대신 필요한 값만 넘깁니다. Domain은 다른 모듈 타입을 참조하지 않으며 외부 DTO를 받는 생성자·변환 메서드를 두지 않습니다. 이 규칙은 `ArchitectureTest`가 검사합니다.
 
 기본 방식의 예시입니다. 타입 이름은 설명용이며 실제 계약이 아닙니다.
 
