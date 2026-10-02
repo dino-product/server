@@ -15,7 +15,7 @@
 | --- | --- |
 | **서브도메인** | Core(핵심 경쟁력) / Supporting(핵심을 돕는) / Generic(범용) |
 | **상태** | `구현 중` — `domain`과 일부 Application·Adapter가 있으나 공개 계약·완성된 유즈케이스는 없음 / `골격 생성` — 모듈 루트의 `package-info.java`만 존재, 도메인 코드 없음 / `미착수` — 폴더도 없음 |
-| **관계 표기** | `참조(ID)` — 동기 조회 / `이벤트` — 비동기, Published Language / `ACL` — 상대 모델을 자기 언어로 번역해 수용 / `Conformist` — 상대 계약을 그대로 수용. 통신 방식과 ACL 적용 규칙은 [모듈 간 통신](../conventions/architecture/communication.md#communication)을 따른다 |
+| **관계 표기** | `참조(ID)` — 동기 조회 / `이벤트` — 비동기, Published Language / `ACL` — 상대 모델을 자기 언어로 번역해 수용 / `Conformist` — 상대 계약을 그대로 수용. 통신 방식과 ACL 적용 규칙은 [모듈 간 통신](../../.claude/skills/dino-architecture/references/communication.md#communication)을 따른다 |
 | **정책서 표기** | `[작업] §5` — 기준 버전 [작업] 정책서의 5절. 정책서 이름은 [기획 원본 색인](../planning/README.md#planning) 참조 |
 
 ---

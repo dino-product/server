@@ -13,7 +13,7 @@
 
 - OAuth 요청의 state/nonce는 시작 브라우저와 연결하고 콜백에서 일회성·만료·연결을 검증합니다. 다른 브라우저의 유효한 콜백을 수용하지 않는지 확인합니다.
 - JWT는 실제 검증기로 서명·시간과 계약에서 정한 발급자·대상·토큰 종류를 확인합니다. 유효한 서명의 잘못된 claim도 거부되는지 검사합니다.
-- Refresh 회전은 실제 저장소에서 정상 회전·동시 호출·재사용 철회와 합의한 만료 정책을 확인합니다. 전체 세션 철회를 제공하면 수명이 다른 세션이 공존할 때도 모두 철회되는지 검사합니다. 시계와 mock의 검증 범위는 [테스트 규칙](../../../../../../docs/conventions/testing/design.md#design)을 따릅니다.
+- Refresh 회전은 실제 저장소에서 정상 회전·동시 호출·재사용 철회와 합의한 만료 정책을 확인합니다. 전체 세션 철회를 제공하면 수명이 다른 세션이 공존할 때도 모두 철회되는지 검사합니다. 시계와 mock의 검증 범위는 [테스트 규칙](../../../../../../.claude/skills/dino-testing/references/design.md#design)을 따릅니다.
 
 ## 집중 검증
 
@@ -21,4 +21,4 @@
 - 조회: `com.orbit.auth.application.service.GetAuthSubjectServiceTest`.
 - 경계 변환: `com.orbit.auth.adapter.out.user.UserSubjectAdapterTest`, `com.orbit.auth.adapter.in.event.UserRegisteredListenerTest`.
 - 모듈 조립: `com.orbit.auth.AuthModuleTest`.
-- HTTP·OpenAPI·이벤트·모듈 경계는 [공통 검사 표](../../../../../../docs/conventions/testing/selection.md#selection)를 따릅니다.
+- HTTP·OpenAPI·이벤트·모듈 경계는 [공통 검사 표](../../../../../../.claude/skills/dino-testing/references/verification.md#selection)를 따릅니다.

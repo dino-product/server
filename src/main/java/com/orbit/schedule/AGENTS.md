@@ -2,7 +2,7 @@
 
 [루트 지침](../../../../../../AGENTS.md)에 추가 적용합니다. 책임·애그리게잇은 [schedule 문서](../../../../../../docs/domain/schedule.md#schedule), 제품 규칙(권한·시간 제한·사유 목록 등)은 [기획 원본 색인](../../../../../../docs/planning/README.md#planning)의 Notion 정책서와 [제품 규칙 참조](../../../../../../docs/domain/schedule.md#schedule-product), 구현 규칙은 [구현 결정](../../../../../../docs/domain/schedule.md#schedule-implementation)이 원본입니다. 여기에 타입 목록·전이표·제품 규칙을 복제하지 않습니다.
 
-- [차이·공백](../../../../../../docs/domain/schedule.md#schedule-gaps)의 항목은 [대역별 구현 규칙](../../../../../../docs/planning/README.md#gap-actions)대로 다룹니다. `S-0x`·`S-2x`는 요청받으면 Notion 기준으로 해소하고, `S-1x`·`S-3x`는 Notion 결정 전에 구현하지 않습니다. 구현 중 사용자가 체감하는 새 판단이 필요하면 `S-1x`로 적고 알립니다.
+- [차이·공백](../../../../../../docs/domain/schedule.md#schedule-gaps)의 항목은 [대역별 구현 규칙](../../../../../../docs/planning/README.md#gap-actions)대로 다룹니다. `S-0x`·`S-2x`는 요청받으면 Notion 기준으로 해소하고, `S-1x`·`S-3x`는 Notion 결정 전에 구현하지 않습니다. 구현 중 사용자가 체감하는 새 판단이 필요하면 `S-1x`로 적고 [기획 결정 요청](../../../../../../docs/planning/README.md#plan-request)을 합니다.
 - `domain`, `application`, `adapter/out`이 있고 구현 범위는 [도메인 지도](../../../../../../docs/domain/README.md#모듈별-책임과-공개-계약)가 원본입니다. 모듈 루트 공개 계약은 없습니다. `allowedDependencies`는 `shared::error`입니다.
 - 출력 포트 구현은 임시입니다: `adapter/out/memory/InMemoryWorkRepository`는 JPA 어댑터(HM-234), `adapter/out/organization/DenyingActorAdapter`(모두 거부)는 organization의 소속·기사 계약 조회 공개 계약으로 교체한 뒤 삭제합니다. 둘 다 `local`·`test` 프로필에서만 등록합니다. 이 포트를 쓰는 서비스(`CreateWorkService` 등)가 있으므로 현재 그 밖의 프로필(`prod`, 프로필 없음)은 Bean 부재로 기동하지 않으며, 이것이 의도입니다. 실제 어댑터를 추가하고 임시 구현을 지우지 않으면 Bean 중복으로 실패하니 `@Primary`로 덮지 않습니다.
 - JPA 어댑터는 `WorkRepository` 계약을 지킵니다: 조회 결과는 영속 상태와 분리된 사본이라 `save`하지 않은 변경은 커밋돼도 저장되지 않아야 하고(배정·재배정·일정 변경의 미확인 겹침이 여기에 기댑니다), 이를 실제 트랜잭션 커밋으로 검증하는 테스트를 둡니다.
@@ -54,4 +54,4 @@ organization 계약이 연결되기 전에는 요청자·기사·작업 유형�
 - Adapter: `com.orbit.schedule.adapter` 패키지의 관련 테스트(잠금 어댑터는 Docker의 PostgreSQL 필요).
 - 모듈 조립: `com.orbit.schedule.ScheduleModuleTest`, `com.orbit.schedule.ScheduleUseCaseFlowTest`(둘 다 Docker의 PostgreSQL 필요).
 - 모듈 경계: `com.orbit.ModularityTest`, `com.orbit.ArchitectureTest`.
-- 그 밖의 선택은 [공통 검사 표](../../../../../../docs/conventions/testing/selection.md#selection)를 따릅니다.
+- 그 밖의 선택은 [공통 검사 표](../../../../../../.claude/skills/dino-testing/references/verification.md#selection)를 따릅니다.

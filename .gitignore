@@ -21,3 +21,9 @@ docker/data/
 # Python
 __pycache__/
 *.py[cod]
+
+# Claude Code: 개인 설정·로컬 PR 초안·리뷰 보고서·작업 계획(워크트리 루트 <이슈키>-plan.md)
+.claude/settings.local.json
+.claude/pr-drafts/
+.claude/reviews/
+/*-plan.md

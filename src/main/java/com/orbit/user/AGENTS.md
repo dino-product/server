@@ -11,4 +11,4 @@
 
 - 불변식·등록·조회: `com.orbit.user.domain.UserTest`, `com.orbit.user.application.service.RegisterUserServiceTest`, `com.orbit.user.application.service.UserLookupServiceTest` 중 관련 테스트.
 - 모듈 조립: `com.orbit.user.UserModuleTest`와 영향받는 auth 테스트.
-- 공개 계약·등록 이벤트·HTTP는 [공통 검사 표](../../../../../../docs/conventions/testing/selection.md#selection)를 따릅니다.
+- 공개 계약·등록 이벤트·HTTP는 [공통 검사 표](../../../../../../.claude/skills/dino-testing/references/verification.md#selection)를 따릅니다.
