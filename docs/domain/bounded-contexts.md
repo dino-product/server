@@ -5,7 +5,7 @@
 - 기준일: 2026-10-01
 - 기획 원본: [기획 원본 색인](../planning/README.md#planning)의 Notion 정책서 (기준 버전은 색인이 소유, 결정 배경은 [ADR-003](../adr/003-planning-source-of-truth.md))
 
-이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없고, 계획된 관계를 구현할 때 필요한 공개 계약과 의존성을 함께 추가한다.
+이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없다.
 
 제품 규칙(누가·무엇을·언제, 사용자가 체감하는 제한)은 이 문서에 다시 적지 않는다. 구현이 시작된 BC는 모듈별 문서(현재 [schedule](schedule.md#schedule))로 분리하고, 이 문서에는 관계·로드맵만 남긴다. 각 BC는 **기획 원본**(기준 정책서) · **제품 규칙 참조**(Notion 절 번호) · **구현 결정**(BC 문서가 원본) · **차이·공백**(Notion과 구현의 차이, 제품 결정 필요 항목)으로 나눠 적는다. 차이·공백 항목은 [대역별 구현 규칙](../planning/README.md#gap-actions)대로 다루며, 운영 절차는 [동기화 규칙](../planning/README.md#sync)을 따른다.
 
@@ -15,7 +15,7 @@
 | --- | --- |
 | **서브도메인** | Core(핵심 경쟁력) / Supporting(핵심을 돕는) / Generic(범용) |
 | **상태** | `구현 중` — `domain`과 일부 Application·Adapter가 있으나 공개 계약·완성된 유즈케이스는 없음 / `골격 생성` — 모듈 루트의 `package-info.java`만 존재, 도메인 코드 없음 / `미착수` — 폴더도 없음 |
-| **관계 표기** | `참조(ID)` — 동기 조회, 상대 공개 계약만 호출 / `이벤트` — 비동기, Published Language / `ACL` — 상대 모델을 자기 언어로 번역해 수용 |
+| **관계 표기** | `참조(ID)` — 동기 조회 / `이벤트` — 비동기, Published Language / `ACL` — 상대 모델을 자기 언어로 번역해 수용 / `Conformist` — 상대 계약을 그대로 수용. 통신 방식과 ACL 적용 규칙은 [모듈 간 통신](../../.claude/skills/dino-architecture/references/communication.md#communication)을 따른다 |
 | **정책서 표기** | `[작업] §5` — 기준 버전 [작업] 정책서의 5절. 정책서 이름은 [기획 원본 색인](../planning/README.md#planning) 참조 |
 
 ---
@@ -43,7 +43,7 @@
 | 상태 | 골격 생성 (`package-info.java`만 존재) |
 | 기획 원본 | [조직·계정] 정책 |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유<br>**Membership**(Root) — 조직 소속·확정 유형·활성상태, authAccountId를 불투명 참조로만 보유 |
-| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, ACL) · `schedule` → 참조(ID) 제공 (계정·조직으로 Membership 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
+| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, Conformist) · `schedule` → 참조(ID) 제공 (계정·조직으로 Membership 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
 
 <a id="organization-product"></a>
 #### 2.1 제품 규칙 참조
@@ -89,7 +89,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 책임 | 작업 등록부터 완료까지 전체 생애주기. 발주–배정–수행의 최소 단위를 다룸 |
 | 상태 | 구현 중 — 설계·구현 결정·기획 차이는 [schedule 문서](schedule.md#schedule) |
 | 소유 애그리게잇 | **Work**(Root) + AssignmentHistory·CompletionReport(내부 엔티티) + 값객체. 읽기 모델 Timetable/Backlog/ProgressBoard는 애그리게잇이 아님 |
-| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL) · `notification` ← 이벤트 발행(작업 상태 변경) |
+| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — 이유는 [schedule 문서](schedule.md#schedule)) · `notification` ← 이벤트 발행(작업 상태 변경) |
 
 <a id="notification"></a>
 ### 4. 알림 컨텍스트 (`notification`) — Generic Subdomain
@@ -148,6 +148,6 @@ P2~P4의 포함 여부·시점은 제품 결정이며 각 정책서의 MVP 제�
 ## 다음 단계
 
 1. `organization`/`notification`의 `domain` 패키지에 실제 애그리게잇 구현 (Organization/MembershipRequest/Membership, Notification)
-2. 각 모듈 루트에 공개 계약 클래스 배치 (예: `schedule`의 `WorkLookup`처럼 `auth`/`user` 예제와 동일한 패턴)
+2. 각 모듈 루트에 공개 계약 클래스 배치 (예: `schedule`의 `WorkLookup`처럼 `user`의 `UserLookup`과 같은 패턴)
 3. 모듈별 `AGENTS.md` 작성 (도메인 코드가 들어가는 시점에 함께)
 4. 이 문서와 [도메인 지도](README.md)를 실제 구현 진행과 [기획 원본 색인](../planning/README.md#planning)의 기준 버전에 맞춰 갱신

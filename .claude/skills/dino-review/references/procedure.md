@@ -26,7 +26,7 @@
 [PR 규약 검사](../../../../.github/scripts/check_pr_metadata.py)·Spotless·Checkstyle·테스트가 판정한 항목은 결과를 인용만 하고 다시 지적하지 않습니다. 로컬에서는 `pr_draft.py check`로 규약 검사 결과를 얻습니다.
 
 1. **다이어그램과 표**: [핵심 다이어그램·구현 내용 표](../../dino-pr/references/kinds.md#절별-작성-기준)의 참여자·호출 순서·실패 분기가 코드와 같은지, 표의 근거 테스트가 실제로 그 규칙을 검증하는지 봅니다. 사람은 이것으로 판단하므로 다르면 `수정 필요`입니다.
-2. **모듈 계약**: 변경에 해당하는 [모듈 경계](../../dino-architecture/references/architecture.md#modules)·[소비자 변환](../../dino-architecture/references/architecture.md#external-models)·[계층 의존](../../dino-architecture/references/architecture.md#layers)을 적용해 공개 타입·named interface·이벤트·`allowedDependencies`와 실제 호출부가 맞는지 확인합니다. 모듈 경계를 바꿨으면 `module-reviewer` 독립 검토 결과가 있는지 봅니다.
+2. **모듈 계약**: 변경에 해당하는 [모듈 경계](../../dino-architecture/references/architecture.md#modules)·[모듈 간 통신](../../dino-architecture/references/communication.md#communication)·[계층 의존](../../dino-architecture/references/architecture.md#layers)을 적용해 공개 타입·named interface·이벤트·`allowedDependencies`와 실제 호출부가 맞는지 확인합니다. 모듈 경계를 바꿨으면 `module-reviewer` 독립 검토 결과가 있는지 봅니다.
 3. **결함**: 커밋 순서대로 구현·호출부·테스트를 따라 실패 경로·경계·널·동시성·상태 전이·트랜잭션·누락을 봅니다. 최종 상태 검사와 커밋별 근거를 구분하고, 발견은 위치·발생 조건·영향·근거를 갖추며 확정과 가설(`판단 필요`)을 나눕니다.
 4. **컨벤션**: 의미 판단이 필요한 것만 봅니다(JPA·트랜잭션·이벤트·HTTP/DTO·테스트 설계). 기준은 `dino-architecture`·`dino-testing`의 references입니다.
 5. **단위와 문서**: 선언한 PR 종류가 diff와 맞는지, 종류 혼합·다이어그램 3개 초과([PR 단위](../../dino-pr/references/planning.md#unit)), 커밋별 한 변경 이유, 소유 문서 갱신 누락, 검증 절이 실제 SHA·명령·결과를 담았는지 봅니다.

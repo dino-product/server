@@ -31,7 +31,7 @@
 
 | 변경 대상 | 원본 (Claude 스킬) |
 | --- | --- |
-| 모듈·계층·소비 모델·Shared·오류 / 포맷·명명 | [architecture](.claude/skills/dino-architecture/references/architecture.md) / [style](.claude/skills/dino-architecture/references/style.md) (`dino-architecture`) |
+| 모듈·계층·모듈 간 통신·Shared·오류 / 포맷·명명 | [architecture](.claude/skills/dino-architecture/references/architecture.md) / [communication](.claude/skills/dino-architecture/references/communication.md) / [style](.claude/skills/dino-architecture/references/style.md) (`dino-architecture`) |
 | JPA·트랜잭션·이벤트·프로필 / HTTP·DTO·OpenAPI | [persistence](.claude/skills/dino-architecture/references/persistence.md) / [web](.claude/skills/dino-architecture/references/web.md) (`dino-architecture`) |
 | 테스트 설계·검사 선택·CI | [design](.claude/skills/dino-testing/references/design.md) / [verification](.claude/skills/dino-testing/references/verification.md), [테스트 지침](src/test/java/com/orbit/AGENTS.md) (`dino-testing`) |
 | 브랜치·커밋·유형 | [commits](.claude/skills/dino-commit/references/commits.md) / [change-types](.claude/skills/dino-commit/references/change-types.md) (`dino-commit`) |
@@ -45,7 +45,7 @@
 ## 핵심 경계
 
 - 비즈니스 모듈은 루트 타입, `shared`는 named interface로 계약을 공개합니다. 내부 타입 공개로 검증을 우회하지 않습니다. Domain은 Spring/JPA/Web·Application/Adapter에 의존하지 않습니다.
-- Controller의 Repository 직접 호출·JPA Entity 반환, 모듈 간 Entity 공유·이유 없는 `shared` 이동을 금지합니다. 소비 의미·규칙이 다르면 자체 Domain 모델을 두고 경계에서 변환합니다.
+- Controller의 Repository 직접 호출·JPA Entity 반환, 모듈 간 Entity 공유·이유 없는 `shared` 이동을 금지합니다. 다른 비즈니스 모듈과는 모듈 루트의 공개 인터페이스·이벤트로만 통신하고 Domain은 다른 모듈 타입을 참조하지 않습니다.
 - 실제 환경값·비밀 파일은 커밋하거나 `src/main/resources`에 두지 않습니다. 생성 Q 클래스·`build/`는 직접 편집하지 않으며 로컬/테스트 외 스키마 자동 변경을 금지합니다.
 - 기능·버그 수정은 재현 테스트의 의도한 실패 확인 → 구현 → 집중 검사 순서를 지킵니다. 모듈 책임·공개 계약·아키텍처 정책을 바꾸면 도메인 지도·관련 계약·ADR을 함께 갱신합니다. 기능 추가만으로는 레포 문서를 늘리지 않습니다.
 

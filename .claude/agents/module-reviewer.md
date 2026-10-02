@@ -8,7 +8,7 @@ model: inherit
 주 에이전트가 전달한 구현 후 diff·요구사항(노션 정책서·기능명세 절 포함)에서 모듈 책임·공개 계약·Domain/Application 의존성을 독립 검토합니다.
 
 1. 영향받는 모듈을 [도메인 지도](../../docs/domain/README.md#작업-경로와-추가-지침)로 좁히고 해당 경로의 `AGENTS.md`를 확인합니다.
-2. 필요한 절만 [아키텍처 계약](../skills/dino-architecture/references/architecture.md)의 `#modules`, `#layers`, `#external-models`, `#shared`에서 확인합니다.
+2. 필요한 절만 [아키텍처 계약](../skills/dino-architecture/references/architecture.md)의 `#modules`, `#layers`, `#shared`와 [모듈 간 통신](../skills/dino-architecture/references/communication.md#communication)에서 확인합니다.
 3. 공개 타입·의존 방향·소비 경계 변환을 실제 호출부와 대조합니다. 현재 구현과 기획(노션)을 구분합니다.
 4. `ModularityTest`·`ArchitectureTest`가 이미 판정한 조건은 반복하지 않고 의미와 검사 사각지대를 봅니다.
 

@@ -1,6 +1,6 @@
 # 아키텍처 계약
 
-모듈 경계·계층·소비 모델·Shared·오류 계약입니다. 필요한 절만 읽습니다.
+모듈 경계·계층·Shared·오류 계약입니다. 다른 모듈과의 통신은 [모듈 간 통신](communication.md#communication)이 원본입니다. 필요한 절만 읽습니다.
 
 <a id="modules"></a>
 ## 모듈 경계
@@ -26,7 +26,7 @@ com.orbit
 - 비즈니스 모듈의 공개 계약은 모듈 루트, `shared`는 명시적 `@NamedInterface`에 둡니다. 다른 모듈의 `domain`, `application`, `adapter` 접근과 모듈 간 JPA Entity 공유는 금지합니다.
 - `package-info.java`의 `allowedDependencies`는 실제 의존성만 `shared::error`처럼 한정합니다. `shared::*` 일괄 허용은 금지합니다.
 - 내부 타입 공개로 검증을 우회하지 않고 필요한 최소 계약을 설계합니다.
-- 즉시 응답은 공개 인터페이스, 완료 사실 전파는 공개 이벤트를 사용합니다.
+- 다른 모듈과의 통신 방식과 선택 기준은 [모듈 간 통신](communication.md#communication)을 따릅니다.
 
 참고: [배포와 모듈 경계 결정](../../../../docs/adr/001-backend-architecture.md#배포와-모듈-경계).
 
@@ -35,9 +35,9 @@ com.orbit
 
 아래 경로는 `src/main/java/com/orbit/{module}` 기준입니다.
 
-- Adapter는 Application Port와 Domain에 의존합니다. `domain`은 식별자·값의 불변식을 보장하며 Application/Adapter 및 Spring·JPA·Web 타입·annotation에 의존하지 않습니다.
+- Adapter는 Application Port와 Domain, 필요한 다른 모듈의 공개 계약에 의존합니다. `domain`은 식별자·값의 불변식을 보장하며 Application/Adapter 및 Spring·JPA·Web 타입·annotation에 의존하지 않습니다.
 - 입력 Adapter는 입력 Port를 호출합니다. Application Service 구현·출력 Port·Persistence 직접 호출은 금지합니다. HTTP는 `adapter/in/web`, 이벤트 소비는 `adapter/in/event`에 둡니다.
-- `application/service`는 트랜잭션 흐름을 조율하며 Domain·Port에 의존합니다. Adapter·영속 기술에 직접 의존하지 않습니다. 구현 증가로 탐색·책임 구분이 필요할 때만 `service/command`, `service/query`로 나눕니다.
+- `application/service`는 트랜잭션 흐름을 조율하며 Domain·Port와 다른 모듈의 공개 계약([모듈 간 통신](communication.md#communication))에 의존합니다. Adapter·영속 기술에 직접 의존하지 않습니다. 구현 증가로 탐색·책임 구분이 필요할 때만 `service/command`, `service/query`로 나눕니다.
 - 외부 기술 계약은 `application/port/out`, 이를 구현하는 JPA·외부 연동 Adapter는 `adapter/out`에 둡니다.
 - 입력 Port는 상태 변경·후속 처리를 `application/port/in/command`, 조회를 `application/port/in/query`로 나눕니다. 빈 책임의 패키지는 만들지 않습니다.
 - 입력·결과 DTO는 접미사가 아닌 소유 유스케이스에 따라 `command/dto` 또는 `query/dto`에 둡니다. 등록 결과 `RegisteredUserInfo`는 `command/dto` 소유입니다.
@@ -48,17 +48,6 @@ com.orbit
 - `ModularityTest`는 모듈 간 계약, `ArchitectureTest`는 내부 의존성·JPA Entity 위치를 검사합니다. 실행 선택은 [집중 검사](../../dino-testing/references/verification.md#selection)를 따릅니다.
 
 참고: [Application과 모델 분리](../../../../docs/adr/001-backend-architecture.md#application과-모델-분리), [예제 모듈 결정](../../../../docs/adr/001-backend-architecture.md#예제-모듈).
-
-<a id="external-models"></a>
-## 소비 모듈의 외부 정보 변환
-
-- 같은 사용자라도 필요한 정보·역할·불변식·행동이 다르면 소비 모듈의 `domain`에 자체 모델을 둡니다. 이름·필드는 소비 모듈의 언어·유스케이스로 정합니다. 제공 모듈의 Domain 모델을 재사용하거나 공개 DTO를 자체 Domain 모델로 취급하지 않습니다.
-- 공개 조회 DTO·이벤트는 전달 계약입니다. 소비 Domain은 다른 모듈 타입을 참조하지 않고 경계에서 필요한 값만 자체 모델로 변환합니다. 필드가 비슷하다는 이유로 `shared`에 합치지 않습니다.
-- 외부 조회는 소비 모듈의 `application/port/out`에 정의합니다. `adapter/out`이 제공 모듈의 공개 API를 호출해 자체 모델로 변환합니다. 이벤트는 `adapter/in/event`에서 소비 모듈의 입력 값으로 변환해 입력 Port에 전달합니다. Domain에 외부 DTO를 받는 생성자·변환 메서드를 두지 않습니다.
-- 별도 의미·규칙 없는 표시·조회는 Application 조회 결과 값으로 충분합니다. 필드 선택만을 위해 행동 없는 Domain 클래스를 만들지 않습니다. 자체 규칙이 필요해지면 위 경계로 전환합니다.
-- 자체 모델은 별도 테이블·원본 소유권을 뜻하지 않습니다. 원본 변경은 소유 모듈의 공개 계약으로 요청합니다. 로컬 조회 모델을 영속화할 때는 동기화·최신성·실패 복구 정책을 별도로 정합니다.
-
-참고: 현재 Auth의 [예제 유지 범위](../../../../docs/domain/auth.md#책임과-범위), [조회 공개 계약](../../../../docs/domain/auth.md#패키지와-공개-계약). 구현 범위는 해당 모듈 문서가 소유합니다.
 
 <a id="shared"></a>
 ## Shared 공개 계약
