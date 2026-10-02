@@ -14,7 +14,7 @@
 - 비즈니스 책임별 패키지를 Application Module로 구분합니다. 초기에는 별도 Gradle 모듈이나 서비스로 나누지 않고 `ApplicationModules.verify()`로 경계·순환 의존성을 검증합니다.
 - 비즈니스 모듈의 공개 계약은 모듈 루트에 둡니다. `shared`의 오류·OpenAPI 계약은 named interface로 나누어 필요한 계약만 허용합니다. 내부 패키지 공개로 검증을 우회하지 않습니다.
 
-모듈별 책임·공개 타입·허용 의존성은 [도메인 지도](../domain/README.md), 패키지와 수정 위치는 [아키텍처 규칙](../conventions/architecture/modules.md#modules)이 원본입니다.
+모듈별 책임·공개 타입·허용 의존성은 [도메인 지도](../domain/README.md), 패키지와 수정 위치는 [아키텍처 규칙](../../.claude/skills/dino-architecture/references/architecture.md#modules)이 원본입니다.
 
 ## 제품 모듈 골격
 
@@ -32,7 +32,7 @@
 - Domain 모델·JPA Entity·Web DTO를 분리합니다. 모듈 간 공개 계약은 내부 Port·DTO 패키지로 옮기지 않습니다.
 - 같은 대상도 모듈별 정보·의미·규칙이 다르면 소비 모듈이 자체 Domain 모델을 소유하고 공개 DTO·이벤트를 Port·Adapter 경계에서 변환합니다. 단순 표시·조회에는 별도 Domain 모델을 강제하지 않으며, 모델 분리는 테이블 복제나 원본 데이터 소유권 이전을 뜻하지 않습니다.
 
-상세 기준은 [소비 모듈의 모델과 외부 정보 변환](../conventions/architecture/external-models.md#external-models)을 따릅니다.
+상세 기준은 [소비 모듈의 모델과 외부 정보 변환](../../.claude/skills/dino-architecture/references/architecture.md#external-models)을 따릅니다.
 
 ## 예제 모듈
 
@@ -48,7 +48,7 @@
 - 모듈 전용 오류는 `application.error`가 소유하고 `CommonErrorCode`에는 공통 오류만 둡니다. `BusinessException(BaseCode)`와 전역 처리를 유지합니다. 응답·OpenAPI 매핑 중복을 줄이기 위해 Application 오류에는 HTTP 상태를 허용하지만 Domain 불변식 오류에는 이 웹 지향 계약을 사용하지 않습니다.
 - 신규 오류 식별자는 HTTP 상태와 독립적인 모듈별 일련번호를 사용합니다. 상태가 바뀌어도 식별자를 유지하며 기존 응답 코드는 호환성을 위해 보존합니다.
 
-세부 계약은 [Web API](../conventions/web/http.md#http)·[OpenAPI](../conventions/web/openapi/controllers.md#controllers)·[아키텍처](../conventions/architecture/modules.md#modules)를 따릅니다.
+세부 계약은 [Web API](../../.claude/skills/dino-architecture/references/web.md#http)·[OpenAPI](../../.claude/skills/dino-architecture/references/web.md#controllers)·[아키텍처](../../.claude/skills/dino-architecture/references/architecture.md#modules)를 따릅니다.
 
 ## 영속성과 이벤트
 
@@ -58,7 +58,7 @@
 - 전달 보장이 필요한 서비스는 영속 저장소·재처리·멱등성 정책을 함께 설계합니다. 최소 예제의 후속 처리는 모듈 경계를 보여 주는 데 한정하며 전달 보장을 암시하지 않습니다.
 - 마이그레이션 도구와 실제 인증 수단은 제품 요구에 따라 결정합니다. 운영 적용 전 스키마 준비와 API·Actuator 접근 정책을 구성해야 합니다.
 
-프로필·트랜잭션·이벤트의 실행 규칙은 [영속성·이벤트](../conventions/persistence/transactions.md#transactions), 실행 준비는 [빠른 시작](../../README.md#빠른-시작)을 따릅니다.
+프로필·트랜잭션·이벤트의 실행 규칙은 [영속성·이벤트](../../.claude/skills/dino-architecture/references/persistence.md#transactions), 실행 준비는 [빠른 시작](../../README.md#빠른-시작)을 따릅니다.
 
 ## 포맷과 검증
 
@@ -66,4 +66,4 @@
 - `ModularityTest`는 모듈 경계, `ArchitectureTest`는 내부 의존성과 JPA Entity 위치를 검사합니다. API·OpenAPI 통합 테스트는 공개 계약을, `UserRegistrationEventIntegrationTest`는 실제 커밋·롤백·스레드·트랜잭션 경계를 확인합니다.
 - CI는 Docker와 필터 없는 전체 테스트를 요구하고 건너뛰기를 실패로 처리합니다. 로컬 집중 검사는 빠른 피드백에 사용하며 전체 검증을 대체하지 않습니다.
 
-포맷 규칙은 [포맷·명명](../conventions/java/style.md#style), 테스트 설계·CI 정책은 [테스트](../conventions/testing/design.md#design), 완료 명령은 [루트 지침](../../AGENTS.md#검증과-완료)이 원본입니다.
+포맷 규칙은 [포맷·명명](../../.claude/skills/dino-architecture/references/style.md#style), 테스트 설계·CI 정책은 [테스트](../../.claude/skills/dino-testing/references/design.md#design), 완료 명령은 [루트 지침](../../AGENTS.md#검증과-완료)이 원본입니다.

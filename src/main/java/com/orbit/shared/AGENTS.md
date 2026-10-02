@@ -9,4 +9,4 @@
 
 ## 집중 검증
 
-계약·응답·보안·OpenAPI·비동기 변경은 [공통 검사 표](../../../../../../docs/conventions/testing/selection.md#selection)의 해당 테스트를 실행합니다. 공통 Security·Bean 의존성 변경은 소비 모듈의 격리 조립 검사도 같은 단위에서 확인합니다. 프로필 변경은 `com.orbit.shared.internal.config.ApplicationProfileConfigurationTest`도 포함합니다.
+계약·응답·보안·OpenAPI·비동기 변경은 [공통 검사 표](../../../../../../.claude/skills/dino-testing/references/verification.md#selection)의 해당 테스트를 실행합니다. 공통 Security·Bean 의존성 변경은 소비 모듈의 격리 조립 검사도 같은 단위에서 확인합니다. 프로필 변경은 `com.orbit.shared.internal.config.ApplicationProfileConfigurationTest`도 포함합니다.
