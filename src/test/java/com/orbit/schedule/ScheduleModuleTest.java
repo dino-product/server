@@ -41,8 +41,25 @@ import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
+import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
+import com.orbit.schedule.application.port.in.query.GetMyScheduleUseCase;
+import com.orbit.schedule.application.port.in.query.GetProgressBoardUseCase;
+import com.orbit.schedule.application.port.in.query.GetTeamScheduleUseCase;
+import com.orbit.schedule.application.port.in.query.GetTimetableUseCase;
+import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
+import com.orbit.schedule.application.port.in.query.GetWorkHistoryUseCase;
+import com.orbit.schedule.application.port.in.query.SearchWorksUseCase;
+import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetTeamScheduleQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetWorkHistoryQuery;
+import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
+import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
@@ -103,6 +120,33 @@ class ScheduleModuleTest {
 
     @Autowired
     private SubmitCompletionReportUseCase submitCompletionReportUseCase;
+
+    @Autowired
+    private GetWorkDetailUseCase getWorkDetailUseCase;
+
+    @Autowired
+    private GetCompletionReportUseCase getCompletionReportUseCase;
+
+    @Autowired
+    private GetTimetableUseCase getTimetableUseCase;
+
+    @Autowired
+    private SearchWorksUseCase searchWorksUseCase;
+
+    @Autowired
+    private GetProgressBoardUseCase getProgressBoardUseCase;
+
+    @Autowired
+    private GetMyScheduleUseCase getMyScheduleUseCase;
+
+    @Autowired
+    private GetTeamScheduleUseCase getTeamScheduleUseCase;
+
+    @Autowired
+    private GetWorkHistoryUseCase getWorkHistoryUseCase;
+
+    @Autowired
+    private WorkQueryPort workQueryPort;
 
     @Autowired
     private LockTechnicianSchedulePort lockTechnicianSchedulePort;
@@ -177,6 +221,33 @@ class ScheduleModuleTest {
         assertDenied(() -> startWorkUseCase.start(new StartWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 1)));
         assertDenied(() -> submitCompletionReportUseCase.submit(new SubmitCompletionReportCommand(
                 1L, ORGANIZATION_ID.value(), 1L, 1, null, null, null, null, null, null)));
+    }
+
+    @Test
+    void assembledQueryUseCasesDenyEveryoneUntilOrganizationIsWired() {
+        assertDenied(() -> getWorkDetailUseCase.get(new GetWorkDetailQuery(1L, ORGANIZATION_ID.value(), 1L)));
+        assertDenied(
+                () -> getCompletionReportUseCase.get(new GetCompletionReportQuery(1L, ORGANIZATION_ID.value(), 1L)));
+        Instant from = Instant.parse("2026-09-25T00:00:00Z");
+        assertDenied(() -> getTimetableUseCase.get(
+                new GetTimetableQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+        assertDenied(() -> searchWorksUseCase.search(new SearchWorksQuery(
+                1L, ORGANIZATION_ID.value(), null, null, null, null, null, false, false, null, null, null)));
+        assertDenied(() -> getProgressBoardUseCase.get(
+                new GetProgressBoardQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+        assertDenied(() -> getMyScheduleUseCase.get(
+                new GetMyScheduleQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+        assertDenied(() -> getTeamScheduleUseCase.get(
+                new GetTeamScheduleQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+        assertDenied(() -> getWorkHistoryUseCase.get(
+                new GetWorkHistoryQuery(1L, ORGANIZATION_ID.value(), 3L, from, from.plus(Duration.ofDays(1)))));
+    }
+
+    @Test
+    void assembledWorkQueryPortIsEmptyUntilJpaAdapter() {
+        workRepository.save(Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), null, null, null));
+
+        assertThat(workQueryPort.listBacklog(ORGANIZATION_ID)).isEmpty();
     }
 
     @Test
