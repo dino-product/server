@@ -27,12 +27,25 @@ public enum WorkStatus {
         };
     }
 
+    /**
+     * 총관리자의 강제 정정으로 한 단계 되돌릴 수 있는지: 완료 → 작업중, 작업중 → 수락됨, 취소 → 대기함. 일반 전이({@link #canTransitionTo})와 따로
+     * 둬서, 정정 경로가 일반 업무 흐름에 섞이지 않게 한다.
+     */
+    public boolean canBeCorrectedTo(WorkStatus target) {
+        return switch (this) {
+            case COMPLETED -> target == IN_PROGRESS;
+            case IN_PROGRESS -> target == ACCEPTED;
+            case CANCELLED -> target == REGISTERED;
+            case REGISTERED, PENDING_ACCEPTANCE, ACCEPTED -> false;
+        };
+    }
+
     /** 기사에게 배정돼 일정을 점유하는 활성 상태(수락대기·수락됨·작업중)인지. 일정 겹침 판정의 대상이다. */
     public boolean isActive() {
         return this == PENDING_ACCEPTANCE || this == ACCEPTED || this == IN_PROGRESS;
     }
 
-    /** 완료·취소처럼 어떤 상태로도 전이할 수 없는 종료 상태인지. */
+    /** 완료·취소처럼 일반 전이로는 어떤 상태로도 갈 수 없는 종료 상태인지. 관리자 강제 변경은 {@link #canBeCorrectedTo}가 따로 정한다. */
     public boolean isTerminal() {
         return this == COMPLETED || this == CANCELLED;
     }

@@ -5,6 +5,7 @@ import java.util.Objects;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.domain.Actor;
+import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianActor;
@@ -28,21 +29,31 @@ final class OrganizationActors {
 
     /** 작업 등록·기본정보 수정·배정 관리·취소를 요청한 총관리자·직원. */
     static ManagerActor requireManager(LoadActorPort loadActorPort, Long accountId, Long organizationIdValue) {
-        if (requireActor(loadActorPort, accountId, organizationIdValue) instanceof ManagerActor manager) {
+        if (requireMember(loadActorPort, accountId, organizationIdValue) instanceof ManagerActor manager) {
             return manager;
         }
         throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
     }
 
+    /** 관리자 강제 상태 변경처럼 총관리자만 하는 행위를 요청한 총관리자. 직원이면 403(SCHEDULE-005). */
+    static ManagerActor requireOwner(LoadActorPort loadActorPort, Long accountId, Long organizationIdValue) {
+        ManagerActor manager = requireManager(loadActorPort, accountId, organizationIdValue);
+        if (manager.role() != ActorRole.OWNER) {
+            throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
+        }
+        return manager;
+    }
+
     /** 수락·거절·시작·완료보고를 요청한 기사. 그 작업의 담당 기사인지는 작업을 찾은 뒤 따로 확인한다. */
     static TechnicianActor requireTechnician(LoadActorPort loadActorPort, Long accountId, Long organizationIdValue) {
-        if (requireActor(loadActorPort, accountId, organizationIdValue) instanceof TechnicianActor technician) {
+        if (requireMember(loadActorPort, accountId, organizationIdValue) instanceof TechnicianActor technician) {
             return technician;
         }
         throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
     }
 
-    private static Actor requireActor(LoadActorPort loadActorPort, Long accountId, Long organizationIdValue) {
+    /** 조회처럼 관리자·기사 누구나 요청할 수 있는 유즈케이스의 요청자. 무엇을 보여 줄지는 요청자 종류에 따라 호출자가 정한다. */
+    static Actor requireMember(LoadActorPort loadActorPort, Long accountId, Long organizationIdValue) {
         Objects.requireNonNull(accountId, "accountId must not be null");
         OrganizationId organizationId = DomainRuleViolations.call(() -> new OrganizationId(organizationIdValue));
         Actor actor = loadActorPort

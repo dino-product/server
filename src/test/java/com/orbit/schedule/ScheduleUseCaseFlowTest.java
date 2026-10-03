@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.assertj.core.groups.Tuple;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -21,6 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
+import com.orbit.schedule.application.port.in.command.CorrectWorkStatusUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
@@ -30,6 +32,7 @@ import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.CorrectWorkStatusCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
@@ -74,9 +77,11 @@ class ScheduleUseCaseFlowTest {
     private static final MembershipId MANAGER = new MembershipId(11L);
     // 이 계정은 기사로 요청한다.
     private static final long TECHNICIAN_ACCOUNT_ID = 2L;
+    // 이 계정은 총관리자로 요청한다.
+    private static final long OWNER_ACCOUNT_ID = 3L;
     private static final long ACCEPTING_TECHNICIAN = 51L;
 
-    private final OrganizationId organizationId = new OrganizationId(NEXT_ORGANIZATION_ID.getAndIncrement());
+    private OrganizationId organizationId;
 
     @Autowired
     private CreateWorkUseCase createWorkUseCase;
@@ -97,6 +102,9 @@ class ScheduleUseCaseFlowTest {
     private CancelWorkUseCase cancelWorkUseCase;
 
     @Autowired
+    private CorrectWorkStatusUseCase correctWorkStatusUseCase;
+
+    @Autowired
     private AcceptWorkUseCase acceptWorkUseCase;
 
     @Autowired
@@ -107,6 +115,12 @@ class ScheduleUseCaseFlowTest {
 
     @Autowired
     private WorkRepository workRepository;
+
+    // 테스트 인스턴스를 테스트끼리 공유해도 테스트마다 새 조직을 쓰도록 필드 초기화가 아니라 매 테스트 전에 정한다.
+    @BeforeEach
+    void useNewOrganization() {
+        organizationId = new OrganizationId(NEXT_ORGANIZATION_ID.getAndIncrement());
+    }
 
     @Test
     void assembledUseCasesRunThroughTransactionAndTechnicianLock() {
@@ -215,6 +229,54 @@ class ScheduleUseCaseFlowTest {
                 .contains(AssignmentEndReason.CANCELLED);
     }
 
+    @Test
+    void assembledOwnerReopensCompletedWorkAndTechnicianSubmitsAgain() {
+        long workId = create("잘못 완료된 작업");
+        assignWorkUseCase.assign(new AssignWorkCommand(
+                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
+        acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1));
+        startWorkUseCase.start(new StartWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1));
+        submitCompletionReportUseCase.submit(new SubmitCompletionReportCommand(
+                TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1, null, null, null, "첫 보고", null, null));
+
+        correctWorkStatusUseCase.correct(new CorrectWorkStatusCommand(
+                OWNER_ACCOUNT_ID, organizationId.value(), workId, WorkStatus.IN_PROGRESS, "사진 누락"));
+        submitCompletionReportUseCase.submit(new SubmitCompletionReportCommand(
+                TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1, null, null, null, "다시 보고", null, null));
+
+        Work stored = workRepository
+                .findInOrganization(organizationId, new WorkId(workId))
+                .orElseThrow();
+        assertThat(stored.status()).isEqualTo(WorkStatus.COMPLETED);
+        assertThat(stored.completionReport().flatMap(CompletionReport::workNote))
+                .contains("다시 보고");
+        assertThat(stored.statusCorrections()).singleElement().satisfies(correction -> assertThat(
+                        correction.retiredReport().workNote())
+                .contains("첫 보고"));
+    }
+
+    @Test
+    void assembledOwnerRestoresCancelledWorkAndItIsAssignedAgain() {
+        long workId = create("잘못 취소된 작업");
+        assignWorkUseCase.assign(new AssignWorkCommand(
+                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
+        cancelWorkUseCase.cancel(new CancelWorkCommand(ACCOUNT_ID, organizationId.value(), workId, "고객 요청"));
+
+        correctWorkStatusUseCase.correct(new CorrectWorkStatusCommand(
+                OWNER_ACCOUNT_ID, organizationId.value(), workId, WorkStatus.REGISTERED, "잘못 취소"));
+        assignWorkUseCase.assign(new AssignWorkCommand(
+                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
+        acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 2));
+
+        Work stored = workRepository
+                .findInOrganization(organizationId, new WorkId(workId))
+                .orElseThrow();
+        assertThat(stored.status()).isEqualTo(WorkStatus.ACCEPTED);
+        assertThat(stored.statusCorrections()).singleElement().satisfies(correction -> assertThat(
+                        correction.restoredAssignmentNumber())
+                .isEqualTo(1));
+    }
+
     private long create(String name) {
         return createWorkUseCase
                 .create(new CreateWorkCommand(
@@ -229,9 +291,12 @@ class ScheduleUseCaseFlowTest {
         @Primary
         LoadActorPort actorPortByAccount() {
             return (accountId, organizationId) -> Optional.of(
-                    accountId == TECHNICIAN_ACCOUNT_ID
-                            ? new TechnicianActor(new TechnicianId(ACCEPTING_TECHNICIAN), organizationId)
-                            : new ManagerActor(MANAGER, organizationId, ActorRole.STAFF));
+                    switch (accountId.intValue()) {
+                        case (int) TECHNICIAN_ACCOUNT_ID ->
+                            new TechnicianActor(new TechnicianId(ACCEPTING_TECHNICIAN), organizationId);
+                        case (int) OWNER_ACCOUNT_ID -> new ManagerActor(MANAGER, organizationId, ActorRole.OWNER);
+                        default -> new ManagerActor(MANAGER, organizationId, ActorRole.STAFF);
+                    });
         }
     }
 }

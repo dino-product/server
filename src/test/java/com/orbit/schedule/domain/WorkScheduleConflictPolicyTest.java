@@ -290,7 +290,8 @@ class WorkScheduleConflictPolicyTest {
                 null,
                 NOW,
                 null,
-                null);
+                null,
+                List.of());
     }
 
     private static Work reconstitutedPendingWork(WorkId id, WorkSchedule schedule) {
@@ -309,6 +310,7 @@ class WorkScheduleConflictPolicyTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                List.of());
     }
 }

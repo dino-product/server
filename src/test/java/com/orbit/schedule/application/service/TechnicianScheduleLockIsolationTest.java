@@ -35,7 +35,12 @@ class TechnicianScheduleLockIsolationTest {
 
         assertThat(lockingServices)
                 .extracting(Class::getSimpleName)
-                .contains("AssignWorkService", "ReassignWorkService", "RescheduleWorkService", "StartWorkService");
+                .contains(
+                        "AssignWorkService",
+                        "ReassignWorkService",
+                        "RescheduleWorkService",
+                        "StartWorkService",
+                        "CorrectWorkStatusService");
         // 클래스 수준·합성 애너테이션까지 Spring이 실행 시 적용하는 규칙 그대로 판정한다.
         AnnotationTransactionAttributeSource attributes = new AnnotationTransactionAttributeSource();
         for (Class<?> service : lockingServices) {

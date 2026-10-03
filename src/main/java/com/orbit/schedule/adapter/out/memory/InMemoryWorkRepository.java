@@ -96,6 +96,7 @@ class InMemoryWorkRepository implements WorkRepository {
                 work.completionReport().orElse(null),
                 work.startedAt().orElse(null),
                 work.completedAt().orElse(null),
-                work.cancellation().orElse(null));
+                work.cancellation().orElse(null),
+                work.statusCorrections());
     }
 }

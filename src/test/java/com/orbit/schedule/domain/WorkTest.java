@@ -129,6 +129,7 @@ class WorkTest {
             WorkId id = new WorkId(10L);
             AssignmentHistory history = acceptedHistory(FIRST_SCHEDULE);
             List<AssignmentHistory> histories = new ArrayList<>(List.of(history));
+            List<StatusCorrection> corrections = new ArrayList<>();
 
             Work work = Work.reconstitute(
                     id,
@@ -144,8 +145,20 @@ class WorkTest {
                     COMPLETION_REPORT,
                     NOW.plusSeconds(60),
                     NOW.plusSeconds(120),
-                    null);
+                    null,
+                    corrections);
             histories.clear();
+            corrections.add(new StatusCorrection(
+                    WorkStatus.CANCELLED,
+                    WorkStatus.REGISTERED,
+                    NOW,
+                    REGISTRAR_ID,
+                    "정정",
+                    null,
+                    null,
+                    null,
+                    new Cancellation(NOW, REGISTRAR_ID, "고객 요청"),
+                    null));
 
             assertThat(work.id()).contains(id);
             assertThat(work.organizationId()).isEqualTo(ORGANIZATION_ID);
@@ -156,6 +169,9 @@ class WorkTest {
             assertThat(work.startedAt()).contains(NOW.plusSeconds(60));
             assertThat(work.completedAt()).contains(NOW.plusSeconds(120));
             assertThatThrownBy(() -> work.assignmentHistory().clear())
+                    .isInstanceOf(UnsupportedOperationException.class);
+            assertThat(work.statusCorrections()).isEmpty();
+            assertThatThrownBy(() -> work.statusCorrections().clear())
                     .isInstanceOf(UnsupportedOperationException.class);
         }
 
@@ -245,7 +261,8 @@ class WorkTest {
                             null,
                             null,
                             null,
-                            null))
+                            null,
+                            List.of()))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessage("id must not be null");
         }
@@ -1330,7 +1347,8 @@ class WorkTest {
                 report,
                 startedAt,
                 completedAt,
-                cancellation);
+                cancellation,
+                List.of());
     }
 
     private static AssignmentHistory pendingHistory(WorkSchedule schedule) {
