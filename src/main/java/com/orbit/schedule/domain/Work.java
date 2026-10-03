@@ -182,6 +182,11 @@ public final class Work {
         return List.copyOf(assignmentHistory);
     }
 
+    /** 지금 배정의 순번(배정 이력의 1부터 시작하는 위치). 현재 배정은 최신 이력이다. 배정된 적이 없으면 0이다. */
+    public int currentAssignmentNumber() {
+        return assignmentHistory.size();
+    }
+
     public Optional<CompletionReport> completionReport() {
         return Optional.ofNullable(completionReport);
     }
@@ -213,6 +218,13 @@ public final class Work {
     public boolean isDelayedAt(Instant now) {
         Objects.requireNonNull(now, "now must not be null");
         return status.isActive() && !now.isBefore(schedule.endTime());
+    }
+
+    /** 기사가 거절해 대기함으로 돌아온 작업인지. 대기함 작업의 최신 배정이 거절로 끝났으면 그렇다. 대기함 목록의 거절 반환 표시와 작업 목록의 거절 필터가 쓴다. */
+    public boolean isReturnedByRejection() {
+        return status == WorkStatus.REGISTERED
+                && !assignmentHistory.isEmpty()
+                && assignmentHistory.getLast().result() == AssignmentResult.REJECTED;
     }
 
     /** 대기함 작업을 기사·일정에 배정하고 수락을 기다린다. 배정한 관리자(조직 소속)를 이력에 남긴다. */
