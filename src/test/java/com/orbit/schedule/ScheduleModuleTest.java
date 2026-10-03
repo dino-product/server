@@ -44,14 +44,18 @@ import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsComma
 import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.query.GetMyScheduleUseCase;
 import com.orbit.schedule.application.port.in.query.GetProgressBoardUseCase;
+import com.orbit.schedule.application.port.in.query.GetTeamScheduleUseCase;
 import com.orbit.schedule.application.port.in.query.GetTimetableUseCase;
 import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
+import com.orbit.schedule.application.port.in.query.GetWorkHistoryUseCase;
 import com.orbit.schedule.application.port.in.query.SearchWorksUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetTeamScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
+import com.orbit.schedule.application.port.in.query.dto.GetWorkHistoryQuery;
 import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
@@ -134,6 +138,12 @@ class ScheduleModuleTest {
 
     @Autowired
     private GetMyScheduleUseCase getMyScheduleUseCase;
+
+    @Autowired
+    private GetTeamScheduleUseCase getTeamScheduleUseCase;
+
+    @Autowired
+    private GetWorkHistoryUseCase getWorkHistoryUseCase;
 
     @Autowired
     private WorkQueryPort workQueryPort;
@@ -227,6 +237,10 @@ class ScheduleModuleTest {
                 new GetProgressBoardQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
         assertDenied(() -> getMyScheduleUseCase.get(
                 new GetMyScheduleQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+        assertDenied(() -> getTeamScheduleUseCase.get(
+                new GetTeamScheduleQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
+        assertDenied(() -> getWorkHistoryUseCase.get(
+                new GetWorkHistoryQuery(1L, ORGANIZATION_ID.value(), 3L, from, from.plus(Duration.ofDays(1)))));
     }
 
     @Test
