@@ -10,6 +10,7 @@ import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkSearchCriteria;
 import com.orbit.schedule.application.port.out.WorkSearchResult;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 
 /**
@@ -22,6 +23,18 @@ class EmptyWorkQueryAdapter implements WorkQueryPort {
 
     @Override
     public List<Work> listScheduledBetween(OrganizationId organizationId, Instant from, Instant to) {
+        return List.of();
+    }
+
+    @Override
+    public List<Work> listScheduledForTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to) {
+        return List.of();
+    }
+
+    @Override
+    public List<Work> listAssignedToTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to) {
         return List.of();
     }
 

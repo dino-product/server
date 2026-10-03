@@ -170,7 +170,6 @@ flowchart LR
 | 로그인 | 웹 화면은 카카오 로그인, 웹 Spec은 이메일·전화번호와 비밀번호 로그인. 모바일은 카카오 전용 | 인증 방식과 비밀번호 관리 범위 |
 | 대기함 등록 | 기사·시간 미정 작업을 지원하지만 등록 Spec에서는 둘 다 필수 | 작업 생성과 배정의 분리 |
 | 기사 비활성화 | 타임테이블 Spec은 기존 작업을 대기함으로 이동, 기사 관리 Spec은 기존 배정 유지 | 비활성화 시 작업 처리 |
-| 상태 정의 | 진행 보드 Spec은 이동중, 실제 보드와 다른 화면은 수락됨 | 상태 전이와 필터 계약 |
 | 유형 삭제 | 유형 관리 Spec은 사용 이력이 있으면 비활성화만 허용, 삭제 모달은 기존 연결을 유형 없음으로 변경 | 이력 보존과 삭제 규칙 |
 | 탈퇴 | 웹 Spec은 30일 보관 후 삭제, 모바일 화면은 개인정보 즉시 삭제·업무 기록 유지 | 탈퇴 처리와 데이터 보관 |
 | 정산 | 탈퇴 차단 조건에 미완료 정산이 등장하지만 정산 업무 흐름은 확인되지 않음 | 정산 기능의 실제 포함 여부 |
@@ -180,11 +179,11 @@ flowchart LR
 - 로그인: [웹 로그인 화면](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=13-92), [웹 로그인 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1167), [모바일 로그인 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=151-805)
 - 소속: [모바일 회사 참여 플로우](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=151-800), [회사 참여 요청 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=861-1650), [마이페이지 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=152-1051)
 - 대기함·비활성화: [타임테이블 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1195), [작업 등록 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1199), [기사 관리 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1247)
-- 상태: [진행 보드 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1155), [진행 보드 화면](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=13-1512)
+- 상태('이동중'을 상태로 두지 않기로 확정): [진행 보드 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1155), [진행 보드 화면](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=13-1512)
 - 유형 삭제: [유형 설정 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1267), [삭제 확인 모달](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=13-3245)
 - 탈퇴·정산: [웹 탈퇴 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1283), [웹 탈퇴 차단 Spec](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=38-1279), [모바일 탈퇴 화면](https://www.figma.com/design/5K4KURRdWETTXsnlurK6jK/Design.v0?node-id=135-2334)
 
-우선 결정할 항목은 **비활성화 시 배정 처리**다. 작업 상태 전이, 수락 이후 재배정·일정 변경 시 재수락, 상태별 취소 허용 범위, 역할별 작업 권한과 직원 유형의 관계, 완료보고 사진 최대 개수와 메모·사용 부품 길이 상한은 [작업 상태·배정 정책](../domain/bounded-contexts.md#schedule-policies)에서 확정했다. 추가로 다음 정책을 유즈케이스 계약에 명시해야 한다.
+우선 결정할 항목은 **비활성화 시 배정 처리**다. 작업 상태 전이, 수락 이후 재배정·일정 변경 시 재수락, 상태별 취소 허용 범위, 역할별 작업 권한과 직원 유형의 관계, 완료보고 사진 최대 개수와 메모·사용 부품 길이 상한, 진행 보드의 상태 열('이동중'을 상태로 두지 않음)은 [작업 상태·배정 정책](../domain/bounded-contexts.md#schedule-policies)에서 확정했다. 추가로 다음 정책을 유즈케이스 계약에 명시해야 한다.
 
 - 완료보고 사진의 필수 여부, 최소 개수와 파일 형식·크기 제한
 

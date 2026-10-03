@@ -11,6 +11,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.LoadTechnicianNamePort;
+import com.orbit.schedule.application.port.out.PhotoUrlPort;
+import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 
 @DisplayName("임시 출력 어댑터 등록 프로필")
@@ -25,7 +28,10 @@ class TemporaryAdapterProfileTest {
     void registersOnlyInLocalAndTest(String profile) {
         runner.withPropertyValues("spring.profiles.active=" + profile).run(context -> {
             assertThat(context).hasSingleBean(WorkRepository.class);
+            assertThat(context).hasSingleBean(WorkQueryPort.class);
             assertThat(context).hasSingleBean(LoadActorPort.class);
+            assertThat(context).hasSingleBean(LoadTechnicianNamePort.class);
+            assertThat(context).hasSingleBean(PhotoUrlPort.class);
         });
     }
 
@@ -35,7 +41,10 @@ class TemporaryAdapterProfileTest {
     void doesNotRegisterElsewhere(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles).run(context -> {
             assertThat(context).doesNotHaveBean(WorkRepository.class);
+            assertThat(context).doesNotHaveBean(WorkQueryPort.class);
             assertThat(context).doesNotHaveBean(LoadActorPort.class);
+            assertThat(context).doesNotHaveBean(LoadTechnicianNamePort.class);
+            assertThat(context).doesNotHaveBean(PhotoUrlPort.class);
         });
     }
 
