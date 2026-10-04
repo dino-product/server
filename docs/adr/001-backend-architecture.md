@@ -1,8 +1,8 @@
 # ADR-001: 백엔드 아키텍처
 
 - 상태: Accepted
-- 기준일: 2026-10-01
-- 범위: 초기 백엔드의 구조·기술 선택·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
+- 기준일: 2026-10-04
+- 범위: 초기 백엔드의 구조·기술 선택·카카오 OIDC 인증과 계정·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
 
 ## 배경과 목적
 
@@ -18,11 +18,22 @@
 
 ## 제품 모듈 골격
 
-- 제품 구현의 책임 경계를 준비하기 위해 `organization`, `schedule`, `notification`을 Application Module 골격으로 등록합니다. `user`·`auth` 예제와 `shared`는 유지합니다.
+- 제품 구현의 책임 경계를 준비하기 위해 `organization`, `schedule`, `notification`을 Application Module 골격으로 등록합니다. `user` 예제와 `shared`는 유지하고 `auth`는 실제 인증 모듈로 구현합니다.
 - 조직·소속·초대, 작업 생애주기, 알림을 각각의 책임으로 계획합니다. 각 모듈의 현재 구현 범위와 허용 의존성은 [도메인 지도](../domain/README.md#모듈별-책임과-공개-계약)가 원본이며 이 결정 기록에 복제하지 않습니다.
 - 실제 사용 전 의존성을 열어 두지 않도록 골격 모듈(`package-info.java`만 있는 모듈)의 `allowedDependencies`는 빈 배열로 명시합니다. 구현이 공개 계약을 사용할 때 필요한 항목만 추가하고 도메인 지도를 함께 갱신합니다.
 - [도메인 지도](../domain/README.md#모듈별-책임과-공개-계약)는 골격을 포함한 현재 모듈 구성의 원본입니다. [BC 설계 초안](../domain/bounded-contexts.md#bounded-contexts)의 애그리게잇·컨텍스트 관계·향후 확장은 현재 구현 계약과 구분합니다.
 - `ModularityTest`는 6개 모듈 구성과 경계를 검사합니다. 골격 등록만으로 제품 기능이나 계획된 모듈 간 연동이 구현되었다고 보지 않습니다.
+
+## 인증과 계정
+
+- 소셜 로그인은 카카오 OIDC로 통일하고, 클라이언트별로 카카오 증명을 얻는 경로만 다르게 둡니다. 앱은 카카오 네이티브 SDK가 돌려준 id_token을 제출하고, 웹은 서버가 Authorization Code를 교환해 id_token을 얻습니다(웹 흐름은 후속 구현). 두 경로 모두 서버의 단일 id_token 검증기(JWKS 서명·발급자·허용 앱 키·만료·nonce)로 합류하며 카카오 토큰을 API 인증에 쓰지 않습니다.
+- nonce는 서버가 발급하고 한 번만 소비하므로 이미 쓴 id_token은 다시 제출할 수 없습니다. 앱 흐름은 브라우저 세션이 없어 nonce를 발급 주체와 따로 묶지 않으며 그 이유는 [Auth 로그인 흐름](../domain/auth.md#카카오-로그인-흐름)에 둡니다. 웹 흐름은 state/nonce를 시작 브라우저와 연결합니다.
+- 계정 원본은 `auth`가 소유합니다. `Account`는 제공자별 외부 식별(`ExternalIdentity`)과 등록 시각만 가지며 `accounts`·`oauth_credentials` 테이블에 저장합니다. 첫 로그인에 계정을 만들고 이후 같은 카카오 `sub`는 같은 계정입니다. 이름·연락처 같은 프로필과 조직 역할은 auth에 두지 않으며 소유 컨텍스트는 [BC-001](../domain/bounded-contexts.md#미해결-설계-이슈)에서 결정합니다. `user` 예제는 그대로 둡니다.
+- 자체 자격증명은 HS256 Access JWT(`iss`, `sub`=accountId, `jti`, `exp`, `token_use=access`)입니다. 로그아웃은 토큰의 `jti`를 남은 유효 시간 동안 Redis에 기억해 폐기하며, Refresh 회전은 후속 결정입니다.
+- 인증 실패 응답 정책: 토큰이 없으면 401, 토큰이 있는데 폐기·만료·위조됐으면 카카오 로그인 경로를 뺀 어느 경로든 실제 존재하지 않는 자원과 같은 404 본문으로 응답해 보호 자원의 존재와 실패 이유를 드러내지 않습니다.
+- 인증 필터와 공개 경로는 `shared::security`의 `SecurityFilterChainCustomizer`로 공통 SecurityFilterChain에 덧붙입니다. shared는 비즈니스 모듈에 의존하지 않고 모듈은 별도 SecurityFilterChain을 만들지 않습니다.
+
+상세 흐름·설정·오류 코드는 [Auth](../domain/auth.md)가 소유합니다.
 
 ## Application과 모델 분리
 
@@ -45,8 +56,8 @@
 ## 예제 모듈
 
 - `user`는 등록·표시 이름 불변식·순수 Domain·JPA Adapter·공개 요약 조회·이벤트 발행을 보여 줍니다.
-- `auth` 예제는 ACL 관계를 보여 줍니다. user의 공개 조회 결과는 출력 Port·Adapter에서, 이벤트는 리스너에서 auth 소유 값으로 변환하며 Application과 Domain은 user 타입을 참조하지 않습니다.
-- 예제 subject에는 인증 의미를 부여하지 않습니다. 실제 인증 확장은 별도 자격 증명 검증과 접근 정책을 설계해야 합니다.
+- `auth`의 subject 조회·등록 이벤트 후속 처리는 ACL 관계를 보여 주는 예제입니다. user의 공개 조회 결과는 출력 Port·Adapter에서, 이벤트는 리스너에서 auth 소유 값으로 변환하며 Application과 Domain은 user 타입을 참조하지 않습니다.
+- 예제 subject에는 인증 의미를 부여하지 않습니다. 실제 인증은 [인증과 계정](#인증과-계정)의 결정을 따릅니다.
 
 현재 모듈 목록은 [도메인 지도](../domain/README.md), API·구현 범위는 [User](../domain/user.md)·[Auth](../domain/auth.md)가 소유합니다. 예제는 변환 코드가 늘어나는 비용을 감수하여 ACL 방식의 경계를 보여 주도록 선택했습니다. 기본 방식(공개 인터페이스 직접 주입)의 예제는 아닙니다.
 
@@ -64,7 +75,7 @@
 - 공통·운영 설정은 스키마를 자동 변경하지 않습니다. 로컬 예제·테스트만 임시 스키마를 사용하고 활성 프로필·운영 DB 접속 정보는 실행 환경에서 지정합니다.
 - 모듈 간 이벤트는 변경 트랜잭션에서 발행하고 커밋 후 비동기로 소비합니다. 시간은 주입받은 `Clock`과 UTC `Instant`를 사용합니다.
 - 전달 보장이 필요한 서비스는 영속 저장소·재처리·멱등성 정책을 함께 설계합니다. 최소 예제의 후속 처리는 모듈 경계를 보여 주는 데 한정하며 전달 보장을 암시하지 않습니다.
-- 마이그레이션 도구와 실제 인증 수단은 제품 요구에 따라 결정합니다. 운영 적용 전 스키마 준비와 API·Actuator 접근 정책을 구성해야 합니다.
+- nonce·폐기 토큰처럼 만료가 있는 임시 상태는 Redis에 두고 PostgreSQL에는 원본 데이터만 저장합니다. 마이그레이션 도구는 제품 요구에 따라 결정합니다. 운영 적용 전 스키마 준비와 Actuator 접근 정책을 구성해야 합니다.
 
 프로필·트랜잭션·이벤트의 실행 규칙은 [영속성·이벤트](../../.claude/skills/dino-architecture/references/persistence.md#transactions), 실행 준비는 [빠른 시작](../../README.md#빠른-시작)을 따릅니다.
 
