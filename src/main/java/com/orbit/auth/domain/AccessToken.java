@@ -1,6 +1,5 @@
 package com.orbit.auth.domain;
 
-import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -22,14 +21,5 @@ public record AccessToken(String tokenId, AccountId accountId, Instant issuedAt,
         if (!expiresAt.isAfter(issuedAt)) {
             throw new IllegalArgumentException("expiresAt must be after issuedAt");
         }
-    }
-
-    /** 지금부터 만료까지 남은 시간. 이미 만료됐으면 0이다. */
-    public Duration remainingLifetimeAt(Instant now) {
-        if (now == null) {
-            throw new IllegalArgumentException("now must not be null");
-        }
-        Duration remaining = Duration.between(now, expiresAt);
-        return remaining.isNegative() ? Duration.ZERO : remaining;
     }
 }

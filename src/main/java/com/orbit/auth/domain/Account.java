@@ -57,8 +57,4 @@ public final class Account {
     public Instant registeredAt() {
         return registeredAt;
     }
-
-    public boolean isLinkedTo(ExternalIdentity identity) {
-        return identities.contains(identity);
-    }
 }

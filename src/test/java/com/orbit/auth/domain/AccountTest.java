@@ -30,9 +30,6 @@ class AccountTest {
             assertThat(account.id()).isEmpty();
             assertThat(account.identities()).containsExactly(KAKAO_IDENTITY);
             assertThat(account.registeredAt()).isEqualTo(REGISTERED_AT);
-            assertThat(account.isLinkedTo(KAKAO_IDENTITY)).isTrue();
-            assertThat(account.isLinkedTo(new ExternalIdentity(OAuthProvider.KAKAO, "other")))
-                    .isFalse();
         }
 
         @Test

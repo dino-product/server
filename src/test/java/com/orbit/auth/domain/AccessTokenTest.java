@@ -30,20 +30,6 @@ class AccessTokenTest {
         assertThat(token.expiresAt()).isEqualTo(EXPIRES_AT);
     }
 
-    @Test
-    @DisplayName("남은 유효 시간을 계산하고 만료 후에는 0이다")
-    void computesRemainingLifetime() {
-        AccessToken token = new AccessToken("jti", ACCOUNT_ID, ISSUED_AT, EXPIRES_AT);
-
-        assertThat(token.remainingLifetimeAt(ISSUED_AT.plus(Duration.ofMinutes(20))))
-                .isEqualTo(Duration.ofMinutes(40));
-        assertThat(token.remainingLifetimeAt(EXPIRES_AT)).isZero();
-        assertThat(token.remainingLifetimeAt(EXPIRES_AT.plusSeconds(1))).isZero();
-        assertThatThrownBy(() -> token.remainingLifetimeAt(null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("now must not be null");
-    }
-
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {" "})
