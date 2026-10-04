@@ -120,7 +120,13 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("AUTH-002"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.responses['401']"
                                 + ".content['application/json'].examples['AUTH-003'].value.code")
-                        .value("AUTH-003"));
+                        .value("AUTH-003"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.responses['401']"
+                                + ".content['application/json'].examples['AUTH-005'].value.code")
+                        .value("AUTH-005"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.responses['502']"
+                                + ".content['application/json'].examples['AUTH-006'].value.code")
+                        .value("AUTH-006"));
     }
 
     @Test

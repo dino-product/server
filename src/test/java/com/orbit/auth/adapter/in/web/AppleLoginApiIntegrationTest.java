@@ -20,6 +20,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import com.orbit.auth.application.port.out.AppleRefreshToken;
+import com.orbit.auth.application.port.out.AppleRefreshTokenRepository;
+import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.HashedNonce;
 import com.orbit.support.AppleAuthStub;
 import com.orbit.support.IntegrationTestSupport;
@@ -27,8 +30,9 @@ import com.orbit.support.IntegrationTestSupport;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+/** Apple JWKS·토큰 엔드포인트를 로컬 스텁으로 바꾸고 검증기·HTTP 호출·Redis·PostgreSQL은 실제 경로로 지난다. 실제 Apple E2E는 아니다. */
 @AutoConfigureMockMvc
-@DisplayName("Apple 로그인 API")
+@DisplayName("Apple iOS 로그인 API")
 class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
 
     private static final AppleAuthStub APPLE = AppleAuthStub.start();
@@ -39,9 +43,15 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private AppleRefreshTokenRepository refreshTokens;
+
     @DynamicPropertySource
-    static void appleJwks(DynamicPropertyRegistry registry) {
+    static void appleEndpoints(DynamicPropertyRegistry registry) {
         registry.add("app.auth.apple.jwk-set-uri", APPLE::jwkSetUri);
+        registry.add("app.auth.apple.token-api.token-uri", APPLE::tokenUri);
+        registry.add("app.auth.apple.token-api.revoke-uri", APPLE::revokeUri);
+        registry.add("app.auth.apple.client-secret.private-key", APPLE::clientSecretPrivateKeyPem);
     }
 
     @AfterAll
@@ -68,44 +78,50 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("해시 nonce가 실린 id_token으로 처음 로그인하면 계정을 만들고, 다시 로그인하면 같은 계정을 쓴다")
-    void logsInAndReusesAccount() throws Exception {
+    @DisplayName("처음 로그인하면 계정을 만들고 code를 교환해 refresh token을 보관하며, 다시 로그인하면 같은 계정을 쓴다")
+    void logsInKeepsRefreshTokenAndReusesAccount() throws Exception {
         String subject = appleSubject();
 
-        JsonNode first = login(APPLE.idToken(subject, hashed(issueNonce())))
+        JsonNode first = readTree(login(APPLE.idToken(subject, hashed(issueNonce())), code(subject))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.registered").value(true))
                 .andExpect(jsonPath("$.result.accessToken").isString())
                 .andReturn()
                 .getResponse()
-                .getContentAsString()
-                .transform(objectMapper::readTree);
-        JsonNode second = login(APPLE.idToken(subject, hashed(issueNonce())))
+                .getContentAsString());
+        JsonNode second = readTree(login(APPLE.idToken(subject, hashed(issueNonce())), code(subject))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.registered").value(false))
                 .andReturn()
                 .getResponse()
-                .getContentAsString()
-                .transform(objectMapper::readTree);
+                .getContentAsString());
 
         assertThat(accountId(second)).isEqualTo(accountId(first));
+        assertThat(refreshTokens.listByAccount(new AccountId(accountId(first))))
+                .singleElement()
+                .extracting(AppleRefreshToken::clientId)
+                .isEqualTo(AppleAuthStub.BUNDLE_ID);
+        assertThat(APPLE.tokenRequests().getLast()).containsEntry("client_id", AppleAuthStub.BUNDLE_ID);
     }
 
     @Test
     @DisplayName("허용 목록의 다른 클라이언트(Services ID)로 받은 id_token도 같은 sub면 같은 계정이다")
     void sharesAccountAcrossAllowedClientsWithSameSubject() throws Exception {
         String subject = appleSubject();
-        JsonNode ios = loginBody(APPLE.idToken(subject, hashed(issueNonce())));
+        JsonNode ios = loginAs(subject, AppleAuthStub.BUNDLE_ID);
 
-        JsonNode web = loginBody(APPLE.idToken(subject, hashed(issueNonce()), AppleAuthStub.SERVICES_ID));
+        JsonNode web = loginAs(subject, AppleAuthStub.SERVICES_ID);
 
         assertThat(accountId(web)).isEqualTo(accountId(ios));
+        assertThat(refreshTokens.listByAccount(new AccountId(accountId(ios))))
+                .extracting(AppleRefreshToken::clientId)
+                .containsExactlyInAnyOrder(AppleAuthStub.BUNDLE_ID, AppleAuthStub.SERVICES_ID);
     }
 
     @Test
     @DisplayName("발급받은 Access Token으로 현재 계정을 조회한다")
     void readsCurrentAccountWithAccessToken() throws Exception {
-        JsonNode login = loginBody(APPLE.idToken(appleSubject(), hashed(issueNonce())));
+        JsonNode login = loginAs(appleSubject(), AppleAuthStub.BUNDLE_ID);
 
         mockMvc.perform(get("/api/v1/auth/me")
                         .header(
@@ -121,7 +137,9 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("raw nonce를 해시하지 않고 그대로 실은 id_token은 거부한다")
     void rejectsRawNonceInIdToken() throws Exception {
-        login(APPLE.idToken(appleSubject(), issueNonce()))
+        String subject = appleSubject();
+
+        login(APPLE.idToken(subject, issueNonce()), code(subject))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH-003"));
     }
@@ -131,9 +149,9 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
     void rejectsReusedNonce() throws Exception {
         String subject = appleSubject();
         String nonce = hashed(issueNonce());
-        login(APPLE.idToken(subject, nonce)).andExpect(status().isOk());
+        login(APPLE.idToken(subject, nonce), code(subject)).andExpect(status().isOk());
 
-        login(APPLE.idToken(subject, nonce))
+        login(APPLE.idToken(subject, nonce), code(subject))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH-003"));
     }
@@ -149,8 +167,9 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
                 .path("result")
                 .path("nonce")
                 .asText();
+        String subject = appleSubject();
 
-        login(APPLE.idToken(appleSubject(), hashed(kakaoNonce)))
+        login(APPLE.idToken(subject, hashed(kakaoNonce)), code(subject))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH-003"));
     }
@@ -158,27 +177,72 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("Apple 키로 서명하지 않은 id_token은 거부한다")
     void rejectsForgedIdToken() throws Exception {
-        login(APPLE.forgedIdToken(appleSubject(), hashed(issueNonce())))
+        String subject = appleSubject();
+
+        login(APPLE.forgedIdToken(subject, hashed(issueNonce())), code(subject))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH-002"));
     }
 
     @Test
-    @DisplayName("id_token이 비어 있으면 입력 오류다")
-    void rejectsBlankIdToken() throws Exception {
-        login(" ")
+    @DisplayName("이미 교환한 code를 다시 제출하면 AUTH-005다")
+    void rejectsReusedAuthorizationCode() throws Exception {
+        String subject = appleSubject();
+        String code = code(subject);
+        login(APPLE.idToken(subject, hashed(issueNonce())), code).andExpect(status().isOk());
+
+        login(APPLE.idToken(subject, hashed(issueNonce())), code)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-005"));
+    }
+
+    @Test
+    @DisplayName("다른 사용자의 code를 함께 제출하면 AUTH-005이고 계정을 만들지 않는다")
+    void rejectsAuthorizationCodeOfAnotherUser() throws Exception {
+        String subject = appleSubject();
+
+        login(APPLE.idToken(subject, hashed(issueNonce())), code(appleSubject()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-005"));
+
+        login(APPLE.idToken(subject, hashed(issueNonce())), code(subject))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.registered").value(true));
+    }
+
+    @Test
+    @DisplayName("Apple 토큰 엔드포인트가 응답하지 못하면 502 AUTH-006이다")
+    void reportsAppleUnavailable() throws Exception {
+        String subject = appleSubject();
+        APPLE.failNextTokenRequests(1, 503, "{}");
+
+        login(APPLE.idToken(subject, hashed(issueNonce())), code(subject))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("AUTH-006"));
+    }
+
+    @Test
+    @DisplayName("id_token이나 authorization code가 비어 있으면 입력 오류다")
+    void rejectsBlankProofs() throws Exception {
+        String subject = appleSubject();
+
+        login(" ", code(subject))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        login(APPLE.idToken(subject, hashed(issueNonce())), " ")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON-400"));
     }
 
-    private ResultActions login(String idToken) throws Exception {
+    private ResultActions login(String idToken, String authorizationCode) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/apple/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new AppleLoginRequest(idToken))));
+                .content(objectMapper.writeValueAsString(new AppleLoginRequest(idToken, authorizationCode))));
     }
 
-    private JsonNode loginBody(String idToken) throws Exception {
-        return readTree(login(idToken)
+    private JsonNode loginAs(String subject, String clientId) throws Exception {
+        return readTree(login(APPLE.idToken(subject, hashed(issueNonce()), clientId), code(subject))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
@@ -194,6 +258,10 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
                 .path("result")
                 .path("nonce")
                 .asText();
+    }
+
+    private static String code(String subject) {
+        return APPLE.issueAuthorizationCode(subject);
     }
 
     private static String hashed(String rawNonce) {

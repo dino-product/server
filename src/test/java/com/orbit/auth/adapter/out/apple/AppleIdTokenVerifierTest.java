@@ -59,15 +59,15 @@ class AppleIdTokenVerifierTest {
     void acceptsValidToken() throws JOSEException {
         String token = sign(appleKey, claims().build());
 
-        assertThat(verifier.verify(token)).contains(new AppleIdTokenClaims(SUBJECT, HASHED_NONCE));
+        assertThat(verifier.verify(token)).contains(new AppleIdTokenClaims(SUBJECT, HASHED_NONCE, BUNDLE_ID));
     }
 
     @Test
-    @DisplayName("허용 목록의 다른 클라이언트(Services ID) 대상도 통과한다")
+    @DisplayName("허용 목록의 다른 클라이언트(Services ID) 대상도 통과하고 그 클라이언트를 돌려준다")
     void acceptsAnyAllowedAudience() throws JOSEException {
         String token = sign(appleKey, claims().audience(SERVICES_ID).build());
 
-        assertThat(verifier.verify(token)).isPresent();
+        assertThat(verifier.verify(token)).map(AppleIdTokenClaims::clientId).contains(SERVICES_ID);
     }
 
     @Test

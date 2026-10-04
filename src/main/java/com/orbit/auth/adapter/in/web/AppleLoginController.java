@@ -34,6 +34,7 @@ public class AppleLoginController implements AppleLoginControllerDocs {
     @Override
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody AppleLoginRequest request) {
-        return LoginResponse.from(loginWithAppleUseCase.login(new LoginWithAppleCommand(request.idToken())));
+        return LoginResponse.from(
+                loginWithAppleUseCase.login(new LoginWithAppleCommand(request.idToken(), request.authorizationCode())));
     }
 }

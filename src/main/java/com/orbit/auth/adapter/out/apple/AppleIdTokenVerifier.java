@@ -1,6 +1,7 @@
 package com.orbit.auth.adapter.out.apple;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -26,6 +27,7 @@ class AppleIdTokenVerifier implements VerifyAppleIdTokenPort {
     private static final String NONCE_CLAIM = "nonce";
 
     private final OidcIdTokenDecoder decoder;
+    private final List<String> allowedAudiences;
 
     AppleIdTokenVerifier(
             @Qualifier("appleJwkSource") JWKSource<SecurityContext> appleJwkSource,
@@ -33,6 +35,7 @@ class AppleIdTokenVerifier implements VerifyAppleIdTokenPort {
             Clock clock) {
         this.decoder = new OidcIdTokenDecoder(
                 "Apple", appleJwkSource, properties.issuer(), properties.allowedAudiences(), clock);
+        this.allowedAudiences = properties.allowedAudiences();
     }
 
     @Override
@@ -44,7 +47,12 @@ class AppleIdTokenVerifier implements VerifyAppleIdTokenPort {
                 log.debug("Apple id_token rejected: missing sub or nonce");
                 return Optional.empty();
             }
-            return Optional.of(new AppleIdTokenClaims(subject.get(), nonce.get()));
+            // 대상 검증을 통과했으므로 허용 목록에 있는 aud가 하나 이상 있다.
+            String clientId = jwt.getAudience().stream()
+                    .filter(allowedAudiences::contains)
+                    .findFirst()
+                    .orElseThrow();
+            return Optional.of(new AppleIdTokenClaims(subject.get(), nonce.get(), clientId));
         });
     }
 }

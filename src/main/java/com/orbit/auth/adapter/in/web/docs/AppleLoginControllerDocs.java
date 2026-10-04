@@ -32,7 +32,8 @@ public interface AppleLoginControllerDocs {
     @Operation(
             summary = "Apple id_token으로 로그인",
             description = "iOS 앱이 받은 Apple id_token의 서명·발급자·클라이언트·만료와 nonce 클레임(서버 발급 raw nonce의 해시)을 검증하고, "
-                    + "처음이면 계정을 만든 뒤 Access Token을 발급합니다. 카카오 계정과는 별개 계정입니다.")
+                    + "authorization code를 교환해 같은 사용자인지 확인합니다. 처음이면 계정을 만들고 탈퇴 시 철회에 쓸 refresh token을 "
+                    + "보관한 뒤 Access Token을 발급합니다. 카카오 계정과는 별개 계정입니다.")
     @ApiResponse(
             responseCode = "200",
             description = "로그인 성공",
@@ -40,6 +41,6 @@ public interface AppleLoginControllerDocs {
     @ApiErrorCodes(enumClass = CommonErrorCode.class, includes = "BAD_REQUEST")
     @ApiErrorCodes(
             enumClass = AuthErrorCode.class,
-            includes = {"INVALID_ID_TOKEN", "INVALID_NONCE"})
+            includes = {"INVALID_ID_TOKEN", "INVALID_NONCE", "INVALID_APPLE_AUTHORIZATION_CODE", "APPLE_UNAVAILABLE"})
     LoginResponse login(AppleLoginRequest request);
 }
