@@ -132,7 +132,18 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/auth/apple/authorize'].get.security")
                         .doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/apple/authorize'].get.responses['302']")
-                        .exists());
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/callback'].post.responses['302']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/callback'].post.responses['401']"
+                                + ".content['application/json'].examples['AUTH-003'].value.code")
+                        .value("AUTH-003"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/exchange'].post.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.LoginResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/exchange'].post.responses['401']"
+                                + ".content['application/json'].examples['AUTH-007'].value.code")
+                        .value("AUTH-007"));
     }
 
     @Test
