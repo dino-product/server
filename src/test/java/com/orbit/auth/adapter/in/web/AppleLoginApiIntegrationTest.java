@@ -21,7 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.orbit.auth.domain.HashedNonce;
-import com.orbit.support.AppleJwksStub;
+import com.orbit.support.AppleAuthStub;
 import com.orbit.support.IntegrationTestSupport;
 
 import tools.jackson.databind.JsonNode;
@@ -31,7 +31,7 @@ import tools.jackson.databind.ObjectMapper;
 @DisplayName("Apple 로그인 API")
 class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
 
-    private static final AppleJwksStub APPLE = AppleJwksStub.start();
+    private static final AppleAuthStub APPLE = AppleAuthStub.start();
 
     @Autowired
     private MockMvc mockMvc;
@@ -97,7 +97,7 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
         String subject = appleSubject();
         JsonNode ios = loginBody(APPLE.idToken(subject, hashed(issueNonce())));
 
-        JsonNode web = loginBody(APPLE.idToken(subject, hashed(issueNonce()), AppleJwksStub.SERVICES_ID));
+        JsonNode web = loginBody(APPLE.idToken(subject, hashed(issueNonce()), AppleAuthStub.SERVICES_ID));
 
         assertThat(accountId(web)).isEqualTo(accountId(ios));
     }
