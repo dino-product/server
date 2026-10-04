@@ -47,6 +47,7 @@ import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
 import com.orbit.auth.domain.HashedNonce;
 import com.orbit.auth.domain.OAuthProvider;
+import com.orbit.auth.domain.PkceChallenge;
 import com.orbit.shared.error.BusinessException;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,8 +61,9 @@ class CompleteAppleWebLoginServiceTest {
     private static final String RETURN_URI = "https://admin.example.com/login/apple";
     private static final String BINDING = "browser-binding";
     private static final HashedNonce NONCE = HashedNonce.fromRaw("raw-nonce");
-    private static final AppleWebLoginState STATE =
-            new AppleWebLoginState(NONCE, HashedNonce.fromRaw(BINDING).value(), RETURN_URI);
+    private static final String BINDING_HASH = HashedNonce.fromRaw(BINDING).value();
+    private static final PkceChallenge CHALLENGE = new PkceChallenge("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+    private static final AppleWebLoginState STATE = new AppleWebLoginState(NONCE, RETURN_URI, CHALLENGE);
     private static final ExternalIdentity IDENTITY = new ExternalIdentity(OAuthProvider.APPLE, SUBJECT);
     private static final AccountId ACCOUNT_ID = new AccountId(7L);
 
@@ -123,7 +125,7 @@ class CompleteAppleWebLoginServiceTest {
         verify(loginExchanges)
                 .save(
                         code.capture(),
-                        eq(new PendingAppleLogin(ACCOUNT_ID, true)),
+                        eq(new PendingAppleLogin(ACCOUNT_ID, true, CHALLENGE)),
                         eq(CompleteAppleWebLoginService.EXCHANGE_CODE_TTL));
         verify(refreshTokens).save(ACCOUNT_ID, SERVICES_ID, "apple-refresh", NOW);
         verify(accessTokens, never()).issue(any());
@@ -135,7 +137,7 @@ class CompleteAppleWebLoginServiceTest {
     @Test
     @DisplayName("보관하지 않았거나 이미 쓴 state면 복귀 주소를 모르므로 AUTH-003으로 끝낸다")
     void rejectsUnknownState() {
-        when(states.consume("state")).thenReturn(Optional.empty());
+        when(states.consume("state", BINDING_HASH)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.complete(command(BINDING, null)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
@@ -146,14 +148,16 @@ class CompleteAppleWebLoginServiceTest {
     @Test
     @DisplayName("로그인을 시작한 브라우저의 연결 값이 없거나 다르면 복귀하지 않고 AUTH-003으로 끝낸다")
     void rejectsCallbackFromAnotherBrowser() {
-        when(states.consume("state")).thenReturn(Optional.of(STATE));
+        when(states.consume("state", HashedNonce.fromRaw("other-browser").value()))
+                .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.complete(command("other-browser", null)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(AuthErrorCode.INVALID_NONCE));
-
-        when(states.consume("state")).thenReturn(Optional.of(STATE));
-        assertThatThrownBy(() -> service.complete(command(null, null))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.complete(command(null, null)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(AuthErrorCode.INVALID_NONCE));
+        verify(states, never()).consume("state", BINDING_HASH);
         verify(idTokens, never()).verify(anyString());
     }
 
@@ -221,7 +225,7 @@ class CompleteAppleWebLoginServiceTest {
     }
 
     private void givenState() {
-        when(states.consume("state")).thenReturn(Optional.of(STATE));
+        when(states.consume("state", BINDING_HASH)).thenReturn(Optional.of(STATE));
     }
 
     private void givenValidIdToken() {

@@ -26,6 +26,7 @@ import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.application.port.out.PendingAppleLogin;
 import com.orbit.auth.domain.AccessToken;
 import com.orbit.auth.domain.AccountId;
+import com.orbit.auth.domain.PkceChallenge;
 import com.orbit.shared.error.BusinessException;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,6 +35,8 @@ class ExchangeAppleWebLoginServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-10-04T01:00:00Z");
     private static final AccountId ACCOUNT_ID = new AccountId(7L);
+    private static final String VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+    private static final PkceChallenge CHALLENGE = new PkceChallenge("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
 
     @Mock
     private AppleLoginExchangePort loginExchanges;
@@ -45,14 +48,15 @@ class ExchangeAppleWebLoginServiceTest {
     private AccessTokenPort accessTokens;
 
     @Test
-    @DisplayName("일회성 교환 코드를 소비하고 그 계정의 Access Token을 발급한다")
+    @DisplayName("일회성 교환 코드를 소비하고 PKCE verifier가 맞으면 그 계정의 Access Token을 발급한다")
     void issuesAccessTokenForPendingLogin() {
-        when(loginExchanges.consume("exchange-code")).thenReturn(Optional.of(new PendingAppleLogin(ACCOUNT_ID, true)));
+        when(loginExchanges.consume("exchange-code"))
+                .thenReturn(Optional.of(new PendingAppleLogin(ACCOUNT_ID, true, CHALLENGE)));
         when(accessTokens.issue(ACCOUNT_ID))
                 .thenReturn(new IssuedAccessToken(
                         "access-token", new AccessToken("jti", ACCOUNT_ID, NOW, NOW.plus(Duration.ofHours(1)))));
 
-        LoginInfo info = service().exchange(new ExchangeAppleWebLoginCommand("exchange-code"));
+        LoginInfo info = service().exchange(new ExchangeAppleWebLoginCommand("exchange-code", VERIFIER));
 
         assertThat(info).isEqualTo(new LoginInfo(7L, true, "access-token", NOW.plus(Duration.ofHours(1))));
     }
@@ -62,7 +66,7 @@ class ExchangeAppleWebLoginServiceTest {
     void rejectsUnknownExchangeCode() {
         when(loginExchanges.consume("exchange-code")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service().exchange(new ExchangeAppleWebLoginCommand("exchange-code")))
+        assertThatThrownBy(() -> service().exchange(new ExchangeAppleWebLoginCommand("exchange-code", VERIFIER)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(AuthErrorCode.INVALID_APPLE_LOGIN_EXCHANGE_CODE));
     }
@@ -70,5 +74,18 @@ class ExchangeAppleWebLoginServiceTest {
     private ExchangeAppleWebLoginService service() {
         return new ExchangeAppleWebLoginService(
                 loginExchanges, accounts, accessTokens, Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    @Test
+    @DisplayName("교환 코드를 가로채도 로그인을 시작한 클라이언트의 code_verifier가 아니면 AUTH-007이다")
+    void rejectsWrongCodeVerifier() {
+        when(loginExchanges.consume("exchange-code"))
+                .thenReturn(Optional.of(new PendingAppleLogin(ACCOUNT_ID, true, CHALLENGE)));
+
+        assertThatThrownBy(() -> service()
+                        .exchange(new ExchangeAppleWebLoginCommand(
+                                "exchange-code", "attacker-verifier-attacker-verifier-attacker")))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(AuthErrorCode.INVALID_APPLE_LOGIN_EXCHANGE_CODE));
     }
 }

@@ -9,7 +9,10 @@ import org.springframework.stereotype.Component;
 import com.orbit.auth.application.port.out.AppleLoginExchangePort;
 import com.orbit.auth.application.port.out.PendingAppleLogin;
 import com.orbit.auth.domain.AccountId;
+import com.orbit.auth.domain.HashedNonce;
+import com.orbit.auth.domain.PkceChallenge;
 
+/** 교환 코드는 Redis 키에 SHA-256 해시로만 둔다. 값에는 계정·등록 여부·PKCE challenge만 있고 Access Token은 없다. */
 @Component
 class RedisAppleLoginExchangeAdapter implements AppleLoginExchangePort {
 
@@ -24,20 +27,29 @@ class RedisAppleLoginExchangeAdapter implements AppleLoginExchangePort {
 
     @Override
     public void save(String code, PendingAppleLogin login, Duration ttl) {
-        redisTemplate
-                .opsForValue()
-                .set(KEY_PREFIX + code, login.accountId().value() + SEPARATOR + login.registered(), ttl);
+        String value = login.accountId().value()
+                + SEPARATOR
+                + login.registered()
+                + SEPARATOR
+                + login.codeChallenge().value();
+        redisTemplate.opsForValue().set(key(code), value, ttl);
     }
 
     @Override
     public Optional<PendingAppleLogin> consume(String code) {
         // GETDEL로 조회와 삭제를 원자적으로 처리해 같은 코드로 토큰을 두 번 받지 못하게 한다.
-        String value = redisTemplate.opsForValue().getAndDelete(KEY_PREFIX + code);
+        String value = redisTemplate.opsForValue().getAndDelete(key(code));
         if (value == null) {
             return Optional.empty();
         }
-        String[] fields = value.split(SEPARATOR, 2);
-        return Optional.of(
-                new PendingAppleLogin(new AccountId(Long.parseLong(fields[0])), Boolean.parseBoolean(fields[1])));
+        String[] fields = value.split(SEPARATOR, 3);
+        return Optional.of(new PendingAppleLogin(
+                new AccountId(Long.parseLong(fields[0])),
+                Boolean.parseBoolean(fields[1]),
+                new PkceChallenge(fields[2])));
+    }
+
+    static String key(String code) {
+        return KEY_PREFIX + HashedNonce.fromRaw(code).value();
     }
 }
