@@ -12,7 +12,7 @@
 
 - Java 21·Spring Boot·Spring Modulith를 사용하고 Gradle의 단일 실행 JAR로 배포합니다. 버전 원본은 `build.gradle.kts`, `gradle/libs.versions.toml`, Gradle Wrapper입니다.
 - 비즈니스 책임별 패키지를 Application Module로 구분합니다. 초기에는 별도 Gradle 모듈이나 서비스로 나누지 않고 `ApplicationModules.verify()`로 경계·순환 의존성을 검증합니다.
-- 비즈니스 모듈의 공개 계약은 모듈 루트에 둡니다. `shared`의 오류·OpenAPI 계약은 named interface로 나누어 필요한 계약만 허용합니다. 내부 패키지 공개로 검증을 우회하지 않습니다.
+- 비즈니스 모듈의 공개 계약은 모듈 루트에 둡니다. `shared`의 오류·OpenAPI·Security 확장점 계약은 named interface로 나누어 필요한 계약만 허용합니다. 내부 패키지 공개로 검증을 우회하지 않습니다.
 
 모듈별 책임·공개 타입·허용 의존성은 [도메인 지도](../domain/README.md), 패키지와 수정 위치는 [아키텍처 규칙](../../.claude/skills/dino-architecture/references/architecture.md#modules)이 원본입니다.
 
