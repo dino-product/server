@@ -33,6 +33,9 @@ app:
         # 실제 키가 아닌 자리표시자. client_secret을 만드는 테스트는 실행 중 생성한 키를 넣는다.
         private-key: test-placeholder-not-a-key
         ttl: PT10M
+      refresh-token:
+        # 테스트 전용 키(base64 32바이트)
+        encryption-key: dGVzdC1vbmx5LWFwcGxlLXJlZnJlc2gta2V5LTMyYnk=
     jwt:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test
