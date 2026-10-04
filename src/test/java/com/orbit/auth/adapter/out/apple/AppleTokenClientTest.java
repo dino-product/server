@@ -19,6 +19,7 @@ import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.auth.adapter.out.oidc.OidcIdTokenDecoder;
 import com.orbit.auth.application.port.out.AppleCodeExchange;
+import com.orbit.auth.application.port.out.AppleRefreshToken;
 import com.orbit.auth.application.port.out.AppleTokenApiException;
 import com.orbit.auth.application.port.out.AppleTokenApiException.Failure;
 import com.orbit.support.AppleAuthStub;
@@ -153,6 +154,36 @@ class AppleTokenClientTest {
 
         assertFailure(() -> misconfigured.exchange(AppleAuthStub.BUNDLE_ID, "code", null), Failure.UNAVAILABLE);
         assertThat(apple.tokenRequests()).hasSize(before);
+    }
+
+    @Test
+    @DisplayName("저장한 refresh token을 발급받은 클라이언트의 client_secret으로 철회한다")
+    void revokesRefreshTokenWithItsClient() throws Exception {
+        client.revoke(new AppleRefreshToken(AppleAuthStub.SERVICES_ID, "apple-refresh-to-revoke"));
+
+        Map<String, String> request = apple.revokeRequests().getLast();
+        assertThat(request)
+                .containsEntry("client_id", AppleAuthStub.SERVICES_ID)
+                .containsEntry("token", "apple-refresh-to-revoke")
+                .containsEntry("token_type_hint", "refresh_token");
+        assertThat(SignedJWT.parse(request.get("client_secret"))
+                        .getJWTClaimsSet()
+                        .getSubject())
+                .isEqualTo(AppleAuthStub.SERVICES_ID);
+    }
+
+    @Test
+    @DisplayName("철회 요청을 Apple이 받지 않으면(invalid_client) UNAVAILABLE이다")
+    void reportsRevokeWithInvalidClientAsUnavailable() throws Exception {
+        String otherKey;
+        try (AppleAuthStub other = AppleAuthStub.start()) {
+            otherKey = other.clientSecretPrivateKeyPem();
+        }
+        AppleTokenClient misconfigured = client(apple.tokenUri(), otherKey);
+
+        assertFailure(
+                () -> misconfigured.revoke(new AppleRefreshToken(AppleAuthStub.BUNDLE_ID, "token")),
+                Failure.UNAVAILABLE);
     }
 
     @Test

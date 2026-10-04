@@ -20,20 +20,22 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.orbit.auth.adapter.out.oidc.OidcIdTokenDecoder;
 import com.orbit.auth.application.port.out.AppleCodeExchange;
+import com.orbit.auth.application.port.out.AppleRefreshToken;
 import com.orbit.auth.application.port.out.AppleTokenApiException;
 import com.orbit.auth.application.port.out.AppleTokenApiException.Failure;
 import com.orbit.auth.application.port.out.ExchangeAppleAuthorizationCodePort;
+import com.orbit.auth.application.port.out.RevokeAppleTokenPort;
 
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Apple 토큰 API를 호출한다. code 교환은 client_secret과 함께 보내고, 응답 id_token을 Apple JWKS로 다시 검증해 sub를 읽는다. Apple이 code를
+ * Apple 토큰 API를 호출한다. code 교환·토큰 철회는 해당 클라이언트의 client_secret과 함께 보내고, 응답 id_token을 Apple JWKS로 다시 검증해 sub를 읽는다. Apple이 code를
  * 거절한 {@code invalid_grant}만 REJECTED이고 그 밖의 오류 응답·통신 실패·설정 오류는 UNAVAILABLE이다. code·토큰·client_secret은 로그에 남기지
  * 않는다.
  */
 @Slf4j
 @Component
-class AppleTokenClient implements ExchangeAppleAuthorizationCodePort {
+class AppleTokenClient implements ExchangeAppleAuthorizationCodePort, RevokeAppleTokenPort {
 
     private static final String INVALID_GRANT = "invalid_grant";
     private static final ParameterizedTypeReference<Map<String, Object>> JSON_OBJECT =
@@ -85,6 +87,14 @@ class AppleTokenClient implements ExchangeAppleAuthorizationCodePort {
                 .orElseThrow(() -> new AppleTokenApiException(
                         Failure.UNAVAILABLE, "Apple token response has an invalid id_token"));
         return new AppleCodeExchange(subject, clientId, refresh);
+    }
+
+    @Override
+    public void revoke(AppleRefreshToken token) {
+        MultiValueMap<String, String> form = clientForm(token.clientId());
+        form.add("token", token.refreshToken());
+        form.add("token_type_hint", "refresh_token");
+        post(properties.revokeUri(), form);
     }
 
     private MultiValueMap<String, String> clientForm(String clientId) {
