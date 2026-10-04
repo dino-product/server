@@ -83,6 +83,10 @@ app:
       issuer: https://kauth.kakao.com
       jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
       allowed-audiences: ${KAKAO_ALLOWED_AUDIENCES}
+    apple:
+      issuer: https://appleid.apple.com
+      jwk-set-uri: https://appleid.apple.com/auth/keys
+      allowed-audiences: ${APPLE_ALLOWED_AUDIENCES}
     jwt:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}

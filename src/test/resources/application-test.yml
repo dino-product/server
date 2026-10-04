@@ -25,6 +25,8 @@ app:
   auth:
     kakao:
       allowed-audiences: test-kakao-app-key
+    apple:
+      allowed-audiences: test-apple-bundle-id,test-apple-services-id
     jwt:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test
