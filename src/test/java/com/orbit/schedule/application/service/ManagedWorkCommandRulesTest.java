@@ -21,6 +21,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.CorrectWorkStatusCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
@@ -89,14 +90,23 @@ class ManagedWorkCommandRulesTest {
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),
-                                request.validInput() ? "고객 요청" : " "))));
+                                request.validInput() ? "고객 요청" : " "))),
+                new UseCase("관리자 강제 상태 변경", (f, request) -> new CorrectWorkStatusService(
+                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
+                        .correct(new CorrectWorkStatusCommand(
+                                request.accountId(),
+                                request.organizationId(),
+                                request.workId(),
+                                request.validInput() ? WorkStatus.IN_PROGRESS : null,
+                                "정정"))));
     }
 
     @ParameterizedTest
     @MethodSource("useCases")
     @DisplayName("계정 식별자가 없으면 인증 계층의 프로그래밍 오류로 멈춘다")
     void requiresAccountId(UseCase useCase) {
-        fixture.givenManager();
+        // 총관리자 전용 유즈케이스도 요청자 확인을 통과하도록 총관리자로 요청한다.
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
         assertThatThrownBy(() -> useCase.invoke(fixture, new Request(null, ORGANIZATION_ID.value(), id.value(), true)))
@@ -147,7 +157,8 @@ class ManagedWorkCommandRulesTest {
     @MethodSource("useCases")
     @DisplayName("작업 식별자가 없거나 형식이 틀리면 입력 오류다")
     void rejectsInvalidWorkId(UseCase useCase) {
-        fixture.givenManager();
+        // 총관리자 전용 유즈케이스도 요청자 확인을 통과하도록 총관리자로 요청한다.
+        fixture.givenManager(ActorRole.OWNER);
 
         for (Long workId : new Long[] {0L, null}) {
             fixture.assertRejected(
@@ -160,7 +171,8 @@ class ManagedWorkCommandRulesTest {
     @MethodSource("useCases")
     @DisplayName("없거나 다른 조직의 작업은 입력이 잘못돼도 존재를 드러내지 않고 찾을 수 없음이다")
     void hidesMissingAndOtherOrganizationWork(UseCase useCase) {
-        fixture.givenManager();
+        // 총관리자 전용 유즈케이스도 요청자 확인을 통과하도록 총관리자로 요청한다.
+        fixture.givenManager(ActorRole.OWNER);
         WorkId otherOrganizationWork =
                 fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
 

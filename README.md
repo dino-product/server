@@ -12,7 +12,7 @@ Spring MVC/Validation/Security/Actuator/OpenAPI, Spring Data JPA/QueryDSL/Postgr
 
 JDK 21과 Docker/Compose가 필요합니다. 별도 Gradle 설치 없이 Wrapper를 사용합니다.
 
-에이전트가 아래 앱을 실행할 때는 `local`의 `create-drop`에 따른 DB 생성·삭제 범위를 먼저 확인받습니다. [승인 절차](docs/conventions/workflow/approvals/README.md#approvals)를 따릅니다.
+에이전트가 아래 앱을 실행할 때는 `local`의 `create-drop`에 따른 DB 생성·삭제 범위를 먼저 확인받습니다. [승인 절차](AGENTS.md#approvals)를 따릅니다.
 
 ```bash
 cp .env.example .env
@@ -50,29 +50,28 @@ gradle/                     버전·의존성·품질·테스트 설정과 Wrapp
 config/checkstyle/          코드 검사 규칙
 docker/                    실행 JAR용 컨테이너 이미지
 .github/                   CI·이슈/PR 양식·라벨 정의·기여 안내
-.codex/agents/             선택형 모듈·검증 검토 역할
-.codex/rules/              신뢰한 프로젝트에서 로딩하는 명령 실행 규칙
+.claude/skills/            팀 공통 Claude 스킬과 공통 개발 계약(references/)
+.claude/agents/            모듈 경계 독립 검토 서브에이전트
+.claude/settings.json      팀 공통 권한·커밋 제목 hook
 docs/
 ├── adr/                    아키텍처·에이전트 규칙 결정 이력
-├── agents/                 상황별 에이전트 탐색·협업·실행 정책 안내
-├── conventions/            주제별 개발 규칙
 ├── domain/                 모듈 책임과 공개 계약
-├── planning/               제품 유즈케이스·미결정 정책 초안
-└── troubleshooting/        반복 조사에서 얻은 문제 해결 사례
+├── planning/               기획 원본(노션 정책서·기능명세) 색인·기준 버전
+├── troubleshooting/        반복 조사에서 얻은 문제 해결 사례
+└── maintenance.md          문서·ADR 원본 위치와 관리 규칙
 ```
 
-모듈별 소유권·공개 계약·구현 범위는 [도메인 지도](docs/domain/README.md), 의존 규칙은 [아키텍처](docs/conventions/architecture/modules.md#modules)가 원본입니다. 운영 적용 준비는 [프로필·마이그레이션](docs/conventions/runtime/profiles.md#profiles), 이벤트 경계는 [트랜잭션 이벤트](docs/conventions/persistence/events.md#events)를 확인합니다.
+모듈별 소유권·공개 계약·구현 범위는 [도메인 지도](docs/domain/README.md), 의존 규칙은 [아키텍처](.claude/skills/dino-architecture/references/architecture.md#modules)가 원본입니다. 운영 적용 준비는 [프로필·마이그레이션](.claude/skills/dino-architecture/references/persistence.md#profiles), 이벤트 경계는 [트랜잭션 이벤트](.claude/skills/dino-architecture/references/persistence.md#events)를 확인합니다.
 
 ## 검증
 
-[전체 검증 명령](AGENTS.md#검증과-완료)을 사용합니다. 전체 테스트에는 Docker가 필요하며 일부 건너뛰기를 통과로 보지 않습니다. [집중 검사](docs/conventions/testing/selection.md#selection)와 [CI 보고서 정책](docs/conventions/testing/completion.md#completion)은 해당 절에서 확인합니다. PR에는 CI `verify`, [PR 규약 검사](.github/workflows/pr-conventions.yml), 비차단 [자동 리뷰](docs/conventions/workflow/review/automation.md#automation)가 실행됩니다.
+[전체 검증 명령](AGENTS.md#검증과-완료)을 사용합니다. 전체 테스트에는 Docker가 필요하며 일부 건너뛰기를 통과로 보지 않습니다. [집중 검사](.claude/skills/dino-testing/references/verification.md#selection)와 [CI 보고서 정책](.claude/skills/dino-testing/references/verification.md#completion)은 해당 절에서 확인합니다. PR에는 CI `verify`와 [PR 규약 검사](.github/workflows/pr-conventions.yml)가 실행됩니다. 리뷰는 PR 전에 로컬 [`dino-review`](.claude/skills/dino-review/references/procedure.md#procedure)로 하고, 규약 검사는 본문의 [리뷰 마커](.claude/skills/dino-review/references/report.md#marker)가 PR head와 같은지 확인합니다.
 
 ## 문서 안내
 
-- 작업별 규칙·원본·검증 경로: [컨벤션 목차](docs/conventions/README.md#conventions)
-- API 스키마: [OpenAPI](docs/conventions/web/openapi/controllers.md#controllers)
-- AI 작업 방식: [AGENTS.md](AGENTS.md)
-- Codex 협업 역할·설정: [협업 안내](docs/agents/collaboration.md#codex-협업-설정)
-- 커밋·브랜치·승인·이슈·라벨·PR과 AI 리뷰: [GitHub 작업 가이드](docs/conventions/workflow/README.md#workflow)
+- 작업별 규칙·원본·검증 경로: [컨벤션 목차](AGENTS.md#읽기-경로)
+- API 스키마: [OpenAPI](.claude/skills/dino-architecture/references/web.md#controllers)
+- AI 작업 방식: [AGENTS.md](AGENTS.md) (Claude Code 스킬 목록은 [스킬과 위임](AGENTS.md#delegation))
+- 커밋·브랜치·승인·이슈·라벨·PR과 AI 리뷰: [GitHub 작업 가이드](AGENTS.md#읽기-경로)
 - 구조 선택의 이유와 제약: [현재 ADR 요약](docs/adr/README.md)에서 유효한 결정 확인
-- 제품 유즈케이스·미결정 정책: [기획 초안](docs/planning/use-cases.md); 현재 구현·확정 정책과 구분
+- 제품 정책·기능 흐름: [기획 원본 색인](docs/planning/README.md#planning)에서 노션 정책서·기능명세와 기준 버전 확인. 레포에 복사하지 않음
