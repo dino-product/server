@@ -13,6 +13,7 @@
 ## 트랜잭션과 시간
 
 - 변경 UseCase는 `@Transactional`, 조회 UseCase는 `@Transactional(readOnly = true)`를 적용합니다.
+- 예외: DB를 쓰지 않고 Redis·외부 검증기 같은 다른 저장소만 쓰는 UseCase(예: auth의 nonce 발급·Access Token 인증·로그아웃)는 트랜잭션을 붙이지 않고 서비스 Javadoc에 그 사실을 적습니다. JPA 트랜잭션은 시작할 때 DB 커넥션을 잡으므로, 매 요청 토큰 인증처럼 DB가 필요 없는 경로가 커넥션을 점유하거나 DB 장애에 함께 실패하지 않게 하기 위해서입니다. DB 접근이 추가되면 위 규칙을 적용합니다.
 - 날짜·시각은 UTC `Instant`, 테스트 가능한 시간은 주입받은 `Clock`을 사용합니다. 주입되는 `Clock`은 저장소(PostgreSQL) 정밀도인 마이크로초 단위로 끊으므로, 시각 컬럼도 마이크로초 정밀도로 매핑합니다.
 
 <a id="events"></a>
