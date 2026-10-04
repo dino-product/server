@@ -2,7 +2,7 @@
 
 ## 책임과 범위
 
-카카오 OIDC로 사용자를 인증하고, 카카오 `sub`에 연결된 계정(`Account`)을 발급·조회하며, 자체 Access Token을 발급·검증·폐기합니다. 계정의 식별자 발급까지가 책임이며 이름·연락처 같은 프로필과 조직 역할은 소유하지 않습니다([BC-001](bounded-contexts.md#미해결-이슈)).
+카카오 OIDC로 사용자를 인증하고, 카카오 `sub`에 연결된 계정(`Account`)을 발급·조회하며, 자체 Access Token을 발급·검증·폐기합니다. 계정의 식별자 발급까지가 책임이며 이름·연락처 같은 프로필과 조직 역할은 소유하지 않습니다([BC-001](bounded-contexts.md#미해결-설계-이슈)).
 
 현재 구현 범위는 앱(카카오 네이티브 SDK)의 id_token 제출 로그인, Access Token 발급, Bearer 인증, 로그아웃입니다. 웹의 Authorization Code(authorize·callback) 흐름, Refresh Token 회전, 프로필·역할, organization 공개 계약은 아직 없습니다. 예제 subject 조회와 등록 이벤트 후속 처리는 user와의 ACL 관계를 보여주는 구조 예제로 남아 있으며 인증 의미가 없습니다. 예제 subject는 인증 증명이 아니며 접근 권한을 부여하지 않습니다.
 
