@@ -326,6 +326,47 @@ class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
                 .contains("code="));
     }
 
+    @Test
+    @DisplayName("같은 Apple sub면 iOS 로그인과 웹 로그인이 같은 계정을 쓰고 클라이언트별 refresh token을 둔다")
+    void sharesAccountBetweenIosAndWebLogins() throws Exception {
+        String subject = appleSubject();
+        String rawNonce = readTree(mockMvc.perform(post("/api/v1/auth/apple/nonces"))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("nonce")
+                .asString();
+        long iosAccount = readTree(mockMvc.perform(post("/api/v1/auth/apple/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(new AppleLoginRequest(
+                                        APPLE.idToken(
+                                                subject,
+                                                HashedNonce.fromRaw(rawNonce).value()),
+                                        code(subject)))))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("accountId")
+                .asLong();
+
+        Started started = start("web");
+        URI location = URI.create(
+                callback(started, APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID), code(subject))
+                        .andReturn()
+                        .getResponse()
+                        .getHeader(HttpHeaders.LOCATION));
+        exchange(query(location).getFirst("code"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.accountId").value(iosAccount))
+                .andExpect(jsonPath("$.result.registered").value(false));
+        assertThat(refreshTokens.listByAccount(new AccountId(iosAccount)))
+                .extracting(AppleRefreshToken::clientId)
+                .containsExactlyInAnyOrder(AppleAuthStub.BUNDLE_ID, AppleAuthStub.SERVICES_ID);
+    }
+
     private Started start(String client) throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/auth/apple/authorize")
                         .param("client", client)

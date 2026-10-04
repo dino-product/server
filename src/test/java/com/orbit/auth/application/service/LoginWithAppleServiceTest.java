@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,6 +37,7 @@ import com.orbit.auth.application.port.out.AppleLoginNoncePort;
 import com.orbit.auth.application.port.out.AppleRefreshTokenRepository;
 import com.orbit.auth.application.port.out.AppleTokenApiException;
 import com.orbit.auth.application.port.out.AppleTokenApiException.Failure;
+import com.orbit.auth.application.port.out.AppleWebAuthorizationPort;
 import com.orbit.auth.application.port.out.DuplicateIdentityException;
 import com.orbit.auth.application.port.out.ExchangeAppleAuthorizationCodePort;
 import com.orbit.auth.application.port.out.IssuedAccessToken;
@@ -77,6 +79,9 @@ class LoginWithAppleServiceTest {
     private AppleRefreshTokenRepository refreshTokens;
 
     @Mock
+    private AppleWebAuthorizationPort webAuthorization;
+
+    @Mock
     private AccountRepository accounts;
 
     @Mock
@@ -86,11 +91,13 @@ class LoginWithAppleServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(webAuthorization.clientId()).thenReturn("com.orbit.web");
         service = new LoginWithAppleService(
                 idTokens,
                 nonces,
                 codeExchanges,
                 refreshTokens,
+                webAuthorization,
                 accounts,
                 accessTokens,
                 Clock.fixed(NOW, ZoneOffset.UTC));
@@ -166,6 +173,16 @@ class LoginWithAppleServiceTest {
         assertError(AuthErrorCode.INVALID_ID_TOKEN);
         verify(nonces, never()).consume(any());
         verify(codeExchanges, never()).exchange(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("웹 Services ID를 대상으로 발급된 id_token은 iOS 로그인에서 AUTH-002이고 nonce를 소비하지 않는다")
+    void rejectsIdTokenOfWebServicesId() {
+        when(idTokens.verify("id-token"))
+                .thenReturn(Optional.of(new AppleIdTokenClaims(SUBJECT, NONCE.value(), "com.orbit.web")));
+
+        assertError(AuthErrorCode.INVALID_ID_TOKEN);
+        verify(nonces, never()).consume(any());
     }
 
     @Test
