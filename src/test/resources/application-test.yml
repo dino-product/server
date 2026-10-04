@@ -27,6 +27,12 @@ app:
       allowed-audiences: test-kakao-app-key
     apple:
       allowed-audiences: test-apple-bundle-id,test-apple-services-id
+      client-secret:
+        team-id: TESTTEAM01
+        key-id: TESTKEY001
+        # 실제 키가 아닌 자리표시자. client_secret을 만드는 테스트는 실행 중 생성한 키를 넣는다.
+        private-key: test-placeholder-not-a-key
+        ttl: PT10M
     jwt:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test

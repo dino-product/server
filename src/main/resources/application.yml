@@ -87,6 +87,11 @@ app:
       issuer: https://appleid.apple.com
       jwk-set-uri: https://appleid.apple.com/auth/keys
       allowed-audiences: ${APPLE_ALLOWED_AUDIENCES}
+      client-secret:
+        team-id: ${APPLE_TEAM_ID}
+        key-id: ${APPLE_KEY_ID}
+        private-key: ${APPLE_PRIVATE_KEY}
+        ttl: ${APPLE_CLIENT_SECRET_TTL:PT10M}
     jwt:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}
