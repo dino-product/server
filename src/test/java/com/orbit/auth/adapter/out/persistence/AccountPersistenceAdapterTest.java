@@ -66,14 +66,16 @@ class AccountPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("같은 외부 식별로 두 계정을 저장하면 중복 식별 예외로 거부하고 기존 계정은 그대로 찾는다")
+    @DisplayName("같은 외부 식별로 두 계정을 저장하면 중복 식별 예외로 거부하고 기존 계정은 그대로 찾는다. 예외 메시지에는 회원번호를 넣지 않는다")
     void rejectsDuplicateIdentity() {
         ExternalIdentity identity = newIdentity();
         Account first = adapter.saveNew(Account.register(identity, REGISTERED_AT));
 
         assertThatThrownBy(() -> adapter.saveNew(Account.register(identity, REGISTERED_AT)))
-                .isInstanceOfSatisfying(DuplicateIdentityException.class, exception -> assertThat(exception.identity())
-                        .isEqualTo(identity));
+                .isInstanceOfSatisfying(DuplicateIdentityException.class, exception -> {
+                    assertThat(exception.identity()).isEqualTo(identity);
+                    assertThat(exception.getMessage()).doesNotContain(identity.subject());
+                });
         assertThat(adapter.findByIdentity(identity)).map(Account::id).contains(first.id());
     }
 
