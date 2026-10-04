@@ -126,7 +126,13 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("AUTH-005"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.responses['502']"
                                 + ".content['application/json'].examples['AUTH-006'].value.code")
-                        .value("AUTH-006"));
+                        .value("AUTH-006"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/authorize'].get.summary")
+                        .value("Apple 웹 로그인 시작"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/authorize'].get.security")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/authorize'].get.responses['302']")
+                        .exists());
     }
 
     @Test

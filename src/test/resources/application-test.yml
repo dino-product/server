@@ -36,6 +36,12 @@ app:
       refresh-token:
         # 테스트 전용 키(base64 32바이트)
         encryption-key: dGVzdC1vbmx5LWFwcGxlLXJlZnJlc2gta2V5LTMyYnk=
+      web:
+        services-id: test-apple-services-id
+        redirect-uri: http://localhost/api/v1/auth/apple/callback
+        return-uris:
+          web: http://localhost:3000/login/apple
+          android: orbit-test://auth/apple
     jwt:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test

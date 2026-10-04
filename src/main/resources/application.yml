@@ -98,6 +98,13 @@ app:
         timeout: PT5S
       refresh-token:
         encryption-key: ${APPLE_REFRESH_TOKEN_ENCRYPTION_KEY}
+      web:
+        authorization-uri: https://appleid.apple.com/auth/authorize
+        services-id: ${APPLE_SERVICES_ID}
+        redirect-uri: ${APPLE_WEB_REDIRECT_URI}
+        return-uris:
+          web: ${APPLE_WEB_RETURN_URI}
+          android: ${APPLE_ANDROID_RETURN_URI}
     jwt:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}
