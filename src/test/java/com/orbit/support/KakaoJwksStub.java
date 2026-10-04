@@ -20,8 +20,9 @@ import com.sun.net.httpserver.HttpServer;
 
 /**
  * 카카오 JWKS 엔드포인트를 로컬 HTTP 서버로 대체한다. 서명키만 바꿔 끼우고 검증기·JWKS 조회 경로는 실제 구현을 그대로 거친다. 실제 카카오와의 E2E는 아니다.
+ * 사용한 테스트 클래스가 끝나면 {@link #close()}로 서버와 디스패처 스레드를 정리한다.
  */
-public final class KakaoJwksStub {
+public final class KakaoJwksStub implements AutoCloseable {
 
     public static final String ISSUER = "https://kauth.kakao.com";
     public static final String AUDIENCE = "test-kakao-app-key";
@@ -56,6 +57,11 @@ public final class KakaoJwksStub {
         } catch (JOSEException | IOException exception) {
             throw new IllegalStateException("Cannot start Kakao JWKS stub", exception);
         }
+    }
+
+    @Override
+    public void close() {
+        server.stop(0);
     }
 
     public String jwkSetUri() {

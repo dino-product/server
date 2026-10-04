@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import javax.crypto.spec.SecretKeySpec;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +58,11 @@ class AuthApiIntegrationTest extends IntegrationTestSupport {
     @DynamicPropertySource
     static void kakaoJwks(DynamicPropertyRegistry registry) {
         registry.add("app.auth.kakao.jwk-set-uri", KAKAO::jwkSetUri);
+    }
+
+    @AfterAll
+    static void stopKakaoJwks() {
+        KAKAO.close();
     }
 
     @Test
