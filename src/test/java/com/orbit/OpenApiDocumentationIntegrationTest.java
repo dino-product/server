@@ -107,7 +107,20 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/apple/nonces'].post.responses['200']"
                                 + ".content['application/json'].schema.properties.result['$ref']")
-                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.AppleLoginNonceResponse"));
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.AppleLoginNonceResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.summary")
+                        .value("Apple id_token으로 로그인"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.security")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.LoginResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.responses['401']"
+                                + ".content['application/json'].examples['AUTH-002'].value.code")
+                        .value("AUTH-002"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/login'].post.responses['401']"
+                                + ".content['application/json'].examples['AUTH-003'].value.code")
+                        .value("AUTH-003"));
     }
 
     @Test

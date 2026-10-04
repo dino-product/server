@@ -1,6 +1,11 @@
 package com.orbit.auth.adapter.in.web.docs;
 
 import com.orbit.auth.adapter.in.web.AppleLoginNonceResponse;
+import com.orbit.auth.adapter.in.web.AppleLoginRequest;
+import com.orbit.auth.adapter.in.web.LoginResponse;
+import com.orbit.auth.application.error.AuthErrorCode;
+import com.orbit.shared.error.CommonErrorCode;
+import com.orbit.shared.openapi.ApiErrorCodes;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -23,4 +28,18 @@ public interface AppleLoginControllerDocs {
                             mediaType = "application/json",
                             schema = @Schema(implementation = AppleLoginNonceResponse.class)))
     AppleLoginNonceResponse issueNonce();
+
+    @Operation(
+            summary = "Apple id_token으로 로그인",
+            description = "iOS 앱이 받은 Apple id_token의 서명·발급자·클라이언트·만료와 nonce 클레임(서버 발급 raw nonce의 해시)을 검증하고, "
+                    + "처음이면 계정을 만든 뒤 Access Token을 발급합니다. 카카오 계정과는 별개 계정입니다.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "로그인 성공",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = LoginResponse.class)))
+    @ApiErrorCodes(enumClass = CommonErrorCode.class, includes = "BAD_REQUEST")
+    @ApiErrorCodes(
+            enumClass = AuthErrorCode.class,
+            includes = {"INVALID_ID_TOKEN", "INVALID_NONCE"})
+    LoginResponse login(AppleLoginRequest request);
 }
