@@ -26,11 +26,20 @@
 
 | 항목 | 내용 |
 | --- | --- |
-| 책임 | 카카오 OIDC 로그인, 계정(accountId) 발급·조회, Access Token 발급·검증·로그아웃. accountId 발급까지가 책임 범위 |
-| 상태 | 구현 — 앱의 id_token 제출 로그인·Bearer 인증·로그아웃. 웹 Authorization Code 흐름·Refresh 회전은 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
-| 기획 원본 | [조직·계정] §1·§5 (카카오 로그인만 지원, ORG-001), §13 (ID/PW·구글 로그인 MVP 제외) |
-| 소유 애그리게잇 | **Account**(Root) — 제공자별 외부 식별(`ExternalIdentity`: 카카오 `sub`)과 등록 시각. 프로필·역할 없음. `AuthSubject`는 예제로만 남음 |
+| 책임 | 카카오·Apple OIDC 로그인, 계정(accountId) 발급·조회, Access Token 발급·검증·로그아웃, Apple refresh token 보관(계정 삭제 시 철회용). accountId 발급까지가 책임 범위 |
+| 상태 | 구현 — 카카오 앱·Apple iOS의 id_token 제출 로그인, Apple 웹·Android authorize·callback, Bearer 인증·로그아웃. 카카오 웹 흐름·Refresh 회전·계정 삭제는 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
+| 기획 원본 | [조직·계정] §1·§5 (카카오 로그인만 지원, ORG-001 — Apple 로그인은 [A-10](#auth-gaps)), §13 (ID/PW·구글 로그인 MVP 제외), §5.1 (탈퇴, ORG-009) |
+| 소유 애그리게잇 | **Account**(Root) — 제공자별 외부 식별(`ExternalIdentity`: 카카오·Apple `sub`)과 등록 시각. 프로필·역할 없음. Apple refresh token은 애그리게잇 밖 저장소에 암호화 보관. `AuthSubject`는 예제로만 남음 |
 | 관계 | `organization`이 이 모듈의 공개 계약을 참조(ID)해 accountId 유효성을 확인 (Conformist, 계약은 organization 구현 시 추가) |
+
+<a id="auth-gaps"></a>
+#### 1.1 차이·공백
+
+ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#gaps)를 따른다.
+
+| 유형 | ID | 내용 | 추적 |
+| --- | --- | --- | --- |
+| 구현에서 정한 제품 결정, Notion 결정 필요 | A-10 | [조직·계정] §1·§5는 카카오 로그인만 지원(ORG-001)한다. HM-272에서 iOS App Store 심사 지침 4.8 대응으로 Apple 로그인(iOS·웹·Android, 카카오와 별개 계정, 이름·이메일 미저장)을 Notion 반영 전에 구현했다 | 미등록 (#plan 요청 예정) |
 
 > **"계정"이라는 이름을 조직 컨텍스트에서 뺀 이유**: "계정"은 마이페이지·내 정보 수정·회원탈퇴처럼 개인정보 관리 뉘앙스가 강해서, 조직 소속을 다루는 컨텍스트와 이름이 섞이면 안 된다고 판단했다. 개인 계정·프로필 관리 자체를 어느 컨텍스트가 가질지(이 `auth`인지, 별도 컨텍스트인지)는 아직 미정 — §미해결 설계 이슈 참고.
 
