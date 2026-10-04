@@ -2,6 +2,7 @@ package com.orbit.shared.internal.config;
 
 import java.util.List;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.orbit.shared.internal.security.ApiAccessDeniedHandler;
 import com.orbit.shared.internal.security.ApiAuthenticationEntryPoint;
+import com.orbit.shared.security.SecurityFilterChainCustomizer;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,6 +33,7 @@ public class SecurityConfig {
     private final CorsProperties corsProperties;
     private final ApiAuthenticationEntryPoint authenticationEntryPoint;
     private final ApiAccessDeniedHandler accessDeniedHandler;
+    private final ObjectProvider<SecurityFilterChainCustomizer> customizers;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -38,8 +41,10 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(authorize -> authorize
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        // 모듈 확장점은 공통 공개 경로와 anyRequest().authenticated()보다 먼저 적용해 매처 순서를 보장한다.
+        customizers.orderedStream().forEach(customizer -> customizer.customize(http));
+        http.authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(EndpointRequest.to(HealthEndpoint.class))
                         .permitAll()
                         .requestMatchers(

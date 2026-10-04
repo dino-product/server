@@ -2,7 +2,7 @@
 
 [루트 지침](../../../../../../AGENTS.md)에 추가 적용합니다. 아래 경로는 이 모듈 기준이며 책임·소비자는 [도메인 지도](../../../../../../docs/domain/README.md)를 확인합니다.
 
-- 작고 안정적인 횡단 관심사만 소유합니다. 루트는 메타데이터, 공개 계약은 `error`/`openapi` named interface에 둡니다.
+- 작고 안정적인 횡단 관심사만 소유합니다. 루트는 메타데이터, 공개 계약은 `error`/`openapi`/`security` named interface에 둡니다. `security`는 SecurityFilterChain 확장점과 필터용 오류 응답 기록만 공개하며 `SecurityConfig` 자체는 `internal`에 남습니다.
 - 소비자는 `shared::*` 대신 실제 named interface를 `allowedDependencies`에 선언합니다.
 - 설정·응답·예외 처리·보안은 `internal`, 비동기 활성화는 `internal/config/AsyncConfig`가 담당합니다.
 - 한 모듈 전용이거나 사용처 없는 ErrorCode·DTO·유틸리티를 이동하지 않습니다. 공통 코드·계약 변경은 모든 영향받는 소비 모듈과 회귀 테스트를 확인합니다.

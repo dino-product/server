@@ -6,9 +6,9 @@
 
 | 모듈 | 소유 책임 | 공개 계약 | 허용 의존성 |
 | --- | --- | --- | --- |
-| `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`) | 없음 |
+| `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`), `shared::security` (`SecurityFilterChainCustomizer`, `ApiErrorResponseWriter`) | 없음 |
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
-| `auth` | subject 조회 예제와 등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `user` |
+| `auth` | 카카오 OIDC 로그인, 계정(`Account`) 발급·조회, Access Token 발급·검증·로그아웃과 예제 subject 조회·등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `shared::security`, `user` |
 | `organization` | 골격 — 조직·소속·참여 요청 관리 예정 | 없음 | 없음 |
 | `schedule` | 작업 생애주기 — `domain`(Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책)과 Application(작업 생애주기 유즈케이스 — 목록은 `application/port/in` 패키지, 출력 포트·오류 코드), 기사 일정 잠금 어댑터(PostgreSQL advisory lock), 임시 출력 어댑터(메모리 저장소·빈 조회 목록·모두 거부 행위자·가짜 기사 이름·가짜 사진 주소, `local`·`test`에서만 등록 — 그 밖의 프로필은 현재 기동하지 않음) | 없음 | `shared::error` |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |

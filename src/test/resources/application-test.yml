@@ -20,3 +20,12 @@ logging:
   level:
     root: WARN
     org.testcontainers: INFO
+
+app:
+  auth:
+    kakao:
+      allowed-audiences: test-kakao-app-key
+    jwt:
+      secret: test-only-secret-key-with-at-least-32-bytes
+      issuer: orbit-test
+      access-token-ttl: PT1H

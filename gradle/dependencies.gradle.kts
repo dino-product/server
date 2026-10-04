@@ -17,6 +17,8 @@ dependencies {
     add("implementation", "org.springframework.boot:spring-boot-starter-validation")
     add("implementation", "org.springframework.boot:spring-boot-starter-data-jpa")
     add("implementation", "org.springframework.boot:spring-boot-starter-security")
+    add("implementation", "org.springframework.security:spring-security-oauth2-jose")
+    add("implementation", "org.springframework.boot:spring-boot-starter-data-redis")
     add("implementation", "org.springframework.boot:spring-boot-starter-actuator")
     add("implementation", "org.springframework.modulith:spring-modulith-starter-core")
     add("implementation", "org.springframework.modulith:spring-modulith-events-api")

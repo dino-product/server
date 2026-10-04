@@ -6,6 +6,7 @@
 ## HTTP 계약
 
 - URI는 `/api/v{version}/{resource}`로 시작하고 리소스명은 복수형을 사용합니다.
+  - 예외: 인증 세션의 동작과 현재 인증 주체 조회는 `/api/v1/auth/` 아래에서 `login`·`logout`·`me`를 씁니다. 저장된 자원의 생성·삭제가 아니라 토큰 발급·폐기와 요청자 자신의 조회여서 OIDC·클라이언트 SDK의 관례 이름이 계약을 더 분명히 드러내기 때문입니다. 인증 아래라도 발급·보관되는 자원(예: `kakao/nonces`)은 복수형 리소스를 쓰며, 다른 모듈에는 이 예외를 적용하지 않습니다.
 - Request Body에는 `@Valid`, 경로·쿼리 제약에는 `@Validated`를 적용합니다.
 - Adapter에서 Request를 Command/Query로 변환합니다. Web DTO를 Domain/Application과 공유하거나 JPA Entity를 반환하지 않습니다. DTO 변경은 [구성 규칙](#dto)을 따릅니다.
 - 정상 응답은 `success`, `code`, `message`, `result`로 감쌉니다. Application의 비즈니스 오류는 모듈별 ErrorCode와 `BusinessException`으로 표현합니다. Domain 불변식 오류는 [오류 계약](architecture.md#errors)에 따라 변환합니다.
