@@ -129,7 +129,7 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
                                 "Bearer "
                                         + login.path("result")
                                                 .path("accessToken")
-                                                .asText()))
+                                                .asString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.accountId").value(accountId(login)));
     }
@@ -166,7 +166,7 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
                         .getContentAsString())
                 .path("result")
                 .path("nonce")
-                .asText();
+                .asString();
         String subject = appleSubject();
 
         login(APPLE.idToken(subject, hashed(kakaoNonce)), code(subject))
@@ -257,7 +257,7 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
                         .getContentAsString())
                 .path("result")
                 .path("nonce")
-                .asText();
+                .asString();
     }
 
     private static String code(String subject) {
