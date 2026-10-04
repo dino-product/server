@@ -98,6 +98,19 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsAppleLoginOperationsWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/nonces'].post.summary")
+                        .value("Apple 로그인 nonce 발급"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/nonces'].post.security")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/apple/nonces'].post.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.AppleLoginNonceResponse"));
+    }
+
+    @Test
     void documentsRequestAndResponseFields() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
