@@ -29,9 +29,9 @@ import com.orbit.auth.application.port.out.RevokeAppleTokenPort;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Apple 토큰 API를 호출한다. code 교환·토큰 철회는 해당 클라이언트의 client_secret과 함께 보내고, 응답 id_token을 Apple JWKS로 다시 검증해 sub를 읽는다. Apple이 code를
- * 거절한 {@code invalid_grant}만 REJECTED이고 그 밖의 오류 응답·통신 실패·설정 오류는 UNAVAILABLE이다. code·토큰·client_secret은 로그에 남기지
- * 않는다.
+ * Apple 토큰 API를 호출한다. code 교환·토큰 철회는 해당 클라이언트의 client_secret과 함께 보내고, code 교환 응답의 id_token은 Apple JWKS로
+ * 다시 검증해 sub를 읽는다. Apple이 거절한 {@code invalid_grant}만 REJECTED이고 그 밖의 오류 응답·통신 실패·설정 오류는 UNAVAILABLE이다.
+ * code·토큰·client_secret은 로그에 남기지 않는다.
  */
 @Slf4j
 @Component
