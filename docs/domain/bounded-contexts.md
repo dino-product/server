@@ -1,11 +1,11 @@
 <a id="bounded-contexts"></a>
 # 바운디드 컨텍스트 지도 (P1~P4)
 
-- 상태: 설계 초안 — P1은 모듈 골격 생성, `schedule`의 도메인·일부 Application·Adapter 구현, `auth` 카카오 로그인 구현, P2~P4는 코드 없음
+- 상태: 설계 초안 — P1은 모듈 골격 생성, `schedule`의 도메인·일부 Application·Adapter 구현, `auth` 카카오 로그인 구현, `organization` 발주사 생성 구현, P2~P4는 코드 없음
 - 기준일: 2026-10-04
 - 기획 원본: [기획 원본 색인](../planning/README.md#planning)의 Notion 정책서 (기준 버전은 색인이 소유, 결정 배경은 [ADR-003](../adr/003-planning-source-of-truth.md))
 
-이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter와 `auth`의 카카오 로그인·계정·토큰(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없다.
+이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter, `auth`의 카카오 로그인·계정·토큰, `organization`의 발주사 생성(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈(`notification`)의 허용 의존성은 현재 없다.
 
 제품 규칙(누가·무엇을·언제, 사용자가 체감하는 제한)은 이 문서에 다시 적지 않는다. 구현이 시작된 BC는 모듈별 문서(현재 [schedule](schedule.md#schedule)·[auth](auth.md))로 분리하고, 이 문서에는 관계·로드맵만 남긴다. 각 BC는 **기획 원본**(기준 정책서) · **제품 규칙 참조**(Notion 절 번호) · **구현 결정**(BC 문서가 원본) · **차이·공백**(Notion과 구현의 차이, 제품 결정 필요 항목)으로 나눠 적는다. 차이·공백 항목은 [대역별 구현 규칙](../planning/README.md#gap-actions)대로 다루며, 운영 절차는 [동기화 규칙](../planning/README.md#sync)을 따른다.
 
