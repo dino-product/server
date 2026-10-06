@@ -43,7 +43,7 @@
 | 상태 | 골격 생성 (`package-info.java`만 존재) |
 | 기획 원본 | [조직·계정] 정책 |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
-| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, Conformist) · `schedule` → 참조(ID) 제공 (계정·조직으로 Membership 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
+| 관계 | `auth` ← 참조(ID) (accountId 존재 확인, Conformist) · `schedule` → 참조(ID) 제공 (계정·조직으로 직원 소속(Membership)·기사 계약(Technician) 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
 
 <a id="organization-product"></a>
 #### 2.1 제품 규칙 참조
