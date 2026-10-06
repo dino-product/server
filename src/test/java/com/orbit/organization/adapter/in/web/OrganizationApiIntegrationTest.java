@@ -124,6 +124,36 @@ class OrganizationApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("발주사명의 앞뒤 공백은 지우고 저장한다")
+    void storesNameWithoutSurroundingWhitespace() throws Exception {
+        requester();
+
+        String body = create(Map.of("name", "  오르빗 설비  ", "industry", "HVAC"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long organizationId = objectMapper
+                .readTree(body)
+                .path("result")
+                .path("organizationId")
+                .asLong();
+
+        assertThat(jdbcTemplate.queryForObject("select name from companies where id = ?", String.class, organizationId))
+                .isEqualTo("오르빗 설비");
+    }
+
+    @Test
+    @DisplayName("이모지가 들어간 발주사명은 400으로 거부한다")
+    void rejectsNameContainingEmoji() throws Exception {
+        requester();
+
+        create(Map.of("name", "오르빗 설비\uD83D\uDE00", "industry", "HVAC"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-001"));
+    }
+
+    @Test
     @DisplayName("업종이 없으면 400으로 거부한다")
     void rejectsMissingIndustry() throws Exception {
         requester();

@@ -61,8 +61,38 @@ class OrganizationTest {
     }
 
     @Test
-    @DisplayName("발주사명 길이는 화면에 보이는 문자 수(코드 포인트)로 센다")
+    @DisplayName("발주사명 길이는 문자 수(코드 포인트)로 센다")
     void countsNameLengthByCodePoints() {
-        assertThat(new OrganizationName("😀".repeat(30)).value()).isNotBlank();
+        String supplementaryHanja = "\uD840\uDC00";
+
+        assertThat(new OrganizationName(supplementaryHanja.repeat(30)).value()).hasSize(60);
+    }
+
+    @Test
+    @DisplayName("앞뒤 공백을 지우고 저장한다")
+    void stripsLeadingAndTrailingWhitespace() {
+        assertThat(new OrganizationName(" \u3000오르빗 설비\t ").value()).isEqualTo("오르빗 설비");
+    }
+
+    @Test
+    @DisplayName("앞뒤 공백을 지운 뒤 길이를 검사한다")
+    void checksLengthAfterStrippingWhitespace() {
+        assertThat(new OrganizationName("  " + "가".repeat(30) + "  ").value()).hasSize(30);
+        assertThatThrownBy(() -> new OrganizationName(" 가 ")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "오르빗\uD83D\uDE00",
+                "오르빗\u2600",
+                "오르빗\u2764\uFE0F",
+                "\uD83C\uDDF0\uD83C\uDDF7오르빗",
+                "1\uFE0F\u20E3오르빗",
+                "오르빗\u2122"
+            })
+    @DisplayName("이모지(국기·키캡·이모지 표시 기호 포함)가 들어간 발주사명은 거부한다")
+    void rejectsNameContainingEmoji(String value) {
+        assertThatThrownBy(() -> new OrganizationName(value)).isInstanceOf(IllegalArgumentException.class);
     }
 }
