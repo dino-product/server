@@ -337,7 +337,8 @@ class CommitHookTest(unittest.TestCase):
 
     def test_non_commit_or_unknown_message_passes(self):
         for cmd in ["git status", "git commit", "git commit --amend --no-edit", "echo git commit-tree",
-                    "python3 - <<'EOF'\n# x && git commit -m wrong\nEOF"]:
+                    "python3 - <<'EOF'\n# x && git commit -m wrong\nEOF",
+                    "cat <<'EOF'\ngit commit -m wrong\nEOF"]:
             self.assertEqual(run_hook(cmd)[0], 0, cmd)
 
 

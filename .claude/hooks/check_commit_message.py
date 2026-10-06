@@ -28,7 +28,8 @@ def find_commit(command: str) -> re.Match | None:
     """heredoc 본문(예: python3 - <<'EOF' 안의 문자열) 밖에 있는 첫 `git commit`."""
     bodies = [(m.start(2), m.end(2)) for m in HEREDOC_RE.finditer(command)]
     for m in COMMIT_RE.finditer(command):
-        if not any(start <= m.start() < end for start, end in bodies):
+        git_at = m.start() + len(m.group(1))  # 앞 구분자(본문 직전 줄바꿈 등)를 빼고 `git` 위치로 판정
+        if not any(start <= git_at < end for start, end in bodies):
             return m
     return None
 
