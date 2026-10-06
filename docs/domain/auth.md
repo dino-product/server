@@ -45,27 +45,31 @@ POST /api/v1/auth/kakao/login {idToken}
   → AccountRepository.findByIdentity / saveNew → AppleRefreshTokenRepository.save (암호화)
   → AccessTokenPort.issue → LoginInfo → LoginResponse
 
-[웹·Android] GET /api/v1/auth/apple/authorize?client=web|android
+[웹·Android] GET /api/v1/auth/apple/authorize?client=web|android&code_challenge={S256}
   → StartAppleWebLoginUseCase → StartAppleWebLoginService
-  → AppleWebLoginStatePort (state → nonce 해시·브라우저 연결 해시·복귀 주소, 10분)
+  → AppleWebLoginStatePort ((state, 브라우저 연결 해시) → nonce 해시·복귀 주소·PKCE challenge, 10분)
   → AppleWebAuthorizationPort → 302 Apple 인가 주소 + 브라우저 연결 쿠키
 
-[웹·Android] POST /api/v1/auth/apple/callback (Apple form_post: state, code, id_token, user)
+[웹·Android] POST /api/v1/auth/apple/callback (Apple form_post: state, code, id_token, user, error)
   → CompleteAppleWebLoginUseCase → CompleteAppleWebLoginService
-  → state 일회성 소비·브라우저 연결 대조 → id_token(웹 Services ID, state의 nonce) → code 교환(redirect_uri)
-  → 계정 조회/등록 → refresh token 보관 → AppleLoginExchangePort (60초 교환 코드)
-  → 302 복귀 주소?code=… 또는 ?error=AUTH-xxx
+  → state·브라우저 연결로 일회성 소비 → id_token(웹 Services ID, state의 nonce) → code 교환(redirect_uri)
+  → 계정 조회/등록 → refresh token 보관 → AppleLoginExchangePort (60초 교환 코드 + PKCE challenge)
+  → 302 복귀 주소?code=… 또는 ?error=…
 
-[웹·Android] POST /api/v1/auth/apple/exchange {code}
-  → ExchangeAppleWebLoginUseCase → ExchangeAppleWebLoginService → AccessTokenPort.issue → LoginResponse
+[웹·Android] POST /api/v1/auth/apple/exchange {code, codeVerifier}
+  → ExchangeAppleWebLoginUseCase → ExchangeAppleWebLoginService (S256(codeVerifier) = challenge)
+  → AccessTokenPort.issue → LoginResponse
 ```
 
 - iOS 앱은 raw nonce를 받아 UTF-8 SHA-256 소문자 hex를 Apple 요청 nonce에 넣습니다. Apple은 그 값을 id_token에 그대로 싣고 서버는 해시로 보관·대조하므로, raw 값을 그대로 넣은 토큰은 AUTH-003입니다. Apple nonce는 카카오 nonce와 키 공간이 달라 카카오용 nonce로 Apple 로그인할 수 없습니다.
+- iOS 로그인은 앱 클라이언트(Bundle ID)로 받은 토큰만 받습니다. 웹 Services ID의 code는 콜백 주소와 함께만 교환되므로, 웹 Services ID 대상 id_token은 iOS 경로에서 AUTH-002입니다.
 - 검증기는 Apple JWKS(`https://appleid.apple.com/auth/keys`)의 RS256 키, 발급자 `https://appleid.apple.com`, 허용 클라이언트 목록(iOS Bundle ID·웹/Android Services ID), 만료(60초 오차)를 확인하고 `sub`·`nonce`를 요구합니다. 카카오와 같은 공통 골격(`adapter/out/oidc`)을 씁니다. Apple `sub`는 개발자 팀 단위로 같으므로 허용 목록의 다른 클라이언트로 받은 토큰도 같은 계정이며, 카카오 계정과는 별개입니다(자동 연결 없음).
 - authorization code는 id_token을 받은 클라이언트(`aud`)로 교환하고, 교환 응답 id_token을 다시 검증해 `sub`가 같을 때만 계정을 처리합니다. 교환 실패는 로그인 실패입니다. Apple이 code를 거절했거나(만료·재사용) 다른 사용자의 code면 AUTH-005(401), Apple 장애·통신·client_secret 설정 오류면 AUTH-006(502)입니다. nonce는 교환 전에 소비하므로 실패하면 nonce부터 다시 받습니다.
 - client_secret은 `.p8` 개인키로 ES256 서명한 JWT(`kid`, `iss`=Team ID, `sub`=client_id, `aud`=`https://appleid.apple.com`)이며 클라이언트별로 유효 기간(기본 10분)의 절반까지 재사용합니다. 개인키는 처음 쓸 때 해석합니다.
-- 웹·Android는 서버가 state·nonce를 만들고, 시작한 브라우저에 연결 쿠키(`apple_login_binding`, `HttpOnly; Secure; SameSite=None; Path=/api/v1/auth/apple`)를 남깁니다. Apple 콜백은 다른 사이트에서 오는 form POST라 `SameSite=None`이 필요합니다. state가 없거나 재사용됐거나 연결 쿠키가 다르면 복귀 주소를 믿을 수 없으므로 리다이렉트하지 않고 AUTH-003(401)으로 끝냅니다. 콜백을 먼저 받은 쪽이 state를 소비하므로 다른 브라우저의 시도도 그 로그인을 무효로 만듭니다.
-- 콜백의 그 밖의 실패는 복귀 주소에 `error`만 싣습니다(id_token AUTH-002, nonce AUTH-003, code AUTH-005, Apple 장애 AUTH-006, 사용자 취소 AUTH-008). 성공하면 Access Token 대신 60초짜리 일회성 교환 코드를 싣고, 클라이언트가 `/exchange`로 바꿉니다. 토큰이 URL·브라우저 기록·Referer에 남지 않게 하려는 방식이며 교환 코드가 없거나 재사용되면 AUTH-007입니다.
+- 웹·Android 클라이언트는 PKCE code_verifier(43~128자)를 만들어 보관하고 그 S256 값을 `code_challenge`로 보냅니다(없거나 S256이 아니면 COMMON-400). 서버는 state·nonce를 만들고 시작한 브라우저에 연결 쿠키(`apple_login_binding`, `HttpOnly; Secure; SameSite=None; Path=/api/v1/auth/apple`)를 남깁니다. Apple 콜백은 다른 사이트에서 오는 form POST라 `SameSite=None`이 필요합니다.
+- state는 브라우저 연결 값의 해시와 함께 키로 보관하므로, state가 없거나 재사용됐거나 연결 쿠키가 다르면 찾지 못하고 리다이렉트 없이 AUTH-003(401)으로 끝냅니다. 연결 쿠키가 없는 위조 콜백은 정상 로그인의 state를 지우지 못합니다.
+- 콜백의 그 밖의 실패는 복귀 주소에 `error`만 싣습니다(id_token AUTH-002, nonce AUTH-003, code AUTH-005, Apple 장애·Apple이 보낸 취소 외 오류 AUTH-006, 사용자 취소 AUTH-008, 예상하지 못한 내부 오류 COMMON-500). 성공하면 Access Token 대신 60초짜리 일회성 교환 코드를 싣고, 클라이언트가 `/exchange`에 code_verifier와 함께 보내 토큰을 받습니다. 토큰이 URL·브라우저 기록·Referer에 남지 않고, 복귀 주소(특히 Android 앱 스킴)를 가로채도 code_verifier 없이 쓸 수 없게 하려는 방식입니다. 교환 코드가 없거나 재사용되거나 verifier가 틀리면 AUTH-007이며 그 코드는 다시 쓸 수 없습니다.
+- 교환 코드를 쓰지 않으면 계정은 만들어진 채로 남아 다음 로그인은 `registered: false`입니다.
 - 복귀 주소는 `client` 이름(`web`, `android`)별로 설정에 등록한 값만 씁니다. 그 밖의 값은 COMMON-400입니다.
 - Apple이 첫 승인 때만 주는 이름·이메일(`user`, id_token의 `email`)은 저장하지 않습니다([BC-001](bounded-contexts.md#미해결-설계-이슈)).
 - Apple 로그인 유즈케이스(iOS 로그인·콜백)는 Apple 토큰 API를 기다리는 동안 DB 커넥션을 잡지 않도록 메서드 트랜잭션을 두지 않습니다. 계정 등록은 저장소가 별도 트랜잭션으로 확정하고 refresh token은 계정 확정 뒤 upsert하므로, 보관이 실패해도 다음 로그인에서 다시 저장됩니다.
@@ -99,7 +103,8 @@ POST /api/v1/auth/logout  → LogoutCommand → LogoutUseCase → LogoutService
 - `HashedNonce`: 서버가 발급한 raw 값(nonce·브라우저 연결)의 SHA-256 소문자 hex. id_token nonce 클레임은 대소문자를 구분하지 않고 읽습니다.
 - `AccessToken(tokenId, accountId, issuedAt, expiresAt)`: 발급·검증 어댑터가 오가는 클레임 값. 유효 구간의 정합성을 소유합니다. 로그아웃 폐기 기간(남은 유효 시간) 계산은 `LogoutService`가 합니다.
 - 테이블은 `accounts`(id, registered_at), `oauth_credentials`(id, account_id, provider, oauth_uid, `provider+oauth_uid` 유니크), `apple_refresh_tokens`(id, account_id, client_id, encrypted_token, updated_at, `account_id+client_id` 유니크)입니다. Apple refresh token은 계정·클라이언트마다 최신 값 하나를 PostgreSQL upsert로 남기고, AES-256-GCM(`v1:` + base64(IV·암호문·태그), 계정·클라이언트 문맥을 AAD로 묶음)으로 암호화합니다.
-- Redis 키는 `auth:login-nonce:{nonce}`(카카오), `auth:apple-login-nonce:{해시}`(Apple iOS, 5분), `auth:apple-web-login:{state}`(웹·Android, 10분), `auth:apple-login-exchange:{교환 코드}`(60초), `auth:revoked-access-token:{jti}`입니다. 교환 코드에는 Access Token이 아니라 계정 식별자와 등록 여부만 둡니다.
+- Redis 키는 `auth:login-nonce:{nonce}`(카카오), `auth:apple-login-nonce:{해시}`(Apple iOS, 5분), `auth:apple-web-login:{state}:{연결 해시}`(웹·Android, 10분), `auth:apple-login-exchange:{교환 코드 해시}`(60초), `auth:revoked-access-token:{jti}`입니다. 교환 코드 값에는 Access Token이 아니라 계정 식별자·등록 여부·PKCE challenge만 둡니다.
+- `PkceChallenge`: RFC 7636 S256 code_challenge(base64url 43자). code_verifier의 SHA-256과 일정 시간 비교합니다.
 
 ## 설정
 
@@ -112,11 +117,12 @@ POST /api/v1/auth/logout  → LogoutCommand → LogoutUseCase → LogoutService
 | `app.auth.apple.client-secret.team-id`, `key-id`, `private-key`, `ttl` | `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_CLIENT_SECRET_TTL` | client_secret 서명 정보. 개인키는 `.p8` 내용(줄바꿈을 `\n`으로 적은 PEM 또는 base64)이며 처음 쓸 때 해석합니다. TTL 기본 `PT10M`, Apple 상한 15777000초 |
 | `app.auth.apple.token-api.token-uri`, `revoke-uri`, `timeout` | — | Apple 토큰·철회 엔드포인트와 호출 제한 시간(5초) |
 | `app.auth.apple.refresh-token.encryption-key` | `APPLE_REFRESH_TOKEN_ENCRYPTION_KEY` | refresh token 저장 암호화 키(base64 32바이트). 길이가 맞지 않으면 기동 실패 |
-| `app.auth.apple.web.services-id`, `redirect-uri` | `APPLE_SERVICES_ID`, `APPLE_WEB_REDIRECT_URI` | 웹·Android용 Services ID와 그 Services ID에 등록한 콜백 주소. Services ID가 허용 목록에 없으면 기동 실패 |
+| `app.auth.apple.web.authorization-uri` | — | Apple 인가 주소 고정값 |
+| `app.auth.apple.web.services-id`, `redirect-uri` | `APPLE_SERVICES_ID`, `APPLE_WEB_REDIRECT_URI` | 웹·Android용 Services ID와 그 Services ID에 등록한 콜백 주소. Apple은 HTTPS 공개 도메인의 콜백만 받으므로 로컬에서는 HTTPS 터널 등이 필요합니다. Services ID가 허용 목록에 없으면 기동 실패 |
 | `app.auth.apple.web.return-uris.web`, `.android` | `APPLE_WEB_RETURN_URI`, `APPLE_ANDROID_RETURN_URI` | 콜백 뒤 돌아갈 웹 주소와 Android 앱 스킴 주소(절대 주소) |
 | `app.auth.jwt.secret` | `AUTH_JWT_SECRET` | HS256 비밀키. 32바이트 미만이면 기동 실패 |
 | `app.auth.jwt.issuer`, `access-token-ttl` | `AUTH_JWT_ISSUER`, `AUTH_ACCESS_TOKEN_TTL` | 발급자(기본 `orbit`)와 유효 기간(기본 `PT1H`) |
-| `spring.data.redis.host`, `port` | `REDIS_HOST`, `REDIS_PORT` | nonce·폐기 토큰 저장소. 운영은 기본값 없이 받습니다 |
+| `spring.data.redis.host`, `port` | `REDIS_HOST`, `REDIS_PORT` | nonce·state·교환 코드·폐기 토큰 저장소. 운영은 기본값 없이 받습니다 |
 
 ## 예제 subject 조회 흐름
 
@@ -153,9 +159,9 @@ user.UserRegistered
 - 로그인·nonce·웹 로그인 시작·콜백·교환·로그아웃 계약과 값: `application/port/in/command`, `command/dto`. 토큰 인증과 예제 조회: `application/port/in/query`, `query/dto`.
 - 출력 Port: `application/port/out`. 구현은 `adapter/out/oidc`(id_token 검증 공통 골격), `adapter/out/kakao`(카카오 id_token 검증), `adapter/out/apple`(Apple id_token 검증·client_secret·토큰 교환·철회·웹 인가 주소), `adapter/out/jwt`(Access Token), `adapter/out/redis`(nonce·state·교환 코드·폐기 토큰), `adapter/out/persistence`(계정·Apple refresh token), `adapter/out/user`(예제)에 둡니다.
 - HTTP: `adapter/in/web`의 `KakaoLoginController`, `AppleLoginController`(iOS), `AppleWebLoginController`(웹·Android), `AuthSessionController`, 예제 `AuthExampleController`. 인증 필터·principal·공개 경로 확장점은 `adapter/in/web/security`입니다.
-- 오류: `AuthErrorCode`의 `AUTH-001`(예제 사용자 없음, 404), `AUTH-002`(id_token 무효, 401), `AUTH-003`(nonce·state 무효, 401), `AUTH-004`(계정 없음, 404), `AUTH-005`(Apple code 거절·다른 사용자, 401), `AUTH-006`(Apple 통신 실패, 502), `AUTH-007`(Apple 웹 교환 코드 무효, 401), `AUTH-008`(Apple 로그인 취소, 웹 복귀 주소의 `error` 값으로만 사용). 폐기·만료·위조 토큰의 404는 `CommonErrorCode.NOT_FOUND`와 같은 본문입니다.
+- 오류: `AuthErrorCode`의 `AUTH-001`(예제 사용자 없음, 404), `AUTH-002`(id_token 무효, 401), `AUTH-003`(nonce·state 무효, 401), `AUTH-004`(계정 없음, 404), `AUTH-005`(Apple code 거절·다른 사용자, 401), `AUTH-006`(Apple 통신 실패, 502), `AUTH-007`(Apple 웹 교환 코드·code_verifier 무효, 401), `AUTH-008`(Apple 로그인 취소, 웹 복귀 주소의 `error` 값으로만 사용). 폐기·만료·위조 토큰의 404는 `CommonErrorCode.NOT_FOUND`와 같은 본문입니다.
 - 계정 삭제 준비: `RevokeAppleTokenPort`가 저장한 refresh token을 발급받은 클라이언트로 `/auth/revoke`에 철회합니다. 호출할 계정 삭제 유즈케이스는 탈퇴 정책([조직·계정] §5.1, ORG-009)과 소유 컨텍스트(BC-001)가 정해진 뒤 추가합니다.
-- 미구현·운영 전 과제: nonce·authorize 발급 경로의 호출 제한, `accounts`·`oauth_credentials`·`apple_refresh_tokens` 스키마 마이그레이션(현재 마이그레이션 도구 없음, [프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)), refresh token 암호화 키 교체 절차, Refresh 회전, 카카오 웹 흐름, 계정 삭제 유즈케이스, 실제 Apple 계정 E2E(Sandbox) 확인.
+- 미구현·운영 전 과제: nonce·authorize 발급 경로의 호출 제한, `accounts`·`oauth_credentials`·`apple_refresh_tokens`(유니크 제약 포함) 스키마 마이그레이션과 `oauth_credentials.provider`의 `APPLE` 값 허용(Hibernate가 만든 enum check 제약이 있는 DB) (현재 마이그레이션 도구 없음, [프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)), refresh token 암호화 키 교체 절차, Refresh 회전, 카카오 웹 흐름, 계정 삭제 유즈케이스, 실제 Apple 계정 E2E(Sandbox) 확인.
 - 현재 다른 모듈에 공개하는 타입은 없습니다. organization이 참조할 계정 존재 확인 계약은 그 모듈을 구현할 때 모듈 루트에 추가합니다. 허용 의존성은 [도메인 지도](README.md)가 관리합니다.
 
 예제의 선택 배경은 [ADR-001 예제 모듈](../adr/001-backend-architecture.md#예제-모듈), 인증 결정의 배경은 [ADR-001 인증과 계정](../adr/001-backend-architecture.md#인증과-계정)을 따릅니다.

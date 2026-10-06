@@ -21,7 +21,7 @@ set -a && source .env && set +a
 ./gradlew bootRun
 ```
 
-활성 프로필은 자동 선택하지 않습니다. 위 명령은 `.env`의 `SPRING_PROFILES_ACTIVE=local`을 적용합니다. 로컬/테스트는 `create-drop`이므로 보존할 데이터를 넣지 마세요. 카카오 로그인을 실제로 쓰려면 `.env`의 `KAKAO_ALLOWED_AUDIENCES`를 카카오 개발자 콘솔의 앱 키로, `AUTH_JWT_SECRET`을 무작위 값으로 바꿉니다. Apple 로그인은 `APPLE_*` 값(클라이언트 ID 목록, Team ID·키 ID·`.p8` 개인키, refresh token 암호화 키, Services ID·콜백·복귀 주소)을 Apple 개발자 콘솔 값으로 바꿉니다. 자리표시자로도 기동은 되지만 Apple 토큰 교환은 실패합니다([Auth 설정](docs/domain/auth.md#설정)).
+활성 프로필은 자동 선택하지 않습니다. 위 명령은 `.env`의 `SPRING_PROFILES_ACTIVE=local`을 적용합니다. 로컬/테스트는 `create-drop`이므로 보존할 데이터를 넣지 마세요. 카카오 로그인을 실제로 쓰려면 `.env`의 `KAKAO_ALLOWED_AUDIENCES`를 카카오 개발자 콘솔의 앱 키로, `AUTH_JWT_SECRET`을 무작위 값으로 바꿉니다. Apple 로그인은 Apple 개발자 콘솔 값(클라이언트 ID 목록, Team ID·키 ID·`.p8` 개인키, Services ID와 거기에 등록한 HTTPS 콜백 주소)과 직접 정하는 값(`openssl rand -base64 32`로 만든 refresh token 암호화 키, 웹·Android 복귀 주소)으로 `APPLE_*`를 바꿉니다. 자리표시자로도 기동은 되지만 Apple 토큰 교환은 실패하고, 웹·Android 흐름은 Apple이 HTTPS 공개 도메인의 콜백만 받으므로 로컬에서는 HTTPS 터널 등이 필요합니다([Auth 설정](docs/domain/auth.md#설정)).
 
 기본 포트: API `8080`, Actuator `9090`.
 
@@ -53,11 +53,11 @@ curl -X POST http://localhost:8080/api/v1/auth/apple/login \
   -H 'Content-Type: application/json' \
   -d '{"idToken":"<Apple id_token>","authorizationCode":"<Apple authorization code>"}'
 
-# Apple 웹·Android: 브라우저로 시작 → 콜백 뒤 복귀 주소의 code를 교환
-open 'http://localhost:8080/api/v1/auth/apple/authorize?client=web'
+# Apple 웹·Android: PKCE code_verifier를 만들어 두고 브라우저로 시작 → 콜백 뒤 복귀 주소의 code를 verifier와 함께 교환
+open 'http://localhost:8080/api/v1/auth/apple/authorize?client=web&code_challenge=<S256(code_verifier)>'
 curl -X POST http://localhost:8080/api/v1/auth/apple/exchange \
   -H 'Content-Type: application/json' \
-  -d '{"code":"<복귀 주소의 code>"}'
+  -d '{"code":"<복귀 주소의 code>","codeVerifier":"<code_verifier>"}'
 ```
 
 ## 아키텍처
