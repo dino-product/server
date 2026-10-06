@@ -28,4 +28,10 @@ public record AppleClientSecretProperties(String teamId, String keyId, String pr
                     "app.auth.apple.client-secret.ttl must be positive and at most " + MAX_TTL);
         }
     }
+
+    @Override
+    public String toString() {
+        return "AppleClientSecretProperties[teamId=" + teamId + ", keyId=" + keyId + ", privateKey=***, ttl=" + ttl
+                + "]";
+    }
 }

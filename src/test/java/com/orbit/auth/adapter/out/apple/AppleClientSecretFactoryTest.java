@@ -113,6 +113,14 @@ class AppleClientSecretFactoryTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    @DisplayName("설정의 문자열 표현에 개인키를 남기지 않는다")
+    void masksPrivateKeyInToString() {
+        assertThat(new AppleClientSecretProperties(TEAM_ID, KEY_ID, pem, TTL).toString())
+                .contains(TEAM_ID)
+                .doesNotContain(pem.substring(30, 60));
+    }
+
     private static AppleClientSecretFactory factory(String privateKey, Clock clock) {
         return new AppleClientSecretFactory(new AppleClientSecretProperties(TEAM_ID, KEY_ID, privateKey, TTL), clock);
     }
