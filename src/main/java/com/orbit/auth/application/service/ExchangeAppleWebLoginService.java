@@ -16,7 +16,8 @@ import com.orbit.shared.error.BusinessException;
 
 /**
  * 웹·Android Apple 콜백이 넘긴 일회성 교환 코드를 Access Token으로 바꾼다. Access Token이 복귀 URL에 드러나지 않게 하려는 단계이며, 코드는 한 번만
- * 쓸 수 있다. DB 트랜잭션 없이 교환 코드 저장소와 토큰 발급기만 사용한다.
+ * 쓸 수 있고 로그인을 시작한 클라이언트의 PKCE code_verifier가 맞아야 한다(Android 앱 스킴 가로채기·웹 login CSRF 방지). DB 트랜잭션
+ * 없이 교환 코드 저장소와 토큰 발급기만 사용한다.
  */
 @Service
 public class ExchangeAppleWebLoginService implements ExchangeAppleWebLoginUseCase {
@@ -38,7 +39,8 @@ public class ExchangeAppleWebLoginService implements ExchangeAppleWebLoginUseCas
         PendingAppleLogin pending = (command.code() == null
                 ? null
                 : loginExchanges.consume(command.code()).orElse(null));
-        if (pending == null) {
+        // 코드는 먼저 소비하므로 verifier가 틀리면 그 코드는 다시 시도할 수 없다.
+        if (pending == null || !pending.codeChallenge().matches(command.codeVerifier())) {
             throw new BusinessException(AuthErrorCode.INVALID_APPLE_LOGIN_EXCHANGE_CODE);
         }
         return accountLogin.issue(new SignedInAccount(pending.accountId(), pending.registered()));

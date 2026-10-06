@@ -31,4 +31,9 @@ public record AppleRefreshTokenEncryptionProperties(String encryptionKey) {
             return new byte[0];
         }
     }
+
+    @Override
+    public String toString() {
+        return "AppleRefreshTokenEncryptionProperties[encryptionKey=***]";
+    }
 }

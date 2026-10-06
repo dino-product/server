@@ -16,4 +16,10 @@ public record AppleLoginRequest(
                 description = "같은 로그인에서 받은 일회성 authorization code(5분 유효). 서버가 교환해 탈퇴 시 토큰 철회에 쓸 refresh token을 보관합니다",
                 example = "c6a9f2e1b0d34f6c8e7a.0.rrzt.Zm9vYmFy")
         @NotBlank(message = "필수입니다.")
-        String authorizationCode) {}
+        String authorizationCode) {
+
+    @Override
+    public String toString() {
+        return "AppleLoginRequest[idToken=***, authorizationCode=***]";
+    }
+}

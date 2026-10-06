@@ -63,6 +63,12 @@ class AppleRefreshTokenCipherTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    @DisplayName("설정의 문자열 표현에 암호화 키를 남기지 않는다")
+    void masksKeyInToString() {
+        assertThat(new AppleRefreshTokenEncryptionProperties(KEY).toString()).doesNotContain(KEY);
+    }
+
     private static String randomKey() {
         byte[] key = new byte[32];
         new SecureRandom().nextBytes(key);

@@ -14,6 +14,7 @@ import com.orbit.auth.application.port.out.AppleCodeExchange;
 import com.orbit.auth.application.port.out.AppleIdTokenClaims;
 import com.orbit.auth.application.port.out.AppleLoginNoncePort;
 import com.orbit.auth.application.port.out.AppleRefreshTokenRepository;
+import com.orbit.auth.application.port.out.AppleWebAuthorizationPort;
 import com.orbit.auth.application.port.out.ExchangeAppleAuthorizationCodePort;
 import com.orbit.auth.application.port.out.VerifyAppleIdTokenPort;
 import com.orbit.auth.domain.AccountId;
@@ -37,6 +38,7 @@ public class LoginWithAppleService implements LoginWithAppleUseCase {
     private final AppleLoginNoncePort nonces;
     private final AppleAuthorizationCodeExchange codeExchange;
     private final AppleRefreshTokenRepository refreshTokens;
+    private final AppleWebAuthorizationPort webAuthorization;
     private final AccountLogin accountLogin;
     private final Clock clock;
 
@@ -45,6 +47,7 @@ public class LoginWithAppleService implements LoginWithAppleUseCase {
             AppleLoginNoncePort nonces,
             ExchangeAppleAuthorizationCodePort codeExchanges,
             AppleRefreshTokenRepository refreshTokens,
+            AppleWebAuthorizationPort webAuthorization,
             AccountRepository accounts,
             AccessTokenPort accessTokens,
             Clock clock) {
@@ -52,13 +55,16 @@ public class LoginWithAppleService implements LoginWithAppleUseCase {
         this.nonces = nonces;
         this.codeExchange = new AppleAuthorizationCodeExchange(codeExchanges);
         this.refreshTokens = refreshTokens;
+        this.webAuthorization = webAuthorization;
         this.accountLogin = new AccountLogin(accounts, accessTokens, clock);
         this.clock = clock;
     }
 
     @Override
     public LoginInfo login(LoginWithAppleCommand command) {
+        // 웹 Services ID의 code는 콜백 주소(redirect_uri)와 함께만 교환되므로 iOS 경로는 앱 클라이언트 토큰만 받는다.
         AppleIdTokenClaims claims = idTokens.verify(command.idToken())
+                .filter(verified -> !verified.clientId().equals(webAuthorization.clientId()))
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_ID_TOKEN));
         HashedNonce nonce = HashedNonce.fromClaim(claims.nonce())
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_NONCE));

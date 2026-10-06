@@ -1,7 +1,5 @@
 package com.orbit.auth.application.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 
@@ -27,19 +25,26 @@ import com.orbit.auth.domain.ExternalIdentity;
 import com.orbit.auth.domain.HashedNonce;
 import com.orbit.auth.domain.OAuthProvider;
 import com.orbit.shared.error.BusinessException;
+import com.orbit.shared.error.CommonErrorCode;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * Apple이 form_post로 보낸 웹·Android 로그인 콜백을 마친다. state를 한 번만 소비하고 로그인을 시작한 브라우저의 연결 값과 대조한 뒤, id_token(웹 Services
+ * Apple이 form_post로 보낸 웹·Android 로그인 콜백을 마친다. state를 로그인을 시작한 브라우저의 연결 값과 함께 한 번만 소비한 뒤, id_token(웹 Services
  * ID 대상, state의 nonce)을 검증하고 code를 같은 클라이언트·콜백 주소로 교환해 같은 사용자인지 확인한다. 계정을 찾거나 등록하고 refresh token을 보관한
- * 다음, Access Token 대신 60초짜리 일회성 교환 코드를 만들어 클라이언트 복귀 주소로 돌려보낸다.
+ * 다음, Access Token 대신 60초짜리 일회성 교환 코드를 만들어 클라이언트 복귀 주소로 돌려보낸다. 교환 코드는 시작한 클라이언트의 PKCE challenge에 묶여
+ * 복귀 주소를 가로채도 code_verifier 없이 쓸 수 없다.
  *
- * <p>state가 없거나 다른 브라우저에서 온 콜백은 복귀 주소를 믿을 수 없으므로 AUTH-003으로 끝낸다. 그 밖의 실패는 복귀 주소에 오류 코드만 실어 보낸다. Apple 토큰
+ * <p>state가 없거나 다른 브라우저에서 온 콜백은 복귀 주소를 믿을 수 없으므로 AUTH-003으로 끝낸다. 그 밖의 실패는 복귀 주소에 오류 코드만 실어 보낸다
+ * (Apple이 보낸 오류는 취소면 AUTH-008, 그 밖은 AUTH-006, 예상하지 못한 내부 오류는 COMMON-500). Apple 토큰
  * API 호출 동안 DB 커넥션을 잡지 않도록 메서드 트랜잭션을 두지 않는다.
  */
+@Slf4j
 @Service
 public class CompleteAppleWebLoginService implements CompleteAppleWebLoginUseCase {
 
     static final Duration EXCHANGE_CODE_TTL = Duration.ofSeconds(60);
+    private static final String USER_CANCELLED = "user_cancelled_authorize";
 
     private final AppleWebLoginStatePort states;
     private final AppleWebAuthorizationPort authorization;
@@ -72,20 +77,29 @@ public class CompleteAppleWebLoginService implements CompleteAppleWebLoginUseCas
 
     @Override
     public AppleWebLoginCompletion complete(CompleteAppleWebLoginCommand command) {
-        AppleWebLoginState pending = (command.state() == null
-                ? null
-                : states.consume(command.state()).orElse(null));
-        if (pending == null || !startedInSameBrowser(pending, command.browserBinding())) {
+        if (isBlank(command.state()) || isBlank(command.browserBinding())) {
             throw new BusinessException(AuthErrorCode.INVALID_NONCE);
         }
+        AppleWebLoginState pending = states.consume(
+                        command.state(),
+                        HashedNonce.fromRaw(command.browserBinding()).value())
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_NONCE));
         if (command.appleError() != null) {
-            return AppleWebLoginCompletion.failure(pending.returnUri(), AuthErrorCode.APPLE_LOGIN_CANCELLED.getCode());
+            AuthErrorCode error = USER_CANCELLED.equals(command.appleError())
+                    ? AuthErrorCode.APPLE_LOGIN_CANCELLED
+                    : AuthErrorCode.APPLE_UNAVAILABLE;
+            return AppleWebLoginCompletion.failure(pending.returnUri(), error.getCode());
         }
         try {
             return AppleWebLoginCompletion.success(pending.returnUri(), signIn(pending, command));
         } catch (BusinessException exception) {
             return AppleWebLoginCompletion.failure(
                     pending.returnUri(), exception.getErrorCode().getCode());
+        } catch (RuntimeException exception) {
+            // 브라우저(Android Custom Tab)가 콜백 주소의 오류 본문에 멈추지 않도록 복귀 주소로 돌려보낸다.
+            log.error("Apple web login callback failed unexpectedly", exception);
+            return AppleWebLoginCompletion.failure(
+                    pending.returnUri(), CommonErrorCode.INTERNAL_SERVER_ERROR.getCode());
         }
     }
 
@@ -96,7 +110,7 @@ public class CompleteAppleWebLoginService implements CompleteAppleWebLoginUseCas
         if (!HashedNonce.fromClaim(claims.nonce()).map(pending.nonce()::equals).orElse(false)) {
             throw new BusinessException(AuthErrorCode.INVALID_NONCE);
         }
-        if (command.authorizationCode() == null || command.authorizationCode().isBlank()) {
+        if (isBlank(command.authorizationCode())) {
             throw new BusinessException(AuthErrorCode.INVALID_APPLE_AUTHORIZATION_CODE);
         }
         AppleCodeExchange exchange = codeExchange.exchange(
@@ -106,16 +120,13 @@ public class CompleteAppleWebLoginService implements CompleteAppleWebLoginUseCas
         refreshTokens.save(account.accountId(), exchange.clientId(), exchange.refreshToken(), clock.instant());
         String exchangeCode = LoginSecrets.random();
         loginExchanges.save(
-                exchangeCode, new PendingAppleLogin(account.accountId(), account.registered()), EXCHANGE_CODE_TTL);
+                exchangeCode,
+                new PendingAppleLogin(account.accountId(), account.registered(), pending.codeChallenge()),
+                EXCHANGE_CODE_TTL);
         return exchangeCode;
     }
 
-    private static boolean startedInSameBrowser(AppleWebLoginState pending, String browserBinding) {
-        if (browserBinding == null || browserBinding.isBlank()) {
-            return false;
-        }
-        return MessageDigest.isEqual(
-                HashedNonce.fromRaw(browserBinding).value().getBytes(StandardCharsets.US_ASCII),
-                pending.browserBindingHash().getBytes(StandardCharsets.US_ASCII));
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

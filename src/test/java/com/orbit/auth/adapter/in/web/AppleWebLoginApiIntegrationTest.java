@@ -42,6 +42,9 @@ import tools.jackson.databind.ObjectMapper;
 class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
 
     private static final AppleAuthStub APPLE = AppleAuthStub.start();
+    // RFC 7636 부록 B의 code_verifier와 그 S256 challenge
+    private static final String VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+    private static final String CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
     /** Apple이 첫 승인 때만 보내는 이름·이메일. 서버는 저장하지 않는다. */
     private static final String FIRST_AUTHORIZATION_USER =
             "{\"name\":{\"firstName\":\"길동\",\"lastName\":\"홍\"},\"email\":\"x@privaterelay.appleid.com\"}";
@@ -71,7 +74,9 @@ class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("시작하면 Apple 인가 주소로 302 보내고 콜백 경로에만 쓰는 연결 쿠키를 남긴다")
     void redirectsToAppleWithBrowserBindingCookie() throws Exception {
-        MvcResult result = mockMvc.perform(get("/api/v1/auth/apple/authorize").param("client", "web"))
+        MvcResult result = mockMvc.perform(get("/api/v1/auth/apple/authorize")
+                        .param("client", "web")
+                        .param("code_challenge", CHALLENGE))
                 .andExpect(status().isFound())
                 .andReturn();
 
@@ -91,10 +96,12 @@ class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("등록하지 않은 클라이언트로는 시작할 수 없다")
     void rejectsUnregisteredClient() throws Exception {
-        mockMvc.perform(get("/api/v1/auth/apple/authorize").param("client", "https://evil.example"))
+        mockMvc.perform(get("/api/v1/auth/apple/authorize")
+                        .param("client", "https://evil.example")
+                        .param("code_challenge", CHALLENGE))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON-400"));
-        mockMvc.perform(get("/api/v1/auth/apple/authorize"))
+        mockMvc.perform(get("/api/v1/auth/apple/authorize").param("code_challenge", CHALLENGE))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON-400"));
     }
@@ -104,6 +111,7 @@ class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
     void startsWithStaleTokenAttached() throws Exception {
         mockMvc.perform(get("/api/v1/auth/apple/authorize")
                         .param("client", "android")
+                        .param("code_challenge", CHALLENGE)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer stale"))
                 .andExpect(status().isFound());
     }
@@ -265,8 +273,104 @@ class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("AUTH-007"));
     }
 
+    @Test
+    @DisplayName("PKCE S256 code_challenge 없이(또는 plain으로) 시작할 수 없다")
+    void requiresS256CodeChallenge() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/apple/authorize").param("client", "web"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(get("/api/v1/auth/apple/authorize")
+                        .param("client", "web")
+                        .param("code_challenge", CHALLENGE)
+                        .param("code_challenge_method", "plain"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(get("/api/v1/auth/apple/authorize")
+                        .param("client", "web")
+                        .param("code_challenge", "too-short"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+    }
+
+    @Test
+    @DisplayName("복귀 주소의 교환 코드를 가로채도 시작한 클라이언트의 code_verifier 없이는 Access Token을 받을 수 없다")
+    void rejectsInterceptedExchangeCodeWithoutVerifier() throws Exception {
+        String subject = appleSubject();
+        Started started = start("android");
+        String location = callback(
+                        started, APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID), code(subject))
+                .andReturn()
+                .getResponse()
+                .getHeader(HttpHeaders.LOCATION);
+        String intercepted = query(URI.create(location)).getFirst("code");
+
+        exchange(intercepted, "attacker-own-verifier-attacker-own-verifier-x")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-007"));
+        exchange(intercepted)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-007"));
+    }
+
+    @Test
+    @DisplayName("연결 쿠키 없는 위조 콜백은 정상 로그인의 state를 지우지 못한다")
+    void keepsLegitimateStateAfterForgedCallback() throws Exception {
+        String subject = appleSubject();
+        Started started = start("web");
+        String idToken = APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID);
+        callback(new Started(started.state(), started.nonce(), "attacker-browser-binding"), idToken, code(subject))
+                .andExpect(status().isUnauthorized());
+
+        callback(started, idToken, code(subject)).andExpect(status().isFound()).andExpect(result -> assertThat(
+                        result.getResponse().getHeader(HttpHeaders.LOCATION))
+                .contains("code="));
+    }
+
+    @Test
+    @DisplayName("같은 Apple sub면 iOS 로그인과 웹 로그인이 같은 계정을 쓰고 클라이언트별 refresh token을 둔다")
+    void sharesAccountBetweenIosAndWebLogins() throws Exception {
+        String subject = appleSubject();
+        String rawNonce = readTree(mockMvc.perform(post("/api/v1/auth/apple/nonces"))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("nonce")
+                .asString();
+        long iosAccount = readTree(mockMvc.perform(post("/api/v1/auth/apple/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(new AppleLoginRequest(
+                                        APPLE.idToken(
+                                                subject,
+                                                HashedNonce.fromRaw(rawNonce).value()),
+                                        code(subject)))))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("accountId")
+                .asLong();
+
+        Started started = start("web");
+        URI location = URI.create(
+                callback(started, APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID), code(subject))
+                        .andReturn()
+                        .getResponse()
+                        .getHeader(HttpHeaders.LOCATION));
+        exchange(query(location).getFirst("code"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.accountId").value(iosAccount))
+                .andExpect(jsonPath("$.result.registered").value(false));
+        assertThat(refreshTokens.listByAccount(new AccountId(iosAccount)))
+                .extracting(AppleRefreshToken::clientId)
+                .containsExactlyInAnyOrder(AppleAuthStub.BUNDLE_ID, AppleAuthStub.SERVICES_ID);
+    }
+
     private Started start(String client) throws Exception {
-        MvcResult result = mockMvc.perform(get("/api/v1/auth/apple/authorize").param("client", client))
+        MvcResult result = mockMvc.perform(get("/api/v1/auth/apple/authorize")
+                        .param("client", client)
+                        .param("code_challenge", CHALLENGE))
                 .andExpect(status().isFound())
                 .andReturn();
         MultiValueMap<String, String> query =
@@ -290,9 +394,13 @@ class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private ResultActions exchange(String code) throws Exception {
+        return exchange(code, VERIFIER);
+    }
+
+    private ResultActions exchange(String code, String verifier) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/apple/exchange")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new AppleLoginExchangeRequest(code))));
+                .content(objectMapper.writeValueAsString(new AppleLoginExchangeRequest(code, verifier))));
     }
 
     private static void assertRedirectError(ResultActions result, String errorCode) throws Exception {

@@ -41,6 +41,7 @@ public class AppleWebLoginController implements AppleWebLoginControllerDocs {
 
     static final String BROWSER_BINDING_COOKIE = "apple_login_binding";
     static final String COOKIE_PATH = "/api/v1/auth/apple";
+    private static final String PKCE_METHOD = "S256";
 
     private final StartAppleWebLoginUseCase startAppleWebLoginUseCase;
     private final CompleteAppleWebLoginUseCase completeAppleWebLoginUseCase;
@@ -60,11 +61,18 @@ public class AppleWebLoginController implements AppleWebLoginControllerDocs {
 
     @Override
     @GetMapping("/authorize")
-    public ResponseEntity<Void> authorize(@RequestParam("client") String client) {
+    public ResponseEntity<Void> authorize(
+            @RequestParam("client") String client,
+            @RequestParam("code_challenge") String codeChallenge,
+            @RequestParam(name = "code_challenge_method", defaultValue = PKCE_METHOD) String codeChallengeMethod) {
         String returnUri = returnProperties
                 .returnUri(client)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.BAD_REQUEST));
-        AppleWebLoginStartInfo started = startAppleWebLoginUseCase.start(new StartAppleWebLoginCommand(returnUri));
+        if (!PKCE_METHOD.equals(codeChallengeMethod)) {
+            throw new BusinessException(CommonErrorCode.BAD_REQUEST);
+        }
+        AppleWebLoginStartInfo started =
+                startAppleWebLoginUseCase.start(new StartAppleWebLoginCommand(returnUri, codeChallenge));
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(started.authorizationUri())
                 .header(
@@ -96,8 +104,8 @@ public class AppleWebLoginController implements AppleWebLoginControllerDocs {
     @Override
     @PostMapping("/exchange")
     public LoginResponse exchange(@Valid @RequestBody AppleLoginExchangeRequest request) {
-        return LoginResponse.from(
-                exchangeAppleWebLoginUseCase.exchange(new ExchangeAppleWebLoginCommand(request.code())));
+        return LoginResponse.from(exchangeAppleWebLoginUseCase.exchange(
+                new ExchangeAppleWebLoginCommand(request.code(), request.codeVerifier())));
     }
 
     private static ResponseCookie bindingCookie(String value, Duration maxAge) {

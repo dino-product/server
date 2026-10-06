@@ -105,17 +105,13 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("허용 목록의 다른 클라이언트(Services ID)로 받은 id_token도 같은 sub면 같은 계정이다")
-    void sharesAccountAcrossAllowedClientsWithSameSubject() throws Exception {
+    @DisplayName("웹 Services ID를 대상으로 발급된 id_token은 iOS 로그인에서 받지 않는다")
+    void rejectsIdTokenIssuedForWebServicesId() throws Exception {
         String subject = appleSubject();
-        JsonNode ios = loginAs(subject, AppleAuthStub.BUNDLE_ID);
 
-        JsonNode web = loginAs(subject, AppleAuthStub.SERVICES_ID);
-
-        assertThat(accountId(web)).isEqualTo(accountId(ios));
-        assertThat(refreshTokens.listByAccount(new AccountId(accountId(ios))))
-                .extracting(AppleRefreshToken::clientId)
-                .containsExactlyInAnyOrder(AppleAuthStub.BUNDLE_ID, AppleAuthStub.SERVICES_ID);
+        login(APPLE.idToken(subject, hashed(issueNonce()), AppleAuthStub.SERVICES_ID), code(subject))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-002"));
     }
 
     @Test
