@@ -192,6 +192,15 @@ class LinkCheckTest(unittest.TestCase):
     def test_links_inside_code_fences_ignored(self):
         self.assertEqual(self.check("```\n[a](nope.md)\n```\n"), [])
 
+    def test_all_markdown_skips_gitignored_files(self):
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        (self.root / ".gitignore").write_text("drafts/\n", encoding="utf-8")
+        (self.root / "drafts").mkdir()
+        (self.root / "drafts/local.md").write_text("[a](nope.md)\n", encoding="utf-8")
+        (self.root / "docs/new.md").write_text("[a](a.md)\n", encoding="utf-8")
+        names = sorted(p.relative_to(self.root).as_posix() for p in links.all_markdown(self.root))
+        self.assertEqual(names, ["docs/a.md", "docs/new.md"])
+
     def test_deleted_markdown_escalates_to_all(self):
         subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
         env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}

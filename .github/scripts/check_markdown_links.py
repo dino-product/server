@@ -51,6 +51,14 @@ def anchors_of(path: Path, cache: dict[Path, set[str]]) -> set[str]:
 
 
 def all_markdown(root: Path) -> list[Path]:
+    """Git 저장소면 추적·미추적 파일 중 gitignore 대상(로컬 PR 초안·작업 계획 등)을 뺀다."""
+    listed = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "*.md"],
+        capture_output=True, text=True, cwd=root,
+    )
+    if listed.returncode == 0:
+        files = [root / line for line in listed.stdout.splitlines() if line]
+        return sorted(p for p in files if p.exists() and "build" not in p.parts)
     return [p for p in root.rglob("*.md") if "build" not in p.parts and ".git" not in p.parts]
 
 
