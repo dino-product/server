@@ -174,6 +174,48 @@ class CompleteAppleWebLoginServiceTest {
     }
 
     @Test
+    @DisplayName("Apple이 취소가 아닌 오류(설정 오류 등)를 보내면 AUTH-006으로 복귀한다")
+    void returnsAppleErrorOtherThanCancellationAsUnavailable() {
+        givenState();
+
+        assertThat(service.complete(command(BINDING, "invalid_request")).errorCode())
+                .isEqualTo("AUTH-006");
+        verify(idTokens, never()).verify(anyString());
+    }
+
+    @Test
+    @DisplayName("authorization code가 비어 있으면 AUTH-005로 복귀한다")
+    void returnsMissingAuthorizationCode() {
+        givenState();
+        givenValidIdToken();
+
+        assertThat(service.complete(new CompleteAppleWebLoginCommand("state", BINDING, "id-token", " ", null))
+                        .errorCode())
+                .isEqualTo("AUTH-005");
+        verify(codeExchanges, never()).exchange(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("예상하지 못한 내부 오류가 나도 복귀 주소로 COMMON-500을 보낸다")
+    void returnsInternalErrorToClient() {
+        givenState();
+        givenValidIdToken();
+        when(codeExchanges.exchange(SERVICES_ID, "apple-code", REDIRECT_URI))
+                .thenReturn(new AppleCodeExchange(SUBJECT, SERVICES_ID, "apple-refresh"));
+        when(accounts.findByIdentity(IDENTITY))
+                .thenReturn(Optional.of(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW)));
+        org.mockito.Mockito.doThrow(new IllegalStateException("db down"))
+                .when(refreshTokens)
+                .save(any(), anyString(), anyString(), any());
+
+        AppleWebLoginCompletion completion = service.complete(command(BINDING, null));
+
+        assertThat(completion.errorCode()).isEqualTo("COMMON-500");
+        assertThat(completion.returnUri()).isEqualTo(RETURN_URI);
+        verify(loginExchanges, never()).save(anyString(), any(), any(Duration.class));
+    }
+
+    @Test
     @DisplayName("id_token 검증에 실패하면 AUTH-002로 복귀한다")
     void returnsInvalidIdToken() {
         givenState();

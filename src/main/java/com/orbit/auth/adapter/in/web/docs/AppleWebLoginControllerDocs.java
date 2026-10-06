@@ -53,9 +53,12 @@ public interface AppleWebLoginControllerDocs {
 
     @Operation(
             summary = "Apple 웹 로그인 콜백",
-            description = "Apple이 form_post로 호출하는 콜백입니다. state를 한 번만 소비하고 시작한 브라우저의 연결 쿠키와 대조한 뒤 id_token·nonce를 검증하고 "
-                    + "code를 교환합니다. 성공하면 복귀 주소에 일회성 code를, 실패하면 error(AUTH-002·003·005·006, 취소는 AUTH-008)를 실어 302로 "
-                    + "돌려보냅니다. state가 없거나 다른 브라우저에서 온 콜백은 복귀하지 않고 401로 끝냅니다. 이름·이메일(user)은 저장하지 않습니다.")
+            description = "Apple이 form_post로 호출하는 콜백입니다. "
+                    + "state를 시작 브라우저의 연결 쿠키와 함께 한 번만 소비하고 id_token·nonce를 검증한 뒤 code를 교환합니다. "
+                    + "성공하면 복귀 주소에 일회성 code를, 실패하면 error를 실어 302로 돌려보냅니다 "
+                    + "(AUTH-002·003·005·006, 취소는 AUTH-008, 내부 오류는 COMMON-500). "
+                    + "state가 없거나 다른 브라우저에서 온 콜백은 복귀하지 않고 401로 끝냅니다. "
+                    + "이름·이메일(user)은 저장하지 않습니다.")
     @ApiResponse(
             responseCode = "302",
             description = "클라이언트 복귀 주소로 이동",
