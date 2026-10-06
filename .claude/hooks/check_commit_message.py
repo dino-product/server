@@ -25,6 +25,10 @@ HANGUL_RE = re.compile(r"[가-힣]")
 
 
 def extract_message(command: str) -> str | None:
+    # 같은 명령의 앞선 heredoc(예: python3 - <<'EOF')을 메시지로 읽지 않도록 `git commit`부터 본다.
+    commit = COMMIT_RE.search(command)
+    if commit:
+        command = command[commit.start():].lstrip(";&|( \t\n")
     heredoc = HEREDOC_RE.search(command)
     if heredoc:
         return heredoc.group(2)

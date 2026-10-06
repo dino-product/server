@@ -261,6 +261,8 @@ class CommitHookTest(unittest.TestCase):
             'git commit -m "fix(auth): 다른 발급자의 Access Token 거부"',
             "git commit -q -F - <<'EOF'\nfeat(schedule): 작업 상세 조회 추가\n\n본문.\nEOF",
             'git commit -m "$(cat <<\'EOF\'\ndocs: 링크 정리\nEOF\n)"',
+            "python3 - <<'EOF'\nprint(1)\nEOF\ngit add a && git commit -m \"docs: 링크 정리\"",
+            "python3 - <<'PY'\nprint(1)\nPY\ngit commit -q -F - <<'EOF'\ndocs: 링크 정리\nEOF",
         ]:
             code, err = run_hook(cmd)
             self.assertEqual(code, 0, err)
@@ -270,6 +272,7 @@ class CommitHookTest(unittest.TestCase):
             'git commit -m "작업 상세 조회 추가"': "형식",
             'git commit -m "feat(schedule): add work detail"': "한국어",
             'git commit -m "feat(schedule): 작업 상세 조회를 추가한다"': "명사형",
+            "python3 - <<'EOF'\nprint(1)\nEOF\ngit commit -m \"작업 상세 조회 추가\"": "형식",
         }
         for cmd, msg in cases.items():
             code, err = run_hook(cmd)
