@@ -4,7 +4,7 @@
 
 - 인증 성공·토큰·세션은 검증을 통과한 카카오·Apple id_token과 서버 발급 nonce(Apple은 그 해시, 웹 흐름은 state와 시작 브라우저 연결까지)로만 만듭니다. Apple은 authorization code 교환 결과의 `sub`가 id_token과 같을 때만 계정을 처리합니다. 예제 subject나 사용자 식별자만으로 만들지 않습니다.
 - Domain은 Spring·JPA·Web·Nimbus 타입에 의존하지 않습니다. 시각은 호출자가 UTC `Instant`로 넘기고 서비스는 주입받은 `Clock`을 씁니다.
-- 제공자 sub는 `ExternalIdentity`로만 보관하고 이메일·닉네임·이름을 식별에 쓰거나 저장하지 않습니다. 로그·예외 메시지·`toString`에 sub, authorization code, client_secret, `.p8` 키, refresh token, 교환 코드를 넣지 않습니다. 프로필·조직 역할은 auth에 두지 않습니다.
+- 제공자 sub는 `ExternalIdentity`로만 보관하고 이메일·닉네임·이름을 식별에 쓰거나 저장하지 않습니다. 로그·예외 메시지·`toString`에 sub, id_token, authorization code, client_secret, `.p8` 키, refresh token 암호화 키, refresh token, state·브라우저 연결 값, 교환 코드, code_verifier를 넣지 않습니다. 프로필·조직 역할은 auth에 두지 않습니다.
 - user와의 연동은 ACL 방식 예제로 유지합니다. 조회 결과는 `adapter/out/user`, 이벤트는 `adapter/in/event`에서 auth 소유 값으로 변환하며 Application·Domain에서 user 타입을 참조하지 않습니다. 선택 배경은 [ADR-001](../../../../../../docs/adr/001-backend-architecture.md#예제-모듈)입니다.
 - 이벤트 로그는 `userId`, `occurredAt`만 기록합니다.
 - 사용자 원본은 user가 소유합니다. 영속 모델·재처리를 추가하면 Auth 문서에 반영합니다.
@@ -28,6 +28,7 @@
 - id_token·Access Token 검증기: `com.orbit.auth.adapter.out.kakao.KakaoIdTokenVerifierTest`, `com.orbit.auth.adapter.out.apple.AppleIdTokenVerifierTest`, `com.orbit.auth.adapter.out.jwt.JwtAccessTokenAdapterTest`.
 - Apple 토큰 API: `com.orbit.auth.adapter.out.apple` 패키지의 `AppleClientSecretFactoryTest`, `AppleTokenClientTest`, `AppleWebAuthorizationAdapterTest`(토큰 엔드포인트는 로컬 스텁, 실제 Apple E2E 아님).
 - 저장소: `com.orbit.auth.adapter.out.persistence` 패키지의 테스트(계정·Apple refresh token·암호화, Testcontainers PostgreSQL), `com.orbit.auth.adapter.out.redis` 패키지의 테스트(Testcontainers Redis).
+- 비밀값 가림·복귀 주소 등록: `com.orbit.auth.application.port.in.command.dto.AppleLoginCommandsTest`, `com.orbit.auth.adapter.in.web.AppleWebReturnPropertiesTest`.
 - 필터·API: `com.orbit.auth.adapter.in.web.security.AccessTokenAuthenticationFilterTest`, `com.orbit.auth.adapter.in.web.AuthApiIntegrationTest`, `AppleLoginApiIntegrationTest`, `AppleWebLoginApiIntegrationTest`(JWKS·토큰 엔드포인트 스텁 서버로 실제 조회·검증·교환 경로 통과, 제공자 E2E 아님).
 - 경계 변환: `com.orbit.auth.adapter.out.user.UserSubjectAdapterTest`, `com.orbit.auth.adapter.in.event.UserRegisteredListenerTest`.
 - 모듈 조립: `com.orbit.auth.AuthModuleTest`.
