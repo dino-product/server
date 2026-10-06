@@ -24,9 +24,18 @@ HEREDOC_RE = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?[^\n]*\n(.*?)\n\s*\1\b", re.S)
 HANGUL_RE = re.compile(r"[가-힣]")
 
 
+def find_commit(command: str) -> re.Match | None:
+    """heredoc 본문(예: python3 - <<'EOF' 안의 문자열) 밖에 있는 첫 `git commit`."""
+    bodies = [(m.start(2), m.end(2)) for m in HEREDOC_RE.finditer(command)]
+    for m in COMMIT_RE.finditer(command):
+        if not any(start <= m.start() < end for start, end in bodies):
+            return m
+    return None
+
+
 def extract_message(command: str) -> str | None:
-    # 같은 명령의 앞선 heredoc(예: python3 - <<'EOF')을 메시지로 읽지 않도록 `git commit`부터 본다.
-    commit = COMMIT_RE.search(command)
+    # 같은 명령의 앞선 heredoc을 메시지로 읽지 않도록 실제 `git commit`부터 본다.
+    commit = find_commit(command)
     if commit:
         command = command[commit.start():].lstrip(";&|( \t\n")
     heredoc = HEREDOC_RE.search(command)
@@ -66,7 +75,7 @@ def main() -> int:
     except json.JSONDecodeError:
         return 0
     command = (payload.get("tool_input") or {}).get("command") or ""
-    if not COMMIT_RE.search(command) or "--no-edit" in command:
+    if not find_commit(command) or "--no-edit" in command:
         return 0
     message = extract_message(command)
     if message is None:

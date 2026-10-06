@@ -285,6 +285,7 @@ class CommitHookTest(unittest.TestCase):
             'git commit -m "$(cat <<\'EOF\'\ndocs: 링크 정리\nEOF\n)"',
             "python3 - <<'EOF'\nprint(1)\nEOF\ngit add a && git commit -m \"docs: 링크 정리\"",
             "python3 - <<'PY'\nprint(1)\nPY\ngit commit -q -F - <<'EOF'\ndocs: 링크 정리\nEOF",
+            "python3 - <<'EOF'\n# x && git commit -m wrong\nEOF\ngit commit -m \"docs: 링크 정리\"",
         ]:
             code, err = run_hook(cmd)
             self.assertEqual(code, 0, err)
@@ -302,7 +303,8 @@ class CommitHookTest(unittest.TestCase):
             self.assertIn(msg, err)
 
     def test_non_commit_or_unknown_message_passes(self):
-        for cmd in ["git status", "git commit", "git commit --amend --no-edit", "echo git commit-tree"]:
+        for cmd in ["git status", "git commit", "git commit --amend --no-edit", "echo git commit-tree",
+                    "python3 - <<'EOF'\n# x && git commit -m wrong\nEOF"]:
             self.assertEqual(run_hook(cmd)[0], 0, cmd)
 
 
