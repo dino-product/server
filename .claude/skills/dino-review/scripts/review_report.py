@@ -252,11 +252,19 @@ def insert_marker(text: str, marker: str) -> str:
     return text[:m.end()] + section + "\n\n" + marker + tail
 
 
+def review_recorded(head: str, root: Path = ROOT) -> bool:
+    """`.claude/hooks/record_review_skill.py`가 이 HEAD에서 dino-review 스킬 실행을 기록했는지."""
+    return (root / ".claude" / "reviews" / "invoked" / head).is_file()
+
+
 def cmd_marker(args) -> int:
     data = load(Path(args.result).resolve())
     head = git("rev-parse", "HEAD")
     if data["head"] != head:
         sys.exit(f"리뷰한 head({data['head'][:7]})와 현재 HEAD({head[:7]})가 다릅니다. 현재 HEAD를 다시 리뷰합니다.")
+    if not review_recorded(head):
+        sys.exit(f"현재 HEAD({head[:7]})에서 dino-review 스킬을 실행한 기록이 없습니다. "
+                 "스킬로 리뷰한 뒤 마커를 남깁니다(결과 JSON만 써서 마커를 만들지 않습니다).")
     dirty = git("status", "--porcelain", "--untracked-files=no")
     if dirty:
         sys.exit("커밋하지 않은 변경이 있어 리뷰한 head와 작업 트리가 다릅니다. 커밋한 뒤 다시 리뷰합니다.\n" + dirty)

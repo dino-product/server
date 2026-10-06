@@ -256,6 +256,38 @@ class ReviewReportTest(unittest.TestCase):
             report.insert_marker("## 구현 내용\n", MARKER)
 
 
+RECORD_HOOK = SCRIPTS.parents[1] / ".claude" / "hooks" / "record_review_skill.py"
+
+
+class ReviewSkillRecordTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "base"], cwd=self.root, check=True, env=env)
+        self.head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+                                   capture_output=True, text=True).stdout.strip()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_record(self, payload: dict) -> int:
+        env = {"PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin", "CLAUDE_PROJECT_DIR": str(self.root)}
+        return subprocess.run([sys.executable, str(RECORD_HOOK)], input=json.dumps(payload), env=env,
+                              capture_output=True, text=True).returncode
+
+    def test_review_skill_records_head(self):
+        self.assertEqual(self.run_record({"tool_name": "Skill", "tool_input": {"skill": "dino-review"}}), 0)
+        self.assertTrue(report.review_recorded(self.head, self.root))
+
+    def test_other_skill_or_tool_not_recorded(self):
+        for payload in [{"tool_name": "Skill", "tool_input": {"skill": "dino-pr"}},
+                        {"tool_name": "Bash", "tool_input": {"command": "dino-review"}}]:
+            self.assertEqual(self.run_record(payload), 0)
+        self.assertFalse(report.review_recorded(self.head, self.root))
+
+
 DRAFT = SCRIPTS.parents[1] / ".claude" / "skills" / "dino-pr" / "scripts" / "pr_draft.py"
 
 

@@ -63,6 +63,7 @@
 ```
 
 - `python3 .claude/skills/dino-review/scripts/review_report.py marker <결과.json> --draft <PR 초안>`이 PR 초안의 `## 검증` 절에 넣거나 교체합니다. 리뷰한 head가 현재 `HEAD`와 다르거나 커밋하지 않은 변경이 있으면 거부합니다.
+- 현재 `HEAD`에서 `dino-review` 스킬을 실행한 기록이 없으면 마커를 만들지 않습니다. 기록은 PostToolUse hook([record_review_skill.py](../../../hooks/record_review_skill.py))이 스킬 실행 때 `.claude/reviews/invoked/<HEAD SHA>`에 남깁니다. 결과 JSON만 써서 마커를 남기는 실수를 막기 위한 것이며 의도적인 우회는 막지 않습니다. 커밋을 더하면 스킬을 다시 실행합니다.
 - 이미 게시한 PR은 사용자가 요청하면 초안을 갱신한 뒤 `gh pr edit <번호> --body-file <(python3 .claude/skills/dino-pr/scripts/pr_draft.py body <초안>)`으로 본문을 바꿉니다.
 - [PR 규약 검사](../../../../.github/scripts/check_pr_metadata.py)는 Draft가 아닌 PR에서 마커가 있는지와 마커의 `head`가 PR head SHA와 같은지만 판정합니다. 리뷰 뒤에 커밋을 더하거나 base를 병합하면 다시 리뷰해야 통과합니다.
 - 마커는 리뷰를 실행했다는 자기 신고입니다. 리뷰 내용의 품질을 보장하지 않으며, 그 판단은 사람 리뷰어가 PR의 핵심 다이어그램과 구현 내용 표로 합니다.
