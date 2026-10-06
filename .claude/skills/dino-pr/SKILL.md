@@ -19,7 +19,7 @@ description: PR을 만들거나 PR 초안·본문을 작성할 때("PR 써줘", 
 8. **검사와 미리보기**:
    - `python3 .claude/skills/dino-pr/scripts/pr_draft.py check <초안>`: CI의 PR 규약 검사와 같은 판정입니다. 실패하면 고칩니다.
    - `python3 .claude/skills/dino-pr/scripts/pr_draft.py preview <초안>`: `<초안>.html`을 만듭니다. 사용자에게 경로를 알려 GitHub와 같은 모양(mermaid 렌더링 포함)으로 확인하게 합니다.
-9. **게시**: 사용자가 PR 생성을 요청했을 때만 합니다. 푸시는 [승인 대상](../../../AGENTS.md#approvals)입니다. `gh pr create --base <base> --title "<title>" --label <label> --body-file <(python3 .claude/skills/dino-pr/scripts/pr_draft.py body <초안>)`. 미완성이면 `--draft`.
+9. **게시**: 사용자가 PR 생성을 요청했을 때만 합니다. 푸시는 [승인 대상](../../../AGENTS.md#approvals)입니다. `gh pr create --base <base> --title "<title>" --label "$(python3 .claude/skills/dino-pr/scripts/pr_draft.py labels <초안>)" --body-file <(python3 .claude/skills/dino-pr/scripts/pr_draft.py body <초안>)`. 미완성이면 `--draft`.
 
 ## 확인 목록
 

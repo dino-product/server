@@ -255,6 +255,19 @@ class ReviewReportTest(unittest.TestCase):
             report.insert_marker("## 구현 내용\n", MARKER)
 
 
+DRAFT = SCRIPTS.parents[1] / ".claude" / "skills" / "dino-pr" / "scripts" / "pr_draft.py"
+
+
+class PrDraftTest(unittest.TestCase):
+    def test_labels_prints_all_front_matter_labels(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            draft = Path(tmp) / "d.md"
+            draft.write_text("---\ntitle: docs: 링크 정리\nlabels: type:docs, area:docs\n---\n## PR 종류\n", encoding="utf-8")
+            out = subprocess.run([sys.executable, str(DRAFT), "labels", str(draft)], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.stdout.strip(), "type:docs,area:docs")
+
+
 HOOK = SCRIPTS.parents[1] / ".claude" / "hooks" / "check_commit_message.py"
 
 
