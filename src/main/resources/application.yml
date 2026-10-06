@@ -83,6 +83,28 @@ app:
       issuer: https://kauth.kakao.com
       jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
       allowed-audiences: ${KAKAO_ALLOWED_AUDIENCES}
+    apple:
+      issuer: https://appleid.apple.com
+      jwk-set-uri: https://appleid.apple.com/auth/keys
+      allowed-audiences: ${APPLE_ALLOWED_AUDIENCES}
+      client-secret:
+        team-id: ${APPLE_TEAM_ID}
+        key-id: ${APPLE_KEY_ID}
+        private-key: ${APPLE_PRIVATE_KEY}
+        ttl: ${APPLE_CLIENT_SECRET_TTL:PT10M}
+      token-api:
+        token-uri: https://appleid.apple.com/auth/token
+        revoke-uri: https://appleid.apple.com/auth/revoke
+        timeout: PT5S
+      refresh-token:
+        encryption-key: ${APPLE_REFRESH_TOKEN_ENCRYPTION_KEY}
+      web:
+        authorization-uri: https://appleid.apple.com/auth/authorize
+        services-id: ${APPLE_SERVICES_ID}
+        redirect-uri: ${APPLE_WEB_REDIRECT_URI}
+        return-uris:
+          web: ${APPLE_WEB_RETURN_URI}
+          android: ${APPLE_ANDROID_RETURN_URI}
     jwt:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}
