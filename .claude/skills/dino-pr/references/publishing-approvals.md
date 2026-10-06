@@ -8,6 +8,7 @@
 | PR 병합·닫기·삭제 | 저장소·PR 번호·최종 변경·병합 대상/방식·연동 CI·동반 브랜치 삭제 여부 |
 | 릴리스 게시 | 저장소·태그·대상 커밋·게시 내용/자산·연동 배포/CI 영향 |
 | 배포 | 환경·배포 버전/변경·서비스/데이터 영향·복구 방법 |
+| [ERDCloud 편집](../../dino-erd/references/erdcloud.md#erdcloud) | ERD·대상 테이블별 현재→변경 표·다른 모듈 테이블 영향·메모와 다른 점·부수 효과(컬럼 위치 등)·백업 스냅샷 |
 | Slack `#plan` [기획 결정 요청](../../../../docs/planning/README.md#plan-request) | 채널·메시지 본문 전체(대상 문서·절, 질문, 제안 결정, 영향) |
 
 요청한 PR·이슈 생성·수정·댓글은 추가 확인 없이 수행합니다. PR 닫기·병합·삭제는 이 예외가 아니며, 동반하는 [푸시](../../dino-commit/references/git-approvals.md#git)·[DB 검사](../../dino-testing/references/database-approvals.md#database)는 각각 승인 범위를 지킵니다. 초안·리뷰 요청을 게시 권한으로 확대하지 않습니다.
