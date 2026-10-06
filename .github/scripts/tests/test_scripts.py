@@ -198,8 +198,9 @@ class LinkCheckTest(unittest.TestCase):
         (self.root / "drafts").mkdir()
         (self.root / "drafts/local.md").write_text("[a](nope.md)\n", encoding="utf-8")
         (self.root / "docs/new.md").write_text("[a](a.md)\n", encoding="utf-8")
+        (self.root / "docs/한글.md").write_text("[a](a.md)\n", encoding="utf-8")
         names = sorted(p.relative_to(self.root).as_posix() for p in links.all_markdown(self.root))
-        self.assertEqual(names, ["docs/a.md", "docs/new.md"])
+        self.assertEqual(names, ["docs/a.md", "docs/new.md", "docs/한글.md"])
 
     def test_deleted_markdown_escalates_to_all(self):
         subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
