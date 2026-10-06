@@ -8,7 +8,7 @@
 - 시작 시 `git status --short`와 관련 diff로 기존 변경을 확인·보존합니다. 조사 요청은 읽기·검증으로 답하고 수정 요청은 구현·검증까지 완료합니다. 무관한 리팩터링·의존성·설정 변경은 하지 않습니다. 결과를 크게 바꿀 미결정만 질문합니다.
 - 요청 범위의 조회·DB 정리 없는 로컬 검사/빌드·생성물 정리는 자동 진행합니다. 기본 브랜치에서 시작하면 작업 브랜치로 전환하고, 첫 편집 전 [작업 단위와 커밋](.claude/skills/dino-commit/references/commits.md#checkpoints)을 계획해 한 이유가 완결될 때마다 집중 검사·diff 검토 후 커밋합니다. 명시된 커밋 금지는 우선합니다.
 - 제품 결정(권한·시간 제한·사유 목록 등)은 노션 정책서, 필드·화면 흐름은 기능명세가 원본입니다([기획 원본 색인](docs/planning/README.md#planning)). 레포에는 링크와 절만 남기고, 기능은 [PR 종류](.claude/skills/dino-pr/references/kinds.md#kinds)별로 나눕니다.
-- **추가 확인 대상:** 푸시·브랜치 삭제·DB 데이터/볼륨 삭제·테스트/로컬 `create-drop`·배포·amend/rebase/reset·작업을 잃는 Git 정리/복원·PR 병합/닫기/삭제·릴리스 게시. 직접 요청받아도 [실행 전 승인](#approvals)을 따릅니다.
+- **추가 확인 대상:** 푸시·브랜치 삭제·DB 데이터/볼륨 삭제·테스트/로컬 `create-drop`·배포·amend/rebase/reset·작업을 잃는 Git 정리/복원·PR 병합/닫기/삭제·릴리스 게시·ERDCloud 편집. 직접 요청받아도 [실행 전 승인](#approvals)을 따릅니다.
 - Notion에 없는 제품 판단은 [기획 결정 요청](docs/planning/README.md#plan-request)으로 Slack `#plan`에 올리고 Notion 반영 전에 구현하지 않습니다. 이 게시는 초안을 보여 확인받은 뒤에만 합니다.
 - 요청한 PR·이슈 생성/수정/댓글은 추가 확인 없이 수행합니다. 동반 푸시·DB 삭제 승인은 별도입니다. 막히면 완료한 준비·필요한 결정을 알립니다.
 - 같은 문제가 반복되면 [트러블슈팅 기록 규칙](docs/troubleshooting/README.md#기록-규칙)에 재사용 가능한 발견을 남깁니다.
@@ -21,7 +21,7 @@
 <a id="delegation"></a>
 ## 스킬과 위임
 
-작업 시점에 스킬이 자동 트리거되며 `/스킬명`으로 직접 부를 수도 있습니다. 착수 `dino-feature-start`, Java 편집 `dino-architecture`, 테스트·검증 `dino-testing`, 커밋 `dino-commit`, PR `dino-pr`, 리뷰 `dino-review`, 이슈 `dino-issue`. 팀 권한·hook은 `.claude/settings.json`, 개인 설정은 `.claude/settings.local.json`에 둡니다.
+작업 시점에 스킬이 자동 트리거되며 `/스킬명`으로 직접 부를 수도 있습니다. 착수 `dino-feature-start`, Java 편집 `dino-architecture`, 테스트·검증 `dino-testing`, 커밋 `dino-commit`, PR `dino-pr`, 리뷰 `dino-review`, 이슈 `dino-issue`, ERD `dino-erd`. 팀 권한·hook은 `.claude/settings.json`, 개인 설정은 `.claude/settings.local.json`에 둡니다.
 
 모듈 경계·공개 계약·Domain/Application 의존성을 바꾸면 구현 후 독립 검토(`module-reviewer` 서브에이전트)가 **필수**이며 자기 검토로 대체하지 않습니다. 인계에는 목적·파일 소유권·기준 SHA/diff·적용할 규칙 경로·제품 동작이 걸리면 관련 Notion 정책서 절의 적용 내용과 차이·공백 ID·완료 조건·검사 근거·승인 범위만 담습니다. 같은 파일 편집과 같은 작업 트리의 Gradle/포맷은 직렬화하고 하위 에이전트는 재위임하지 않습니다.
 
@@ -37,6 +37,7 @@
 | 브랜치·커밋·유형 | [commits](.claude/skills/dino-commit/references/commits.md) / [change-types](.claude/skills/dino-commit/references/change-types.md) (`dino-commit`) |
 | PR 종류·단위·작성 / 로컬 리뷰·마커 | [kinds](.claude/skills/dino-pr/references/kinds.md) / [planning](.claude/skills/dino-pr/references/planning.md) / [writing](.claude/skills/dino-pr/references/writing.md) (`dino-pr`), [procedure](.claude/skills/dino-review/references/procedure.md) / [report](.claude/skills/dino-review/references/report.md) (`dino-review`) |
 | 이슈·라벨 | [forms](.claude/skills/dino-issue/references/forms.md) / [labels](.claude/skills/dino-issue/references/labels.md) (`dino-issue`) |
+| ERDCloud 테이블·관계·메모 | [erdcloud](.claude/skills/dino-erd/references/erdcloud.md) (`dino-erd`) |
 | 제품 동작(권한·상태 전이·시간·입력 제한·사유 목록·조회 범위) | Claude는 `dino-feature-start`가 수행. 세션의 첫 작업 전 [동기화 상태 확인](docs/planning/README.md#status)(기획 DB 검색 한 번으로 기준 버전 비교, 결과는 세션 안에서 재사용) → 대상 BC의 제품 규칙 참조가 가리키는 Notion 절 원문과 차이·공백. `밀림`이면 구현 전에 알리고, 원문을 읽지 못하면 참조만 확인한 범위를 보고 |
 | 문서·구조·정책 | [문서 관리](docs/maintenance.md#maintenance)와 [ADR](docs/adr/README.md) |
 

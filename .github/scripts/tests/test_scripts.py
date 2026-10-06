@@ -192,6 +192,16 @@ class LinkCheckTest(unittest.TestCase):
     def test_links_inside_code_fences_ignored(self):
         self.assertEqual(self.check("```\n[a](nope.md)\n```\n"), [])
 
+    def test_all_markdown_skips_gitignored_files(self):
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        (self.root / ".gitignore").write_text("drafts/\n", encoding="utf-8")
+        (self.root / "drafts").mkdir()
+        (self.root / "drafts/local.md").write_text("[a](nope.md)\n", encoding="utf-8")
+        (self.root / "docs/new.md").write_text("[a](a.md)\n", encoding="utf-8")
+        (self.root / "docs/한글.md").write_text("[a](a.md)\n", encoding="utf-8")
+        names = sorted(p.relative_to(self.root).as_posix() for p in links.all_markdown(self.root))
+        self.assertEqual(names, ["docs/a.md", "docs/new.md", "docs/한글.md"])
+
     def test_deleted_markdown_escalates_to_all(self):
         subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
         env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
@@ -246,6 +256,51 @@ class ReviewReportTest(unittest.TestCase):
             report.insert_marker("## 구현 내용\n", MARKER)
 
 
+RECORD_HOOK = SCRIPTS.parents[1] / ".claude" / "hooks" / "record_review_skill.py"
+
+
+class ReviewSkillRecordTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "base"], cwd=self.root, check=True, env=env)
+        self.head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, check=True,
+                                   capture_output=True, text=True).stdout.strip()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_record(self, payload: dict) -> int:
+        env = {"PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin", "CLAUDE_PROJECT_DIR": str(self.root)}
+        return subprocess.run([sys.executable, str(RECORD_HOOK)], input=json.dumps(payload), env=env,
+                              capture_output=True, text=True).returncode
+
+    def test_review_skill_records_head(self):
+        self.assertEqual(self.run_record({"tool_name": "Skill", "tool_input": {"skill": "dino-review"}}), 0)
+        self.assertTrue(report.review_recorded(self.head, self.root))
+
+    def test_other_skill_or_tool_not_recorded(self):
+        for payload in [{"tool_name": "Skill", "tool_input": {"skill": "dino-pr"}},
+                        {"tool_name": "Bash", "tool_input": {"command": "dino-review"}}]:
+            self.assertEqual(self.run_record(payload), 0)
+        self.assertFalse(report.review_recorded(self.head, self.root))
+
+
+DRAFT = SCRIPTS.parents[1] / ".claude" / "skills" / "dino-pr" / "scripts" / "pr_draft.py"
+
+
+class PrDraftTest(unittest.TestCase):
+    def test_labels_prints_all_front_matter_labels(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            draft = Path(tmp) / "d.md"
+            draft.write_text("---\ntitle: docs: 링크 정리\nlabels: type:docs, area:docs\n---\n## PR 종류\n", encoding="utf-8")
+            out = subprocess.run([sys.executable, str(DRAFT), "labels", str(draft)], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.stdout.strip(), "type:docs,area:docs")
+
+
 HOOK = SCRIPTS.parents[1] / ".claude" / "hooks" / "check_commit_message.py"
 
 
@@ -261,6 +316,9 @@ class CommitHookTest(unittest.TestCase):
             'git commit -m "fix(auth): 다른 발급자의 Access Token 거부"',
             "git commit -q -F - <<'EOF'\nfeat(schedule): 작업 상세 조회 추가\n\n본문.\nEOF",
             'git commit -m "$(cat <<\'EOF\'\ndocs: 링크 정리\nEOF\n)"',
+            "python3 - <<'EOF'\nprint(1)\nEOF\ngit add a && git commit -m \"docs: 링크 정리\"",
+            "python3 - <<'PY'\nprint(1)\nPY\ngit commit -q -F - <<'EOF'\ndocs: 링크 정리\nEOF",
+            "python3 - <<'EOF'\n# x && git commit -m wrong\nEOF\ngit commit -m \"docs: 링크 정리\"",
         ]:
             code, err = run_hook(cmd)
             self.assertEqual(code, 0, err)
@@ -270,6 +328,7 @@ class CommitHookTest(unittest.TestCase):
             'git commit -m "작업 상세 조회 추가"': "형식",
             'git commit -m "feat(schedule): add work detail"': "한국어",
             'git commit -m "feat(schedule): 작업 상세 조회를 추가한다"': "명사형",
+            "python3 - <<'EOF'\nprint(1)\nEOF\ngit commit -m \"작업 상세 조회 추가\"": "형식",
         }
         for cmd, msg in cases.items():
             code, err = run_hook(cmd)
@@ -277,7 +336,9 @@ class CommitHookTest(unittest.TestCase):
             self.assertIn(msg, err)
 
     def test_non_commit_or_unknown_message_passes(self):
-        for cmd in ["git status", "git commit", "git commit --amend --no-edit", "echo git commit-tree"]:
+        for cmd in ["git status", "git commit", "git commit --amend --no-edit", "echo git commit-tree",
+                    "python3 - <<'EOF'\n# x && git commit -m wrong\nEOF",
+                    "cat <<'EOF'\ngit commit -m wrong\nEOF"]:
             self.assertEqual(run_hook(cmd)[0], 0, cmd)
 
 

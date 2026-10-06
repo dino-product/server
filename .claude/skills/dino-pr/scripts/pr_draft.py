@@ -16,6 +16,7 @@
     check <초안>               .github/scripts/check_pr_metadata.py 와 같은 규약으로 검사(리뷰 마커는 현재 HEAD와 비교)
     preview <초안>             mermaid까지 렌더링하는 HTML 미리보기(<초안>.html) 생성
     body <초안>                front matter를 뺀 본문 출력(gh pr create --body-file - 용)
+    labels <초안>              front matter의 라벨을 쉼표로 이어 출력(gh pr create --label 용)
 """
 from __future__ import annotations
 
@@ -133,15 +134,21 @@ def cmd_body(args) -> int:
     return 0
 
 
+def cmd_labels(args) -> int:
+    print(",".join(parse(Path(args.draft))[0]["labels"]))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("context")
     p.add_argument("--base", default="develop")
-    for name in ("check", "preview", "body"):
+    for name in ("check", "preview", "body", "labels"):
         sub.add_parser(name).add_argument("draft")
     args = parser.parse_args()
-    return {"context": cmd_context, "check": cmd_check, "preview": cmd_preview, "body": cmd_body}[args.cmd](args)
+    commands = {"context": cmd_context, "check": cmd_check, "preview": cmd_preview, "body": cmd_body, "labels": cmd_labels}
+    return commands[args.cmd](args)
 
 
 if __name__ == "__main__":
