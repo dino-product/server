@@ -19,14 +19,14 @@ class ModularityTest {
     }
 
     @Test
-    @DisplayName("shared 공개 계약을 error, openapi, security named interface로 구분한다")
+    @DisplayName("shared 공개 계약을 error, openapi, security, persistence named interface로 구분한다")
     void exposesSharedContractsThroughNamedInterfaces() {
         var shared = modules.getModuleByName("shared").orElseThrow();
 
         assertThat(shared.getNamedInterfaces().stream()
                         .filter(namedInterface -> namedInterface.isNamed())
                         .map(namedInterface -> namedInterface.getName()))
-                .containsExactlyInAnyOrder("error", "openapi", "security");
+                .containsExactlyInAnyOrder("error", "openapi", "security", "persistence");
     }
 
     @Test

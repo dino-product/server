@@ -12,7 +12,7 @@
 
 - Java 21·Spring Boot·Spring Modulith를 사용하고 Gradle의 단일 실행 JAR로 배포합니다. 버전 원본은 `build.gradle.kts`, `gradle/libs.versions.toml`, Gradle Wrapper입니다.
 - 비즈니스 책임별 패키지를 Application Module로 구분합니다. 초기에는 별도 Gradle 모듈이나 서비스로 나누지 않고 `ApplicationModules.verify()`로 경계·순환 의존성을 검증합니다.
-- 비즈니스 모듈의 공개 계약은 모듈 루트에 둡니다. `shared`의 오류·OpenAPI·Security 확장점 계약은 named interface로 나누어 필요한 계약만 허용합니다. 내부 패키지 공개로 검증을 우회하지 않습니다.
+- 비즈니스 모듈의 공개 계약은 모듈 루트에 둡니다. `shared`의 오류·OpenAPI·Security 확장점·JPA 감사 컬럼 공통 Entity 계약은 named interface로 나누어 필요한 계약만 허용합니다. 내부 패키지 공개로 검증을 우회하지 않습니다.
 
 모듈별 책임·공개 타입·허용 의존성은 [도메인 지도](../domain/README.md), 패키지와 수정 위치는 [아키텍처 규칙](../../.claude/skills/dino-architecture/references/architecture.md#modules)이 원본입니다.
 
@@ -73,7 +73,8 @@
 
 - PostgreSQL·JPA·QueryDSL을 사용하고 DB 검증은 PostgreSQL Testcontainers로 수행합니다. H2로 대체하지 않아 SQL·매핑 차이를 실제 DB에서 확인합니다.
 - 공통·운영 설정은 스키마를 자동 변경하지 않습니다. 로컬 예제·테스트만 임시 스키마를 사용하고 활성 프로필·운영 DB 접속 정보는 실행 환경에서 지정합니다.
-- 모듈 간 이벤트는 변경 트랜잭션에서 발행하고 커밋 후 비동기로 소비합니다. 시간은 주입받은 `Clock`과 UTC `Instant`를 사용합니다.
+- 모듈 간 이벤트는 변경 트랜잭션에서 발행하고 커밋 후 비동기로 소비합니다. 시간은 주입받은 `Clock`과 UTC `Instant`를 사용하며, JPA 감사 컬럼도 같은 `Clock`으로 채워 업무 시각과 기준을 맞춥니다.
+- JPA Entity는 팀 ERD를 따르되 Domain과 분리하고 값 검증은 Domain에 맡깁니다. 모듈 간 참조는 FK 없는 식별자 컬럼으로 두어 모듈 분리 때 스키마 의존이 생기지 않게 합니다. 규칙은 [JPA 모델](../../.claude/skills/dino-architecture/references/persistence.md#jpa)이 원본입니다.
 - 전달 보장이 필요한 서비스는 영속 저장소·재처리·멱등성 정책을 함께 설계합니다. 최소 예제의 후속 처리는 모듈 경계를 보여 주는 데 한정하며 전달 보장을 암시하지 않습니다.
 - nonce·폐기 토큰처럼 만료가 있는 임시 상태는 Redis에 두고 PostgreSQL에는 원본 데이터만 저장합니다. 마이그레이션 도구는 제품 요구에 따라 결정합니다. 운영 적용 전 스키마 준비와 Actuator 접근 정책을 구성해야 합니다.
 
