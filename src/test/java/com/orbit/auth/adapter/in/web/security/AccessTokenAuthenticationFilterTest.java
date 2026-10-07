@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -20,6 +21,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.orbit.auth.AccountPrincipal;
 import com.orbit.auth.application.port.in.query.AuthenticateAccessTokenUseCase;
 import com.orbit.auth.application.port.in.query.dto.AccessTokenInfo;
 import com.orbit.auth.application.port.in.query.dto.AuthenticateAccessTokenQuery;
@@ -122,6 +124,30 @@ class AccessTokenAuthenticationFilterTest {
                 new AccessTokenAuthentication(new AuthenticatedAccount(7L, "secret-jti", EXPIRES_AT));
 
         assertThat(authentication.getName()).isEqualTo("7");
+    }
+
+    @Test
+    @DisplayName("principal을 로그에 남겨도 토큰 식별자를 드러내지 않는다")
+    void hidesTokenIdFromPrincipalString() {
+        AuthenticatedAccount principal = new AuthenticatedAccount(7L, "secret-jti", EXPIRES_AT);
+
+        assertThat(principal.toString()).contains("accountId=7").doesNotContain("secret-jti");
+    }
+
+    @Test
+    @DisplayName("다른 모듈은 루트 공개 계약으로 계정 식별자만 받는다")
+    void exposesPrincipalOnlyThroughPublicContract() throws Exception {
+        when(useCase.authenticate(new AuthenticateAccessTokenQuery("token")))
+                .thenReturn(Optional.of(new AccessTokenInfo(7L, "jti", EXPIRES_AT)));
+
+        filter().doFilter(request("Bearer token"), new MockHttpServletResponse(), new MockFilterChain());
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal())
+                .isInstanceOfSatisfying(AccountPrincipal.class, principal -> assertThat(principal.accountId())
+                        .isEqualTo(7L));
+        assertThat(AccountPrincipal.class.getDeclaredMethods())
+                .extracting(Method::getName)
+                .containsExactly("accountId");
     }
 
     private AccessTokenAuthenticationFilter filter() {
