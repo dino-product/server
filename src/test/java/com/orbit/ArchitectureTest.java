@@ -4,6 +4,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.MappedSuperclass;
 
 import org.junit.jupiter.api.Test;
 
@@ -109,6 +110,17 @@ class ArchitectureTest {
                 .should()
                 .resideInAPackage("..adapter.out.persistence..")
                 .because("JPA Entity는 Domain 모델 및 Web 응답과 분리한다")
+                .check(APPLICATION_CLASSES);
+    }
+
+    @Test
+    void jpaMappedSuperclassesStayInSharedPersistenceOrPersistenceAdapters() {
+        classes()
+                .that()
+                .areAnnotatedWith(MappedSuperclass.class)
+                .should()
+                .resideInAnyPackage(ROOT_PACKAGE + ".shared.persistence..", "..adapter.out.persistence..")
+                .because("Entity 공통 부모는 shared::persistence 공개 계약이거나 해당 모듈의 영속성 Adapter 안에만 둔다")
                 .check(APPLICATION_CLASSES);
     }
 
