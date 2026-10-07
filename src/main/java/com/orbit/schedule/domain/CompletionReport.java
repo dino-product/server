@@ -8,8 +8,11 @@ import java.util.Optional;
 public final class CompletionReport {
 
     private static final int MAX_PHOTO_COUNT = 6;
-    private static final int MAX_USED_PARTS_LENGTH = 255;
-    private static final int MAX_WORK_NOTE_LENGTH = 255;
+    /** 사용 부품 최대 길이. */
+    public static final int MAX_USED_PARTS_LENGTH = 255;
+
+    /** 수행 메모 최대 길이. */
+    public static final int MAX_WORK_NOTE_LENGTH = 255;
 
     private final List<String> beforePhotos;
     private final List<String> afterPhotos;
