@@ -9,7 +9,7 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 
 - **구조**: 기본 생성자는 `protected`, 연관관계는 지연 로딩이 기본입니다. 공개 `@Setter`를 두지 않고 변환기가 쓰는 의미 있는 변경 메서드만 둡니다. `equals`/`hashCode`는 정의하지 않습니다(영속화 전 식별자가 없고 컬렉션은 Hibernate가 관리).
 - **이름**: 테이블·컬럼은 소문자 snake_case입니다. ERDCloud 표시명의 대소문자(`Work_Assignments` 등)는 따르지 않습니다. Entity 클래스는 `{Name}JpaEntity`, Spring Data 저장소는 `SpringData{Name}Repository`, 출력 Port 구현은 `{Name}PersistenceAdapter`입니다.
-- **감사 컬럼**: `created_at`·`updated_at`이 있는 테이블의 Entity는 `shared::persistence`의 `BaseTimeEntity`를 상속하고 두 컬럼을 직접 선언하지 않습니다. 값은 `shared`의 JPA 감사 설정이 [주입 `Clock`](#transactions)으로 채우며 Domain으로 변환하지 않습니다. 등록 시각·완료 시각처럼 업무 규칙이 쓰는 시각은 Domain이 정한 값을 별도 컬럼에 저장합니다. "누가"(등록자·처리자 등)는 테이블마다 이름·뜻이 달라 공통 부모에 두지 않고, Domain 값으로 각 Entity의 컬럼에 둡니다.
+- **감사 컬럼**: 모든 Entity는 `shared::persistence`의 `BaseTimeEntity`를 상속해 `created_at`·`updated_at`을 가지며 두 컬럼을 직접 선언하지 않습니다. ERD에 두 컬럼이 빠진 테이블이 있으면 Entity를 기준으로 ERD에 추가합니다(ERD의 감사 컬럼 유무는 테이블마다 달라 원본으로 삼지 않음). 값은 `shared`의 JPA 감사 설정이 [주입 `Clock`](#transactions)으로 채우며 Domain으로 변환하지 않습니다. 등록 시각·완료 시각처럼 업무 규칙이 쓰는 시각은 Domain이 정한 값을 별도 컬럼에 저장합니다. "누가"(등록자·처리자 등)는 테이블마다 이름·뜻이 달라 공통 부모에 두지 않고, Domain 값으로 각 Entity의 컬럼에 둡니다. 이 규약 전에 만든 `user`·`auth`의 Entity는 아직 상속하지 않으며 해당 모듈 변경 때 맞춥니다.
 - **값객체**: `@Embeddable` 대신 컬럼으로 펼칩니다. 같은 값객체가 여러 테이블에 들어가도 각 Entity가 자기 컬럼을 가집니다(ERD가 그렇게 그려져 있음).
 - **모듈 간 참조**: 다른 모듈이 소유한 테이블의 식별자는 `Long` 컬럼으로만 둡니다. `@ManyToOne`·FK를 걸지 않습니다(ERD 메모 "모듈 간 참조는 관계선 없이 논리 참조"). 같은 모듈 안의 부모–자식만 연관관계로 매핑하고 자식은 부모의 `cascade = ALL, orphanRemoval = true`로 생명주기를 함께합니다.
 - **타입**: 시각은 UTC `Instant`(`timestamptz`), 소요시간은 ERD가 `INTERVAL`이면 `Duration`에 `@JdbcTypeCode(SqlTypes.INTERVAL_SECOND)`를 붙입니다. enum은 `@Enumerated(EnumType.STRING)`이고 길이는 ERD 코멘트를 따릅니다. 금액은 원 단위 `bigint`입니다.
