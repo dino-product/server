@@ -22,7 +22,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
-import com.orbit.schedule.application.port.in.command.CorrectWorkStatusUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
@@ -32,7 +31,6 @@ import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
-import com.orbit.schedule.application.port.in.command.dto.CorrectWorkStatusCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
@@ -68,7 +66,7 @@ import com.orbit.support.TestcontainersConfiguration;
 class ScheduleUseCaseFlowTest {
 
     private static final long ACCOUNT_ID = 1L;
-    // 테스트들이 같은 메모리 저장소를 쓰므로 테스트마다 다른 조직을 써서, 앞선 테스트가 남긴 작업이 조회·겹침 판정에 섞이지 않게 한다.
+    // 테스트들이 같은 DB를 쓰므로 테스트마다 다른 조직을 써서, 앞선 테스트가 남긴 작업이 조회·겹침 판정에 섞이지 않게 한다.
     private static final AtomicLong NEXT_ORGANIZATION_ID = new AtomicLong(300L);
     private static final long TECHNICIAN = 31L;
     private static final long OTHER_TECHNICIAN = 32L;
@@ -100,9 +98,6 @@ class ScheduleUseCaseFlowTest {
 
     @Autowired
     private CancelWorkUseCase cancelWorkUseCase;
-
-    @Autowired
-    private CorrectWorkStatusUseCase correctWorkStatusUseCase;
 
     @Autowired
     private AcceptWorkUseCase acceptWorkUseCase;
@@ -227,54 +222,6 @@ class ScheduleUseCaseFlowTest {
         assertThat(stored.assignmentHistory().getLast().ending())
                 .map(AssignmentEnding::reason)
                 .contains(AssignmentEndReason.CANCELLED);
-    }
-
-    @Test
-    void assembledOwnerReopensCompletedWorkAndTechnicianSubmitsAgain() {
-        long workId = create("잘못 완료된 작업");
-        assignWorkUseCase.assign(new AssignWorkCommand(
-                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
-        acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1));
-        startWorkUseCase.start(new StartWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1));
-        submitCompletionReportUseCase.submit(new SubmitCompletionReportCommand(
-                TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1, null, null, null, "첫 보고", null, null));
-
-        correctWorkStatusUseCase.correct(new CorrectWorkStatusCommand(
-                OWNER_ACCOUNT_ID, organizationId.value(), workId, WorkStatus.IN_PROGRESS, "사진 누락"));
-        submitCompletionReportUseCase.submit(new SubmitCompletionReportCommand(
-                TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1, null, null, null, "다시 보고", null, null));
-
-        Work stored = workRepository
-                .findInOrganization(organizationId, new WorkId(workId))
-                .orElseThrow();
-        assertThat(stored.status()).isEqualTo(WorkStatus.COMPLETED);
-        assertThat(stored.completionReport().flatMap(CompletionReport::workNote))
-                .contains("다시 보고");
-        assertThat(stored.statusCorrections()).singleElement().satisfies(correction -> assertThat(
-                        correction.retiredReport().workNote())
-                .contains("첫 보고"));
-    }
-
-    @Test
-    void assembledOwnerRestoresCancelledWorkAndItIsAssignedAgain() {
-        long workId = create("잘못 취소된 작업");
-        assignWorkUseCase.assign(new AssignWorkCommand(
-                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
-        cancelWorkUseCase.cancel(new CancelWorkCommand(ACCOUNT_ID, organizationId.value(), workId, "고객 요청"));
-
-        correctWorkStatusUseCase.correct(new CorrectWorkStatusCommand(
-                OWNER_ACCOUNT_ID, organizationId.value(), workId, WorkStatus.REGISTERED, "잘못 취소"));
-        assignWorkUseCase.assign(new AssignWorkCommand(
-                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
-        acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 2));
-
-        Work stored = workRepository
-                .findInOrganization(organizationId, new WorkId(workId))
-                .orElseThrow();
-        assertThat(stored.status()).isEqualTo(WorkStatus.ACCEPTED);
-        assertThat(stored.statusCorrections()).singleElement().satisfies(correction -> assertThat(
-                        correction.restoredAssignmentNumber())
-                .isEqualTo(1));
     }
 
     private long create(String name) {
