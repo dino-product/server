@@ -14,6 +14,6 @@
 - 회사 코드: `com.orbit.organization.domain.CompanyCodeTest`, `com.orbit.organization.adapter.out.code.SecureRandomCompanyCodeGeneratorTest`.
 - 발주사 생성: `OrganizationTest`, `MembershipTest`, `CreateOrganizationServiceTest`, `OrganizationPersistenceAdapterTest`, `OrganizationApiIntegrationTest` 중 관련 테스트.
 - 활성 구성원 조회: `OrganizationMemberLookupServiceTest`, `ActiveMemberQueryAdapterTest`. schedule 소비는 `com.orbit.schedule.adapter.out.organization.OrganizationActorAdapterTest`.
-- 대기함 반환 요구 인터페이스: `TechnicianWorkReleaseResultTest`, `DenyingTechnicianWorkReleaseTest`.
+- 대기함 반환 요구 인터페이스: `TechnicianWorkReleaseResultTest`, `DenyingTechnicianWorkReleaseTest`, 전체 컨텍스트에서 구현이 하나인지 `TechnicianWorkReleaseRegistrationTest`.
 - 모듈 조립: `com.orbit.organization.OrganizationModuleTest`. auth 계약 사용은 `ModularityTest`와 실제 Access Token으로 호출하는 `OrganizationApiIntegrationTest`.
 - 공개 계약·HTTP는 [공통 검사 표](../../../../../../.claude/skills/dino-testing/references/verification.md#selection)를 따릅니다.
