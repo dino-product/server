@@ -9,11 +9,11 @@
 | `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`), `shared::security` (`SecurityFilterChainCustomizer`, `ApiErrorResponseWriter`) | 없음 |
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
 | `auth` | 카카오 OIDC 로그인, 계정(`Account`) 발급·조회, Access Token 발급·검증·로그아웃과 예제 subject 조회·등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `shared::security`, `user` |
-| `organization` | 발주사(회사 코드 포함)와 직원 소속 — 현재 발주사 생성(최초 총관리자 소속·회사 코드 발급). 요청자 계정은 임시 resolver(모두 거부, `local`·`test`에서만 등록 — 그 밖의 프로필은 현재 기동하지 않음)로 얻으며 auth 공개 계약(HM-296)으로 교체 예정. 기사 계약·참여 요청·유형 관리 예정 | 없음 | `shared::error`, `shared::openapi` |
+| `organization` | 발주사(회사 코드 포함)와 직원 소속 — 현재 발주사 생성(최초 총관리자 소속·회사 코드 발급). 요청자 계정은 웹 어댑터가 auth의 `AccountPrincipal`로 받음. 기사 계약·참여 요청·유형 관리 예정 | 없음 | `shared::error`, `shared::openapi`, `auth` |
 | `schedule` | 작업 생애주기 — `domain`(Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책)과 Application(작업 생애주기 유즈케이스 — 목록은 `application/port/in` 패키지, 출력 포트·오류 코드), 기사 일정 잠금 어댑터(PostgreSQL advisory lock), 임시 출력 어댑터(메모리 저장소·빈 조회 목록·모두 거부 행위자·가짜 기사 이름·가짜 사진 주소, `local`·`test`에서만 등록 — 그 밖의 프로필은 현재 기동하지 않음) | 없음 | `shared::error` |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |
 
-골격 모듈 `notification`은 `package-info.java`만 존재하며 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. `organization`은 공개 계약이 없고 오류 코드·OpenAPI 오류 문서화를 위해 `shared::error`, `shared::openapi`만 허용합니다. `schedule`은 공개 계약이 없고 오류 코드를 위해 `shared::error`만 허용합니다.
+골격 모듈 `notification`은 `package-info.java`만 존재하며 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. `organization`은 공개 계약이 없고 오류 코드·OpenAPI 오류 문서화를 위해 `shared::error`, `shared::openapi`를, 요청자 계정을 받기 위해 `auth`를 허용합니다. `schedule`은 공개 계약이 없고 오류 코드를 위해 `shared::error`만 허용합니다.
 
 ## 작업 경로와 추가 지침
 
@@ -24,7 +24,7 @@
 | `src/main/java/com/orbit/user/**` | [user 지침](../../src/main/java/com/orbit/user/AGENTS.md) → [User](user.md) | 불변식·공개 정보·발행 조건과 auth 영향 |
 | `src/main/java/com/orbit/auth/**` | [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md) → [Auth](auth.md) | id_token·nonce·Access Token 검증 조건, 404 정책, 계정 소유 범위, 예제 ACL 변환 |
 | `src/main/java/com/orbit/shared/**` | [shared 지침](../../src/main/java/com/orbit/shared/AGENTS.md) → [공개 타입·소비자](#모듈별-책임과-공개-계약)·[공개 경계 규칙](../../.claude/skills/dino-architecture/references/architecture.md#shared) | named interface와 내부 구현, 소비 모듈 영향 |
-| `src/main/java/com/orbit/organization/**` | [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) → [조직 설계](bounded-contexts.md#organization)·[설계 결정](bounded-contexts.md#organization-design)·[차이·공백](bounded-contexts.md#organization-gaps) | 발주사·직원 소속 구현; 총관리자 표시, 회사 코드 형식(O-11), 요청자 계정 임시 resolver 교체 조건 |
+| `src/main/java/com/orbit/organization/**` | [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) → [조직 설계](bounded-contexts.md#organization)·[설계 결정](bounded-contexts.md#organization-design)·[차이·공백](bounded-contexts.md#organization-gaps) | 발주사·직원 소속 구현; 총관리자 표시, 회사 코드 형식(O-11)·발주사명 입력 규칙(O-12), 요청자 계정은 웹 어댑터에서만 `AccountPrincipal`로 받음 |
 | `src/main/java/com/orbit/schedule/**` | [schedule 지침](../../src/main/java/com/orbit/schedule/AGENTS.md) → [schedule 문서](schedule.md#schedule)의 [구현 결정](schedule.md#schedule-implementation)·[차이·공백](schedule.md#schedule-gaps) | `domain`, `application` 일부, 기사 일정 잠금 어댑터, 임시 출력 어댑터 구현; 공통 오류 순서, 상태 전이·배정 이력 불변식, 도메인 예외 변환, organization ID 참조 경계, 임시 어댑터 교체 조건 |
 | `src/main/java/com/orbit/notification/**` | 하위 지침 없음 → [알림 설계](bounded-contexts.md#notification) | 골격만 존재; 이벤트 소비 경계 |
 | `src/test/java/com/orbit/**` | [테스트 지침](../../src/test/java/com/orbit/AGENTS.md) → 위 대상 소스 모듈 지침·계약 | 테스트가 다루는 소유 모듈·소비 경계 |

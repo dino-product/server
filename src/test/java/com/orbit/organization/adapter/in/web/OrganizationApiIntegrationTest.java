@@ -2,7 +2,6 @@ package com.orbit.organization.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -24,7 +23,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -37,15 +35,14 @@ import com.orbit.support.IntegrationTestSupport;
 
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * auth의 인증 계정 공개 계약(HM-296) 전까지 요청자는 임시 resolver가 정하므로, 인증 필터는 실제 Access Token으로 통과시키고 요청자 계정은
- * resolver를 대체해 정한다.
- */
+/** 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻는다. 계정마다 다른 {@code sub}로 토큰을 만든다. */
 @AutoConfigureMockMvc
 @DisplayName("발주사 생성 API")
 class OrganizationApiIntegrationTest extends IntegrationTestSupport {
 
     private static final AtomicLong ACCOUNT_IDS = new AtomicLong(1_000);
+
+    private long requesterAccountId;
 
     @Autowired
     private MockMvc mockMvc;
@@ -55,9 +52,6 @@ class OrganizationApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @MockitoBean
-    private RequesterAccountResolver requesterAccountResolver;
 
     @Value("${app.auth.jwt.secret}")
     private String jwtSecret;
@@ -184,9 +178,8 @@ class OrganizationApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private long requester() {
-        long accountId = ACCOUNT_IDS.incrementAndGet();
-        when(requesterAccountResolver.resolve()).thenReturn(accountId);
-        return accountId;
+        requesterAccountId = ACCOUNT_IDS.incrementAndGet();
+        return requesterAccountId;
     }
 
     private ResultActions create(Map<String, String> request) throws Exception {
@@ -202,7 +195,7 @@ class OrganizationApiIntegrationTest extends IntegrationTestSupport {
                 new JWSHeader(JWSAlgorithm.HS256),
                 new JWTClaimsSet.Builder()
                         .issuer(jwtIssuer)
-                        .subject("1")
+                        .subject(Long.toString(requesterAccountId))
                         .jwtID(UUID.randomUUID().toString())
                         .issueTime(Date.from(issuedAt))
                         .expirationTime(Date.from(issuedAt.plusSeconds(600)))

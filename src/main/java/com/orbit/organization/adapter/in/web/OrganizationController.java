@@ -2,11 +2,13 @@ package com.orbit.organization.adapter.in.web;
 
 import jakarta.validation.Valid;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.orbit.auth.AccountPrincipal;
 import com.orbit.organization.adapter.in.web.docs.OrganizationControllerDocs;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
@@ -16,19 +18,18 @@ import com.orbit.organization.application.port.in.command.dto.CreateOrganization
 class OrganizationController implements OrganizationControllerDocs {
 
     private final CreateOrganizationUseCase createOrganizationUseCase;
-    private final RequesterAccountResolver requesterAccountResolver;
 
-    OrganizationController(
-            CreateOrganizationUseCase createOrganizationUseCase, RequesterAccountResolver requesterAccountResolver) {
+    OrganizationController(CreateOrganizationUseCase createOrganizationUseCase) {
         this.createOrganizationUseCase = createOrganizationUseCase;
-        this.requesterAccountResolver = requesterAccountResolver;
     }
 
     @Override
     @PostMapping
-    public CreatedOrganizationResponse create(@Valid @RequestBody CreateOrganizationRequest request) {
+    public CreatedOrganizationResponse create(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @Valid @RequestBody CreateOrganizationRequest request) {
         CreateOrganizationCommand command =
-                new CreateOrganizationCommand(requesterAccountResolver.resolve(), request.name(), request.industry());
+                new CreateOrganizationCommand(requester.accountId(), request.name(), request.industry());
         return CreatedOrganizationResponse.from(createOrganizationUseCase.create(command));
     }
 }

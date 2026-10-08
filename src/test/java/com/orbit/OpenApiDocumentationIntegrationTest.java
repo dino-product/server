@@ -105,6 +105,8 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("발주사 생성"))
                 .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.security[0]['Bearer Authentication']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.parameters")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.responses['200']"
                                 + ".content['application/json'].schema.properties.result['$ref']")
                         .value("#/components/schemas/com.orbit.organization.adapter.in.web."

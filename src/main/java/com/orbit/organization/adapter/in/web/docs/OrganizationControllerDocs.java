@@ -1,5 +1,6 @@
 package com.orbit.organization.adapter.in.web.docs;
 
+import com.orbit.auth.AccountPrincipal;
 import com.orbit.organization.adapter.in.web.CreateOrganizationRequest;
 import com.orbit.organization.adapter.in.web.CreatedOrganizationResponse;
 import com.orbit.organization.application.error.OrganizationErrorCode;
@@ -7,6 +8,7 @@ import com.orbit.shared.error.CommonErrorCode;
 import com.orbit.shared.openapi.ApiErrorCodes;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -33,5 +35,6 @@ public interface OrganizationControllerDocs {
             enumClass = CommonErrorCode.class,
             includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND"})
     @ApiErrorCodes(enumClass = OrganizationErrorCode.class, includes = "INVALID_ORGANIZATION_INPUT")
-    CreatedOrganizationResponse create(CreateOrganizationRequest request);
+    CreatedOrganizationResponse create(
+            @Parameter(hidden = true) AccountPrincipal requester, CreateOrganizationRequest request);
 }
