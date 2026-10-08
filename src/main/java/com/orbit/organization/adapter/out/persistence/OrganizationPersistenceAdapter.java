@@ -20,7 +20,14 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
 
     @Override
     public Organization save(Organization organization) {
-        return repository.save(OrganizationJpaEntity.from(organization)).toDomain();
+        if (organization.id().isEmpty()) {
+            return repository.save(OrganizationJpaEntity.from(organization)).toDomain();
+        }
+        OrganizationJpaEntity entity = repository
+                .findById(organization.id().get().value())
+                .orElseThrow(() -> new IllegalStateException("organization to update must exist"));
+        entity.changeInfo(organization);
+        return entity.toDomain();
     }
 
     @Override

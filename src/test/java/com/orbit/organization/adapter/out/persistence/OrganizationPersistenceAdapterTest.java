@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
@@ -41,6 +42,9 @@ class OrganizationPersistenceAdapterTest {
 
     @Autowired
     private SpringDataMembershipRepository membershipRepository;
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     private OrganizationPersistenceAdapter organizations;
     private MembershipPersistenceAdapter memberships;
@@ -113,6 +117,26 @@ class OrganizationPersistenceAdapterTest {
                     membershipRepository.flush();
                 })
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("저장된 발주사의 발주사명·업종·수정 시각을 바꿔 저장하고 회사 코드·생성 시각은 그대로 둔다")
+    void updatesExistingOrganization() {
+        Organization organization = organizations.save(organization("P1M2N3"));
+        OrganizationId organizationId = organization.id().orElseThrow();
+        Instant changedAt = NOW.plusSeconds(60);
+
+        organization.changeInfo(new OrganizationName("새 발주사"), Industry.HVAC, changedAt);
+        organizations.save(organization);
+        organizationRepository.flush();
+        entityManager.clear();
+
+        Organization restored = organizations.findById(organizationId).orElseThrow();
+        assertThat(restored.name()).isEqualTo(new OrganizationName("새 발주사"));
+        assertThat(restored.industry()).isEqualTo(Industry.HVAC);
+        assertThat(restored.updatedAt()).isEqualTo(changedAt);
+        assertThat(restored.code()).isEqualTo(new CompanyCode("P1M2N3"));
+        assertThat(restored.createdAt()).isEqualTo(NOW);
     }
 
     @Test

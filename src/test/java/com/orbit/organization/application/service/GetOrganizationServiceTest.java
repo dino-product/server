@@ -115,6 +115,11 @@ class GetOrganizationServiceTest {
 
     private static Organization organization() {
         return Organization.reconstitute(
-                ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, new CompanyCode("7K2M9X"), NOW);
+                ORGANIZATION_ID,
+                new OrganizationName("오르빗 설비"),
+                Industry.PLUMBING,
+                new CompanyCode("7K2M9X"),
+                NOW,
+                NOW);
     }
 }

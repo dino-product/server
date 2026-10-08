@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -260,6 +261,94 @@ class OrganizationApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("COMMON-401"));
     }
 
+    @Test
+    @DisplayName("총관리자가 발주사명·업종을 바꾸면 저장되고 조회에도 반영된다")
+    void ownerUpdatesOrganization() throws Exception {
+        requester();
+        long organizationId = createOrganization("오르빗 설비", "HVAC");
+
+        update(organizationId, Map.of("name", "  새 발주사  ", "industry", "APPLIANCE_SERVICE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.organizationId").value(organizationId))
+                .andExpect(jsonPath("$.result.name").value("새 발주사"))
+                .andExpect(jsonPath("$.result.industry").value("APPLIANCE_SERVICE"));
+
+        assertThat(jdbcTemplate.queryForMap("select name, industry_code from companies where id = ?", organizationId))
+                .containsEntry("name", "새 발주사")
+                .containsEntry("industry_code", "APPLIANCE_SERVICE");
+        read(organizationId).andExpect(jsonPath("$.result.name").value("새 발주사"));
+    }
+
+    @Test
+    @DisplayName("다른 발주사와 같은 이름으로 바꿀 수 있다")
+    void allowsNameUsedByAnotherOrganization() throws Exception {
+        requester();
+        createOrganization("같은 이름 설비", "HVAC");
+        long organizationId = createOrganization("오르빗 설비", "HVAC");
+
+        update(organizationId, Map.of("name", "같은 이름 설비", "industry", "HVAC")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("발주사명은 2자·30자까지 받고 1자·31자·공백만·이모지는 400으로 거부한다")
+    void validatesNameLikeCreation() throws Exception {
+        requester();
+        long organizationId = createOrganization("오르빗 설비", "HVAC");
+
+        update(organizationId, Map.of("name", "가".repeat(2), "industry", "HVAC"))
+                .andExpect(status().isOk());
+        update(organizationId, Map.of("name", "가".repeat(30), "industry", "HVAC"))
+                .andExpect(status().isOk());
+        for (String name : new String[] {"가", "가".repeat(31), "   ", "오르빗\uD83D\uDE00"}) {
+            update(organizationId, Map.of("name", name, "industry", "HVAC"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("ORGANIZATION-001"));
+        }
+        assertThat(jdbcTemplate.queryForObject("select name from companies where id = ?", String.class, organizationId))
+                .isEqualTo("가".repeat(30));
+    }
+
+    @Test
+    @DisplayName("업종이 없으면 ORGANIZATION-001, 6종에 없는 업종이면 COMMON-400으로 거부한다")
+    void rejectsMissingOrUnknownIndustry() throws Exception {
+        requester();
+        long organizationId = createOrganization("오르빗 설비", "HVAC");
+
+        update(organizationId, Map.of("name", "새 발주사"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-001"));
+        update(organizationId, Map.of("name", "새 발주사", "industry", "AGRICULTURE"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+    }
+
+    @Test
+    @DisplayName("총관리자가 아닌 직원의 수정은 403으로 거부하고 저장하지 않는다")
+    void rejectsStaffUpdatingOrganization() throws Exception {
+        requester();
+        long organizationId = createOrganization("오르빗 설비", "HVAC");
+        joinAsStaff(organizationId, requester());
+
+        update(organizationId, Map.of("name", "새 발주사", "industry", "HVAC"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-003"));
+        assertThat(jdbcTemplate.queryForObject("select name from companies where id = ?", String.class, organizationId))
+                .isEqualTo("오르빗 설비");
+    }
+
+    @Test
+    @DisplayName("다른 발주사의 총관리자의 수정은 403으로 거부한다")
+    void rejectsOwnerOfAnotherOrganizationUpdating() throws Exception {
+        requester();
+        long organizationId = createOrganization("오르빗 설비", "HVAC");
+        requester();
+        createOrganization("다른 발주사", "HVAC");
+
+        update(organizationId, Map.of("name", "새 발주사", "industry", "HVAC"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-002"));
+    }
+
     private long createOrganization(String name, String industry) throws Exception {
         String body = create(Map.of("name", name, "industry", industry))
                 .andExpect(status().isOk())
@@ -283,6 +372,13 @@ class OrganizationApiIntegrationTest extends IntegrationTestSupport {
                 Timestamp.from(joinedAt),
                 Timestamp.from(joinedAt),
                 Timestamp.from(joinedAt));
+    }
+
+    private ResultActions update(long organizationId, Map<String, String> request) throws Exception {
+        return mockMvc.perform(put("/api/v1/organizations/{organizationId}", organizationId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
     }
 
     private ResultActions read(long organizationId) throws Exception {

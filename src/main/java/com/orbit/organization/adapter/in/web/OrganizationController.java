@@ -6,6 +6,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,7 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.organization.adapter.in.web.docs.OrganizationControllerDocs;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
+import com.orbit.organization.application.port.in.command.UpdateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
+import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationCommand;
 import com.orbit.organization.application.port.in.query.GetOrganizationUseCase;
 import com.orbit.organization.application.port.in.query.dto.GetOrganizationQuery;
 
@@ -23,11 +26,15 @@ class OrganizationController implements OrganizationControllerDocs {
 
     private final CreateOrganizationUseCase createOrganizationUseCase;
     private final GetOrganizationUseCase getOrganizationUseCase;
+    private final UpdateOrganizationUseCase updateOrganizationUseCase;
 
     OrganizationController(
-            CreateOrganizationUseCase createOrganizationUseCase, GetOrganizationUseCase getOrganizationUseCase) {
+            CreateOrganizationUseCase createOrganizationUseCase,
+            GetOrganizationUseCase getOrganizationUseCase,
+            UpdateOrganizationUseCase updateOrganizationUseCase) {
         this.createOrganizationUseCase = createOrganizationUseCase;
         this.getOrganizationUseCase = getOrganizationUseCase;
+        this.updateOrganizationUseCase = updateOrganizationUseCase;
     }
 
     @Override
@@ -46,5 +53,16 @@ class OrganizationController implements OrganizationControllerDocs {
             @AuthenticationPrincipal AccountPrincipal requester, @PathVariable Long organizationId) {
         return OrganizationResponse.from(
                 getOrganizationUseCase.get(new GetOrganizationQuery(requester.accountId(), organizationId)));
+    }
+
+    @Override
+    @PutMapping("/{organizationId}")
+    public OrganizationResponse update(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long organizationId,
+            @Valid @RequestBody UpdateOrganizationRequest request) {
+        UpdateOrganizationCommand command = new UpdateOrganizationCommand(
+                requester.accountId(), organizationId, request.name(), request.industry());
+        return OrganizationResponse.from(updateOrganizationUseCase.update(command));
     }
 }
