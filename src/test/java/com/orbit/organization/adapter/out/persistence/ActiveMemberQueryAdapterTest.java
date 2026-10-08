@@ -20,23 +20,22 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.organization.application.port.out.ActiveMembership;
+import com.orbit.organization.application.port.out.ActiveTechnicianContract;
 import com.orbit.organization.domain.AccountId;
-import com.orbit.organization.domain.Membership;
-import com.orbit.organization.domain.MembershipStatus;
+import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.OrganizationId;
-import com.orbit.organization.domain.Technician;
 import com.orbit.organization.domain.TechnicianId;
-import com.orbit.organization.domain.TechnicianStatus;
 import com.orbit.support.TestcontainersConfiguration;
 
-/** 상태를 바꾸는 유즈케이스가 아직 없어 비활성·역할 변경 종료 행은 SQL로 넣는다. */
+/** 상태를 바꾸는 유즈케이스가 아직 없어 소속·기사 계약 행은 SQL로 넣는다. */
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-@DisplayName("활성 직원 소속·기사 계약 조회")
-class ActiveMemberPersistenceAdapterTest {
+@DisplayName("활성 직원 소속·기사 계약 한 문장 조회")
+class ActiveMemberQueryAdapterTest {
 
     private static final Instant JOINED_AT = Instant.parse("2026-10-01T00:00:00.123456Z");
     private static final Instant CHANGED_AT = Instant.parse("2026-10-05T00:00:00.654321Z");
@@ -47,83 +46,60 @@ class ActiveMemberPersistenceAdapterTest {
     @Autowired
     private EntityManager entityManager;
 
-    @Autowired
-    private SpringDataMembershipRepository membershipRepository;
-
-    @Autowired
-    private SpringDataTechnicianRepository technicianRepository;
-
-    private MembershipPersistenceAdapter memberships;
-    private TechnicianPersistenceAdapter technicians;
+    private ActiveMemberQueryAdapter adapter;
 
     @BeforeEach
     void setUp() {
-        memberships = new MembershipPersistenceAdapter(membershipRepository);
-        technicians = new TechnicianPersistenceAdapter(technicianRepository);
+        adapter = new ActiveMemberQueryAdapter(entityManager);
     }
 
     @Test
-    @DisplayName("활성 직원 소속을 총관리자 표시·시각과 함께 찾는다")
+    @DisplayName("활성 직원 소속을 총관리자 표시와 함께 찾는다")
     void findsActiveMembership() {
         long id = insertMembership(ORGANIZATION_ID, ACCOUNT_ID, true, "ACTIVE");
 
-        Membership found = memberships.findActive(ORGANIZATION_ID, ACCOUNT_ID).orElseThrow();
-
-        assertThat(found.id()).hasValueSatisfying(membershipId -> assertThat(membershipId.value())
-                .isEqualTo(id));
-        assertThat(found.isOwner()).isTrue();
-        assertThat(found.status()).isEqualTo(MembershipStatus.ACTIVE);
-        assertThat(found.joinedAt()).isEqualTo(JOINED_AT);
-        assertThat(found.statusChangedAt()).isEqualTo(CHANGED_AT);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"DEACTIVATED", "ROLE_CHANGED"})
-    @DisplayName("비활성·역할 변경 종료 직원 소속은 찾지 않는다")
-    void ignoresInactiveMembership(String status) {
-        insertMembership(ORGANIZATION_ID, ACCOUNT_ID, false, status);
-
-        assertThat(memberships.findActive(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
+        assertThat(adapter.findActiveMembers(ORGANIZATION_ID, ACCOUNT_ID))
+                .containsExactly(new ActiveMembership(new MembershipId(id), true));
     }
 
     @Test
-    @DisplayName("다른 발주사의 직원 소속은 찾지 않는다")
-    void ignoresMembershipOfOtherOrganization() {
-        insertMembership(OTHER_ORGANIZATION_ID, ACCOUNT_ID, false, "ACTIVE");
-
-        assertThat(memberships.findActive(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
-    }
-
-    @Test
-    @DisplayName("활성 기사 계약을 시각과 함께 찾는다")
-    void findsActiveTechnician() {
+    @DisplayName("활성 기사 계약을 찾는다")
+    void findsActiveTechnicianContract() {
         long id = insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, "ACTIVE");
 
-        Technician found = technicians.findActive(ORGANIZATION_ID, ACCOUNT_ID).orElseThrow();
-
-        assertThat(found.id()).isEqualTo(new TechnicianId(id));
-        assertThat(found.organizationId()).isEqualTo(ORGANIZATION_ID);
-        assertThat(found.accountId()).isEqualTo(ACCOUNT_ID);
-        assertThat(found.status()).isEqualTo(TechnicianStatus.ACTIVE);
-        assertThat(found.contractedAt()).isEqualTo(JOINED_AT);
-        assertThat(found.statusChangedAt()).isEqualTo(CHANGED_AT);
+        assertThat(adapter.findActiveMembers(ORGANIZATION_ID, ACCOUNT_ID))
+                .containsExactly(new ActiveTechnicianContract(new TechnicianId(id)));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"DEACTIVATED", "ROLE_CHANGED"})
-    @DisplayName("비활성·역할 변경 종료 기사 계약은 찾지 않는다")
-    void ignoresInactiveTechnician(String status) {
+    @DisplayName("비활성·역할 변경 종료 소속과 기사 계약은 찾지 않는다")
+    void ignoresInactiveMembershipAndTechnicianContract(String status) {
+        insertMembership(ORGANIZATION_ID, ACCOUNT_ID, false, status);
         insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, status);
 
-        assertThat(technicians.findActive(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
+        assertThat(adapter.findActiveMembers(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
     }
 
     @Test
-    @DisplayName("다른 발주사의 기사 계약은 찾지 않는다")
-    void ignoresTechnicianOfOtherOrganization() {
+    @DisplayName("다른 발주사의 소속과 기사 계약은 찾지 않는다")
+    void ignoresMembersOfOtherOrganization() {
+        insertMembership(OTHER_ORGANIZATION_ID, ACCOUNT_ID, false, "ACTIVE");
         insertTechnician(OTHER_ORGANIZATION_ID, ACCOUNT_ID, "ACTIVE");
 
-        assertThat(technicians.findActive(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
+        assertThat(adapter.findActiveMembers(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("활성 소속과 활성 기사 계약이 함께 있으면 둘 다 돌려줘 호출자가 불변식 위반을 알게 한다")
+    void returnsBothWhenMembershipAndTechnicianContractAreActive() {
+        long membershipId = insertMembership(ORGANIZATION_ID, ACCOUNT_ID, false, "ACTIVE");
+        long technicianId = insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, "ACTIVE");
+
+        assertThat(adapter.findActiveMembers(ORGANIZATION_ID, ACCOUNT_ID))
+                .containsExactlyInAnyOrder(
+                        new ActiveMembership(new MembershipId(membershipId), false),
+                        new ActiveTechnicianContract(new TechnicianId(technicianId)));
     }
 
     @Test
