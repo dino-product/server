@@ -123,6 +123,20 @@ class OrganizationOwnerApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("비활성 직원 소속을 지정하면 409로 거부한다")
+    void rejectsDeactivatedMembership() throws Exception {
+        long owner = account();
+        long organizationId = organizationOf(owner);
+        long deactivated = staffMembership(organizationId, account());
+        jdbcTemplate.update("update company_memberships set status = 'DEACTIVATED' where id = ?", deactivated);
+
+        designate(owner, organizationId, deactivated)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-006"));
+        assertThat(isOwner(deactivated)).isFalse();
+    }
+
+    @Test
     @DisplayName("양수가 아닌 식별자는 400으로 거부한다")
     void rejectsNonPositiveIdentifier() throws Exception {
         long owner = account();

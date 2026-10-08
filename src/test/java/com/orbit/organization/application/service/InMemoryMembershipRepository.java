@@ -21,16 +21,14 @@ class InMemoryMembershipRepository implements MembershipRepository {
     private long nextId = 1;
     private int saveCount;
 
-    /** 저장소에 이미 있는 소속을 둔다. 저장 횟수에 넣지 않는다. */
+    /** 저장소에 이미 있는 활성 소속을 둔다. 저장 횟수에 넣지 않는다. */
     Membership given(OrganizationId organizationId, AccountId accountId, boolean owner) {
+        return given(organizationId, accountId, owner, MembershipStatus.ACTIVE);
+    }
+
+    Membership given(OrganizationId organizationId, AccountId accountId, boolean owner, MembershipStatus status) {
         Membership membership = Membership.reconstitute(
-                new MembershipId(nextId++),
-                organizationId,
-                accountId,
-                owner,
-                MembershipStatus.ACTIVE,
-                JOINED_AT,
-                JOINED_AT);
+                new MembershipId(nextId++), organizationId, accountId, owner, status, JOINED_AT, JOINED_AT);
         memberships.put(membership.id().orElseThrow(), membership);
         return membership;
     }

@@ -58,8 +58,15 @@ public final class Membership {
                 statusChangedAt);
     }
 
-    /** 같은 발주사의 다른 총관리자는 그대로 두고 이 소속에 총관리자 표시를 붙인다. 이미 총관리자면 그대로 돌려준다. */
+    /**
+     * 같은 발주사의 다른 총관리자는 그대로 두고 이 소속에 총관리자 표시를 붙인다. 이미 총관리자면 그대로 돌려준다.
+     *
+     * @throws InactiveMembershipException 활성 소속이 아닐 때(O-13)
+     */
     public Membership designateAsOwner() {
+        if (status != MembershipStatus.ACTIVE) {
+            throw new InactiveMembershipException();
+        }
         if (owner) {
             return this;
         }

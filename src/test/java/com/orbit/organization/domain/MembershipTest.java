@@ -52,6 +52,21 @@ class MembershipTest {
     }
 
     @Test
+    @DisplayName("비활성 직원 소속은 총관리자로 지정할 수 없다")
+    void rejectsDesignatingDeactivatedMembership() {
+        Membership deactivated = Membership.reconstitute(
+                new MembershipId(3L),
+                new OrganizationId(1L),
+                new AccountId(8L),
+                false,
+                MembershipStatus.DEACTIVATED,
+                NOW,
+                NOW.plusSeconds(60));
+
+        assertThatThrownBy(deactivated::designateAsOwner).isInstanceOf(InactiveMembershipException.class);
+    }
+
+    @Test
     @DisplayName("다른 총관리자가 남아 있으면 총관리자 표시를 뗀다")
     void revokesOwnerWhileAnotherOwnerRemains() {
         Membership owner = staff().designateAsOwner();

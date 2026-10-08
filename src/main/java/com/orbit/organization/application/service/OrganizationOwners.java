@@ -19,6 +19,7 @@ import com.orbit.shared.error.BusinessException;
  *   <li>요청자가 그 발주사의 활성 직원 소속이 아니면 403(ORGANIZATION-002).
  *   <li>요청자 소속이 총관리자가 아니면 403(ORGANIZATION-003).
  *   <li>대상 소속이 없거나 다른 발주사 소속이면 존재를 숨기고 404(ORGANIZATION-004). 기사 계약은 직원 소속과 식별자가 달라 여기서 찾지 못한다.
+ *   <li>대상 소속의 상태·총관리자 수 같은 유즈케이스별 규칙(409)은 각 서비스가 확인한다.
  * </ol>
  */
 final class OrganizationOwners {

@@ -15,6 +15,7 @@ import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.MembershipId;
+import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.shared.error.BaseCode;
 import com.orbit.shared.error.BusinessException;
@@ -96,6 +97,26 @@ class DesignateOwnerServiceTest {
 
         assertRejected(command(outsider), OrganizationErrorCode.MEMBERSHIP_NOT_FOUND);
         assertThat(memberships.stored(id(outsider)).isOwner()).isFalse();
+    }
+
+    @Test
+    @DisplayName("비활성 직원 소속을 지정하면 409로 거부한다")
+    void rejectsDeactivatedTarget() {
+        memberships.given(ORGANIZATION, REQUESTER, true);
+        Membership deactivated =
+                memberships.given(ORGANIZATION, new AccountId(8L), false, MembershipStatus.DEACTIVATED);
+
+        assertRejected(command(deactivated), OrganizationErrorCode.INACTIVE_MEMBERSHIP);
+        assertThat(memberships.stored(id(deactivated)).isOwner()).isFalse();
+    }
+
+    @Test
+    @DisplayName("비활성 소속의 계정이 요청하면 그 발주사 소속이 아닌 것으로 403 거부한다")
+    void rejectsDeactivatedRequester() {
+        memberships.given(ORGANIZATION, REQUESTER, true, MembershipStatus.DEACTIVATED);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+
+        assertRejected(command(staff), OrganizationErrorCode.NOT_ORGANIZATION_MEMBER);
     }
 
     private void assertRejected(DesignateOwnerCommand command, BaseCode expected) {
