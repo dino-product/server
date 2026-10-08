@@ -32,7 +32,7 @@
 - 자체 자격증명은 HS256 Access JWT(`iss`, `sub`=accountId, `jti`, `exp`, `token_use=access`)입니다. 로그아웃은 토큰의 `jti`를 남은 유효 시간 동안 Redis에 기억해 폐기하며, Refresh 회전은 후속 결정입니다.
 - 인증 실패 응답 정책: 토큰이 없으면 401, 토큰이 있는데 폐기·만료·위조됐으면 카카오 로그인 경로를 뺀 어느 경로든 실제 존재하지 않는 자원과 같은 404 본문으로 응답해 보호 자원의 존재와 실패 이유를 드러내지 않습니다.
 - 인증 필터와 공개 경로는 `shared::security`의 `SecurityFilterChainCustomizer`로 공통 SecurityFilterChain에 덧붙입니다. shared는 비즈니스 모듈에 의존하지 않고 모듈은 별도 SecurityFilterChain을 만들지 않습니다.
-- 다른 모듈은 인증된 계정을 auth 모듈 루트의 공개 계약 `AccountPrincipal`(계정 식별자만)로 받습니다. 계약을 제공 모듈 루트에 두는 [모듈 간 통신](#모듈-간-통신) 원칙에 따라 `shared::security`로 옮기는 안은 택하지 않았습니다. 이 계약을 쓰는 모듈은 auth에 의존하므로 auth는 그 모듈에 의존할 수 없습니다. 그래서 조직 역할 인가는 auth가 organization을 조회해 채우지 않으며, auth가 이미 의존하는 예제 `user`는 이 계약을 쓰지 않습니다.
+- 다른 모듈은 인증된 계정을 auth 모듈 루트의 공개 계약 `AccountPrincipal`(계정 식별자만)로 받습니다. 계정 식별자의 의미와 발급은 auth가 소유하고 `shared`는 기술 확장점만 공개하므로 `shared::security`로 옮기는 안은 택하지 않았습니다. 계약을 제공 모듈 루트에 두는 [모듈 간 통신](#모듈-간-통신) 원칙과도 맞습니다. 이 계약을 쓰는 모듈은 auth에 의존하므로 auth는 그 모듈을 조회하거나 그 모듈의 이벤트를 구독할 수 없습니다. 그래서 조직 역할 인가는 auth가 organization을 조회해 채우지 않으며, auth가 이미 의존하는 예제 `user`는 이 계약을 쓰지 않습니다.
 
 상세 흐름·설정·오류 코드는 [Auth](../domain/auth.md)가 소유합니다.
 

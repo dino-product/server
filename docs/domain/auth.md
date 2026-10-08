@@ -50,7 +50,7 @@ POST /api/v1/auth/logout  → LogoutCommand → LogoutUseCase → LogoutService
 - 이 정책의 알려진 한계: 경로는 존재하지만 대상 레코드가 없을 때의 모듈 오류(`AUTH-001`, `AUTH-004`)는 `COMMON-404`와 본문이 다르므로, 유효한 토큰으로 접근한 결과와 무효 토큰의 404는 구분됩니다. 무효 토큰 응답끼리는 구분되지 않습니다.
 - `GET /api/v1/auth/me`는 토큰 클레임만 믿지 않고 계정을 저장소에서 확인합니다. 계정이 삭제됐으면 `AUTH-004`(HTTP 404)입니다.
 - 로그아웃은 해당 토큰만 폐기하며 같은 계정의 다른 토큰은 유지합니다. 만료 뒤에는 검증기가 먼저 거부하므로 폐기 기록은 남은 유효 시간만 보관합니다.
-- 권한(authorities)은 비어 있습니다. 다른 모듈이 `AccountPrincipal`로 auth에 의존하므로 auth는 조직 역할을 조회하지 않습니다. 역할에 따른 인가를 소비 모듈의 Application이 organization 계약으로 확인할지, organization이 보안 확장점으로 채울지는 organization 공개 계약을 연결할 때 정합니다.
+- 권한(authorities)은 비어 있습니다. 다른 모듈이 `AccountPrincipal`로 auth에 의존하게 되므로 auth는 조직 역할을 조회하지 않습니다. 역할에 따른 인가를 소비 모듈의 Application이 organization 계약으로 확인할지, organization이 보안 확장점으로 채울지는 organization 공개 계약을 연결할 때 정합니다.
 
 ## Domain과 저장 모델
 
