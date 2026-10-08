@@ -50,7 +50,7 @@ POST /api/v1/auth/logout  → LogoutCommand → LogoutUseCase → LogoutService
 - 이 정책의 알려진 한계: 경로는 존재하지만 대상 레코드가 없을 때의 모듈 오류(`AUTH-001`, `AUTH-004`)는 `COMMON-404`와 본문이 다르므로, 유효한 토큰으로 접근한 결과와 무효 토큰의 404는 구분됩니다. 무효 토큰 응답끼리는 구분되지 않습니다.
 - `GET /api/v1/auth/me`는 토큰 클레임만 믿지 않고 계정을 저장소에서 확인합니다. 계정이 삭제됐으면 `AUTH-004`(HTTP 404)입니다.
 - 로그아웃은 해당 토큰만 폐기하며 같은 계정의 다른 토큰은 유지합니다. 만료 뒤에는 검증기가 먼저 거부하므로 폐기 기록은 남은 유효 시간만 보관합니다.
-- 권한(authorities)은 비어 있습니다. 조직 역할에 따른 인가는 organization 공개 계약을 연결할 때 설계합니다.
+- 권한(authorities)은 비어 있습니다. 다른 모듈이 `AccountPrincipal`로 auth에 의존하게 되므로 auth는 조직 역할을 조회하지 않습니다. 역할에 따른 인가를 소비 모듈의 Application이 organization 계약으로 확인할지, organization이 보안 확장점으로 채울지는 organization 공개 계약을 연결할 때 정합니다.
 
 ## Domain과 저장 모델
 
@@ -106,6 +106,6 @@ user.UserRegistered
 - HTTP: `adapter/in/web`의 `KakaoLoginController`, `AuthSessionController`, 예제 `AuthExampleController`. 인증 필터·principal·공개 경로 확장점은 `adapter/in/web/security`입니다.
 - 오류: `AuthErrorCode`의 `AUTH-001`(예제 사용자 없음, 404), `AUTH-002`(id_token 무효, 401), `AUTH-003`(nonce 무효, 401), `AUTH-004`(계정 없음, 404). 폐기·만료·위조 토큰의 404는 `CommonErrorCode.NOT_FOUND`와 같은 본문입니다.
 - 미구현·운영 전 과제: nonce 발급 경로의 호출 제한, `accounts`·`oauth_credentials` 스키마 마이그레이션(현재 마이그레이션 도구 없음, [프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)), Refresh 회전, 웹 authorize·callback.
-- 현재 다른 모듈에 공개하는 타입은 없습니다. organization이 참조할 계정 존재 확인 계약은 그 모듈을 구현할 때 모듈 루트에 추가합니다. 허용 의존성은 [도메인 지도](README.md)가 관리합니다.
+- 모듈 루트 공개 계약은 `AccountPrincipal`입니다. 인증된 요청의 계정 식별자만 담고, 다른 모듈의 웹 어댑터가 `@AuthenticationPrincipal`로 받습니다. 내부 principal `AuthenticatedAccount`가 구현하며 토큰 식별자·만료 시각은 auth 안에서만 쓰고 문자열 표현에도 토큰 식별자를 남기지 않습니다. organization이 참조할 계정 존재 확인 계약은 그 모듈을 구현할 때 모듈 루트에 추가합니다. 허용 의존성은 [도메인 지도](README.md)가 관리합니다.
 
 예제의 선택 배경은 [ADR-001 예제 모듈](../adr/001-backend-architecture.md#예제-모듈), 인증 결정의 배경은 [ADR-001 인증과 계정](../adr/001-backend-architecture.md#인증과-계정)을 따릅니다.
