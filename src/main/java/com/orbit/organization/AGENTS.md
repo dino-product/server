@@ -9,9 +9,20 @@
 - 요청자 계정은 컨트롤러가 auth의 루트 공개 계약 `AccountPrincipal`을 `@AuthenticationPrincipal`로 받아 계정 식별자만 Command에 넘깁니다. 이 타입은 웹 어댑터에서만 참조하고 Application·Domain에는 `AccountId`나 `Long`만 넘깁니다. auth 내부 principal(`AuthenticatedAccount`)이나 `Authentication#getName()`에 기대지 않습니다. 이 의존 때문에 auth는 organization을 조회·구독할 수 없습니다.
 - 입력 규칙(발주사명 앞뒤 공백 제거·길이·이모지 불가 등)은 Domain 값객체가 한 번만 검사하고 서비스가 `ORGANIZATION-001`로 바꿉니다. Request에 같은 길이 제약을 중복하지 않습니다(Bean Validation은 UTF-16 단위로, Domain은 코드 포인트로 셉니다). Domain은 Spring·JPA·Web 타입과 `Clock`에 의존하지 않습니다.
 
+## 오류 순서
+
+총관리자만 하는 발주사 유즈케이스(발주사 정보 조회·수정)는 `OrganizationOwners`로 아래 순서를 확인하고 먼저 걸린 오류 하나만 돌려줍니다. 서비스 javadoc은 이 순서를 복제하지 않습니다.
+
+1. 요청자 계정 누락 — 인증 계층의 프로그래밍 오류(500)
+2. 발주사 식별자 형식 — 400 `COMMON-400`
+3. 그 발주사의 활성 직원 소속이 아님(없는 발주사·다른 발주사·기사 포함) — 403 `ORGANIZATION-002`. 발주사 존재 여부를 드러내지 않으려고 404를 쓰지 않습니다
+4. 활성 소속이지만 총관리자가 아님 — 403 `ORGANIZATION-003`
+5. 요청 값 — 400 `ORGANIZATION-001`
+
 ## 집중 검증
 
 - 회사 코드: `com.orbit.organization.domain.CompanyCodeTest`, `com.orbit.organization.adapter.out.code.SecureRandomCompanyCodeGeneratorTest`.
 - 발주사 생성: `OrganizationTest`, `MembershipTest`, `CreateOrganizationServiceTest`, `OrganizationPersistenceAdapterTest`, `OrganizationApiIntegrationTest` 중 관련 테스트.
+- 발주사 정보 조회·수정: `OrganizationTest`, `GetOrganizationServiceTest`, `UpdateOrganizationServiceTest`, `OrganizationPersistenceAdapterTest`, `OrganizationApiIntegrationTest` 중 관련 테스트.
 - 모듈 조립: `com.orbit.organization.OrganizationModuleTest`. auth 계약 사용은 `ModularityTest`와 실제 Access Token으로 호출하는 `OrganizationApiIntegrationTest`.
 - 공개 계약·HTTP는 [공통 검사 표](../../../../../../.claude/skills/dino-testing/references/verification.md#selection)를 따릅니다.
