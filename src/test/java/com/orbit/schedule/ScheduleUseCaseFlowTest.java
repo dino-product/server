@@ -17,8 +17,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
@@ -59,13 +61,17 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.support.TestcontainersConfiguration;
 
 /**
- * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. organization 계약이 없어 행위자 포트만 테스트 구현으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
+ * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. 계정별 요청자를 간단히 정하려고 행위자 포트만 테스트 구현(@Primary)으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
 @Import({TestcontainersConfiguration.class, ScheduleUseCaseFlowTest.ActorsByAccount.class})
 @Testcontainers(disabledWithoutDocker = true)
 class ScheduleUseCaseFlowTest {
+
+    // 요청자는 계정별로 정한 LoadActorPort(@Primary)가 정하므로, organization 계약은 실제 어댑터의 의존성만 채운다.
+    @MockitoBean
+    private OrganizationMemberLookup memberLookup;
 
     private static final long ACCOUNT_ID = 1L;
     // 테스트들이 같은 메모리 저장소를 쓰므로 테스트마다 다른 조직을 써서, 앞선 테스트가 남긴 작업이 조회·겹침 판정에 섞이지 않게 한다.
