@@ -10,7 +10,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
-import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LoadTechnicianNamePort;
 import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
@@ -29,7 +28,6 @@ class TemporaryAdapterProfileTest {
         runner.withPropertyValues("spring.profiles.active=" + profile).run(context -> {
             assertThat(context).hasSingleBean(WorkRepository.class);
             assertThat(context).hasSingleBean(WorkQueryPort.class);
-            assertThat(context).hasSingleBean(LoadActorPort.class);
             assertThat(context).hasSingleBean(LoadTechnicianNamePort.class);
             assertThat(context).hasSingleBean(PhotoUrlPort.class);
         });
@@ -42,16 +40,18 @@ class TemporaryAdapterProfileTest {
         runner.withPropertyValues("spring.profiles.active=" + profiles).run(context -> {
             assertThat(context).doesNotHaveBean(WorkRepository.class);
             assertThat(context).doesNotHaveBean(WorkQueryPort.class);
-            assertThat(context).doesNotHaveBean(LoadActorPort.class);
             assertThat(context).doesNotHaveBean(LoadTechnicianNamePort.class);
             assertThat(context).doesNotHaveBean(PhotoUrlPort.class);
         });
     }
 
     @Configuration(proxyBeanMethods = false)
-    // 모든 프로필에서 등록하는 실제 어댑터(persistence)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에 들어오게 한다.
+    // 모든 프로필에서 등록하는 실제 어댑터(persistence, organization 요청자 조회)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에 들어오게 한다.
     @ComponentScan(
             basePackages = "com.orbit.schedule.adapter.out",
-            excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*\\.persistence\\..*"))
+            excludeFilters =
+                    @ComponentScan.Filter(
+                            type = FilterType.REGEX,
+                            pattern = {".*\\.persistence\\..*", ".*\\.organization\\.OrganizationActorAdapter"}))
     static class ScanTemporaryAdapters {}
 }
