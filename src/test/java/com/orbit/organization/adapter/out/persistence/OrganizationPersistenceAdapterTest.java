@@ -170,6 +170,20 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("그 발주사의 활성 총관리자 수를 센다")
+    void countsActiveOwnersOfOrganization() {
+        OrganizationId organizationId =
+                organizations.save(organization("Q1R2S3")).id().orElseThrow();
+        OrganizationId otherId = organizations.save(organization("T4V5W6")).id().orElseThrow();
+        memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+        memberships.save(Membership.founder(organizationId, new AccountId(8L), NOW));
+        staffMembership(organizationId, 9L);
+        memberships.save(Membership.founder(otherId, new AccountId(7L), NOW));
+
+        assertThat(memberships.countActiveOwners(organizationId)).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("발주사가 없어도 잠금 요청은 실패하지 않는다")
     void lockingMissingOrganizationDoesNotFail() {
         organizations.lock(new OrganizationId(Long.MAX_VALUE));

@@ -66,6 +66,22 @@ public final class Membership {
         return new Membership(id, organizationId, accountId, true, status, joinedAt, statusChangedAt);
     }
 
+    /**
+     * 총관리자 표시를 뗀다. 총관리자가 아니면 그대로 돌려준다.
+     *
+     * @param activeOwners 이 소속을 포함한 같은 발주사의 활성 총관리자 수
+     * @throws LastOwnerException 이 소속이 발주사의 마지막 총관리자일 때
+     */
+    public Membership revokeOwner(long activeOwners) {
+        if (!owner) {
+            return this;
+        }
+        if (activeOwners <= 1) {
+            throw new LastOwnerException();
+        }
+        return new Membership(id, organizationId, accountId, false, status, joinedAt, statusChangedAt);
+    }
+
     public Optional<MembershipId> id() {
         return Optional.ofNullable(id);
     }

@@ -48,4 +48,9 @@ class MembershipPersistenceAdapter implements MembershipRepository {
                         organizationId.value(), accountId.value(), MembershipStatus.ACTIVE)
                 .map(MembershipJpaEntity::toDomain);
     }
+
+    @Override
+    public long countActiveOwners(OrganizationId organizationId) {
+        return repository.countByOrganizationIdAndOwnerTrueAndStatus(organizationId.value(), MembershipStatus.ACTIVE);
+    }
 }

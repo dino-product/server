@@ -16,4 +16,7 @@ public interface MembershipRepository {
 
     /** 계정의 그 발주사 활성 직원 소속. */
     Optional<Membership> findActive(OrganizationId organizationId, AccountId accountId);
+
+    /** 그 발주사의 활성 직원 소속 중 총관리자 수. */
+    long countActiveOwners(OrganizationId organizationId);
 }

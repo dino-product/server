@@ -73,4 +73,13 @@ class InMemoryMembershipRepository implements MembershipRepository {
                 .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
                 .findFirst();
     }
+
+    @Override
+    public long countActiveOwners(OrganizationId organizationId) {
+        return memberships.values().stream()
+                .filter(membership -> membership.organizationId().equals(organizationId))
+                .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
+                .filter(Membership::isOwner)
+                .count();
+    }
 }

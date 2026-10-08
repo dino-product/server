@@ -1,6 +1,7 @@
 package com.orbit.organization.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 
@@ -48,6 +49,34 @@ class MembershipTest {
         Membership owner = staff().designateAsOwner();
 
         assertThat(owner.designateAsOwner()).isSameAs(owner);
+    }
+
+    @Test
+    @DisplayName("다른 총관리자가 남아 있으면 총관리자 표시를 뗀다")
+    void revokesOwnerWhileAnotherOwnerRemains() {
+        Membership owner = staff().designateAsOwner();
+
+        Membership revoked = owner.revokeOwner(2);
+
+        assertThat(revoked.isOwner()).isFalse();
+        assertThat(revoked.id()).isEqualTo(owner.id());
+        assertThat(revoked.status()).isEqualTo(owner.status());
+    }
+
+    @Test
+    @DisplayName("발주사의 마지막 총관리자는 해제할 수 없다")
+    void rejectsRevokingLastOwner() {
+        Membership owner = staff().designateAsOwner();
+
+        assertThatThrownBy(() -> owner.revokeOwner(1)).isInstanceOf(LastOwnerException.class);
+    }
+
+    @Test
+    @DisplayName("총관리자가 아닌 소속을 해제하면 바뀌지 않는다")
+    void revokingStaffLeavesItUnchanged() {
+        Membership staff = staff();
+
+        assertThat(staff.revokeOwner(1)).isSameAs(staff);
     }
 
     private static Membership staff() {

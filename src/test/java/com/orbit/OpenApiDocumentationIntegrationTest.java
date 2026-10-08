@@ -145,6 +145,23 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsOwnerRevocationWithLastOwnerConflict() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/owners/{membershipId}'].delete";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("총관리자 해제"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-003'].value.code")
+                        .value("ORGANIZATION-003"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-005'].value.code")
+                        .value("ORGANIZATION-005"));
+    }
+
+    @Test
     void documentsRequestAndResponseFields() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
