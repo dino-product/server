@@ -115,6 +115,34 @@ class OrganizationPersistenceAdapterTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    @DisplayName("식별자로 발주사를 찾고, 없으면 비어 있다")
+    void findsOrganizationById() {
+        OrganizationId organizationId =
+                organizations.save(organization("B2C3D4")).id().orElseThrow();
+
+        assertThat(organizations.findById(organizationId))
+                .hasValueSatisfying(found -> assertThat(found.code()).isEqualTo(new CompanyCode("B2C3D4")));
+        assertThat(organizations.findById(new OrganizationId(organizationId.value() + 1_000)))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("계정의 그 발주사 활성 직원 소속만 찾는다")
+    void findsActiveMembershipOfAccountInOrganization() {
+        OrganizationId organizationId =
+                organizations.save(organization("E5F6G7")).id().orElseThrow();
+        OrganizationId otherOrganizationId =
+                organizations.save(organization("H8J9K0")).id().orElseThrow();
+        memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+
+        assertThat(memberships.findActive(organizationId, new AccountId(7L)))
+                .hasValueSatisfying(found -> assertThat(found.isOwner()).isTrue());
+        assertThat(memberships.findActive(otherOrganizationId, new AccountId(7L)))
+                .isEmpty();
+        assertThat(memberships.findActive(organizationId, new AccountId(8L))).isEmpty();
+    }
+
     private static Organization organization(String code) {
         return Organization.create(new OrganizationName("오르빗 설비"), Industry.PLUMBING, new CompanyCode(code), NOW);
     }
