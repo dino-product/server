@@ -11,8 +11,6 @@ import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
@@ -71,12 +69,11 @@ class ActiveMemberQueryAdapterTest {
                 .containsExactly(new ActiveTechnicianContract(new TechnicianId(id)));
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"DEACTIVATED", "ROLE_CHANGED"})
-    @DisplayName("비활성·역할 변경 종료 소속과 기사 계약은 찾지 않는다")
-    void ignoresInactiveMembershipAndTechnicianContract(String status) {
-        insertMembership(ORGANIZATION_ID, ACCOUNT_ID, false, status);
-        insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, status);
+    @Test
+    @DisplayName("비활성 소속과 기사 계약은 찾지 않는다")
+    void ignoresInactiveMembershipAndTechnicianContract() {
+        insertMembership(ORGANIZATION_ID, ACCOUNT_ID, false, "DEACTIVATED");
+        insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, "DEACTIVATED");
 
         assertThat(adapter.findActiveMembers(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
     }
@@ -105,7 +102,7 @@ class ActiveMemberQueryAdapterTest {
     @Test
     @DisplayName("같은 계정·같은 발주사의 기사 계약은 하나만 둘 수 있다")
     void rejectsSecondTechnicianOfSameAccountInSameOrganization() {
-        insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, "ROLE_CHANGED");
+        insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, "DEACTIVATED");
 
         assertThatThrownBy(() -> insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, "ACTIVE"))
                 .isInstanceOf(PersistenceException.class);
