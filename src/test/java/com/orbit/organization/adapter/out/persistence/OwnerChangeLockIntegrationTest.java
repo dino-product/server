@@ -116,7 +116,8 @@ class OwnerChangeLockIntegrationTest extends IntegrationTestSupport {
         Timestamp now = Timestamp.from(Instant.now());
         jdbcTemplate.update(
                 "insert into company_memberships"
-                        + " (company_id, member_id, is_owner, status, joined_at, status_changed_at, created_at, updated_at)"
+                        + " (company_id, member_id, is_owner, status,"
+                        + " joined_at, status_changed_at, created_at, updated_at)"
                         + " values (?, ?, false, 'ACTIVE', ?, ?, ?, ?)",
                 organizationId,
                 accountId,
