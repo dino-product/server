@@ -13,7 +13,7 @@
 | `schedule` | 작업 생애주기 — `domain`(Work 애그리게잇·값객체·배정 이력·완료보고·일정 겹침 정책)과 Application(작업 생애주기 유즈케이스 — 목록은 `application/port/in` 패키지, 출력 포트·오류 코드), 기사 일정 잠금 어댑터(PostgreSQL advisory lock), organization 요청자 조회 어댑터(ACL), 임시 출력 어댑터(메모리 저장소·빈 조회 목록·가짜 기사 이름·가짜 사진 주소, `local`·`test`에서만 등록 — 그 밖의 프로필은 현재 기동하지 않음) | 없음 | `shared::error`, `organization` |
 | `notification` | 골격 — 이벤트 기반 알림 관리 예정 | 없음 | 없음 |
 
-골격 모듈 `notification`은 `package-info.java`만 존재하며 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. `organization`은 schedule에 활성 구성원 조회 계약을 공개하고, 오류 코드·OpenAPI 오류 문서화를 위해 `shared::error`, `shared::openapi`를, 요청자 계정을 받기 위해 `auth`를 허용합니다. `schedule`은 공개 계약이 없고 오류 코드를 위해 `shared::error`를, 요청자를 판정하기 위해 `organization`을 허용합니다. 이 의존 때문에 organization은 schedule 타입에 의존할 수 없습니다. 역할 변경·작업 유형 삭제가 schedule의 작업을 확인하는 일은 organization이 선언하고 schedule이 구현하는 [요구 인터페이스](../../.claude/skills/dino-architecture/references/communication.md#요구-인터페이스)로, 대기함 반환 같은 변경은 organization 이벤트를 schedule이 구독해 처리합니다(HM-293, HM-295에서 추가).
+골격 모듈 `notification`은 `package-info.java`만 존재하며 `allowedDependencies = {}`로 모듈 의존성을 허용하지 않습니다. `organization`은 schedule에 활성 구성원 조회 계약을 공개하고, 오류 코드·OpenAPI 오류 문서화를 위해 `shared::error`, `shared::openapi`를, 요청자 계정을 받기 위해 `auth`를 허용합니다. `schedule`은 공개 계약이 없고 오류 코드를 위해 `shared::error`를, 요청자를 판정하기 위해 `organization`을 허용합니다. 이 의존 때문에 organization은 schedule 타입에 의존할 수 없습니다. 역할 변경·비활성화의 작업중 확인과 대기함 반환, 작업 유형 삭제의 영향 건수 확인은 organization이 선언하고 schedule이 구현하는 [요구 인터페이스](../../.claude/skills/dino-architecture/references/communication.md#요구-인터페이스)로 처리하며, 확인과 반환은 한 호출로 묶어 organization 트랜잭션에서 함께 커밋합니다(HM-292·HM-293·HM-252, HM-295에서 추가).
 
 ## 작업 경로와 추가 지침
 
