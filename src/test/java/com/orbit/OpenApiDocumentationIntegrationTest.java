@@ -98,6 +98,32 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsOrganizationCreationAsProtectedOperationWithInputErrors() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.summary")
+                        .value("발주사 생성"))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web."
+                                + "CreatedOrganizationResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.responses['400']"
+                                + ".content['application/json'].examples['ORGANIZATION-001'].value.code")
+                        .value("ORGANIZATION-001"))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.responses['400']"
+                                + ".content['application/json'].examples['COMMON-400'].value.code")
+                        .value("COMMON-400"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.CreateOrganizationRequest']"
+                                + ".properties.industry.enum.length()")
+                        .value(6));
+    }
+
+    @Test
     void documentsRequestAndResponseFields() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
