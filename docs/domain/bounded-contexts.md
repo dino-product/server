@@ -40,17 +40,17 @@
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 회사 참여 요청, 직원 소속(Membership)·기사 계약(Technician) 관리 |
-| 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급). 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
+| 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), schedule용 활성 구성원 조회(기사 계약은 조회만). 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
 | 기획 원본 | [조직·계정] 정책 |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
-| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (계정·조직으로 직원 소속(Membership)·기사 계약(Technician) 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
+| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
 
 <a id="organization-product"></a>
 #### 2.1 제품 규칙 참조
 
 | 주제 | Notion 원본 | 차이 |
 | --- | --- | --- |
-| 사용자 계층·총관리자 | [조직·계정] §4·§4.1·§11 (ORG-010) | O-01 |
+| 사용자 계층·총관리자 | [조직·계정] §4·§4.1·§11 (ORG-010) | 미구현 (지정·해제) |
 | 가입·프로필·소속 없는 계정 | [조직·계정] §5 (ORG-013) | 미구현, O-12, O-21 |
 | 마이페이지·다중 소속·탈퇴 | [조직·계정] §5.1 (ORG-012, ORG-009) | 미구현 |
 | 회사 코드·참여 요청·승인·거절·취소 | [조직·계정] §6 (ORG-017, ORG-018) | 회사 코드 발급만 구현, O-11 |
@@ -83,7 +83,6 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 구현에서 정한 제품 결정 | O-11 | 회사 코드 형식(Crockford Base32 6자, I·L·O·U 제외)·입력 정규화(대소문자 무시, 공백·하이픈 제거)·폐기 코드 재발급 금지. 기획이 개발에 위임해 정했고 [조직·계정] §6에 아직 없다. 발급과 형식은 구현했고 폐기 코드 보관은 HM-287 | [#plan](https://dino-mr05186.slack.com/archives/C0BS2ACANVC/p1791274444883379) |
 | 구현에서 정한 제품 결정 | O-12 | [조직·계정] §5의 발주사명 "필수, 2~30자"에 없는 입력 규칙을 구현에서 정했다: 앞뒤 공백 제거 후 검사·저장, 공백만은 미입력, 문자 수(코드 포인트)로 길이 계산, 이모지(©·®·™ 포함) 불가, 중복 이름 허용 | [#plan](https://dino-mr05186.slack.com/archives/C0BS2ACANVC/p1791284456759499) |
 | Notion 확정, 미구현 | O-21 | [조직·계정] §5는 프로필·필수 약관을 마친 계정만 발주사를 만들 수 있게 하지만 서버에 프로필·약관 기능이 없어 인증된 계정이면 누구나 만들 수 있다 | 미등록 |
-| Notion 확정, 구현이 다름 | O-01 | [조직·계정] §4.1은 총관리자를 여러 명 추가 지정(마지막 1명은 해제 불가)하는 방식이고 설계도 이에 맞췄다([설계 결정](#organization-design)). schedule의 `ActorRole` Javadoc은 아직 총관리자를 "조직이 가리키는 직원 소속" 하나로 설명한다 | ORG-010 (확정), HM-288 |
 | Notion도 미정 | O-31 | 참여 요청·소속·계정 상태 코드 명칭은 제안 단계 | ORG-002 |
 | Notion도 미정 | O-32 | 탈퇴 시 개인정보 즉시 삭제·업무 데이터 보존의 법적 적정성 | ORG-009 |
 | Notion도 미정 | O-33 | [조직·계정] §7은 작업유형 삭제 때만 작업중·완료·취소 작업에 삭제 직전 이름·색상을 남긴다. 직원유형·기사유형 삭제에도 같은 보존 규칙을 둘지(소속은 "유형 없음"이 됨)는 보류 | ORG-020 (보류) |

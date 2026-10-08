@@ -17,7 +17,7 @@
 | 소유 애그리게잇 | **Work**(Root) — 소속 조직(Organization ID 참조), 작업명, 등록자(Membership ID 참조)·담당기사(Technician ID 참조), 시간, 상태<br>├ AssignmentHistory(내부 엔티티) — 배정 시도마다 일정·배정한 관리자·배정/응답 시각·결과·관리자 조치로 끝난 기록, 최신 이력이 현재 배정<br>├ CompletionReport(내부 엔티티) — 완료보고(사진·메모·실제 결제), Work와 생명주기 완전히 묶임<br>└ WorkSchedule/CustomerInfo/PaymentInfo/Money/Cancellation(VO) — 담당기사·시작시각·예상소요시간 / 고객정보 / 결제정보 / 원 단위 금액 / 취소 시각·처리자·사유 |
 | 상태 흐름 | 등록(대기함) → 배정됨 → 작업전 → 작업중 → 완료, 별도 종점 취소. 표시값·전이 조건·권한은 [제품 규칙 참조](#schedule-product), 코드값은 [구현 결정](#schedule-implementation) |
 | 읽기 모델 | Timetable/Backlog/ProgressBoard — **애그리게잇 아님.** Work를 기사×시간 축이나 상태별로 투영한 조회 결과일 뿐, 자체 쓰기 불변식이 없음 |
-| 관계 | `organization` → 참조(ID) (등록자가 Work의 조직에 속한 활성 Membership인지, 담당기사가 그 조직의 활성 기사 계약인지, 작업 유형이 같은 조직의 WorkType인지 확인, ACL — organization의 소속·기사 계약을 schedule의 요청자(`Actor`)로 번역해 역할별 규칙을 적용하기 때문. 도메인은 ID만 보유하므로 Application이 등록·기본정보 수정·배정·재배정 때 검증. 작업 유형은 요청에 값이 있으면(비우지 않았으면) 매번 확인. 일정 변경 때 현재 담당기사를 다시 확인할지는 organization 공개 계약 연결 때 정한다) · `notification` ← 이벤트 발행(작업 상태 변경) |
+| 관계 | `organization` → 참조(ID) (등록자가 Work의 조직에 속한 활성 Membership인지, 담당기사가 그 조직의 활성 기사 계약인지, 작업 유형이 같은 조직의 WorkType인지 확인, ACL — organization의 소속·기사 계약을 schedule의 요청자(`Actor`)로 번역해 역할별 규칙을 적용하기 때문. 도메인은 ID만 보유하므로 Application이 등록·기본정보 수정·배정·재배정 때 검증. 작업 유형은 요청에 값이 있으면(비우지 않았으면) 매번 확인. 요청자는 organization 공개 계약 `OrganizationMemberLookup`으로 확인하고, 담당기사·작업 유형 검증과 일정 변경 때 현재 담당기사를 다시 확인할지는 그 검증을 연결할 때 정한다) · `notification` ← 이벤트 발행(작업 상태 변경) |
 
 > **명명 정정**: 기획 문서에서는 이 애그리게잇을 "Job"이라 부르지만, 레포는 `*WorkUseCase` 명명을 먼저 써 왔으므로 **애그리게잇명은 "Work"로 통일**한다. 이후 모든 코드·레포 문서에서 Job이라는 이름은 쓰지 않는다.
 >
