@@ -20,7 +20,7 @@ import com.orbit.schedule.domain.WorkSchedule;
 /**
  * 같은 담당기사의 일정 변경. 시간만 바꾸고, 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. 작업 자신의 기존 일정은 겹침에서 빼며, 같은 시간으로의
  * 변경은 SCHEDULE_UNCHANGED(409)다. 담당기사는 작업에서 가져오므로 시간 입력을 먼저 따로 검증해 공통 오류 순서(입력 400 → 상태 409)를 지킨다.
- * 현재 담당기사가 여전히 조직의 활성 기사인지 다시 확인할지는 organization 계약을 연결할 때 정한다.
+ * 현재 담당기사가 여전히 조직의 활성 기사인지 다시 확인할지는 organization의 기사 계약 확인 계약을 연결할 때 정한다.
  */
 @Service
 public class RescheduleWorkService implements RescheduleWorkUseCase {

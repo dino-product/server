@@ -61,7 +61,7 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.support.TestcontainersConfiguration;
 
 /**
- * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. organization 계약이 없어 행위자 포트만 테스트 구현으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
+ * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. 계정별 요청자를 간단히 정하려고 행위자 포트만 테스트 구현(@Primary)으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
