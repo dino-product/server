@@ -140,6 +140,7 @@ class CreateOrganizationServiceTest {
                 organization.name(),
                 organization.industry(),
                 organization.code(),
-                organization.createdAt());
+                organization.createdAt(),
+                organization.updatedAt());
     }
 }
