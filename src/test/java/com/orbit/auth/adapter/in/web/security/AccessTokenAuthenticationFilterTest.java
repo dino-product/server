@@ -146,6 +146,7 @@ class AccessTokenAuthenticationFilterTest {
                 .isInstanceOfSatisfying(AccountPrincipal.class, principal -> assertThat(principal.accountId())
                         .isEqualTo(7L));
         assertThat(AccountPrincipal.class.getDeclaredMethods())
+                .filteredOn(method -> !method.isSynthetic())
                 .extracting(Method::getName)
                 .containsExactly("accountId");
     }
