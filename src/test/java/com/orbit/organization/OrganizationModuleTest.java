@@ -24,6 +24,9 @@ class OrganizationModuleTest {
     @Autowired
     private CreateOrganizationUseCase useCase;
 
+    @Autowired
+    private OrganizationMemberLookup memberLookup;
+
     @Test
     void createsOrganizationWithinStandaloneModule() {
         CreatedOrganizationInfo created =
@@ -31,5 +34,18 @@ class OrganizationModuleTest {
 
         assertThat(created.organizationId()).isPositive();
         assertThat(created.companyCode()).hasSize(6);
+    }
+
+    @Test
+    void publicLookupFindsFounderAsActiveOwner() {
+        CreatedOrganizationInfo created =
+                useCase.create(new CreateOrganizationCommand(8L, "조회 발주사", Industry.APPLIANCE_SERVICE));
+
+        assertThat(memberLookup.findActiveMember(8L, created.organizationId()))
+                .hasValueSatisfying(member -> assertThat(member).isInstanceOfSatisfying(StaffMember.class, staff -> {
+                    assertThat(staff.organizationId()).isEqualTo(created.organizationId());
+                    assertThat(staff.owner()).isTrue();
+                }));
+        assertThat(memberLookup.findActiveMember(9L, created.organizationId())).isEmpty();
     }
 }
