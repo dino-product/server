@@ -25,4 +25,39 @@ class MembershipTest {
         assertThat(membership.joinedAt()).isEqualTo(NOW);
         assertThat(membership.statusChangedAt()).isEqualTo(NOW);
     }
+
+    @Test
+    @DisplayName("직원 소속을 총관리자로 지정하면 총관리자 표시만 붙고 나머지는 그대로다")
+    void designatesStaffAsOwner() {
+        Membership staff = staff();
+
+        Membership designated = staff.designateAsOwner();
+
+        assertThat(designated.isOwner()).isTrue();
+        assertThat(designated.id()).isEqualTo(staff.id());
+        assertThat(designated.organizationId()).isEqualTo(staff.organizationId());
+        assertThat(designated.accountId()).isEqualTo(staff.accountId());
+        assertThat(designated.status()).isEqualTo(staff.status());
+        assertThat(designated.joinedAt()).isEqualTo(staff.joinedAt());
+        assertThat(designated.statusChangedAt()).isEqualTo(staff.statusChangedAt());
+    }
+
+    @Test
+    @DisplayName("이미 총관리자인 소속을 다시 지정하면 바뀌지 않는다")
+    void designatingOwnerAgainLeavesItUnchanged() {
+        Membership owner = staff().designateAsOwner();
+
+        assertThat(owner.designateAsOwner()).isSameAs(owner);
+    }
+
+    private static Membership staff() {
+        return Membership.reconstitute(
+                new MembershipId(3L),
+                new OrganizationId(1L),
+                new AccountId(8L),
+                false,
+                MembershipStatus.ACTIVE,
+                NOW,
+                NOW.plusSeconds(60));
+    }
 }

@@ -124,6 +124,27 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsOwnerDesignationAsProtectedOperationWithAccessErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/owners/{membershipId}'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("총관리자 지정"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters.length()").value(2))
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-002'].value.code")
+                        .value("ORGANIZATION-002"))
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-003'].value.code")
+                        .value("ORGANIZATION-003"))
+                .andExpect(jsonPath(operation + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-004'].value.code")
+                        .value("ORGANIZATION-004"));
+    }
+
+    @Test
     void documentsRequestAndResponseFields() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())

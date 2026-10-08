@@ -58,6 +58,14 @@ public final class Membership {
                 statusChangedAt);
     }
 
+    /** 같은 발주사의 다른 총관리자는 그대로 두고 이 소속에 총관리자 표시를 붙인다. 이미 총관리자면 그대로 돌려준다. */
+    public Membership designateAsOwner() {
+        if (owner) {
+            return this;
+        }
+        return new Membership(id, organizationId, accountId, true, status, joinedAt, statusChangedAt);
+    }
+
     public Optional<MembershipId> id() {
         return Optional.ofNullable(id);
     }
