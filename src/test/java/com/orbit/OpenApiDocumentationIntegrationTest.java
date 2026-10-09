@@ -124,6 +124,24 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsMyMembershipListAsProtectedOperation() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/memberships'].get.summary").value("내 소속 목록 조회"))
+                .andExpect(jsonPath("$.paths['/api/v1/memberships'].get.security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/memberships'].get.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/memberships'].get.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.MyMembershipsResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/memberships'].get.responses['401']"
+                                + ".content['application/json'].examples['COMMON-401'].value.code")
+                        .value("COMMON-401"));
+    }
+
+    @Test
     void documentsRequestAndResponseFields() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
