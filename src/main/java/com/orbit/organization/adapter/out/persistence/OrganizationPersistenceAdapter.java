@@ -8,14 +8,18 @@ import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
+import com.orbit.organization.domain.RetiredCompanyCode;
 
 @Repository
 class OrganizationPersistenceAdapter implements OrganizationRepository {
 
     private final SpringDataOrganizationRepository repository;
+    private final SpringDataRetiredCompanyCodeRepository retiredCodeRepository;
 
-    OrganizationPersistenceAdapter(SpringDataOrganizationRepository repository) {
+    OrganizationPersistenceAdapter(
+            SpringDataOrganizationRepository repository, SpringDataRetiredCompanyCodeRepository retiredCodeRepository) {
         this.repository = repository;
+        this.retiredCodeRepository = retiredCodeRepository;
     }
 
     @Override
@@ -26,7 +30,7 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
         OrganizationJpaEntity entity = repository
                 .findById(organization.id().get().value())
                 .orElseThrow(() -> new IllegalStateException("organization to update must exist"));
-        entity.changeInfo(organization);
+        entity.update(organization);
         return entity.toDomain();
     }
 
@@ -36,7 +40,17 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
     }
 
     @Override
-    public boolean existsByCode(CompanyCode code) {
-        return repository.existsByCode(code.value());
+    public Optional<Organization> findByIdForUpdate(OrganizationId id) {
+        return repository.findByIdForUpdate(id.value()).map(OrganizationJpaEntity::toDomain);
+    }
+
+    @Override
+    public boolean existsIssuedCode(CompanyCode code) {
+        return repository.existsIssuedCode(code.value());
+    }
+
+    @Override
+    public void saveRetiredCode(RetiredCompanyCode retiredCode) {
+        retiredCodeRepository.save(RetiredCompanyCodeJpaEntity.from(retiredCode));
     }
 }

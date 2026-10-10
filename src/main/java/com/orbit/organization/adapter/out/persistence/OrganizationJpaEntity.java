@@ -62,8 +62,9 @@ class OrganizationJpaEntity {
                 organization.createdAt());
     }
 
-    /** 발주사 정보 수정이 바꾸는 값만 옮긴다. 회사 코드 변경은 별도 유즈케이스(HM-287)가 다룬다. */
-    void changeInfo(Organization organization) {
+    /** 저장된 발주사가 바꿀 수 있는 값(발주사명·업종·회사 코드·수정 시각)을 옮긴다. 식별자·생성 시각은 그대로 둔다. */
+    void update(Organization organization) {
+        this.code = organization.code().value();
         this.name = organization.name().value();
         this.industry = organization.industry();
         this.updatedAt = organization.updatedAt();
