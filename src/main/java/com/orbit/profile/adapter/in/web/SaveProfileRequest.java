@@ -13,7 +13,7 @@ public record SaveProfileRequest(
         String name,
 
         @Schema(
-                description = "휴대전화 번호. 하이픈·공백을 지운 숫자가 010으로 시작하는 11자리여야 한다. 다른 계정과 같은 번호를 허용한다",
+                description = "휴대전화 번호. 숫자만 남겨 010으로 시작하는 11자리여야 한다(하이픈 없는 입력도 허용). 다른 계정과 같은 번호를 허용한다",
                 example = "010-1234-5678",
                 requiredMode = Schema.RequiredMode.REQUIRED)
         String phoneNumber) {}

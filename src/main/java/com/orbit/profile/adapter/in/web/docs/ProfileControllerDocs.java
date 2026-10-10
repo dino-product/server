@@ -24,7 +24,8 @@ public interface ProfileControllerDocs {
     @Operation(
             summary = "내 프로필·가입 단계 조회",
             description = "본인 계정의 가입 상태와 다음 가입 단계, 입력해 둔 이름·연락처를 돌려줍니다. 카카오 인증 직후에는 가입 미완료이며 다음 단계는 "
-                    + "프로필 입력입니다. 가입 중에 나갔다 다시 들어오면 이 값으로 입력 화면을 채웁니다. 다른 계정의 ID면 PROFILE-002입니다.",
+                    + "프로필 입력입니다. 가입 미완료 계정이 다시 로그인하면 입력해 둔 이름·연락처로 프로필 입력 화면을 채워 그 화면부터 시작하고, 활성 "
+                    + "계정의 다음 단계가 약관 동의면 개정된 필수 약관의 재동의입니다. 다른 계정의 ID면 PROFILE-002입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
