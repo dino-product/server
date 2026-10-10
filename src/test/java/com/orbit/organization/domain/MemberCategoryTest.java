@@ -170,6 +170,13 @@ class MemberCategoryTest {
         assertThatThrownBy(() -> new CategoryName(value)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"설치\u2028팀", "설치\u2029팀", "설치\u200B팀", "설치\u202E팀", "설치\uFEFF팀", "설치\u00AD팀"})
+    @DisplayName("줄·문단 구분자와 서식 문자(제로폭·방향 제어 등)가 들어간 유형 이름은 거부한다")
+    void rejectsNameContainingSeparatorOrFormatCharacter(String value) {
+        assertThatThrownBy(() -> new CategoryName(value)).isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     @DisplayName("유형 이름은 대소문자를 구분해 같은 이름인지 판단한다")
     void comparesNameCaseSensitively() {

@@ -129,4 +129,11 @@ class OrganizationTest {
     void rejectsNameContainingControlCharacter(String value) {
         assertThatThrownBy(() -> new OrganizationName(value)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"오르빗\u2028설비", "오르빗\u2029설비", "오르빗\u200B설비", "오르빗\u202E설비", "오르빗\uFEFF설비", "오르빗\u00AD설비"})
+    @DisplayName("줄·문단 구분자와 서식 문자(제로폭·방향 제어 등)가 들어간 발주사명은 거부한다")
+    void rejectsNameContainingSeparatorOrFormatCharacter(String value) {
+        assertThatThrownBy(() -> new OrganizationName(value)).isInstanceOf(IllegalArgumentException.class);
+    }
 }
