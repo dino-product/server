@@ -20,6 +20,8 @@ import com.orbit.shared.error.BusinessException;
  *
  * <p>컨트롤러 메서드로 연결된 요청만 검사한다. 없는 경로는 정적 자원 처리기로 넘어가 그대로 404가 되므로, 폐기·만료 토큰의 404가 실제로 없는 자원의 404와 같아야
  * 한다는 auth 계약을 깨지 않는다. 인증되지 않은 요청은 인가 단계가 이미 걸렀거나 공개 경로이므로 넘긴다.
+ *
+ * <p>공개 경로도 토큰을 붙여 부르면 인증된 요청이므로 검사한다. 가입 전 계정에 열어야 하는 공개 API(링크·QR 회사 확인 등)는 허용 목록에 더한다.
  */
 class SignupGateInterceptor implements HandlerInterceptor {
 

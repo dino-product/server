@@ -24,9 +24,10 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 
 /**
- * 가입 완료 공통 검사({@link SignupGateInterceptor})가 다른 모듈 API에서 돌려줄 수 있는 403 PROFILE-005를 문서에 덧붙인다. 다른 모듈의 ControllerDocs는
- * profile 내부 오류 타입을 선언할 수 없으므로, Bearer 인증이 필요하고 허용 목록({@link ProfileWebConfig#ALLOWED_BEFORE_SIGNUP}) 밖인 {@code /api/**}
- * 연산마다 profile이 대신 붙인다. 응답 봉투와 예시 모양은 공통 OpenAPI 커스터마이저의 실패 응답과 같다.
+ * 가입 완료 공통 검사({@link SignupGateInterceptor})가 다른 모듈 API에서 돌려줄 수 있는 403 PROFILE-005를 문서에 덧붙인다. 다른 모듈의
+ * ControllerDocs는 profile 내부 오류 타입을 선언할 수 없으므로, Bearer 인증이 필요하고 허용 목록
+ * ({@link ProfileWebConfig#ALLOWED_BEFORE_SIGNUP}) 밖인 {@code /api/**} 연산마다 profile이 대신 붙인다. 응답 봉투와 예시 모양은 공통 OpenAPI
+ * 커스터마이저의 실패 응답과 같다.
  */
 @Component
 class SignupGateOpenApiCustomizer implements OpenApiCustomizer {
