@@ -70,7 +70,7 @@ class UpdateOrganizationServiceTest {
     @DisplayName("총관리자가 발주사명·업종을 바꾸면 저장하고 바뀐 정보를 돌려준다")
     void ownerChangesNameAndIndustry() {
         givenRequesterIs(true);
-        when(organizationRepository.findById(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
+        when(organizationRepository.findByIdForUpdate(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
         when(organizationRepository.save(any(Organization.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         OrganizationInfo result =
@@ -89,7 +89,7 @@ class UpdateOrganizationServiceTest {
     @DisplayName("현재 값과 같은 값으로 저장해도 성공한다")
     void acceptsUnchangedValues() {
         givenRequesterIs(true);
-        when(organizationRepository.findById(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
+        when(organizationRepository.findByIdForUpdate(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
         when(organizationRepository.save(any(Organization.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         OrganizationInfo result = service.update(new UpdateOrganizationCommand(7L, 10L, "오르빗 설비", Industry.PLUMBING));
