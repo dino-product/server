@@ -15,7 +15,7 @@ import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
 
 /**
- * 회사 코드 재발급. 이전 코드는 폐기 코드로 남기고, 소속·참여 요청은 회사 식별자로 이어지므로 그대로 둔다. 발주사 행을 잠그고 읽어 동시에 바꾸는 요청은 차례로
+ * 회사 코드 재발급. 이전 코드는 폐기 코드로 남기고, 소속·참여 요청은 회사 식별자로 이어지므로 그대로 둔다. 발주사 행을 잠근 뒤 읽어 동시에 바꾸는 요청은 차례로
  * 처리된다(뒤 요청은 앞 요청이 발급한 코드를 폐기한다).
  */
 @Service
@@ -42,8 +42,9 @@ public class ChangeCompanyCodeService implements ChangeCompanyCodeUseCase {
     public CompanyCodeInfo change(ChangeCompanyCodeCommand command) {
         OrganizationId organizationId =
                 OrganizationOwners.require(membershipRepository, command.accountId(), command.organizationId());
+        organizationRepository.lock(organizationId);
         Organization organization = organizationRepository
-                .findByIdForUpdate(organizationId)
+                .findById(organizationId)
                 .orElseThrow(() -> new IllegalStateException("active membership must belong to an organization"));
 
         organizationRepository.saveRetiredCode(organization.changeCode(

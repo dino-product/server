@@ -96,7 +96,7 @@ class OrganizationPersistenceAdapterTest {
         organizationRepository.flush();
         entityManager.clear();
 
-        Organization restored = organizations.findByIdForUpdate(organizationId).orElseThrow();
+        Organization restored = organizations.findById(organizationId).orElseThrow();
         assertThat(restored.code()).isEqualTo(new CompanyCode("W5X6Y7"));
         assertThat(restored.updatedAt()).isEqualTo(changedAt);
         assertThat(restored.name()).isEqualTo(new OrganizationName("오르빗 설비"));

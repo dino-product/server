@@ -3,6 +3,7 @@ package com.orbit.organization.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -21,6 +22,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -74,16 +76,19 @@ class ChangeCompanyCodeServiceTest {
     }
 
     @Test
-    @DisplayName("활성 총관리자가 바꾸면 잠근 발주사에 새 코드를 발급하고 이전 코드를 폐기 코드로 남긴다")
+    @DisplayName("활성 총관리자가 바꾸면 발주사 행을 잠근 뒤 읽어 새 코드를 발급하고 이전 코드를 폐기 코드로 남긴다")
     void issuesNewCodeAndRetiresPreviousCode() {
         ownerRequests();
-        when(organizationRepository.findByIdForUpdate(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
+        when(organizationRepository.findById(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
         when(codeGenerator.generate()).thenReturn(FREE_CODE);
         when(organizationRepository.save(any(Organization.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         CompanyCodeInfo result = service.change(new ChangeCompanyCodeCommand(7L, 10L));
 
         assertThat(result).isEqualTo(new CompanyCodeInfo("Q4ZT8B"));
+        InOrder order = inOrder(organizationRepository);
+        order.verify(organizationRepository).lock(ORGANIZATION_ID);
+        order.verify(organizationRepository).findById(ORGANIZATION_ID);
         verify(organizationRepository).saveRetiredCode(new RetiredCompanyCode(ORGANIZATION_ID, CURRENT_CODE, NOW));
         ArgumentCaptor<Organization> saved = ArgumentCaptor.forClass(Organization.class);
         verify(organizationRepository).save(saved.capture());
@@ -95,7 +100,7 @@ class ChangeCompanyCodeServiceTest {
     @DisplayName("후보가 현재 코드나 폐기 코드로 발급된 적 있으면 새 후보를 만든다")
     void regeneratesCodeWhenCandidateWasIssued() {
         ownerRequests();
-        when(organizationRepository.findByIdForUpdate(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
+        when(organizationRepository.findById(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
         when(codeGenerator.generate()).thenReturn(CURRENT_CODE, ISSUED_CODE, FREE_CODE);
         when(organizationRepository.existsIssuedCode(CURRENT_CODE)).thenReturn(true);
         when(organizationRepository.existsIssuedCode(ISSUED_CODE)).thenReturn(true);
@@ -110,7 +115,7 @@ class ChangeCompanyCodeServiceTest {
     @DisplayName("정해진 횟수 안에 발급된 적 없는 코드를 얻지 못하면 저장하지 않고 실패한다")
     void failsWithoutSavingWhenNoFreeCodeWithinAttempts() {
         ownerRequests();
-        when(organizationRepository.findByIdForUpdate(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
+        when(organizationRepository.findById(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
         when(codeGenerator.generate()).thenReturn(ISSUED_CODE);
         when(organizationRepository.existsIssuedCode(ISSUED_CODE)).thenReturn(true);
 

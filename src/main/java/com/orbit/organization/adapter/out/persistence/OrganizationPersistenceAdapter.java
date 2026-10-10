@@ -40,8 +40,8 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
     }
 
     @Override
-    public Optional<Organization> findByIdForUpdate(OrganizationId id) {
-        return repository.findByIdForUpdate(id.value()).map(OrganizationJpaEntity::toDomain);
+    public void lock(OrganizationId id) {
+        repository.lockById(id.value());
     }
 
     @Override
