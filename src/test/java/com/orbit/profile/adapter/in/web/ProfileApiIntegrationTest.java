@@ -242,7 +242,7 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private ResultActions changeMarketingConsent(TestAccount account, Boolean agreed) throws Exception {
-        return mockMvc.perform(put("/api/v1/profiles/{accountId}/marketing-consent", account.accountId())
+        return mockMvc.perform(post("/api/v1/profiles/{accountId}/marketing-consents", account.accountId())
                 .header(HttpHeaders.AUTHORIZATION, account.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new ChangeMarketingConsentRequest(agreed))));

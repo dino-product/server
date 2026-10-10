@@ -66,6 +66,20 @@ class ChangeMarketingConsentServiceTest {
     }
 
     @Test
+    @DisplayName("필수 약관이 개정돼 재동의 전인 활성 계정도 마케팅 동의는 바꿀 수 있다")
+    void changesConsentBeforeReconsent() {
+        Profile profile = Profile.start(new AccountId(1L), new PersonName("홍길동"), new PhoneNumber("01012345678"));
+        profile.agreeToTerms(new TermsVersions("s0", "p1", "m1"), SIGNUP_AT);
+        when(profiles.findByAccountId(new AccountId(1L))).thenReturn(Optional.of(profile));
+
+        service.change(new ChangeMarketingConsentCommand(1L, 1L, true));
+
+        verify(profiles).save(profile);
+        assertThat(profile.isUsable(CURRENT)).isFalse();
+        assertThat(profile.marketingConsent()).contains(new MarketingConsent(true, NOW));
+    }
+
+    @Test
     @DisplayName("가입을 마치지 않았거나 프로필이 없으면 PROFILE-005로 거부하고 저장하지 않는다")
     void rejectsBeforeSignup() {
         when(profiles.findByAccountId(new AccountId(1L)))

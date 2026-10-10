@@ -88,9 +88,10 @@ public interface ProfileControllerDocs {
 
     @Operation(
             summary = "마케팅 수신 동의 변경",
-            description = "가입을 마친 계정이 마이페이지에서 마케팅 정보 수신 동의를 켜거나 끕니다. 켜면 마케팅 약관의 시행 버전과 시각을 동의 이력에 남기고, "
-                    + "끄면 변경 시각만 남깁니다. 값이 그대로면 바꾸지 않습니다. 가입을 마치기 전이면 PROFILE-005, 값이 비면 COMMON-400, 다른 "
-                    + "계정의 ID면 PROFILE-002, 같은 프로필을 다른 요청이 먼저 저장했으면 COMMON-409입니다.",
+            description =
+                    "가입을 마친 계정이 마이페이지에서 마케팅 정보 수신 동의를 켜거나 끕니다. 호출마다 바뀐 값과 시각을 기록합니다. 켜면 마케팅 약관의 시행 버전과 시각을 동의 이력에 남기고, "
+                            + "끄면 변경 시각만 남깁니다. 값이 그대로면 바꾸지 않습니다. 가입을 마치기 전이면 PROFILE-005, 값이 비면 COMMON-400, 다른 "
+                            + "계정의 ID면 PROFILE-002, 같은 프로필을 다른 요청이 먼저 저장했으면 COMMON-409입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
