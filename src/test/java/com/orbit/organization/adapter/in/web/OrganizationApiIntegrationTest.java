@@ -349,6 +349,60 @@ class OrganizationApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("ORGANIZATION-002"));
     }
 
+    @Test
+    @DisplayName("총관리자는 발주사를 만들 때 받은 현재 회사 코드를 조회한다")
+    void ownerReadsCurrentCompanyCode() throws Exception {
+        requester();
+        String body = create(Map.of("name", "오르빗 설비", "industry", "HVAC"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long organizationId = objectMapper
+                .readTree(body)
+                .path("result")
+                .path("organizationId")
+                .asLong();
+        String issuedCode =
+                objectMapper.readTree(body).path("result").path("companyCode").asText();
+
+        readCompanyCode(organizationId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.companyCode").value(issuedCode));
+    }
+
+    @Test
+    @DisplayName("총관리자가 아닌 직원의 회사 코드 조회는 403으로 거부한다")
+    void rejectsStaffReadingCompanyCode() throws Exception {
+        requester();
+        long organizationId = createOrganization("오르빗 설비", "HVAC");
+        joinAsStaff(organizationId, requester());
+
+        readCompanyCode(organizationId)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
+    @DisplayName("소속되지 않은 계정의 회사 코드 조회는 403으로 거부한다")
+    void rejectsNonMemberReadingCompanyCode() throws Exception {
+        requester();
+        long organizationId = createOrganization("오르빗 설비", "HVAC");
+        requester();
+
+        readCompanyCode(organizationId)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-002"));
+    }
+
+    @Test
+    @DisplayName("인증하지 않은 회사 코드 조회는 401로 거부한다")
+    void rejectsUnauthenticatedCompanyCodeRead() throws Exception {
+        mockMvc.perform(get("/api/v1/organizations/1/company-code"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON-401"));
+    }
+
     private long createOrganization(String name, String industry) throws Exception {
         String body = create(Map.of("name", name, "industry", industry))
                 .andExpect(status().isOk())
@@ -379,6 +433,11 @@ class OrganizationApiIntegrationTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)));
+    }
+
+    private ResultActions readCompanyCode(long organizationId) throws Exception {
+        return mockMvc.perform(get("/api/v1/organizations/{organizationId}/company-code", organizationId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken()));
     }
 
     private ResultActions read(long organizationId) throws Exception {
