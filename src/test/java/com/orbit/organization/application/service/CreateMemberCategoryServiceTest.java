@@ -153,7 +153,7 @@ class CreateMemberCategoryServiceTest {
     }
 
     @Test
-    @DisplayName("그 발주사의 활성 소속이 없으면(기사 포함) 거부한다")
+    @DisplayName("그 발주사의 활성 소속이 없으면 거부한다")
     void rejectsRequesterWithoutActiveMembership() {
         when(membershipRepository.findActive(ORGANIZATION_ID, ACCOUNT_ID)).thenReturn(Optional.empty());
 

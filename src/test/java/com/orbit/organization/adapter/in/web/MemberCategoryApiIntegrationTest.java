@@ -231,7 +231,7 @@ class MemberCategoryApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("직원 소속이 없는 계정(기사 포함)은 유형 목록을 볼 수 없다")
+    @DisplayName("그 발주사에 소속이 없는 계정은 유형 목록을 볼 수 없다")
     void rejectsNonMemberListing() throws Exception {
         long organizationId = organizationOfNewOwner();
         requester();
