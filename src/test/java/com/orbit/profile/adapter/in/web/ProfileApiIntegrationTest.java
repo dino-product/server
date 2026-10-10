@@ -148,6 +148,35 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("가입 미완료 계정은 프로필·인증 API만 쓰고 그 밖의 API는 PROFILE-005로 막히며, 가입을 마치면 풀린다")
+    void blocksOtherApisUntilSignupCompleted() throws Exception {
+        LoggedIn account = loginAsNewAccount();
+
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, account.bearer()))
+                .andExpect(status().isOk());
+        registerExampleUser(account)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("PROFILE-005"));
+
+        saveProfile(account, account.accountId(), "홍길동", "01012345678").andExpect(status().isOk());
+        registerExampleUser(account).andExpect(jsonPath("$.code").value("PROFILE-005"));
+
+        agreeToTerms(account, account.accountId(), true, true, false).andExpect(status().isOk());
+        registerExampleUser(account).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("가입 미완료 계정이 없는 경로를 부르면 검사하지 않고 그대로 404다")
+    void keepsNotFoundForMissingPathBeforeSignup() throws Exception {
+        LoggedIn account = loginAsNewAccount();
+
+        mockMvc.perform(get("/api/v1/no-such-resource").header(HttpHeaders.AUTHORIZATION, account.bearer()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMON-404"));
+    }
+
+    @Test
     @DisplayName("토큰 없이 호출하면 401이다")
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/profiles/{accountId}", 1L))
@@ -176,6 +205,14 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                         new AgreeToTermsRequest(serviceTerms, privacyPolicy, marketing))));
+    }
+
+    /** 공통 검사 대상인 허용 목록 밖 API로 예제 사용자 등록을 쓴다. 토큰 없이도 열린 경로라 검사 결과만 드러난다. */
+    private ResultActions registerExampleUser(LoggedIn account) throws Exception {
+        return mockMvc.perform(post("/api/v1/users")
+                .header(HttpHeaders.AUTHORIZATION, account.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("displayName", "예제 사용자"))));
     }
 
     private LoggedIn loginAsNewAccount() throws Exception {
