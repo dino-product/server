@@ -49,7 +49,7 @@ public class DeleteMemberCategoryService implements DeleteMemberCategoryUseCase 
         OrganizationId organizationId =
                 OrganizationOwners.require(membershipRepository, command.accountId(), command.organizationId());
 
-        organizationRepository.lock(organizationId);
+        OrganizationLocks.lock(organizationRepository, organizationId);
         MemberCategory category = MemberCategories.find(categoryRepository, organizationId, kind, categoryId);
         Instant now = clock.instant();
         if (!category.delete(now)) {

@@ -14,7 +14,10 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.domain.AccountId;
@@ -46,13 +49,38 @@ class OrganizationPersistenceAdapterTest {
     @Autowired
     private TestEntityManager entityManager;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private OrganizationPersistenceAdapter organizations;
     private MembershipPersistenceAdapter memberships;
 
     @BeforeEach
     void setUp() {
-        organizations = new OrganizationPersistenceAdapter(organizationRepository);
+        organizations = new OrganizationPersistenceAdapter(
+                organizationRepository, jdbcTemplate, new OrganizationLockProperties(null));
         memberships = new MembershipPersistenceAdapter(membershipRepository);
+    }
+
+    @Test
+    @DisplayName("발주사를 잠근 뒤에는 트랜잭션이 앞서 정한 대기 한도를 그대로 되돌린다")
+    void restoresPreviousLockTimeoutAfterLocking() {
+        OrganizationId id = organizations.save(organization("7K2M9X")).id().orElseThrow();
+        jdbcTemplate.execute("SET LOCAL lock_timeout = '7s'");
+
+        organizations.lock(id);
+
+        assertThat(jdbcTemplate.queryForObject("SELECT current_setting('lock_timeout')", String.class))
+                .isEqualTo("7s");
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("트랜잭션 밖에서는 곧바로 풀리는 잠금이 되므로 거부한다")
+    void rejectsLockingOutsideTransaction() {
+        assertThatThrownBy(() -> organizations.lock(new OrganizationId(1L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("organization lock requires an active transaction");
     }
 
     @Test

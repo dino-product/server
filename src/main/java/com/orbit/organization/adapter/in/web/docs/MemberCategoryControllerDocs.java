@@ -21,13 +21,14 @@ public interface MemberCategoryControllerDocs {
 
     String LIST = "삭제되지 않은 유형을 만든 순서대로 조회합니다. 그 발주사의 활성 직원 소속(총관리자 포함)이면 조회할 수 있고, "
             + "직원 소속이 없으면(기사·없는 발주사 포함) ORGANIZATION-002입니다.";
+    String BUSY = "같은 발주사의 다른 유형 변경이 끝나기를 기다리다 대기 한도를 넘기면 ORGANIZATION-010입니다(잠시 후 다시 시도).";
     String CREATE = "이름·색상으로 유형을 만듭니다. 그 발주사의 활성 총관리자만 만들 수 있습니다. 활성 소속이 아니면 ORGANIZATION-002, "
             + "총관리자가 아닌 직원이면 ORGANIZATION-003, 이름·색상 규칙 위반은 ORGANIZATION-007, "
-            + "같은 종류의 삭제되지 않은 유형과 이름이 같으면 ORGANIZATION-009입니다. 삭제된 유형과 같은 이름은 새 유형으로 만듭니다.";
-    String UPDATE =
-            "이름·색상을 함께 바꿉니다. 그 발주사의 활성 총관리자만 바꿀 수 있고 규칙은 생성과 같습니다. " + "다른 발주사의 유형·삭제된 유형은 ORGANIZATION-008입니다.";
+            + "같은 종류의 삭제되지 않은 유형과 이름이 같으면 ORGANIZATION-009입니다. 삭제된 유형과 같은 이름은 새 유형으로 만듭니다. " + BUSY;
+    String UPDATE = "이름·색상을 함께 바꿉니다. 그 발주사의 활성 총관리자만 바꿀 수 있고 규칙은 생성과 같습니다. "
+            + "다른 발주사의 유형·삭제된 유형은 ORGANIZATION-008입니다. " + BUSY;
     String DELETE = "유형을 소프트 삭제합니다. 그 발주사의 활성 총관리자만 지울 수 있고 복구할 수 없습니다. 이미 삭제된 유형을 다시 지워도 성공합니다. "
-            + "다른 발주사의 유형은 ORGANIZATION-008입니다.";
+            + "다른 발주사의 유형은 ORGANIZATION-008입니다. " + BUSY;
 
     @Operation(
             summary = "직원 유형 목록 조회",
@@ -64,7 +65,13 @@ public interface MemberCategoryControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"INVALID_CATEGORY_INPUT", "NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "DUPLICATE_CATEGORY_NAME"})
+            includes = {
+                "INVALID_CATEGORY_INPUT",
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "DUPLICATE_CATEGORY_NAME",
+                "ORGANIZATION_BUSY"
+            })
     MemberCategoryResponse createStaffCategory(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
@@ -91,7 +98,8 @@ public interface MemberCategoryControllerDocs {
                 "NOT_ORGANIZATION_MEMBER",
                 "OWNER_ONLY",
                 "CATEGORY_NOT_FOUND",
-                "DUPLICATE_CATEGORY_NAME"
+                "DUPLICATE_CATEGORY_NAME",
+                "ORGANIZATION_BUSY"
             })
     MemberCategoryResponse updateStaffCategory(
             @Parameter(hidden = true) AccountPrincipal requester,
@@ -109,7 +117,7 @@ public interface MemberCategoryControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "CATEGORY_NOT_FOUND"})
+            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "CATEGORY_NOT_FOUND", "ORGANIZATION_BUSY"})
     void deleteStaffCategory(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
@@ -150,7 +158,13 @@ public interface MemberCategoryControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"INVALID_CATEGORY_INPUT", "NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "DUPLICATE_CATEGORY_NAME"})
+            includes = {
+                "INVALID_CATEGORY_INPUT",
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "DUPLICATE_CATEGORY_NAME",
+                "ORGANIZATION_BUSY"
+            })
     MemberCategoryResponse createTechnicianCategory(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
@@ -177,7 +191,8 @@ public interface MemberCategoryControllerDocs {
                 "NOT_ORGANIZATION_MEMBER",
                 "OWNER_ONLY",
                 "CATEGORY_NOT_FOUND",
-                "DUPLICATE_CATEGORY_NAME"
+                "DUPLICATE_CATEGORY_NAME",
+                "ORGANIZATION_BUSY"
             })
     MemberCategoryResponse updateTechnicianCategory(
             @Parameter(hidden = true) AccountPrincipal requester,
@@ -195,7 +210,7 @@ public interface MemberCategoryControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "CATEGORY_NOT_FOUND"})
+            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "CATEGORY_NOT_FOUND", "ORGANIZATION_BUSY"})
     void deleteTechnicianCategory(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,

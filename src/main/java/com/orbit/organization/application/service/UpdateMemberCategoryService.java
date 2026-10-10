@@ -55,7 +55,7 @@ public class UpdateMemberCategoryService implements UpdateMemberCategoryUseCase 
         CategoryName name = MemberCategories.name(command.name());
         CategoryColor color = MemberCategories.color(command.color());
 
-        organizationRepository.lock(organizationId);
+        OrganizationLocks.lock(organizationRepository, organizationId);
         MemberCategory category = MemberCategories.find(categoryRepository, organizationId, kind, categoryId);
         if (category.isDeleted()) {
             throw new BusinessException(OrganizationErrorCode.CATEGORY_NOT_FOUND);

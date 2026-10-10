@@ -43,6 +43,7 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
 
     private static final long OWNER = 91_001L;
     private static final long OTHER_OWNER = 91_002L;
+    private static final long BUSY_OWNER = 91_003L;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
@@ -150,6 +151,47 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
                         "select name, is_deleted from company_technician_category where id = ?", categoryId))
                 .containsEntry("name", "전기 기사")
                 .containsEntry("is_deleted", true);
+    }
+
+    @Test
+    @DisplayName("앞 변경이 대기 한도(기본 2초) 안에 끝나지 않으면 뒤 요청은 계속 기다리지 않고 409로 거부되고 아무것도 남기지 않는다")
+    void rejectsRequestWaitingLongerThanLimit() throws Exception {
+        long organizationId = createOrganizationUseCase
+                .create(new CreateOrganizationCommand(BUSY_OWNER, "동시성 발주사", Industry.HVAC))
+                .organizationId();
+
+        CountDownLatch firstCreated = new CountDownLatch(1);
+        CountDownLatch commitFirst = new CountDownLatch(1);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CompletableFuture<Void> firstRequest = CompletableFuture.runAsync(
+                () -> transaction.executeWithoutResult(status -> {
+                    createMemberCategoryUseCase.create(new CreateMemberCategoryCommand(
+                            BUSY_OWNER, organizationId, MemberCategoryKind.STAFF, "정규직", "#3B82F6"));
+                    firstCreated.countDown();
+                    await(commitFirst);
+                }),
+                executor);
+        assertThat(firstCreated.await(10, TimeUnit.SECONDS)).isTrue();
+
+        CompletableFuture<Void> secondRequest = CompletableFuture.runAsync(
+                () -> createMemberCategoryUseCase.create(new CreateMemberCategoryCommand(
+                        BUSY_OWNER, organizationId, MemberCategoryKind.STAFF, "계약직", "#3B82F6")),
+                executor);
+        try {
+            assertThatThrownBy(() -> secondRequest.get(5, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .cause()
+                    .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                            .isEqualTo(OrganizationErrorCode.ORGANIZATION_BUSY));
+        } finally {
+            commitFirst.countDown();
+        }
+        firstRequest.get(10, TimeUnit.SECONDS);
+        assertThat(jdbcTemplate.queryForList(
+                        "select name from company_membership_category where company_id = ?",
+                        String.class,
+                        organizationId))
+                .containsExactly("정규직");
     }
 
     private static void await(CountDownLatch latch) {

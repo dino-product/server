@@ -47,7 +47,7 @@ public class CreateMemberCategoryService implements CreateMemberCategoryUseCase 
         CategoryName name = MemberCategories.name(command.name());
         CategoryColor color = MemberCategories.color(command.color());
 
-        organizationRepository.lock(organizationId);
+        OrganizationLocks.lock(organizationRepository, organizationId);
         MemberCategories.requireUniqueName(categoryRepository, organizationId, kind, name, null);
         MemberCategory category = MemberCategory.create(organizationId, kind, name, color, clock.instant());
         return MemberCategoryInfo.from(MemberCategories.save(categoryRepository, category));

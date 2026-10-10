@@ -202,7 +202,10 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + ".examples['ORGANIZATION-008'].value.code")
                         .value("ORGANIZATION-008"))
                 .andExpect(jsonPath(item + ".delete.summary").value("기사 유형 삭제"))
-                .andExpect(jsonPath(item + ".delete.responses['204']").exists());
+                .andExpect(jsonPath(item + ".delete.responses['204']").exists())
+                .andExpect(jsonPath(item + ".delete.responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-010'].value.code")
+                        .value("ORGANIZATION-010"));
     }
 
     @Test
