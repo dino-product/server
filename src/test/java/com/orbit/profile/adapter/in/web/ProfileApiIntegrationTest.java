@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Map;
-import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
@@ -23,8 +22,9 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.orbit.support.IntegrationTestSupport;
 import com.orbit.support.KakaoJwksStub;
+import com.orbit.support.SignupTestSupport;
+import com.orbit.support.SignupTestSupport.TestAccount;
 
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @AutoConfigureMockMvc
@@ -52,7 +52,7 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("카카오 인증 직후 계정은 가입 미완료이고 다음 단계는 프로필 입력이다")
     void newAccountStartsWithProfileStep() throws Exception {
-        LoggedIn account = loginAsNewAccount();
+        TestAccount account = loginAsNewAccount();
 
         getProfile(account)
                 .andExpect(status().isOk())
@@ -66,7 +66,7 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("프로필을 입력하면 약관 동의가 다음 단계이고, 다시 조회하면 입력해 둔 값이 남아 있다")
     void savesProfileAndResumesFromIt() throws Exception {
-        LoggedIn account = loginAsNewAccount();
+        TestAccount account = loginAsNewAccount();
 
         saveProfile(account, account.accountId(), " 홍길동 ", "010-1234-5678")
                 .andExpect(status().isOk())
@@ -85,7 +85,7 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("이름·연락처 규칙을 어기면 PROFILE-001로 거부한다")
     void rejectsInvalidProfile() throws Exception {
-        LoggedIn account = loginAsNewAccount();
+        TestAccount account = loginAsNewAccount();
 
         saveProfile(account, account.accountId(), "홍길동😀", "01012345678")
                 .andExpect(status().isBadRequest())
@@ -101,8 +101,8 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("다른 계정의 프로필은 조회·입력 모두 PROFILE-002로 거부한다")
     void hidesOtherAccountsProfile() throws Exception {
-        LoggedIn account = loginAsNewAccount();
-        LoggedIn other = loginAsNewAccount();
+        TestAccount account = loginAsNewAccount();
+        TestAccount other = loginAsNewAccount();
 
         mockMvc.perform(get("/api/v1/profiles/{accountId}", other.accountId())
                         .header(HttpHeaders.AUTHORIZATION, account.bearer()))
@@ -116,7 +116,7 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("프로필 입력 뒤 필수 약관에 동의하면 가입 완료가 되고 가입일과 마케팅 선택이 남는다")
     void completesSignupWithRequiredTerms() throws Exception {
-        LoggedIn account = loginAsNewAccount();
+        TestAccount account = loginAsNewAccount();
         saveProfile(account, account.accountId(), "홍길동", "01012345678").andExpect(status().isOk());
 
         agreeToTerms(account, account.accountId(), true, true, true)
@@ -133,7 +133,7 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("프로필 입력 전 약관 동의는 PROFILE-003, 필수 약관 미동의는 PROFILE-004로 거부하고 가입 미완료로 남긴다")
     void rejectsTermsOutOfOrderOrIncomplete() throws Exception {
-        LoggedIn account = loginAsNewAccount();
+        TestAccount account = loginAsNewAccount();
 
         agreeToTerms(account, account.accountId(), true, true, false)
                 .andExpect(status().isConflict())
@@ -150,7 +150,7 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("가입 미완료 계정은 프로필·인증 API만 쓰고 그 밖의 API는 PROFILE-005로 막히며, 가입을 마치면 풀린다")
     void blocksOtherApisUntilSignupCompleted() throws Exception {
-        LoggedIn account = loginAsNewAccount();
+        TestAccount account = loginAsNewAccount();
 
         mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, account.bearer()))
                 .andExpect(status().isOk());
@@ -167,9 +167,17 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("다른 모듈 테스트가 쓰는 가입 완료 지원으로 만든 계정은 공통 검사를 통과한다")
+    void signupSupportProducesUsableAccount() throws Exception {
+        TestAccount account = SignupTestSupport.signUpNewAccount(mockMvc, objectMapper, KAKAO);
+
+        registerExampleUser(account).andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("가입 미완료 계정이 없는 경로를 부르면 검사하지 않고 그대로 404다")
     void keepsNotFoundForMissingPathBeforeSignup() throws Exception {
-        LoggedIn account = loginAsNewAccount();
+        TestAccount account = loginAsNewAccount();
 
         mockMvc.perform(get("/api/v1/no-such-resource").header(HttpHeaders.AUTHORIZATION, account.bearer()))
                 .andExpect(status().isNotFound())
@@ -184,12 +192,12 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("COMMON-401"));
     }
 
-    private ResultActions getProfile(LoggedIn account) throws Exception {
+    private ResultActions getProfile(TestAccount account) throws Exception {
         return mockMvc.perform(get("/api/v1/profiles/{accountId}", account.accountId())
                 .header(HttpHeaders.AUTHORIZATION, account.bearer()));
     }
 
-    private ResultActions saveProfile(LoggedIn account, long accountId, String name, String phoneNumber)
+    private ResultActions saveProfile(TestAccount account, long accountId, String name, String phoneNumber)
             throws Exception {
         return mockMvc.perform(put("/api/v1/profiles/{accountId}", accountId)
                 .header(HttpHeaders.AUTHORIZATION, account.bearer())
@@ -198,7 +206,7 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private ResultActions agreeToTerms(
-            LoggedIn account, long accountId, Boolean serviceTerms, Boolean privacyPolicy, Boolean marketing)
+            TestAccount account, long accountId, Boolean serviceTerms, Boolean privacyPolicy, Boolean marketing)
             throws Exception {
         return mockMvc.perform(post("/api/v1/profiles/{accountId}/terms-agreements", accountId)
                 .header(HttpHeaders.AUTHORIZATION, account.bearer())
@@ -208,38 +216,14 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     /** 공통 검사 대상인 허용 목록 밖 API로 예제 사용자 등록을 쓴다. 토큰 없이도 열린 경로라 검사 결과만 드러난다. */
-    private ResultActions registerExampleUser(LoggedIn account) throws Exception {
+    private ResultActions registerExampleUser(TestAccount account) throws Exception {
         return mockMvc.perform(post("/api/v1/users")
                 .header(HttpHeaders.AUTHORIZATION, account.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("displayName", "예제 사용자"))));
     }
 
-    private LoggedIn loginAsNewAccount() throws Exception {
-        String nonce = readTree(mockMvc.perform(post("/api/v1/auth/kakao/nonces"))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString())
-                .path("result")
-                .path("nonce")
-                .asText();
-        String idToken = KAKAO.idToken(UUID.randomUUID().toString(), nonce);
-        JsonNode login = readTree(mockMvc.perform(post("/api/v1/auth/kakao/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("idToken", idToken))))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString());
-        return new LoggedIn(
-                login.path("result").path("accountId").asLong(),
-                "Bearer " + login.path("result").path("accessToken").asText());
+    private TestAccount loginAsNewAccount() throws Exception {
+        return SignupTestSupport.loginAsNewAccount(mockMvc, objectMapper, KAKAO);
     }
-
-    private JsonNode readTree(String json) {
-        return objectMapper.readTree(json);
-    }
-
-    private record LoggedIn(long accountId, String bearer) {}
 }
