@@ -16,7 +16,8 @@ public record ProfileResponse(
         String status,
 
         @Schema(
-                description = "다음 가입 단계. PROFILE(프로필 입력), TERMS(약관 동의·재동의), COMPLETED(없음)",
+                description = "아직 마치지 않은 다음 단계. PROFILE(프로필 입력), TERMS(약관 동의·재동의), COMPLETED(없음). 가입 미완료 계정이 다시 "
+                        + "로그인하면 이 값과 관계없이 입력해 둔 값이 채워진 프로필 입력 화면부터 시작한다",
                 example = "TERMS",
                 allowableValues = {"PROFILE", "TERMS", "COMPLETED"})
         String nextStep,
