@@ -128,6 +128,16 @@ class MemberCategoryApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("NUL 문자가 들어간 유형 이름은 저장하지 않고 400으로 거부한다")
+    void rejectsNameContainingNul() throws Exception {
+        long organizationId = organizationOfNewOwner();
+
+        create(organizationId, STAFF, "설치\0팀", "#3B82F6")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-007"));
+    }
+
+    @Test
     @DisplayName("프리셋에 없는 색상은 400으로 거부한다")
     void rejectsColorOutsidePalette() throws Exception {
         long organizationId = organizationOfNewOwner();

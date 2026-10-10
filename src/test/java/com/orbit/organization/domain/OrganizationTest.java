@@ -122,4 +122,11 @@ class OrganizationTest {
     void rejectsNameContainingEmoji(String value) {
         assertThatThrownBy(() -> new OrganizationName(value)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"오르빗\0설비", "오르빗\n설비", "오르빗\t설비", "오르빗\u007F설비", "오르빗\u0085설비"})
+    @DisplayName("제어 문자(NUL·줄바꿈·탭 포함)가 들어간 발주사명은 거부한다")
+    void rejectsNameContainingControlCharacter(String value) {
+        assertThatThrownBy(() -> new OrganizationName(value)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

@@ -163,6 +163,13 @@ class MemberCategoryTest {
         assertThatThrownBy(() -> new CategoryName(value)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"설치\0팀", "설치\n팀", "설치\t팀", "설치\u007F팀", "설치\u0085팀"})
+    @DisplayName("제어 문자(NUL·줄바꿈·탭 포함)가 들어간 유형 이름은 거부한다")
+    void rejectsNameContainingControlCharacter(String value) {
+        assertThatThrownBy(() -> new CategoryName(value)).isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     @DisplayName("유형 이름은 대소문자를 구분해 같은 이름인지 판단한다")
     void comparesNameCaseSensitively() {
