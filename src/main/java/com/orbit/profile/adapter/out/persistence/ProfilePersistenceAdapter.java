@@ -1,6 +1,10 @@
 package com.orbit.profile.adapter.out.persistence;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -10,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
+import com.orbit.profile.domain.PersonName;
 import com.orbit.profile.domain.Profile;
+import com.orbit.profile.domain.SignupStatus;
 
 /** 기존 프로필은 불러온 Entity에 값을 덮어써 변경 감지로 반영한다. 호출자 트랜잭션이 없어도 반영되도록 저장을 한 트랜잭션으로 묶는다. */
 @Repository
@@ -25,6 +31,17 @@ class ProfilePersistenceAdapter implements ProfileRepository {
     @Override
     public Optional<Profile> findByAccountId(AccountId accountId) {
         return repository.findById(accountId.value()).map(ProfileJpaEntity::toDomain);
+    }
+
+    @Override
+    public Map<AccountId, PersonName> findActiveNames(Set<AccountId> accountIds) {
+        if (accountIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = accountIds.stream().map(AccountId::value).toList();
+        return repository.findNames(ids, SignupStatus.ACTIVE).stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        row -> new AccountId(row.accountId()), row -> new PersonName(row.name())));
     }
 
     /**

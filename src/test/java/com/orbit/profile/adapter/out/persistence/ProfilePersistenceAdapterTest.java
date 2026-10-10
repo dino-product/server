@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.DisplayName;
@@ -123,6 +125,21 @@ class ProfilePersistenceAdapterTest {
                             new TermsAgreement(TermsType.PRIVACY, "p2", LATER));
             assertThat(found.isUsable(PRIVACY_REVISED)).isTrue();
         });
+    }
+
+    @Test
+    @DisplayName("이름 조회는 가입을 마친 계정만 돌려주고 가입 미완료·없는 계정은 뺀다")
+    void findsNamesOfActiveProfilesOnly() {
+        AccountId active = newAccountId();
+        AccountId pending = newAccountId();
+        Profile signedUp = Profile.start(active, new PersonName("홍길동"), new PhoneNumber("01012345678"));
+        signedUp.agreeToTerms(V1, SIGNUP_AT);
+        adapter.save(signedUp);
+        adapter.save(Profile.start(pending, new PersonName("김철수"), new PhoneNumber("01087654321")));
+        flushAndClear();
+
+        assertThat(adapter.findActiveNames(Set.of(active, pending, newAccountId())))
+                .containsExactlyEntriesOf(Map.of(active, new PersonName("홍길동")));
     }
 
     @Test
