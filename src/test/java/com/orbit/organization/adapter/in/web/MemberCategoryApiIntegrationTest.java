@@ -274,6 +274,44 @@ class MemberCategoryApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("숫자가 아닌 유형 식별자는 권한 확인 전에 400으로 거부한다")
+    void rejectsNonNumericCategoryIdentifier() throws Exception {
+        long otherOrganizationId = organizationOfNewOwner();
+        requester();
+
+        mockMvc.perform(put(
+                                "/api/v1/organizations/{organizationId}/" + STAFF + "/{categoryId}",
+                                otherOrganizationId,
+                                "abc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "정규직", "color", "#3B82F6"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(delete(
+                                "/api/v1/organizations/{organizationId}/" + TECHNICIAN + "/{categoryId}",
+                                otherOrganizationId,
+                                "abc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+    }
+
+    @Test
+    @DisplayName("없는 유형의 수정·삭제는 404다")
+    void rejectsMissingCategory() throws Exception {
+        long organizationId = organizationOfNewOwner();
+        long missing = createCategory(organizationId, STAFF, "정규직", "#3B82F6") + 1_000;
+
+        update(organizationId, STAFF, missing, "계약직", "#3B82F6")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-008"));
+        remove(organizationId, STAFF, missing)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-008"));
+    }
+
+    @Test
     @DisplayName("인증하지 않은 요청은 401로 거부한다")
     void rejectsUnauthenticatedRequest() throws Exception {
         mockMvc.perform(get("/api/v1/organizations/1/staff-categories"))
