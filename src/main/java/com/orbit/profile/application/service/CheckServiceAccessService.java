@@ -9,7 +9,7 @@ import com.orbit.profile.application.port.out.CurrentTermsPort;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
 
-/** 프로필이 없거나 필수 약관 동의를 마치지 않은 계정, 개정된 필수 약관에 재동의하지 않은 계정은 쓸 수 없다. 공통 검사 필터가 요청마다 부른다. */
+/** 프로필이 없거나 필수 약관 동의를 마치지 않은 계정, 개정된 필수 약관에 재동의하지 않은 계정은 쓸 수 없다. 공통 검사 인터셉터가 요청마다 부른다. */
 @Service
 public class CheckServiceAccessService implements CheckServiceAccessUseCase {
 

@@ -19,7 +19,12 @@ import com.orbit.profile.application.port.in.command.dto.SaveProfileCommand;
 import com.orbit.profile.application.port.in.query.GetProfileUseCase;
 import com.orbit.profile.application.port.in.query.dto.GetProfileQuery;
 
-/** 변경 API도 저장 뒤의 가입 단계를 같은 모양으로 돌려줘 클라이언트가 다음 화면을 바로 고르게 한다. */
+/**
+ * 변경 API도 저장 뒤의 가입 단계를 같은 모양으로 돌려줘 클라이언트가 다음 화면을 바로 고르게 한다.
+ *
+ * <p>경로 변수 제약 때문에 {@code @Validated}로 메서드 검증을 켜므로, 구현 메서드에만 {@code @Valid}를 붙이면 Docs 인터페이스의 매개변수 제약을 다시
+ * 정의한 것이 되어 Bean Validation이 모든 호출을 거부한다(HV000151). 요청 본문 규칙은 도메인이 검사하므로 본문에는 {@code @Valid}를 두지 않는다.
+ */
 @Validated
 @RestController
 @RequestMapping("/api/v1/profiles")
