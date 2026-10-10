@@ -227,6 +227,26 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsCompanyCheckWithCodeParameterAndLookupErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/lookup'].get";
+        String notFound = operation + ".responses['404'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("회사 확인"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("companyCode"))
+                .andExpect(jsonPath(operation + ".parameters[0].in").value("query"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.CompanyCheckResponse"))
+                .andExpect(
+                        jsonPath(notFound + "['ORGANIZATION-011'].value.code").value("ORGANIZATION-011"))
+                .andExpect(
+                        jsonPath(notFound + "['ORGANIZATION-012'].value.code").value("ORGANIZATION-012"));
+    }
+
+    @Test
     void documentsRequestAndResponseFields() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())

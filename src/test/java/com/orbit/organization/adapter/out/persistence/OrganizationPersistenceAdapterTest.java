@@ -85,6 +85,22 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("현재 코드로만 발주사를 찾고, 폐기 코드인지는 따로 확인한다")
+    void findsOrganizationByCurrentCodeAndChecksRetiredCode() {
+        Organization organization = organizations.save(organization("R2T3V4"));
+        organizations.saveRetiredCode(organization.changeCode(new CompanyCode("R2T3V5"), NOW.plusSeconds(60)));
+        organizations.save(organization);
+        organizationRepository.flush();
+
+        assertThat(organizations.findByCode(new CompanyCode("R2T3V5")))
+                .hasValueSatisfying(found -> assertThat(found.id()).isEqualTo(organization.id()));
+        assertThat(organizations.findByCode(new CompanyCode("R2T3V4"))).isEmpty();
+        assertThat(organizations.existsRetiredCode(new CompanyCode("R2T3V4"))).isTrue();
+        assertThat(organizations.existsRetiredCode(new CompanyCode("R2T3V5"))).isFalse();
+        assertThat(organizations.existsRetiredCode(new CompanyCode("R2T3V6"))).isFalse();
+    }
+
+    @Test
     @DisplayName("회사 코드를 바꿔 저장하면 새 코드로 복원되고 이전 코드는 폐기 코드로 남는다")
     void savesChangedCodeAndRetiredCode() {
         Organization organization = organizations.save(organization("S2T3V4"));

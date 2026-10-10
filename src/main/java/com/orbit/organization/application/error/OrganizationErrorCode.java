@@ -13,7 +13,10 @@ import lombok.RequiredArgsConstructor;
 public enum OrganizationErrorCode implements BaseCode {
     INVALID_ORGANIZATION_INPUT(HttpStatus.BAD_REQUEST, "ORGANIZATION-001", "발주사 정보가 올바르지 않습니다."),
     NOT_ORGANIZATION_MEMBER(HttpStatus.FORBIDDEN, "ORGANIZATION-002", "발주사의 활성 소속이 아닙니다."),
-    OWNER_ONLY(HttpStatus.FORBIDDEN, "ORGANIZATION-003", "총관리자만 할 수 있습니다.");
+    OWNER_ONLY(HttpStatus.FORBIDDEN, "ORGANIZATION-003", "총관리자만 할 수 있습니다."),
+    // ORGANIZATION-004~006은 총관리자 지정·해제(HM-294), 007~010은 유형 관리(HM-291)가 쓴다.
+    COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "ORGANIZATION-011", "회사 코드에 해당하는 회사가 없습니다."),
+    RETIRED_COMPANY_CODE(HttpStatus.NOT_FOUND, "ORGANIZATION-012", "변경 전의 이전 회사 코드입니다. 현재 회사 코드를 다시 확인해 주세요.");
 
     private final HttpStatus httpStatus;
     private final String code;
