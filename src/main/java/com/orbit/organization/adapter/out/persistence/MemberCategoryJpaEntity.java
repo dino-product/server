@@ -15,7 +15,11 @@ import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.MemberCategoryKind;
 import com.orbit.organization.domain.OrganizationId;
 
-/** 직원 유형·기사 유형 테이블의 공통 컬럼. 두 종류는 테이블이 달라 식별자가 따로 매겨진다. 발주사는 ID로만 둔다. */
+/**
+ * 직원 유형·기사 유형 테이블의 공통 컬럼. 두 종류는 테이블이 달라 식별자가 따로 매겨진다. 발주사는 ID로만 둔다. 각 테이블은 삭제되지 않은 행끼리만 (발주사, 이름)이
+ * 유일한 부분 유일 인덱스를 둔다. JPA 매핑으로는 조건부 유일 인덱스를 만들 수 없어 {@code db/partial-unique-indexes.sql}이 정의한다. 정상 경로는 발주사
+ * 잠금으로 먼저 거르고, 인덱스는 잠금을 거치지 않은 저장의 최종 방어선이다.
+ */
 @MappedSuperclass
 abstract class MemberCategoryJpaEntity {
 

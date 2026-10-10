@@ -33,6 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.dto.CreateMemberCategoryCommand;
 import com.orbit.organization.application.port.in.query.dto.MemberCategoryInfo;
+import com.orbit.organization.application.port.out.DuplicateCategoryNameException;
 import com.orbit.organization.application.port.out.MemberCategoryRepository;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationRepository;
@@ -99,6 +100,19 @@ class CreateMemberCategoryServiceTest {
                 new CreateMemberCategoryCommand(7L, 10L, MemberCategoryKind.STAFF, " 정규직", "#3B82F6"),
                 OrganizationErrorCode.DUPLICATE_CATEGORY_NAME);
         verify(categoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("저장소가 이름 유일 인덱스로 거부해도 같은 중복 오류로 알린다")
+    void reportsDuplicateRejectedByRepository() {
+        givenRequesterIs(true);
+        when(categoryRepository.findUndeletedByName(any(), any(), any())).thenReturn(Optional.empty());
+        when(categoryRepository.save(any(MemberCategory.class)))
+                .thenThrow(new DuplicateCategoryNameException(new RuntimeException("unique violation")));
+
+        assertRejected(
+                new CreateMemberCategoryCommand(7L, 10L, MemberCategoryKind.STAFF, "정규직", "#3B82F6"),
+                OrganizationErrorCode.DUPLICATE_CATEGORY_NAME);
     }
 
     @ParameterizedTest

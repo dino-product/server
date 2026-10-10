@@ -1,6 +1,7 @@
 package com.orbit.organization.application.service;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
+import com.orbit.organization.application.port.out.DuplicateCategoryNameException;
 import com.orbit.organization.application.port.out.MemberCategoryRepository;
 import com.orbit.organization.domain.CategoryColor;
 import com.orbit.organization.domain.CategoryName;
@@ -68,5 +69,14 @@ final class MemberCategories {
                 .ifPresent(existing -> {
                     throw new BusinessException(OrganizationErrorCode.DUPLICATE_CATEGORY_NAME);
                 });
+    }
+
+    /** 이름 유일 인덱스는 잠금을 거치지 않은 경합의 최종 방어선이다. 그 거부도 미리 확인한 중복과 같은 ORGANIZATION-009로 알린다. */
+    static MemberCategory save(MemberCategoryRepository repository, MemberCategory category) {
+        try {
+            return repository.save(category);
+        } catch (DuplicateCategoryNameException exception) {
+            throw new BusinessException(OrganizationErrorCode.DUPLICATE_CATEGORY_NAME, exception);
+        }
     }
 }

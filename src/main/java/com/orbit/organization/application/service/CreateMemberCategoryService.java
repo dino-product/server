@@ -50,6 +50,6 @@ public class CreateMemberCategoryService implements CreateMemberCategoryUseCase 
         organizationRepository.lock(organizationId);
         MemberCategories.requireUniqueName(categoryRepository, organizationId, kind, name, null);
         MemberCategory category = MemberCategory.create(organizationId, kind, name, color, clock.instant());
-        return MemberCategoryInfo.from(categoryRepository.save(category));
+        return MemberCategoryInfo.from(MemberCategories.save(categoryRepository, category));
     }
 }

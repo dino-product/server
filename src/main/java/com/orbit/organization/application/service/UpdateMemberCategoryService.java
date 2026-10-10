@@ -62,6 +62,6 @@ public class UpdateMemberCategoryService implements UpdateMemberCategoryUseCase 
         }
         MemberCategories.requireUniqueName(categoryRepository, organizationId, kind, name, categoryId);
         category.change(name, color, clock.instant());
-        return MemberCategoryInfo.from(categoryRepository.save(category));
+        return MemberCategoryInfo.from(MemberCategories.save(categoryRepository, category));
     }
 }

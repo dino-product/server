@@ -1,20 +1,28 @@
 package com.orbit.organization.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.organization.application.port.out.DuplicateCategoryNameException;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.CategoryColor;
 import com.orbit.organization.domain.CategoryName;
@@ -49,6 +57,9 @@ class MemberCategoryPersistenceAdapterTest {
 
     @Autowired
     private TestEntityManager entityManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private MemberCategoryPersistenceAdapter categories;
     private MembershipPersistenceAdapter memberships;
@@ -127,6 +138,47 @@ class MemberCategoryPersistenceAdapterTest {
                 .isEmpty();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"company_membership_category", "company_technician_category"})
+    @DisplayName("DB는 같은 발주사에 삭제되지 않은 같은 이름의 유형을 두 행 두지 않고, 삭제된 행·다른 발주사와는 같은 이름을 허용한다")
+    void databaseAllowsOneUndeletedNamePerOrganization(String table) {
+        insertRow(table, ORGANIZATION, "중복", true);
+        insertRow(table, ORGANIZATION, "중복", true);
+        insertRow(table, ORGANIZATION, "중복", false);
+        insertRow(table, OTHER_ORGANIZATION, "중복", false);
+
+        assertThatThrownBy(() -> insertRow(table, ORGANIZATION, "중복", false))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("새 유형 저장이 이름 유일 인덱스에 걸리면 저장소 예외로 알린다")
+    void reportsDuplicateNameOnInsert() {
+        insertRow("company_technician_category", ORGANIZATION, "전기 기사", false);
+
+        assertThatThrownBy(() -> categories.save(category(ORGANIZATION, MemberCategoryKind.TECHNICIAN, "전기 기사")))
+                .isInstanceOf(DuplicateCategoryNameException.class);
+    }
+
+    @Test
+    @DisplayName("이름 변경 저장이 이름 유일 인덱스에 걸리면 저장소 예외로 알린다")
+    void reportsDuplicateNameOnRename() {
+        insertRow("company_membership_category", ORGANIZATION, "정규직", false);
+        MemberCategory renamed = categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "계약직"));
+        renamed.change(new CategoryName("정규직"), new CategoryColor("#3B82F6"), LATER);
+
+        assertThatThrownBy(() -> categories.save(renamed)).isInstanceOf(DuplicateCategoryNameException.class);
+    }
+
+    @Test
+    @DisplayName("다른 종류의 유형은 같은 이름이어도 인덱스에 걸리지 않는다")
+    void allowsSameNameAcrossKinds() {
+        categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "AS팀"));
+
+        assertThatCode(() -> categories.save(category(ORGANIZATION, MemberCategoryKind.TECHNICIAN, "AS팀")))
+                .doesNotThrowAnyException();
+    }
+
     @Test
     @DisplayName("목록은 그 발주사·그 종류의 삭제되지 않은 유형을 만든 순서대로 돌려준다")
     void listsUndeletedCategoriesInCreationOrder() {
@@ -172,6 +224,19 @@ class MemberCategoryPersistenceAdapterTest {
                 .setParameter(2, id)
                 .executeUpdate();
         return id;
+    }
+
+    /** 저장소를 거치지 않고 행을 넣어 DB 제약만 확인한다. 실패하면 그 문장만 되돌린다. */
+    private void insertRow(String table, OrganizationId organizationId, String name, boolean deleted) {
+        jdbcTemplate.update(
+                "insert into " + table + " (company_id, name, color, is_deleted, created_at, updated_at, deleted_at)"
+                        + " values (?, ?, '#3B82F6', ?, ?, ?, ?)",
+                organizationId.value(),
+                name,
+                deleted,
+                Timestamp.from(NOW),
+                Timestamp.from(NOW),
+                deleted ? Timestamp.from(NOW) : null);
     }
 
     private Long staffCategoryOf(Long membershipId) {
