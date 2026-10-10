@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.DisplayName;
@@ -141,6 +142,18 @@ class ProfilePersistenceAdapterTest {
         stale.agreeToTerms(V1, SIGNUP_AT);
 
         assertThatThrownBy(() -> adapter.save(stale)).isInstanceOf(ConcurrentProfileUpdateException.class);
+    }
+
+    @Test
+    @DisplayName("공통 검사가 요청마다 계정별로 읽는 약관 동의 이력에는 계정 식별자 인덱스가 있다")
+    void indexesTermsAgreementsByAccount() {
+        List<?> indexes = entityManager
+                .getEntityManager()
+                .createNativeQuery("select indexdef from pg_indexes where tablename = 'profile_terms_agreements'")
+                .getResultList();
+
+        assertThat(indexes)
+                .anySatisfy(definition -> assertThat(definition.toString()).contains("(account_id)"));
     }
 
     private void flushAndClear() {

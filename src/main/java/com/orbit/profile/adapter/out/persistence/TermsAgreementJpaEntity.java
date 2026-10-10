@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -17,9 +18,11 @@ import jakarta.persistence.Table;
 import com.orbit.profile.domain.TermsAgreement;
 import com.orbit.profile.domain.TermsType;
 
-/** 약관 동의 이력 한 줄. 추가만 하고 고치거나 지우지 않는다. */
+/** 약관 동의 이력 한 줄. 추가만 하고 고치거나 지우지 않는다. 가입 공통 검사가 요청마다 계정별로 읽으므로 계정 식별자에 인덱스를 둔다. */
 @Entity
-@Table(name = "profile_terms_agreements")
+@Table(
+        name = "profile_terms_agreements",
+        indexes = @Index(name = "idx_profile_terms_agreements_account_id", columnList = "account_id"))
 class TermsAgreementJpaEntity {
 
     @Id
