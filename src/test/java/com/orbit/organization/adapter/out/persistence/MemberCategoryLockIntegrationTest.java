@@ -202,8 +202,8 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("발주사 잠금은 외래 키 검사가 부모 행에 거는 잠금(FOR KEY SHARE)을 막지 않아, 잠금 중에도 그 발주사의 자식 행을 넣을 수 있다")
-    void doesNotBlockForeignKeyChecks() throws Exception {
+    @DisplayName("발주사 잠금 중에도 다른 트랜잭션이 그 발주사 행에 외래 키 검사용 잠금(FOR KEY SHARE)을 잡을 수 있다")
+    void doesNotBlockKeyShareLock() throws Exception {
         long organizationId = createOrganizationUseCase
                 .create(new CreateOrganizationCommand(KEY_SHARE_OWNER, "동시성 발주사", Industry.HVAC))
                 .organizationId();
