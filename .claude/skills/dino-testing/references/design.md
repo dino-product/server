@@ -7,6 +7,7 @@
 - 구현 전에 정상·거부·경계 조건과 검사 수단을 정합니다. 테스트 수·mock 호출 횟수만으로 완성을 판단하지 않습니다. 거부·철회 검사의 토큰·세션·데이터는 해당 조건 외에는 유효해야 합니다.
 - Domain/Application 규칙·흐름은 Spring Context 없는 단위 테스트, 독립 모듈 조립은 `@ApplicationModuleTest`로 검증합니다.
 - DB·영속성·전체 API는 H2 대체 없이 PostgreSQL Testcontainers를 사용합니다. 핵심 API는 MockMvc로 공통 응답·보안·트랜잭션·영속성을 함께 검증합니다.
+- 전체 API 통합 테스트에서 실제 Access Token으로 다른 모듈 API를 부르면 계정이 가입을 마쳐야 합니다. `com.orbit.support.SignupTestSupport#signUpNewAccount`로 만듭니다([가입 공통 검사](../../../../docs/domain/profile.md#profile-signup-gate)). `@ApplicationModuleTest`에는 이 검사가 포함되지 않습니다.
 - 전체 API·이벤트·모듈 통합 테스트에 클래스 수준 `@Transactional`을 붙이지 않습니다. 매핑용 `@DataJpaTest`의 기본 롤백은 허용하되 커밋·이벤트 검증을 대체하지 않습니다.
 - 내부 시간은 고정 `Clock`/`Instant`로 검증합니다. 저장소 TTL 등 외부 시계 검사는 현재 시각으로 두 시계를 맞추며 고정 달력 날짜로 실시간 만료 키를 만들지 않습니다. 비동기는 제한 시간 있는 조건 기반 대기를 사용하고 데이터는 공유 상태·실행 순서와 격리합니다.
 - 테스트용 fake는 `src/test`에 두고 `@Component` 등 스캔 대상 애너테이션을 붙이지 않습니다.
