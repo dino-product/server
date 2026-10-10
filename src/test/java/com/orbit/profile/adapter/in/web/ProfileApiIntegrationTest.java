@@ -185,6 +185,24 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("가입을 마친 계정은 마이페이지에서 마케팅 수신 동의를 켜고 끌 수 있고, 가입 전에는 PROFILE-005로 거부한다")
+    void changesMarketingConsentAfterSignup() throws Exception {
+        TestAccount pending = loginAsNewAccount();
+        changeMarketingConsent(pending, true)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PROFILE-005"));
+
+        TestAccount account = SignupTestSupport.signUpNewAccount(mockMvc, objectMapper, KAKAO);
+        changeMarketingConsent(account, true)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.marketingAgreed").value(true));
+        changeMarketingConsent(account, false)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.marketingAgreed").value(false));
+        getProfile(account).andExpect(jsonPath("$.result.marketingAgreed").value(false));
+    }
+
+    @Test
     @DisplayName("토큰 없이 호출하면 401이다")
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/profiles/{accountId}", 1L))
@@ -221,6 +239,13 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, account.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("displayName", "예제 사용자"))));
+    }
+
+    private ResultActions changeMarketingConsent(TestAccount account, Boolean agreed) throws Exception {
+        return mockMvc.perform(put("/api/v1/profiles/{accountId}/marketing-consent", account.accountId())
+                .header(HttpHeaders.AUTHORIZATION, account.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ChangeMarketingConsentRequest(agreed))));
     }
 
     private TestAccount loginAsNewAccount() throws Exception {

@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.profile.adapter.in.web.docs.ProfileControllerDocs;
 import com.orbit.profile.application.port.in.command.AgreeToTermsUseCase;
+import com.orbit.profile.application.port.in.command.ChangeMarketingConsentUseCase;
 import com.orbit.profile.application.port.in.command.SaveProfileUseCase;
 import com.orbit.profile.application.port.in.command.dto.AgreeToTermsCommand;
+import com.orbit.profile.application.port.in.command.dto.ChangeMarketingConsentCommand;
 import com.orbit.profile.application.port.in.command.dto.SaveProfileCommand;
 import com.orbit.profile.application.port.in.query.GetProfileUseCase;
 import com.orbit.profile.application.port.in.query.dto.GetProfileQuery;
@@ -33,14 +35,17 @@ class ProfileController implements ProfileControllerDocs {
     private final GetProfileUseCase getProfileUseCase;
     private final SaveProfileUseCase saveProfileUseCase;
     private final AgreeToTermsUseCase agreeToTermsUseCase;
+    private final ChangeMarketingConsentUseCase changeMarketingConsentUseCase;
 
     ProfileController(
             GetProfileUseCase getProfileUseCase,
             SaveProfileUseCase saveProfileUseCase,
-            AgreeToTermsUseCase agreeToTermsUseCase) {
+            AgreeToTermsUseCase agreeToTermsUseCase,
+            ChangeMarketingConsentUseCase changeMarketingConsentUseCase) {
         this.getProfileUseCase = getProfileUseCase;
         this.saveProfileUseCase = saveProfileUseCase;
         this.agreeToTermsUseCase = agreeToTermsUseCase;
+        this.changeMarketingConsentUseCase = changeMarketingConsentUseCase;
     }
 
     @Override
@@ -73,6 +78,17 @@ class ProfileController implements ProfileControllerDocs {
                 Boolean.TRUE.equals(request.serviceTerms()),
                 Boolean.TRUE.equals(request.privacyPolicy()),
                 request.marketing()));
+        return read(requester, accountId);
+    }
+
+    @Override
+    @PutMapping("/{accountId}/marketing-consent")
+    public ProfileResponse changeMarketingConsent(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long accountId,
+            @RequestBody ChangeMarketingConsentRequest request) {
+        changeMarketingConsentUseCase.change(
+                new ChangeMarketingConsentCommand(requester.accountId(), accountId, request.agreed()));
         return read(requester, accountId);
     }
 
