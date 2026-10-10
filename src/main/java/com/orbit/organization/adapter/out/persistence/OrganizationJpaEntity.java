@@ -62,8 +62,21 @@ class OrganizationJpaEntity {
                 organization.createdAt());
     }
 
+    /** 저장된 발주사가 바꿀 수 있는 값(발주사명·업종·회사 코드·수정 시각)을 옮긴다. 식별자·생성 시각은 그대로 둔다. */
+    void update(Organization organization) {
+        this.code = organization.code().value();
+        this.name = organization.name().value();
+        this.industry = organization.industry();
+        this.updatedAt = organization.updatedAt();
+    }
+
     Organization toDomain() {
         return Organization.reconstitute(
-                new OrganizationId(id), new OrganizationName(name), industry, new CompanyCode(code), createdAt);
+                new OrganizationId(id),
+                new OrganizationName(name),
+                industry,
+                new CompanyCode(code),
+                createdAt,
+                updatedAt);
     }
 }

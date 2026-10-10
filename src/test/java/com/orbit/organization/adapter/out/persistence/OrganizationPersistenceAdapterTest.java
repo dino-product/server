@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
@@ -24,6 +25,7 @@ import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
+import com.orbit.organization.domain.RetiredCompanyCode;
 import com.orbit.support.TestcontainersConfiguration;
 
 @DataJpaTest
@@ -40,14 +42,20 @@ class OrganizationPersistenceAdapterTest {
     private SpringDataOrganizationRepository organizationRepository;
 
     @Autowired
+    private SpringDataRetiredCompanyCodeRepository retiredCodeRepository;
+
+    @Autowired
     private SpringDataMembershipRepository membershipRepository;
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     private OrganizationPersistenceAdapter organizations;
     private MembershipPersistenceAdapter memberships;
 
     @BeforeEach
     void setUp() {
-        organizations = new OrganizationPersistenceAdapter(organizationRepository);
+        organizations = new OrganizationPersistenceAdapter(organizationRepository, retiredCodeRepository);
         memberships = new MembershipPersistenceAdapter(membershipRepository);
     }
 
@@ -64,12 +72,51 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("현재 쓰이는 회사 코드인지 확인한다")
-    void checksWhetherCodeIsInUse() {
-        organizations.save(organization("Q4ZT8B"));
+    @DisplayName("현재 코드나 폐기 코드로 발급된 적 있는 회사 코드인지 확인한다")
+    void checksWhetherCodeWasIssued() {
+        Organization organization = organizations.save(organization("Q4ZT8B"));
+        organizations.saveRetiredCode(organization.changeCode(new CompanyCode("Q4ZT8C"), NOW.plusSeconds(60)));
+        organizations.save(organization);
+        organizationRepository.flush();
 
-        assertThat(organizations.existsByCode(new CompanyCode("Q4ZT8B"))).isTrue();
-        assertThat(organizations.existsByCode(new CompanyCode("Q4ZT8C"))).isFalse();
+        assertThat(organizations.existsIssuedCode(new CompanyCode("Q4ZT8B"))).isTrue();
+        assertThat(organizations.existsIssuedCode(new CompanyCode("Q4ZT8C"))).isTrue();
+        assertThat(organizations.existsIssuedCode(new CompanyCode("Q4ZT8D"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("회사 코드를 바꿔 저장하면 새 코드로 복원되고 이전 코드는 폐기 코드로 남는다")
+    void savesChangedCodeAndRetiredCode() {
+        Organization organization = organizations.save(organization("S2T3V4"));
+        OrganizationId organizationId = organization.id().orElseThrow();
+        Instant changedAt = NOW.plusSeconds(60);
+
+        organizations.saveRetiredCode(organization.changeCode(new CompanyCode("W5X6Y7"), changedAt));
+        organizations.save(organization);
+        organizationRepository.flush();
+        entityManager.clear();
+
+        Organization restored = organizations.findById(organizationId).orElseThrow();
+        assertThat(restored.code()).isEqualTo(new CompanyCode("W5X6Y7"));
+        assertThat(restored.updatedAt()).isEqualTo(changedAt);
+        assertThat(restored.name()).isEqualTo(new OrganizationName("오르빗 설비"));
+        assertThat(retiredCodeRepository.findAll()).singleElement().satisfies(retired -> assertThat(retired.toDomain())
+                .isEqualTo(new RetiredCompanyCode(organizationId, new CompanyCode("S2T3V4"), changedAt)));
+    }
+
+    @Test
+    @DisplayName("같은 코드를 두 번 폐기 코드로 남길 수 없다")
+    void rejectsDuplicateRetiredCodeAtDatabase() {
+        OrganizationId organizationId =
+                organizations.save(organization("Z8A9B0")).id().orElseThrow();
+        RetiredCompanyCode retired = new RetiredCompanyCode(organizationId, new CompanyCode("C1D2E3"), NOW);
+        organizations.saveRetiredCode(retired);
+
+        assertThatThrownBy(() -> {
+                    organizations.saveRetiredCode(retired);
+                    retiredCodeRepository.flush();
+                })
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -113,6 +160,54 @@ class OrganizationPersistenceAdapterTest {
                     membershipRepository.flush();
                 })
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("저장된 발주사의 발주사명·업종·수정 시각을 바꿔 저장하고 회사 코드·생성 시각은 그대로 둔다")
+    void updatesExistingOrganization() {
+        Organization organization = organizations.save(organization("P1M2N3"));
+        OrganizationId organizationId = organization.id().orElseThrow();
+        Instant changedAt = NOW.plusSeconds(60);
+
+        organization.changeInfo(new OrganizationName("새 발주사"), Industry.HVAC, changedAt);
+        organizations.save(organization);
+        organizationRepository.flush();
+        entityManager.clear();
+
+        Organization restored = organizations.findById(organizationId).orElseThrow();
+        assertThat(restored.name()).isEqualTo(new OrganizationName("새 발주사"));
+        assertThat(restored.industry()).isEqualTo(Industry.HVAC);
+        assertThat(restored.updatedAt()).isEqualTo(changedAt);
+        assertThat(restored.code()).isEqualTo(new CompanyCode("P1M2N3"));
+        assertThat(restored.createdAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("식별자로 발주사를 찾고, 없으면 비어 있다")
+    void findsOrganizationById() {
+        OrganizationId organizationId =
+                organizations.save(organization("B2C3D4")).id().orElseThrow();
+
+        assertThat(organizations.findById(organizationId))
+                .hasValueSatisfying(found -> assertThat(found.code()).isEqualTo(new CompanyCode("B2C3D4")));
+        assertThat(organizations.findById(new OrganizationId(organizationId.value() + 1_000)))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("계정의 그 발주사 활성 직원 소속만 찾는다")
+    void findsActiveMembershipOfAccountInOrganization() {
+        OrganizationId organizationId =
+                organizations.save(organization("E5F6G7")).id().orElseThrow();
+        OrganizationId otherOrganizationId =
+                organizations.save(organization("H8J9K0")).id().orElseThrow();
+        memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+
+        assertThat(memberships.findActive(organizationId, new AccountId(7L)))
+                .hasValueSatisfying(found -> assertThat(found.isOwner()).isTrue());
+        assertThat(memberships.findActive(otherOrganizationId, new AccountId(7L)))
+                .isEmpty();
+        assertThat(memberships.findActive(organizationId, new AccountId(8L))).isEmpty();
     }
 
     private static Organization organization(String code) {
