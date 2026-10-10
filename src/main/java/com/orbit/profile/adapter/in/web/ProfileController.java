@@ -4,6 +4,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,7 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.profile.adapter.in.web.docs.ProfileControllerDocs;
+import com.orbit.profile.application.port.in.command.AgreeToTermsUseCase;
 import com.orbit.profile.application.port.in.command.SaveProfileUseCase;
+import com.orbit.profile.application.port.in.command.dto.AgreeToTermsCommand;
 import com.orbit.profile.application.port.in.command.dto.SaveProfileCommand;
 import com.orbit.profile.application.port.in.query.GetProfileUseCase;
 import com.orbit.profile.application.port.in.query.dto.GetProfileQuery;
@@ -24,10 +27,15 @@ class ProfileController implements ProfileControllerDocs {
 
     private final GetProfileUseCase getProfileUseCase;
     private final SaveProfileUseCase saveProfileUseCase;
+    private final AgreeToTermsUseCase agreeToTermsUseCase;
 
-    ProfileController(GetProfileUseCase getProfileUseCase, SaveProfileUseCase saveProfileUseCase) {
+    ProfileController(
+            GetProfileUseCase getProfileUseCase,
+            SaveProfileUseCase saveProfileUseCase,
+            AgreeToTermsUseCase agreeToTermsUseCase) {
         this.getProfileUseCase = getProfileUseCase;
         this.saveProfileUseCase = saveProfileUseCase;
+        this.agreeToTermsUseCase = agreeToTermsUseCase;
     }
 
     @Override
@@ -45,6 +53,21 @@ class ProfileController implements ProfileControllerDocs {
             @RequestBody SaveProfileRequest request) {
         saveProfileUseCase.save(
                 new SaveProfileCommand(requester.accountId(), accountId, request.name(), request.phoneNumber()));
+        return read(requester, accountId);
+    }
+
+    @Override
+    @PostMapping("/{accountId}/terms-agreements")
+    public ProfileResponse agreeToTerms(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long accountId,
+            @RequestBody AgreeToTermsRequest request) {
+        agreeToTermsUseCase.agree(new AgreeToTermsCommand(
+                requester.accountId(),
+                accountId,
+                Boolean.TRUE.equals(request.serviceTerms()),
+                Boolean.TRUE.equals(request.privacyPolicy()),
+                request.marketing()));
         return read(requester, accountId);
     }
 

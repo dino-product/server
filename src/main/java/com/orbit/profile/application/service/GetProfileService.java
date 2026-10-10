@@ -6,8 +6,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbit.profile.application.port.in.query.GetProfileUseCase;
 import com.orbit.profile.application.port.in.query.dto.GetProfileQuery;
 import com.orbit.profile.application.port.in.query.dto.ProfileInfo;
+import com.orbit.profile.application.port.out.CurrentTermsPort;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
+import com.orbit.profile.domain.MarketingConsent;
 import com.orbit.profile.domain.Profile;
 import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.SignupStep;
@@ -17,9 +19,11 @@ import com.orbit.profile.domain.SignupStep;
 public class GetProfileService implements GetProfileUseCase {
 
     private final ProfileRepository profiles;
+    private final CurrentTermsPort currentTerms;
 
-    public GetProfileService(ProfileRepository profiles) {
+    public GetProfileService(ProfileRepository profiles, CurrentTermsPort currentTerms) {
         this.profiles = profiles;
+        this.currentTerms = currentTerms;
     }
 
     @Override
@@ -27,17 +31,19 @@ public class GetProfileService implements GetProfileUseCase {
     public ProfileInfo getProfile(GetProfileQuery query) {
         AccountId accountId = ProfileOwnership.requireSelf(query.requesterAccountId(), query.accountId());
         return profiles.findByAccountId(accountId)
-                .map(GetProfileService::toInfo)
+                .map(this::toInfo)
                 .orElseGet(() -> new ProfileInfo(
-                        accountId.value(), SignupStatus.PENDING_SIGNUP, SignupStep.PROFILE, null, null));
+                        accountId.value(), SignupStatus.PENDING_SIGNUP, SignupStep.PROFILE, null, null, null, null));
     }
 
-    private static ProfileInfo toInfo(Profile profile) {
+    private ProfileInfo toInfo(Profile profile) {
         return new ProfileInfo(
                 profile.accountId().value(),
                 profile.status(),
-                profile.nextStep(),
+                profile.nextStep(currentTerms.currentVersions()),
                 profile.name().value(),
-                profile.phoneNumber().value());
+                profile.phoneNumber().value(),
+                profile.signedUpAt().orElse(null),
+                profile.marketingConsent().map(MarketingConsent::agreed).orElse(null));
     }
 }

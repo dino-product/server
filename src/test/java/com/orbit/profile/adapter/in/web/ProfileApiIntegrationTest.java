@@ -114,6 +114,40 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("프로필 입력 뒤 필수 약관에 동의하면 가입 완료가 되고 가입일과 마케팅 선택이 남는다")
+    void completesSignupWithRequiredTerms() throws Exception {
+        LoggedIn account = loginAsNewAccount();
+        saveProfile(account, account.accountId(), "홍길동", "01012345678").andExpect(status().isOk());
+
+        agreeToTerms(account, account.accountId(), true, true, true)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.result.nextStep").value("COMPLETED"))
+                .andExpect(jsonPath("$.result.signedUpAt").isString())
+                .andExpect(jsonPath("$.result.marketingAgreed").value(true));
+        getProfile(account)
+                .andExpect(jsonPath("$.result.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.result.nextStep").value("COMPLETED"));
+    }
+
+    @Test
+    @DisplayName("프로필 입력 전 약관 동의는 PROFILE-003, 필수 약관 미동의는 PROFILE-004로 거부하고 가입 미완료로 남긴다")
+    void rejectsTermsOutOfOrderOrIncomplete() throws Exception {
+        LoggedIn account = loginAsNewAccount();
+
+        agreeToTerms(account, account.accountId(), true, true, false)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PROFILE-003"));
+        saveProfile(account, account.accountId(), "홍길동", "01012345678").andExpect(status().isOk());
+        agreeToTerms(account, account.accountId(), true, null, false)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PROFILE-004"));
+        getProfile(account)
+                .andExpect(jsonPath("$.result.status").value("PENDING_SIGNUP"))
+                .andExpect(jsonPath("$.result.nextStep").value("TERMS"));
+    }
+
+    @Test
     @DisplayName("토큰 없이 호출하면 401이다")
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/profiles/{accountId}", 1L))
@@ -132,6 +166,16 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, account.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new SaveProfileRequest(name, phoneNumber))));
+    }
+
+    private ResultActions agreeToTerms(
+            LoggedIn account, long accountId, Boolean serviceTerms, Boolean privacyPolicy, Boolean marketing)
+            throws Exception {
+        return mockMvc.perform(post("/api/v1/profiles/{accountId}/terms-agreements", accountId)
+                .header(HttpHeaders.AUTHORIZATION, account.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                        new AgreeToTermsRequest(serviceTerms, privacyPolicy, marketing))));
     }
 
     private LoggedIn loginAsNewAccount() throws Exception {

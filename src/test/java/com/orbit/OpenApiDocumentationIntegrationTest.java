@@ -131,6 +131,12 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("PROFILE-002"))
                 .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}'].put.responses['400']"
                                 + ".content['application/json'].examples['PROFILE-001'].value.code")
-                        .value("PROFILE-001"));
+                        .value("PROFILE-001"))
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/terms-agreements'].post.responses['400']"
+                                + ".content['application/json'].examples['PROFILE-004'].value.code")
+                        .value("PROFILE-004"))
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/terms-agreements'].post.responses['409']"
+                                + ".content['application/json'].examples['PROFILE-003'].value.code")
+                        .value("PROFILE-003"));
     }
 }

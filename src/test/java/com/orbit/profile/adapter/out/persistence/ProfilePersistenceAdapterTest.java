@@ -2,6 +2,7 @@ package com.orbit.profile.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.DisplayName;
@@ -9,16 +10,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
+import com.orbit.profile.domain.MarketingConsent;
 import com.orbit.profile.domain.PersonName;
 import com.orbit.profile.domain.PhoneNumber;
 import com.orbit.profile.domain.Profile;
 import com.orbit.profile.domain.SignupStatus;
+import com.orbit.profile.domain.TermsAgreement;
+import com.orbit.profile.domain.TermsType;
+import com.orbit.profile.domain.TermsVersions;
 import com.orbit.support.TestcontainersConfiguration;
 
 @DataJpaTest
@@ -30,9 +36,16 @@ import com.orbit.support.TestcontainersConfiguration;
 class ProfilePersistenceAdapterTest {
 
     private static final AtomicLong ACCOUNT_IDS = new AtomicLong(1_000);
+    private static final TermsVersions V1 = new TermsVersions("s1", "p1", "m1");
+    private static final TermsVersions PRIVACY_REVISED = new TermsVersions("s1", "p2", "m1");
+    private static final Instant SIGNUP_AT = Instant.parse("2026-10-10T01:00:00Z");
+    private static final Instant LATER = Instant.parse("2026-11-01T01:00:00.123456Z");
 
     @Autowired
     private ProfileRepository adapter;
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     @Test
     @DisplayName("새 프로필을 저장하고 계정 식별자로 다시 찾는다")
@@ -40,6 +53,7 @@ class ProfilePersistenceAdapterTest {
         AccountId accountId = newAccountId();
 
         adapter.save(Profile.start(accountId, new PersonName("홍길동"), new PhoneNumber("01012345678")));
+        flushAndClear();
 
         assertThat(adapter.findByAccountId(accountId)).hasValueSatisfying(found -> {
             assertThat(found.accountId()).isEqualTo(accountId);
@@ -60,6 +74,7 @@ class ProfilePersistenceAdapterTest {
 
         loaded.changeBasics(new PersonName("김철수"), new PhoneNumber("01087654321"));
         adapter.save(loaded);
+        flushAndClear();
 
         assertThat(adapter.findByAccountId(accountId)).hasValueSatisfying(found -> {
             assertThat(found.name().value()).isEqualTo("김철수");
@@ -77,6 +92,40 @@ class ProfilePersistenceAdapterTest {
         adapter.save(Profile.start(second, new PersonName("김철수"), new PhoneNumber("01055556666")));
 
         assertThat(adapter.findByAccountId(second)).isPresent();
+    }
+
+    @Test
+    @DisplayName("약관 동의 기록·가입일·마케팅 동의를 저장하고, 재동의는 기존 기록 뒤에 더한다")
+    void persistsTermsAgreementsAndAppendsReconsent() {
+        AccountId accountId = newAccountId();
+        Profile profile = Profile.start(accountId, new PersonName("홍길동"), new PhoneNumber("01012345678"));
+        profile.agreeToTerms(V1, SIGNUP_AT);
+        profile.changeMarketingConsent(true, V1, SIGNUP_AT);
+        adapter.save(profile);
+        flushAndClear();
+
+        Profile loaded = adapter.findByAccountId(accountId).orElseThrow();
+        loaded.agreeToTerms(PRIVACY_REVISED, LATER);
+        adapter.save(loaded);
+        flushAndClear();
+
+        assertThat(adapter.findByAccountId(accountId)).hasValueSatisfying(found -> {
+            assertThat(found.status()).isEqualTo(SignupStatus.ACTIVE);
+            assertThat(found.signedUpAt()).contains(SIGNUP_AT);
+            assertThat(found.marketingConsent()).contains(new MarketingConsent(true, SIGNUP_AT));
+            assertThat(found.agreements())
+                    .containsExactly(
+                            new TermsAgreement(TermsType.SERVICE, "s1", SIGNUP_AT),
+                            new TermsAgreement(TermsType.PRIVACY, "p1", SIGNUP_AT),
+                            new TermsAgreement(TermsType.MARKETING, "m1", SIGNUP_AT),
+                            new TermsAgreement(TermsType.PRIVACY, "p2", LATER));
+            assertThat(found.isUsable(PRIVACY_REVISED)).isTrue();
+        });
+    }
+
+    private void flushAndClear() {
+        entityManager.flush();
+        entityManager.clear();
     }
 
     private static AccountId newAccountId() {

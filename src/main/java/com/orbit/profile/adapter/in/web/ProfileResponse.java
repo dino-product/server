@@ -1,5 +1,7 @@
 package com.orbit.profile.adapter.in.web;
 
+import java.time.Instant;
+
 import com.orbit.profile.application.port.in.query.dto.ProfileInfo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -23,10 +25,22 @@ public record ProfileResponse(
         String name,
 
         @Schema(description = "휴대전화 번호 숫자 11자리. 화면에서 010-0000-0000으로 표시한다. 프로필을 입력하기 전이면 없다", example = "01012345678")
-        String phoneNumber) {
+        String phoneNumber,
+
+        @Schema(description = "가입을 마친(활성이 된) 시각(UTC). 가입을 마치기 전이면 없다", example = "2026-10-10T01:00:00Z")
+        Instant signedUpAt,
+
+        @Schema(description = "마케팅 정보 수신 동의 여부. 약관에 동의하기 전이면 없다", example = "false")
+        Boolean marketingAgreed) {
 
     static ProfileResponse from(ProfileInfo info) {
         return new ProfileResponse(
-                info.accountId(), info.status().name(), info.nextStep().name(), info.name(), info.phoneNumber());
+                info.accountId(),
+                info.status().name(),
+                info.nextStep().name(),
+                info.name(),
+                info.phoneNumber(),
+                info.signedUpAt(),
+                info.marketingAgreed());
     }
 }
