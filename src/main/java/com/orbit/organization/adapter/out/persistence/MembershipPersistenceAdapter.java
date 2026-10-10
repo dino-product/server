@@ -1,11 +1,13 @@
 package com.orbit.organization.adapter.out.persistence;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.domain.AccountId;
+import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
@@ -30,5 +32,10 @@ class MembershipPersistenceAdapter implements MembershipRepository {
                 .findByOrganizationIdAndAccountIdAndStatus(
                         organizationId.value(), accountId.value(), MembershipStatus.ACTIVE)
                 .map(MembershipJpaEntity::toDomain);
+    }
+
+    @Override
+    public int unassignStaffCategory(OrganizationId organizationId, MemberCategoryId categoryId, Instant unassignedAt) {
+        return repository.unassignStaffCategory(organizationId.value(), categoryId.value(), unassignedAt);
     }
 }
