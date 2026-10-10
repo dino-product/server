@@ -65,6 +65,51 @@ class OrganizationTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    @DisplayName("회사 코드를 바꾸면 이전 코드를 폐기 코드로 돌려주고 수정 시각이 바뀐다")
+    void changesCodeAndRetiresPreviousCode() {
+        Organization organization = Organization.reconstitute(
+                new OrganizationId(1L), new OrganizationName("오르빗 설비"), Industry.HVAC, CODE, NOW, NOW);
+
+        RetiredCompanyCode retired = organization.changeCode(new CompanyCode("Q4ZT8B"), LATER);
+
+        assertThat(organization.code()).isEqualTo(new CompanyCode("Q4ZT8B"));
+        assertThat(organization.updatedAt()).isEqualTo(LATER);
+        assertThat(organization.name().value()).isEqualTo("오르빗 설비");
+        assertThat(retired).isEqualTo(new RetiredCompanyCode(new OrganizationId(1L), CODE, LATER));
+    }
+
+    @Test
+    @DisplayName("현재 코드와 같은 코드로는 바꿀 수 없다")
+    void rejectsChangeToSameCode() {
+        Organization organization = Organization.reconstitute(
+                new OrganizationId(1L), new OrganizationName("오르빗 설비"), Industry.HVAC, CODE, NOW, NOW);
+
+        assertThatThrownBy(() -> organization.changeCode(CODE, LATER)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(organization.updatedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("저장되지 않은 발주사는 폐기 코드를 남길 수 없어 회사 코드를 바꿀 수 없다")
+    void rejectsCodeChangeOfUnsavedOrganization() {
+        Organization organization = Organization.create(new OrganizationName("오르빗 설비"), Industry.HVAC, CODE, NOW);
+
+        assertThatThrownBy(() -> organization.changeCode(new CompanyCode("Q4ZT8B"), LATER))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(organization.code()).isEqualTo(CODE);
+    }
+
+    @Test
+    @DisplayName("회사 코드 변경 시각은 생성 시각보다 앞설 수 없다")
+    void rejectsCodeChangeBeforeCreation() {
+        Organization organization = Organization.reconstitute(
+                new OrganizationId(1L), new OrganizationName("오르빗 설비"), Industry.HVAC, CODE, LATER, LATER);
+
+        assertThatThrownBy(() -> organization.changeCode(new CompanyCode("Q4ZT8B"), NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(organization.code()).isEqualTo(CODE);
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {2, 30})
     @DisplayName("발주사명은 2자 이상 30자 이하다")

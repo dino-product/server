@@ -16,8 +16,8 @@ import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
 
 /**
- * 발주사명·업종 수정. 입력은 생성과 같은 규칙으로 검사하고, 다른 발주사와 같은 이름이나 현재 값과 같은 값도 그대로 저장한다. 동시에 수정하면 마지막 요청이
- * 이긴다(발주사에 버전 컬럼이 없음).
+ * 발주사명·업종 수정. 입력은 생성과 같은 규칙으로 검사하고, 다른 발주사와 같은 이름이나 현재 값과 같은 값도 그대로 저장한다. 저장은 발주사 행 전체를
+ * 다시 쓰므로 회사 코드 변경과 같은 행 잠금으로 읽어, 그 사이 바뀐 회사 코드를 되돌리지 않는다. 정보 수정끼리는 차례로 처리되어 마지막 요청이 이긴다.
  */
 @Service
 public class UpdateOrganizationService implements UpdateOrganizationUseCase {
@@ -42,7 +42,7 @@ public class UpdateOrganizationService implements UpdateOrganizationUseCase {
         Industry industry = OrganizationInputs.industry(command.industry());
 
         Organization organization = organizationRepository
-                .findById(organizationId)
+                .findByIdForUpdate(organizationId)
                 .orElseThrow(() -> new IllegalStateException("active membership must belong to an organization"));
         organization.changeInfo(name, industry, clock.instant());
 
