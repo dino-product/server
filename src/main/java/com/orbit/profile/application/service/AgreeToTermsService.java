@@ -9,12 +9,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbit.profile.application.error.ProfileErrorCode;
 import com.orbit.profile.application.port.in.command.AgreeToTermsUseCase;
 import com.orbit.profile.application.port.in.command.dto.AgreeToTermsCommand;
+import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.CurrentTermsPort;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
 import com.orbit.profile.domain.Profile;
 import com.orbit.profile.domain.TermsVersions;
 import com.orbit.shared.error.BusinessException;
+import com.orbit.shared.error.CommonErrorCode;
 
 /**
  * 프로필을 입력한 계정의 약관 동의를 기록한다. 가입 미완료 계정은 가입 완료가 되고, 필수 약관이 개정된 활성 계정은 재동의가 된다. 마케팅 값을 보내지 않으면
@@ -48,6 +50,10 @@ public class AgreeToTermsService implements AgreeToTermsUseCase {
         if (command.marketingAgreed() != null) {
             profile.changeMarketingConsent(command.marketingAgreed(), current, now);
         }
-        profiles.save(profile);
+        try {
+            profiles.save(profile);
+        } catch (ConcurrentProfileUpdateException exception) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, exception);
+        }
     }
 }

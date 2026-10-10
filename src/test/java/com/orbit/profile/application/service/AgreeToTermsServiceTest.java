@@ -3,6 +3,7 @@ package com.orbit.profile.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import com.orbit.profile.application.error.ProfileErrorCode;
 import com.orbit.profile.application.port.in.command.dto.AgreeToTermsCommand;
+import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.CurrentTermsPort;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
@@ -31,6 +33,7 @@ import com.orbit.profile.domain.TermsAgreement;
 import com.orbit.profile.domain.TermsType;
 import com.orbit.profile.domain.TermsVersions;
 import com.orbit.shared.error.BusinessException;
+import com.orbit.shared.error.CommonErrorCode;
 
 @DisplayName("약관 동의")
 class AgreeToTermsServiceTest {
@@ -116,6 +119,21 @@ class AgreeToTermsServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(ProfileErrorCode.PROFILE_NOT_FOUND));
         verify(profiles, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("다른 요청이 같은 프로필을 먼저 저장했으면 덮어쓰지 않고 COMMON-409로 거부한다")
+    void rejectsConcurrentUpdate() {
+        when(profiles.findByAccountId(new AccountId(1L)))
+                .thenReturn(Optional.of(
+                        Profile.start(new AccountId(1L), new PersonName("홍길동"), new PhoneNumber("01012345678"))));
+        doThrow(new ConcurrentProfileUpdateException(new AccountId(1L), new RuntimeException("stale")))
+                .when(profiles)
+                .save(any());
+
+        assertThatThrownBy(() -> service.agree(new AgreeToTermsCommand(1L, 1L, true, true, false)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(CommonErrorCode.CONFLICT));
     }
 
     private static Profile pendingProfile() {

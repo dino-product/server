@@ -1,6 +1,7 @@
 package com.orbit.profile.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
 import com.orbit.profile.domain.MarketingConsent;
@@ -121,6 +123,24 @@ class ProfilePersistenceAdapterTest {
                             new TermsAgreement(TermsType.PRIVACY, "p2", LATER));
             assertThat(found.isUsable(PRIVACY_REVISED)).isTrue();
         });
+    }
+
+    @Test
+    @DisplayName("불러온 뒤 다른 요청이 먼저 저장한 프로필을 덮어쓰려 하면 동시 수정 예외로 거부한다")
+    void rejectsStaleProfileUpdate() {
+        AccountId accountId = newAccountId();
+        adapter.save(Profile.start(accountId, new PersonName("홍길동"), new PhoneNumber("01012345678")));
+        flushAndClear();
+        Profile stale = adapter.findByAccountId(accountId).orElseThrow();
+        entityManager
+                .getEntityManager()
+                .createNativeQuery("update profiles set version = version + 1 where account_id = :id")
+                .setParameter("id", accountId.value())
+                .executeUpdate();
+
+        stale.agreeToTerms(V1, SIGNUP_AT);
+
+        assertThatThrownBy(() -> adapter.save(stale)).isInstanceOf(ConcurrentProfileUpdateException.class);
     }
 
     private void flushAndClear() {

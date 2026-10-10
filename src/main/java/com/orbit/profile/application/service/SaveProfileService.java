@@ -8,12 +8,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbit.profile.application.error.ProfileErrorCode;
 import com.orbit.profile.application.port.in.command.SaveProfileUseCase;
 import com.orbit.profile.application.port.in.command.dto.SaveProfileCommand;
+import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
 import com.orbit.profile.domain.PersonName;
 import com.orbit.profile.domain.PhoneNumber;
 import com.orbit.profile.domain.Profile;
 import com.orbit.shared.error.BusinessException;
+import com.orbit.shared.error.CommonErrorCode;
 
 /** 프로필이 없으면 가입 미완료 프로필을 만들고, 있으면 이름·연락처를 바꾼다. 가입 상태는 바꾸지 않는다. */
 @Service
@@ -37,7 +39,11 @@ public class SaveProfileService implements SaveProfileUseCase {
                     return existing;
                 })
                 .orElseGet(() -> Profile.start(accountId, name, phoneNumber));
-        profiles.save(profile);
+        try {
+            profiles.save(profile);
+        } catch (ConcurrentProfileUpdateException exception) {
+            throw new BusinessException(CommonErrorCode.CONFLICT, exception);
+        }
     }
 
     private static <T> T validInput(Supplier<T> factory) {

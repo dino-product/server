@@ -3,6 +3,7 @@ package com.orbit.profile.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbit.profile.application.error.ProfileErrorCode;
 import com.orbit.profile.application.port.in.command.dto.SaveProfileCommand;
+import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
 import com.orbit.profile.domain.PersonName;
@@ -26,6 +28,7 @@ import com.orbit.profile.domain.PhoneNumber;
 import com.orbit.profile.domain.Profile;
 import com.orbit.profile.domain.SignupStatus;
 import com.orbit.shared.error.BusinessException;
+import com.orbit.shared.error.CommonErrorCode;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("프로필 입력")
@@ -84,5 +87,20 @@ class SaveProfileServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(ProfileErrorCode.INVALID_PROFILE_INPUT));
         verify(profiles, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("다른 요청이 같은 프로필을 먼저 저장했으면 덮어쓰지 않고 COMMON-409로 거부한다")
+    void rejectsConcurrentUpdate() {
+        when(profiles.findByAccountId(new AccountId(1L)))
+                .thenReturn(Optional.of(
+                        Profile.start(new AccountId(1L), new PersonName("홍길동"), new PhoneNumber("01012345678"))));
+        doThrow(new ConcurrentProfileUpdateException(new AccountId(1L), new RuntimeException("stale")))
+                .when(profiles)
+                .save(any());
+
+        assertThatThrownBy(() -> service.save(new SaveProfileCommand(1L, 1L, "김철수", "01087654321")))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(CommonErrorCode.CONFLICT));
     }
 }

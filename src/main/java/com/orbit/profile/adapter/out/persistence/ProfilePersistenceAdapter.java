@@ -2,9 +2,12 @@ package com.orbit.profile.adapter.out.persistence;
 
 import java.util.Optional;
 
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
 import com.orbit.profile.domain.Profile;
@@ -24,12 +27,21 @@ class ProfilePersistenceAdapter implements ProfileRepository {
         return repository.findById(accountId.value()).map(ProfileJpaEntity::toDomain);
     }
 
+    /**
+     * 다른 요청이 먼저 저장했거나(버전 불일치) 첫 프로필을 동시에 만들면(기본 키 충돌) {@link ConcurrentProfileUpdateException}을 던진다. 충돌을 호출자에게
+     * 바로 알리도록 즉시 flush한다.
+     */
     @Override
     @Transactional
     public void save(Profile profile) {
-        repository
-                .findById(profile.accountId().value())
-                .ifPresentOrElse(
-                        entity -> entity.apply(profile), () -> repository.save(ProfileJpaEntity.from(profile)));
+        try {
+            repository
+                    .findById(profile.accountId().value())
+                    .ifPresentOrElse(
+                            entity -> entity.apply(profile), () -> repository.save(ProfileJpaEntity.from(profile)));
+            repository.flush();
+        } catch (OptimisticLockingFailureException | DataIntegrityViolationException exception) {
+            throw new ConcurrentProfileUpdateException(profile.accountId(), exception);
+        }
     }
 }

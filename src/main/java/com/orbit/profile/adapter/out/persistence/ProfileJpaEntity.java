@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import com.orbit.profile.domain.AccountId;
 import com.orbit.profile.domain.MarketingConsent;
@@ -50,6 +51,11 @@ class ProfileJpaEntity {
 
     @Column(name = "marketing_changed_at")
     private Instant marketingChangedAt;
+
+    /** 같은 프로필을 동시에 저장할 때 늦은 쪽이 먼저 저장된 가입 상태를 되돌리지 않게 한다. */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     @OneToMany(mappedBy = "profile", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("id")
