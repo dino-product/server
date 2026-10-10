@@ -1,6 +1,7 @@
 package com.orbit.organization.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.CompletableFuture;
@@ -28,8 +29,10 @@ import com.orbit.organization.application.port.in.command.dto.CreateMemberCatego
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.DeleteMemberCategoryCommand;
 import com.orbit.organization.application.port.in.command.dto.UpdateMemberCategoryCommand;
+import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.Industry;
 import com.orbit.organization.domain.MemberCategoryKind;
+import com.orbit.organization.domain.OrganizationId;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.support.IntegrationTestSupport;
 
@@ -44,6 +47,7 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
     private static final long OWNER = 91_001L;
     private static final long OTHER_OWNER = 91_002L;
     private static final long BUSY_OWNER = 91_003L;
+    private static final long KEY_SHARE_OWNER = 91_004L;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
@@ -58,6 +62,9 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private DeleteMemberCategoryUseCase deleteMemberCategoryUseCase;
+
+    @Autowired
+    private OrganizationRepository organizationRepository;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -192,6 +199,38 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
                         String.class,
                         organizationId))
                 .containsExactly("정규직");
+    }
+
+    @Test
+    @DisplayName("발주사 잠금은 외래 키 검사가 부모 행에 거는 잠금(FOR KEY SHARE)을 막지 않아, 잠금 중에도 그 발주사의 자식 행을 넣을 수 있다")
+    void doesNotBlockForeignKeyChecks() throws Exception {
+        long organizationId = createOrganizationUseCase
+                .create(new CreateOrganizationCommand(KEY_SHARE_OWNER, "동시성 발주사", Industry.HVAC))
+                .organizationId();
+
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch commitFirst = new CountDownLatch(1);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CompletableFuture<Void> lockHolder = CompletableFuture.runAsync(
+                () -> transaction.executeWithoutResult(status -> {
+                    organizationRepository.lock(new OrganizationId(organizationId));
+                    locked.countDown();
+                    await(commitFirst);
+                }),
+                executor);
+        assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+
+        try {
+            assertThatCode(() -> transaction.executeWithoutResult(status -> {
+                        jdbcTemplate.execute("SET LOCAL lock_timeout = '300ms'");
+                        jdbcTemplate.queryForList(
+                                "select id from companies where id = ? for key share", Long.class, organizationId);
+                    }))
+                    .doesNotThrowAnyException();
+        } finally {
+            commitFirst.countDown();
+        }
+        lockHolder.get(10, TimeUnit.SECONDS);
     }
 
     private static void await(CountDownLatch latch) {
