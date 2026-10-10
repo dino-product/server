@@ -1,5 +1,6 @@
 package com.orbit;
 
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -167,6 +168,41 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + "['com.orbit.organization.adapter.in.web.UpdateOrganizationRequest']"
                                 + ".properties.industry.enum.length()")
                         .value(6));
+    }
+
+    @Test
+    void documentsMemberCategoryOperationsPerKind() throws Exception {
+        String collection = "$.paths['/api/v1/organizations/{organizationId}/staff-categories']";
+        String item = "$.paths['/api/v1/organizations/{organizationId}/technician-categories/{categoryId}']";
+        String schemas = "#/components/schemas/com.orbit.organization.adapter.in.web.";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(collection + ".get.summary").value("직원 유형 목록 조회"))
+                .andExpect(jsonPath(collection + ".get.security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(collection + ".get.responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "MemberCategoriesResponse"))
+                .andExpect(jsonPath(collection + ".get.responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-003']")
+                        .doesNotExist())
+                .andExpect(jsonPath(collection + ".post.summary").value("직원 유형 생성"))
+                .andExpect(jsonPath(collection + ".post.responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "MemberCategoryResponse"))
+                .andExpect(jsonPath(collection + ".post.responses['400'].content['application/json']"
+                                + ".examples['ORGANIZATION-007'].value.code")
+                        .value("ORGANIZATION-007"))
+                .andExpect(jsonPath(collection + ".post.responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-009'].value.code")
+                        .value("ORGANIZATION-009"))
+                .andExpect(jsonPath(item + ".put.summary").value("기사 유형 수정"))
+                .andExpect(jsonPath(item + ".put.parameters[*].name").value(contains("organizationId", "categoryId")))
+                .andExpect(jsonPath(item + ".put.responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-008'].value.code")
+                        .value("ORGANIZATION-008"))
+                .andExpect(jsonPath(item + ".delete.summary").value("기사 유형 삭제"))
+                .andExpect(jsonPath(item + ".delete.responses['204']").exists());
     }
 
     @Test
