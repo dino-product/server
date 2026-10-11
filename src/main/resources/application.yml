@@ -83,6 +83,10 @@ app:
       issuer: https://kauth.kakao.com
       jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
       allowed-audiences: ${KAKAO_ALLOWED_AUDIENCES}
+      admin-api:
+        unlink-uri: https://kapi.kakao.com/v1/user/unlink
+        admin-key: ${KAKAO_ADMIN_KEY}
+        timeout: PT5S
     apple:
       issuer: https://appleid.apple.com
       jwk-set-uri: https://appleid.apple.com/auth/keys
