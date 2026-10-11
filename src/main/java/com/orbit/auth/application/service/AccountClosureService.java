@@ -18,7 +18,7 @@ import com.orbit.shared.error.BusinessException;
 
 /**
  * 탈퇴를 소유한 모듈이 부르는 계정 폐쇄. 호출자 트랜잭션에 참여해 탈퇴와 함께 확정·롤백되고, 커밋 뒤에만 그 계정의 Access Token을 폐기하도록 폐쇄 사실을
- * 발행한다. 같은 계정의 동시 폐쇄는 계정 잠금으로 줄을 세워, 뒤에 온 호출은 이미 닫힌 계정을 보고 아무것도 바꾸지 않는다.
+ * 발행한다. 같은 계정의 동시 폐쇄는 계정 잠금으로 줄을 세워, 뒤에 온 호출은 이미 닫힌 계정을 보고 DB를 바꾸지 않은 채 토큰 폐기만 다시 확정한다.
  */
 @Service
 public class AccountClosureService implements AccountClosure {
@@ -45,6 +45,9 @@ public class AccountClosureService implements AccountClosure {
         Account account = accounts.findByIdForUpdate(new AccountId(accountId))
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.ACCOUNT_NOT_FOUND));
         if (account.isClosed()) {
+            // 앞선 폐쇄의 커밋 뒤 토큰 폐기가 실패했어도 다시 부르면 복구되도록 원래 폐쇄 시각으로 다시 알린다.
+            eventPublisher.publishEvent(new AccountClosed(
+                    account.id().orElseThrow(), account.closedAt().orElseThrow()));
             return;
         }
         Instant closedAt = clock.instant();

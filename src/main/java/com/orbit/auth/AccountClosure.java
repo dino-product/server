@@ -8,7 +8,8 @@ package com.orbit.auth;
 public interface AccountClosure {
 
     /**
-     * 계정을 닫는다. 호출자 트랜잭션에 참여하므로 호출자가 롤백하면 외부 식별과 토큰이 그대로 남는다. 이미 닫힌 계정이면 아무것도 바꾸지 않는다.
+     * 계정을 닫는다. 호출자 트랜잭션에 참여하므로 호출자가 롤백하면 외부 식별과 토큰이 그대로 남는다. 이미 닫힌 계정이면 저장된 상태를 바꾸지 않고, 커밋 뒤 토큰
+     * 거부만 다시 확정한다.
      *
      * @throws com.orbit.shared.error.BusinessException 계정이 없으면 AUTH-004
      */

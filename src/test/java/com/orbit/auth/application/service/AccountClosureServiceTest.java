@@ -76,16 +76,17 @@ class AccountClosureServiceTest {
     }
 
     @Test
-    @DisplayName("이미 닫힌 계정이면 아무것도 바꾸지 않고 끝낸다")
-    void ignoresClosedAccount() {
+    @DisplayName("이미 닫힌 계정이면 DB는 바꾸지 않고 원래 폐쇄 시각으로 폐쇄 사실을 다시 알려 토큰 폐기를 확정한다")
+    void republishesClosureForClosedAccount() {
+        Instant closedAt = NOW.minusSeconds(60);
         when(accounts.findByIdForUpdate(ACCOUNT_ID))
-                .thenReturn(Optional.of(Account.reconstituteClosed(ACCOUNT_ID, REGISTERED_AT, NOW.minusSeconds(60))));
+                .thenReturn(Optional.of(Account.reconstituteClosed(ACCOUNT_ID, REGISTERED_AT, closedAt)));
 
         service.close(ACCOUNT_ID.value());
 
         verify(providerUnlinks, never()).saveAll(any());
         verify(accounts, never()).update(any());
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
+        verify(eventPublisher).publishEvent(new AccountClosed(ACCOUNT_ID, closedAt));
     }
 
     @Test

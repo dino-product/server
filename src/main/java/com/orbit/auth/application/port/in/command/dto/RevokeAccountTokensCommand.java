@@ -1,3 +1,5 @@
 package com.orbit.auth.application.port.in.command.dto;
 
-public record RevokeAccountTokensCommand(Long accountId) {}
+import java.time.Instant;
+
+public record RevokeAccountTokensCommand(Long accountId, Instant closedAt) {}

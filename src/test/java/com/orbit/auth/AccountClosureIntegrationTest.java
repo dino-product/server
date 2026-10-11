@@ -163,7 +163,27 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
 
         assertThat(closedMark(accountId)).as("커밋 뒤").isTrue();
         assertThat(redisTemplate.getExpire(CLOSED_ACCOUNT_KEY + accountId, TimeUnit.SECONDS))
-                .isBetween(accessTokenTtl.toSeconds() - 60, accessTokenTtl.toSeconds());
+                .as("폐쇄 직전에 시작한 로그인이 발급한 토큰까지 덮도록 수명보다 조금 길게 남긴다")
+                .isBetween(
+                        accessTokenTtl.toSeconds() + 1,
+                        accessTokenTtl.plusMinutes(10).toSeconds());
+    }
+
+    @Test
+    @DisplayName("폐쇄 표시가 사라졌으면 같은 계정을 다시 닫을 때 표시를 되살려 이전 토큰을 거부한다")
+    void restoresClosedMarkWhenClosedAgain() throws Exception {
+        JsonNode login = loginWithKakao(UUID.randomUUID().toString());
+        long accountId = accountId(login);
+        accountClosure.close(accountId);
+        redisTemplate.delete(CLOSED_ACCOUNT_KEY + accountId);
+
+        accountClosure.close(accountId);
+
+        assertThat(closedMark(accountId)).isTrue();
+        assertThat(pendingUnlinks(accountId)).hasSize(1);
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMON-404"));
     }
 
     private JsonNode loginWithKakao(String subject) throws Exception {

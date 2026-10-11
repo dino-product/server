@@ -22,6 +22,6 @@ public class AccountClosedListener {
 
     @TransactionalEventListener
     public void on(AccountClosed event) {
-        useCase.revoke(new RevokeAccountTokensCommand(event.accountId().value()));
+        useCase.revoke(new RevokeAccountTokensCommand(event.accountId().value(), event.closedAt()));
     }
 }
