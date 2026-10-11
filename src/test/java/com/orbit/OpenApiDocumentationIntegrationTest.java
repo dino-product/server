@@ -251,20 +251,17 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
         String operation = "$.paths['/api/v1/participation-requests'].post";
         String conflict = operation + ".responses['409'].content['application/json'].examples";
         String notFound = operation + ".responses['404'].content['application/json'].examples";
+        String schemas = "#/components/schemas/com.orbit.organization.adapter.in.web.";
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(operation + ".summary").value("참여 요청"))
                 .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
                         .exists())
-                .andExpect(
-                        jsonPath(operation + ".requestBody.content['application/json'].schema['$ref']")
-                                .value(
-                                        "#/components/schemas/com.orbit.organization.adapter.in.web.RequestParticipationRequest"))
-                .andExpect(
-                        jsonPath(operation + ".responses['200'].content['application/json']"
-                                        + ".schema.properties.result['$ref']")
-                                .value(
-                                        "#/components/schemas/com.orbit.organization.adapter.in.web.ParticipationRequestResponse"))
+                .andExpect(jsonPath(operation + ".requestBody.content['application/json'].schema['$ref']")
+                        .value(schemas + "RequestParticipationRequest"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "ParticipationRequestResponse"))
                 .andExpect(
                         jsonPath(notFound + "['ORGANIZATION-012'].value.code").value("ORGANIZATION-012"))
                 .andExpect(

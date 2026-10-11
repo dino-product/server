@@ -10,6 +10,7 @@ import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.RequestParticipationUseCase;
 import com.orbit.organization.application.port.in.command.dto.ParticipationRequestInfo;
 import com.orbit.organization.application.port.in.command.dto.RequestParticipationCommand;
+import com.orbit.organization.application.port.in.query.dto.ParticipationAvailability;
 import com.orbit.organization.application.port.out.AccountMembershipQueryPort;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.application.port.out.ParticipationRequestRepository;
@@ -57,18 +58,22 @@ public class RequestParticipationService implements RequestParticipationUseCase 
 
         ParticipationEligibility eligibility =
                 ParticipationEligibility.evaluate(membershipQueryPort, requestRepository, organizationId, requester);
-        switch (eligibility.availability()) {
-            case ALREADY_MEMBER -> throw new BusinessException(OrganizationErrorCode.ALREADY_MEMBER);
-            case DEACTIVATED_MEMBER -> throw new BusinessException(OrganizationErrorCode.DEACTIVATED_MEMBER);
-            case PENDING_REQUEST -> throw new BusinessException(OrganizationErrorCode.PENDING_REQUEST_EXISTS);
-            case AVAILABLE -> {
-                // 아래에서 만든다.
-            }
+        if (eligibility.availability() != ParticipationAvailability.AVAILABLE) {
+            throw new BusinessException(rejection(eligibility.availability()));
         }
 
         ParticipationRequest saved = requestRepository.save(
                 ParticipationRequest.request(organizationId, requester, command.desiredType(), clock.instant()));
         return ParticipationRequestInfo.of(saved, organization);
+    }
+
+    private static OrganizationErrorCode rejection(ParticipationAvailability availability) {
+        return switch (availability) {
+            case ALREADY_MEMBER -> OrganizationErrorCode.ALREADY_MEMBER;
+            case DEACTIVATED_MEMBER -> OrganizationErrorCode.DEACTIVATED_MEMBER;
+            case PENDING_REQUEST -> OrganizationErrorCode.PENDING_REQUEST_EXISTS;
+            case AVAILABLE -> throw new IllegalArgumentException("available participation is not a rejection");
+        };
     }
 
     private static OrganizationId organizationIdOf(Organization organization) {
