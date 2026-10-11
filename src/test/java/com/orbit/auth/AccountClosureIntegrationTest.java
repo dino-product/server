@@ -1,18 +1,25 @@
 package com.orbit.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -36,6 +43,7 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
 
     private static final KakaoJwksStub KAKAO = KakaoJwksStub.start();
     private static final AppleAuthStub APPLE = AppleAuthStub.start();
+    private static final String CLOSED_ACCOUNT_KEY = "auth:closed-account:";
 
     @Autowired
     private AccountClosure accountClosure;
@@ -51,6 +59,12 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    @Value("${app.auth.jwt.access-token-ttl}")
+    private Duration accessTokenTtl;
 
     @DynamicPropertySource
     static void providerStubs(DynamicPropertyRegistry registry) {
@@ -105,18 +119,51 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("호출자 트랜잭션이 롤백되면 외부 식별을 그대로 두어 같은 계정으로 로그인한다")
+    @DisplayName("호출자 트랜잭션이 롤백되면 외부 식별과 토큰을 그대로 두어 같은 계정으로 로그인하고 인증된다")
     void rollbackKeepsIdentity() throws Exception {
         String subject = UUID.randomUUID().toString();
-        long accountId = accountId(loginWithKakao(subject));
+        JsonNode login = loginWithKakao(subject);
+        long accountId = accountId(login);
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             accountClosure.close(accountId);
             status.setRollbackOnly();
         });
 
+        assertThat(closedMark(accountId)).isFalse();
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
+                .andExpect(status().isOk());
         assertThat(accountId(loginWithKakao(subject))).isEqualTo(accountId);
         assertThat(pendingUnlinks(accountId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("폐쇄가 커밋되면 그 전에 발급한 Access Token을 폐기 토큰과 같은 404로 거부한다")
+    void rejectsTokensIssuedBeforeClosure() throws Exception {
+        JsonNode login = loginWithKakao(UUID.randomUUID().toString());
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
+                .andExpect(status().isOk());
+
+        accountClosure.close(accountId(login));
+
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMON-404"));
+    }
+
+    @Test
+    @DisplayName("계정 폐쇄 표시는 커밋 전에는 남기지 않고 커밋 뒤에 Access Token 수명만큼 남긴다")
+    void marksClosedAccountOnlyAfterCommit() throws Exception {
+        long accountId = accountId(loginWithKakao(UUID.randomUUID().toString()));
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            accountClosure.close(accountId);
+            assertThat(closedMark(accountId)).as("커밋 전").isFalse();
+        });
+
+        assertThat(closedMark(accountId)).as("커밋 뒤").isTrue();
+        assertThat(redisTemplate.getExpire(CLOSED_ACCOUNT_KEY + accountId, TimeUnit.SECONDS))
+                .isBetween(accessTokenTtl.toSeconds() - 60, accessTokenTtl.toSeconds());
     }
 
     private JsonNode loginWithKakao(String subject) throws Exception {
@@ -159,6 +206,14 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
     private List<Map<String, Object>> pendingUnlinks(long accountId) {
         return jdbcTemplate.queryForList(
                 "select provider, oauth_uid from provider_unlinks where account_id = ?", accountId);
+    }
+
+    private boolean closedMark(long accountId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(CLOSED_ACCOUNT_KEY + accountId));
+    }
+
+    private static String bearer(JsonNode login) {
+        return "Bearer " + login.path("result").path("accessToken").asString();
     }
 
     private static long accountId(JsonNode login) {
