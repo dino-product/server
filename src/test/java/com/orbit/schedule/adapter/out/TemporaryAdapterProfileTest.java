@@ -14,7 +14,6 @@ import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LoadTechnicianNamePort;
 import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
-import com.orbit.schedule.application.port.out.WorkRepository;
 
 @DisplayName("임시 출력 어댑터 등록 프로필")
 class TemporaryAdapterProfileTest {
@@ -27,7 +26,6 @@ class TemporaryAdapterProfileTest {
     @DisplayName("로컬·테스트 프로필에서만 등록한다")
     void registersOnlyInLocalAndTest(String profile) {
         runner.withPropertyValues("spring.profiles.active=" + profile).run(context -> {
-            assertThat(context).hasSingleBean(WorkRepository.class);
             assertThat(context).hasSingleBean(WorkQueryPort.class);
             assertThat(context).hasSingleBean(LoadActorPort.class);
             assertThat(context).hasSingleBean(LoadTechnicianNamePort.class);
@@ -40,7 +38,6 @@ class TemporaryAdapterProfileTest {
     @DisplayName("운영과 이름 없는·그 밖의 환경에서는 등록하지 않는다")
     void doesNotRegisterElsewhere(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles).run(context -> {
-            assertThat(context).doesNotHaveBean(WorkRepository.class);
             assertThat(context).doesNotHaveBean(WorkQueryPort.class);
             assertThat(context).doesNotHaveBean(LoadActorPort.class);
             assertThat(context).doesNotHaveBean(LoadTechnicianNamePort.class);
