@@ -2,7 +2,7 @@
 
 - 상태: Accepted
 - 기준일: 2026-10-04
-- 범위: 초기 백엔드의 구조·기술 선택·카카오 OIDC 인증과 계정·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
+- 범위: 초기 백엔드의 구조·기술 선택·카카오·Apple OIDC 인증과 계정·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
 
 ## 배경과 목적
 
@@ -26,11 +26,12 @@
 
 ## 인증과 계정
 
-- 소셜 로그인은 카카오 OIDC로 통일하고, 클라이언트별로 카카오 증명을 얻는 경로만 다르게 둡니다. 앱은 카카오 네이티브 SDK가 돌려준 id_token을 제출하고, 웹은 서버가 Authorization Code를 교환해 id_token을 얻습니다(웹 흐름은 후속 구현). 두 경로 모두 서버의 단일 id_token 검증기(JWKS 서명·발급자·허용 앱 키·만료·nonce)로 합류하며 카카오 토큰을 API 인증에 쓰지 않습니다.
-- nonce는 서버가 발급하고 한 번만 소비하므로 이미 쓴 id_token은 다시 제출할 수 없습니다. 앱 흐름은 브라우저 세션이 없어 nonce를 발급 주체와 따로 묶지 않으며 그 이유는 [Auth 로그인 흐름](../domain/auth.md#카카오-로그인-흐름)에 둡니다. 웹 흐름은 state/nonce를 시작 브라우저와 연결합니다.
-- 계정 원본은 `auth`가 소유합니다. `Account`는 제공자별 외부 식별(`ExternalIdentity`)과 등록 시각만 가지며 `accounts`·`oauth_credentials` 테이블에 저장합니다. 첫 로그인에 계정을 만들고 이후 같은 카카오 `sub`는 같은 계정입니다. 이름·연락처 같은 프로필과 조직 역할은 auth에 두지 않으며 소유 컨텍스트는 [BC-001](../domain/bounded-contexts.md#미해결-설계-이슈)에서 결정합니다. `user` 예제는 그대로 둡니다.
+- 소셜 로그인은 카카오·Apple OIDC를 함께 지원하고, 제공자·클라이언트별로 증명을 얻는 경로만 다르게 둡니다. 카카오 앱과 Apple iOS는 네이티브 SDK가 돌려준 id_token을 제출하고, Apple 웹·Android는 서버가 authorize·callback으로 code와 id_token을 받습니다(카카오 웹 흐름은 후속 구현). 모든 경로는 공통 골격(JWKS 서명·발급자·허용 클라이언트·만료)의 제공자별 id_token 검증기와 서버 발급 nonce로 합류하며 제공자 토큰을 API 인증에 쓰지 않습니다. iOS 앱이 카카오 같은 타사 로그인을 제공하면 App Store 심사 지침 4.8에 따라 개인정보 보호형 대체 로그인이 필요하므로 Apple을 두 번째 제공자로 붙였고, 제품 결정은 Notion 반영을 기다립니다([A-10](../domain/bounded-contexts.md#auth-gaps)).
+- nonce는 서버가 발급하고 한 번만 소비하므로 이미 쓴 id_token은 다시 제출할 수 없습니다. Apple은 앱이 nonce의 SHA-256 hex를 요청에 넣어 id_token에 해시가 실리므로 서버는 raw를 발급하고 해시로 보관·원자 소비합니다. 앱 흐름은 브라우저 세션이 없어 nonce를 발급 주체와 따로 묶지 않으며 그 이유는 [Auth 로그인 흐름](../domain/auth.md#카카오-로그인-흐름)에 둡니다. 웹 흐름은 state/nonce를 시작 브라우저의 연결 쿠키와 묶고, 콜백 뒤 Access Token 대신 60초 일회성 교환 코드만 복귀 주소에 실어 토큰이 URL에 남지 않게 합니다. 교환 코드는 시작 클라이언트의 PKCE(S256) code_verifier가 있어야 쓸 수 있어 Android 앱 스킴 가로채기와 login CSRF를 막습니다(RFC 8252).
+- 계정 원본은 `auth`가 소유합니다. `Account`는 제공자별 외부 식별(`ExternalIdentity`)과 등록 시각만 가지며 `accounts`·`oauth_credentials` 테이블에 저장합니다. 첫 로그인에 계정을 만들고 이후 같은 제공자의 같은 `sub`는 같은 계정입니다. 카카오 계정과 Apple 계정은 별개이며, Apple 비공개 릴레이 이메일·카카오 이메일 미동의 때문에 이메일 매칭 자동 연결은 불안정하고 탈취 경로가 되므로 하지 않습니다. 이름·연락처 같은 프로필과 조직 역할은 auth에 두지 않으며 소유 컨텍스트는 [BC-001](../domain/bounded-contexts.md#미해결-설계-이슈)에서 결정합니다. `user` 예제는 그대로 둡니다.
 - 자체 자격증명은 HS256 Access JWT(`iss`, `sub`=accountId, `jti`, `exp`, `token_use=access`)입니다. 로그아웃은 토큰의 `jti`를 남은 유효 시간 동안 Redis에 기억해 폐기하며, Refresh 회전은 후속 결정입니다.
-- 인증 실패 응답 정책: 토큰이 없으면 401, 토큰이 있는데 폐기·만료·위조됐으면 카카오 로그인 경로를 뺀 어느 경로든 실제 존재하지 않는 자원과 같은 404 본문으로 응답해 보호 자원의 존재와 실패 이유를 드러내지 않습니다.
+- Apple 계정 삭제 시 토큰 철회가 요구되므로 iOS·웹 로그인 모두 authorization code를 교환해 refresh token을 받아 `apple_refresh_tokens`에 AES-256-GCM으로 암호화해 보관합니다. 교환 실패는 로그인 실패로, Apple이 거절한 code는 401, Apple 장애·설정 오류는 502로 구분해 클라이언트가 재로그인과 재시도를 고를 수 있게 합니다(오류 코드는 Auth 문서). 저장 키 교체·보관 정책은 후속 결정입니다. Apple 토큰 API를 기다리는 로그인 유즈케이스는 DB 커넥션을 잡지 않도록 메서드 트랜잭션을 두지 않습니다([트랜잭션 예외](../../.claude/skills/dino-architecture/references/persistence.md#transactions)).
+- 인증 실패 응답 정책: 토큰이 없으면 401, 토큰이 있는데 폐기·만료·위조됐으면 카카오·Apple 로그인 경로를 뺀 어느 경로든 실제 존재하지 않는 자원과 같은 404 본문으로 응답해 보호 자원의 존재와 실패 이유를 드러내지 않습니다.
 - 인증 필터와 공개 경로는 `shared::security`의 `SecurityFilterChainCustomizer`로 공통 SecurityFilterChain에 덧붙입니다. shared는 비즈니스 모듈에 의존하지 않고 모듈은 별도 SecurityFilterChain을 만들지 않습니다.
 
 상세 흐름·설정·오류 코드는 [Auth](../domain/auth.md)가 소유합니다.
