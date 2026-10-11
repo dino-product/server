@@ -52,7 +52,7 @@ class AccountPersistenceAdapter implements AccountRepository {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public void update(Account account) {
         AccountId accountId =
                 account.id().orElseThrow(() -> new IllegalArgumentException("only saved accounts can be updated"));

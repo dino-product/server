@@ -1,6 +1,7 @@
 package com.orbit.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,7 +11,12 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
@@ -116,6 +122,37 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
         accountClosure.close(closed);
 
         assertThat(pendingUnlinks(closed)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("같은 계정을 동시에 닫으면 뒤에 온 호출은 앞선 폐쇄가 끝날 때까지 기다린 뒤 아무것도 바꾸지 않고 성공한다")
+    void serializesConcurrentClosures() throws Exception {
+        long accountId = accountId(loginWithKakao(UUID.randomUUID().toString()));
+        CountDownLatch firstClosed = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first =
+                    executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                        accountClosure.close(accountId);
+                        firstClosed.countDown();
+                        awaitRelease(releaseFirst);
+                    }));
+            assertThat(firstClosed.await(10, TimeUnit.SECONDS)).isTrue();
+
+            Future<?> second = executor.submit(() -> accountClosure.close(accountId));
+            assertThatThrownBy(() -> second.get(500, TimeUnit.MILLISECONDS))
+                    .as("앞선 폐쇄가 커밋될 때까지 기다린다")
+                    .isInstanceOf(TimeoutException.class);
+            releaseFirst.countDown();
+
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+        }
+        assertThat(pendingUnlinks(accountId)).hasSize(1);
     }
 
     @Test
@@ -226,6 +263,17 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
     private List<Map<String, Object>> pendingUnlinks(long accountId) {
         return jdbcTemplate.queryForList(
                 "select provider, oauth_uid from provider_unlinks where account_id = ?", accountId);
+    }
+
+    private static void awaitRelease(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("first closure was not released");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 
     private boolean closedMark(long accountId) {

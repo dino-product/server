@@ -11,6 +11,9 @@ public interface AccountClosure {
      * 계정을 닫는다. 호출자 트랜잭션에 참여하므로 호출자가 롤백하면 외부 식별과 토큰이 그대로 남는다. 이미 닫힌 계정이면 저장된 상태를 바꾸지 않고, 커밋 뒤 토큰
      * 거부만 다시 확정한다.
      *
+     * <p>계정 행 잠금은 호출자 트랜잭션이 끝날 때까지 유지된다. 이 메서드가 던진 예외는 호출자 트랜잭션을 롤백 전용으로 만들므로, 잡고 계속 진행해도 커밋할 수
+     * 없다.
+     *
      * @throws com.orbit.shared.error.BusinessException 계정이 없으면 AUTH-004
      */
     void close(Long accountId);
