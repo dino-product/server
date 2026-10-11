@@ -16,7 +16,10 @@ public enum OrganizationErrorCode implements BaseCode {
     OWNER_ONLY(HttpStatus.FORBIDDEN, "ORGANIZATION-003", "총관리자만 할 수 있습니다."),
     // ORGANIZATION-004~006은 총관리자 지정·해제(HM-294), 007~010은 유형 관리(HM-291)가 쓴다.
     COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "ORGANIZATION-011", "회사 코드에 해당하는 회사가 없습니다."),
-    RETIRED_COMPANY_CODE(HttpStatus.NOT_FOUND, "ORGANIZATION-012", "변경 전의 이전 회사 코드입니다. 현재 회사 코드를 다시 확인해 주세요.");
+    RETIRED_COMPANY_CODE(HttpStatus.NOT_FOUND, "ORGANIZATION-012", "변경 전의 이전 회사 코드입니다. 현재 회사 코드를 다시 확인해 주세요."),
+    ALREADY_MEMBER(HttpStatus.CONFLICT, "ORGANIZATION-013", "이미 참여 중인 회사입니다."),
+    PENDING_REQUEST_EXISTS(HttpStatus.CONFLICT, "ORGANIZATION-014", "이 회사에 승인 대기 중인 참여 요청이 있습니다."),
+    DEACTIVATED_MEMBER(HttpStatus.CONFLICT, "ORGANIZATION-015", "비활성화된 소속이 있는 회사입니다. 총관리자에게 재활성화를 요청해 주세요.");
 
     private final HttpStatus httpStatus;
     private final String code;

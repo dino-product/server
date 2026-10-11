@@ -1,5 +1,6 @@
 package com.orbit.organization.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -132,6 +133,124 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/v1/organizations/lookup").param("companyCode", "7K2M9X"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("COMMON-401"));
+    }
+
+    @Test
+    @DisplayName("희망 유형으로 승인 대기 요청을 만들고, 회사 확인은 그 요청을 승인 대기 중으로 알린다")
+    void createsPendingRequestShownByCheck() throws Exception {
+        long requester = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany("요청 발주사");
+
+        long requestId = result(request(requester, sloppy(company.code()), "TECHNICIAN")
+                        .andExpect(jsonPath("$.result.organizationId").value(company.organizationId()))
+                        .andExpect(jsonPath("$.result.organizationName").value("요청 발주사"))
+                        .andExpect(jsonPath("$.result.desiredType").value("TECHNICIAN"))
+                        .andExpect(jsonPath("$.result.status").value("PENDING"))
+                        .andExpect(jsonPath("$.result.requestedAt").exists()))
+                .path("requestId")
+                .asLong();
+
+        check(requester, company.code())
+                .andExpect(jsonPath("$.result.availability").value("PENDING_REQUEST"))
+                .andExpect(jsonPath("$.result.pendingRequestId").value(requestId));
+        assertThat(jdbcTemplate.queryForObject(
+                        "select desired_type from participation_requests where id = ?", String.class, requestId))
+                .isEqualTo("TECHNICIAN");
+    }
+
+    @Test
+    @DisplayName("같은 발주사에 승인 대기 요청이 있으면 새로 만들지 않고, 다른 발주사에는 동시에 요청할 수 있다")
+    void rejectsDuplicatePendingButAllowsOtherOrganization() throws Exception {
+        long requester = ACCOUNT_IDS.incrementAndGet();
+        Company first = createCompany("첫 발주사");
+        Company second = createCompany("둘째 발주사");
+        result(request(requester, first.code(), "STAFF"));
+
+        request(requester, first.code(), "TECHNICIAN")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-014"));
+        result(request(requester, second.code(), "TECHNICIAN"));
+
+        assertThat(jdbcTemplate.queryForList(
+                        "select company_id from participation_requests where member_id = ? and status = 'PENDING'",
+                        Long.class,
+                        requester))
+                .containsExactlyInAnyOrder(first.organizationId(), second.organizationId());
+    }
+
+    @Test
+    @DisplayName("이미 참여 중이거나 비활성 소속이 있는 발주사에는 요청을 만들지 않는다")
+    void rejectsMemberAndDeactivatedMember() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "소속 발주사");
+        long deactivated = ACCOUNT_IDS.incrementAndGet();
+        insertTechnician(company.organizationId(), deactivated, "DEACTIVATED");
+
+        request(owner, company.code(), "STAFF")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-013"));
+        request(deactivated, company.code(), "TECHNICIAN")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-015"));
+        assertThat(jdbcTemplate.queryForObject(
+                        "select count(*) from participation_requests where company_id = ?",
+                        Long.class,
+                        company.organizationId()))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("코드를 바꾸면 이전 코드로는 요청할 수 없고, 바꾸기 전에 접수된 승인 대기 요청은 그대로 남는다")
+    void keepsPendingRequestAcrossCodeChangeAndRejectsRetiredCode() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "코드 변경 요청 발주사");
+        long waiting = ACCOUNT_IDS.incrementAndGet();
+        long requestId = result(request(waiting, company.code(), "STAFF"))
+                .path("requestId")
+                .asLong();
+        String newCode = changeCode(owner, company.organizationId());
+
+        request(ACCOUNT_IDS.incrementAndGet(), company.code(), "STAFF")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-012"));
+        check(waiting, newCode)
+                .andExpect(jsonPath("$.result.availability").value("PENDING_REQUEST"))
+                .andExpect(jsonPath("$.result.pendingRequestId").value(requestId));
+        request(waiting, newCode, "STAFF")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-014"));
+        result(request(ACCOUNT_IDS.incrementAndGet(), newCode, "TECHNICIAN"));
+    }
+
+    @Test
+    @DisplayName("희망 유형이나 회사 코드가 없으면 400, 인증하지 않으면 401로 거부한다")
+    void rejectsInvalidBodyAndUnauthenticatedRequest() throws Exception {
+        long requester = ACCOUNT_IDS.incrementAndGet();
+        mockMvc.perform(post("/api/v1/participation-requests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(requester))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"companyCode\":\"7K2M9X\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(post("/api/v1/participation-requests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(requester))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"desiredType\":\"OWNER\",\"companyCode\":\"7K2M9X\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(post("/api/v1/participation-requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"companyCode\":\"7K2M9X\",\"desiredType\":\"STAFF\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON-401"));
+    }
+
+    private ResultActions request(long accountId, String companyCode, String desiredType) throws Exception {
+        return mockMvc.perform(post("/api/v1/participation-requests")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                        Map.of("companyCode", companyCode, "desiredType", desiredType))));
     }
 
     private ResultActions check(long accountId, String companyCode) throws Exception {
