@@ -65,6 +65,18 @@ class RevokeAccountTokensServiceTest {
     }
 
     @Test
+    @DisplayName("남은 기간이 Redis가 저장할 수 있는 1초보다 짧으면 표시하지 않는다")
+    void skipsSubSecondRetention() {
+        service.revoke(new RevokeAccountTokensCommand(
+                7L,
+                NOW.minus(LIFETIME)
+                        .minus(RevokeAccountTokensService.ISSUE_RACE_MARGIN)
+                        .plusMillis(500)));
+
+        verify(closedAccounts, never()).markClosed(any(), any());
+    }
+
+    @Test
     @DisplayName("폐쇄 전에 발급한 토큰이 모두 만료됐으면 표시하지 않는다")
     void skipsWhenAllTokensExpired() {
         service.revoke(new RevokeAccountTokensCommand(

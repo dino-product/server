@@ -25,6 +25,8 @@ public class RevokeAccountTokensService implements RevokeAccountTokensUseCase {
      */
     static final Duration ISSUE_RACE_MARGIN = Duration.ofMinutes(5);
 
+    private static final Duration MIN_RETENTION = Duration.ofSeconds(1);
+
     private final ClosedAccountPort closedAccounts;
     private final AccessTokenPort accessTokens;
     private final Clock clock;
@@ -39,8 +41,8 @@ public class RevokeAccountTokensService implements RevokeAccountTokensUseCase {
     public void revoke(RevokeAccountTokensCommand command) {
         Instant expiresAt = command.closedAt().plus(accessTokens.lifetime()).plus(ISSUE_RACE_MARGIN);
         Duration remaining = Duration.between(clock.instant(), expiresAt);
-        if (remaining.isZero() || remaining.isNegative()) {
-            // 폐쇄 전후에 발급한 토큰이 모두 만료됐으므로 표시할 필요가 없다.
+        if (remaining.compareTo(MIN_RETENTION) < 0) {
+            // 폐쇄 전후에 발급한 토큰이 곧 모두 만료되므로 표시할 필요가 없다. Redis 만료는 초 단위라 1초 미만은 저장할 수 없다.
             return;
         }
         closedAccounts.markClosed(new AccountId(command.accountId()), remaining);
