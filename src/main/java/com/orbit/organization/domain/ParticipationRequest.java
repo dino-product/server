@@ -15,11 +15,11 @@ public final class ParticipationRequest {
     private final AccountId accountId;
     private final ParticipationType desiredType;
     private final ParticipationType confirmedType;
-    private final ParticipationRequestStatus status;
+    private ParticipationRequestStatus status;
     private final String rejectReason;
     private final Instant requestedAt;
     private final Instant decidedAt;
-    private final Instant updatedAt;
+    private Instant updatedAt;
 
     private ParticipationRequest(
             ParticipationRequestId id,
@@ -93,6 +93,20 @@ public final class ParticipationRequest {
                 requestedAt,
                 decidedAt,
                 updatedAt);
+    }
+
+    /** 요청자가 승인 대기 중인 요청을 거둬들인다. 처리 시각은 승인·거절에만 쓰므로 남기지 않는다. */
+    public void cancel(Instant canceledAt) {
+        if (!isPending()) {
+            throw new IllegalStateException("only pending requests can be canceled");
+        }
+        Instant newUpdatedAt = requireNotBeforeRequest(canceledAt);
+        this.status = ParticipationRequestStatus.CANCELED;
+        this.updatedAt = newUpdatedAt;
+    }
+
+    public boolean isRequestedBy(AccountId requester) {
+        return accountId.equals(requester);
     }
 
     public boolean isPending() {

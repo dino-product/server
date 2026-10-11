@@ -74,6 +74,52 @@ class ParticipationRequestTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    @DisplayName("승인 대기 요청을 취소하면 처리 시각 없이 취소 상태가 된다")
+    void cancelsPendingRequest() {
+        ParticipationRequest request =
+                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT);
+
+        request.cancel(DECIDED_AT);
+
+        assertThat(request.status()).isEqualTo(ParticipationRequestStatus.CANCELED);
+        assertThat(request.isPending()).isFalse();
+        assertThat(request.decidedAt()).isEmpty();
+        assertThat(request.updatedAt()).isEqualTo(DECIDED_AT);
+    }
+
+    @Test
+    @DisplayName("승인 대기가 아닌 요청은 취소할 수 없다")
+    void rejectsCancelOfDecidedOrCanceledRequest() {
+        ParticipationRequest rejected = restore(null, ParticipationRequestStatus.REJECTED, null, DECIDED_AT);
+        ParticipationRequest canceled = restore(null, ParticipationRequestStatus.CANCELED, null, null);
+
+        assertThatThrownBy(() -> rejected.cancel(DECIDED_AT)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> canceled.cancel(DECIDED_AT)).isInstanceOf(IllegalStateException.class);
+        assertThat(rejected.status()).isEqualTo(ParticipationRequestStatus.REJECTED);
+    }
+
+    @Test
+    @DisplayName("취소 시각은 요청 시각보다 앞설 수 없다")
+    void rejectsCancelBeforeRequest() {
+        ParticipationRequest request =
+                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT);
+
+        assertThatThrownBy(() -> request.cancel(REQUESTED_AT.minusSeconds(1)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(request.isPending()).isTrue();
+    }
+
+    @Test
+    @DisplayName("요청한 계정인지 확인한다")
+    void checksRequester() {
+        ParticipationRequest request =
+                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT);
+
+        assertThat(request.isRequestedBy(ACCOUNT_ID)).isTrue();
+        assertThat(request.isRequestedBy(new AccountId(8L))).isFalse();
+    }
+
     private static ParticipationRequest restore(
             ParticipationType confirmedType,
             ParticipationRequestStatus status,

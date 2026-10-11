@@ -83,6 +83,30 @@ class ParticipationRequestPersistenceAdapterTest {
         assertThat(adapter.findPending(OTHER_ORGANIZATION_ID, ACCOUNT_ID)).isPresent();
     }
 
+    @Test
+    @DisplayName("잠가 읽은 요청을 취소해 저장하면 취소 상태와 수정 시각만 바뀐다")
+    void savesCanceledRequest() {
+        ParticipationRequest saved = adapter.save(
+                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT));
+        repository.flush();
+        entityManager.clear();
+
+        ParticipationRequest locked =
+                adapter.findByIdForUpdate(saved.id().orElseThrow()).orElseThrow();
+        locked.cancel(REQUESTED_AT.plusSeconds(60));
+        adapter.save(locked);
+        repository.flush();
+        entityManager.clear();
+
+        ParticipationRequest found =
+                adapter.findByIdForUpdate(saved.id().orElseThrow()).orElseThrow();
+        assertThat(found.status()).isEqualTo(ParticipationRequestStatus.CANCELED);
+        assertThat(found.updatedAt()).isEqualTo(REQUESTED_AT.plusSeconds(60));
+        assertThat(found.requestedAt()).isEqualTo(REQUESTED_AT);
+        assertThat(found.decidedAt()).isEmpty();
+        assertThat(adapter.findPending(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
+    }
+
     private void insertDecided(OrganizationId organizationId, AccountId accountId, String status) {
         entityManager
                 .createNativeQuery("""

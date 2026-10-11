@@ -46,4 +46,27 @@ public interface ParticipationRequestControllerDocs {
             })
     ParticipationRequestResponse request(
             @Parameter(hidden = true) AccountPrincipal requester, RequestParticipationRequest request);
+
+    @Operation(
+            summary = "참여 요청 취소",
+            description = "요청자 본인의 승인 대기 요청을 취소합니다. 취소한 요청은 총관리자의 승인 대기 목록에서 빠지며 알림을 보내지 않습니다. "
+                    + "취소 뒤에는 현재 회사 코드로 다시 요청할 수 있습니다(새 요청). 없는 요청이나 다른 계정의 요청이면 ORGANIZATION-016, "
+                    + "이미 승인·거절·취소된 요청이면 ORGANIZATION-017입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "취소 성공. 취소 상태의 요청을 돌려줍니다",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ParticipationRequestResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED"})
+    @ApiErrorCodes(
+            enumClass = OrganizationErrorCode.class,
+            includes = {"NOT_REQUESTER", "REQUEST_NOT_PENDING"})
+    ParticipationRequestResponse cancel(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "참여 요청 식별자", example = "3", required = true) Long requestId);
 }

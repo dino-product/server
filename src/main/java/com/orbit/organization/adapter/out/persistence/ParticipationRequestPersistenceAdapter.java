@@ -8,6 +8,7 @@ import com.orbit.organization.application.port.out.ParticipationRequestRepositor
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
+import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 
 @Repository
@@ -29,6 +30,11 @@ class ParticipationRequestPersistenceAdapter implements ParticipationRequestRepo
                 .orElseThrow(() -> new IllegalStateException("participation request to update must exist"));
         entity.update(request);
         return entity.toDomain();
+    }
+
+    @Override
+    public Optional<ParticipationRequest> findByIdForUpdate(ParticipationRequestId id) {
+        return repository.findByIdForUpdate(id.value()).map(ParticipationRequestJpaEntity::toDomain);
     }
 
     @Override

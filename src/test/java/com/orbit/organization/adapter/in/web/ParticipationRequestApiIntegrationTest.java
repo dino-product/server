@@ -245,6 +245,81 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("COMMON-401"));
     }
 
+    @Test
+    @DisplayName("승인 대기 요청을 취소하면 취소 상태가 되고 현재 코드로 새 요청을 다시 보낼 수 있다")
+    void cancelsPendingRequestAndAllowsNewRequest() throws Exception {
+        long requester = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany("취소 발주사");
+        long requestId = result(request(requester, company.code(), "STAFF"))
+                .path("requestId")
+                .asLong();
+
+        cancel(requester, requestId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.requestId").value(requestId))
+                .andExpect(jsonPath("$.result.organizationName").value("취소 발주사"))
+                .andExpect(jsonPath("$.result.status").value("CANCELED"));
+        check(requester, company.code())
+                .andExpect(jsonPath("$.result.availability").value("AVAILABLE"));
+        long newRequestId = result(request(requester, company.code(), "TECHNICIAN"))
+                .path("requestId")
+                .asLong();
+
+        assertThat(newRequestId).isNotEqualTo(requestId);
+        assertThat(jdbcTemplate.queryForList(
+                        "select status from participation_requests where member_id = ? order by id",
+                        String.class,
+                        requester))
+                .containsExactly("CANCELED", "PENDING");
+        assertThat(jdbcTemplate.queryForObject(
+                        "select decided_at from participation_requests where id = ?", Timestamp.class, requestId))
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("이미 취소된 요청은 다시 취소할 수 없다")
+    void rejectsCancelOfCanceledRequest() throws Exception {
+        long requester = ACCOUNT_IDS.incrementAndGet();
+        long requestId = result(request(requester, createCompany("재취소 발주사").code(), "STAFF"))
+                .path("requestId")
+                .asLong();
+        cancel(requester, requestId).andExpect(status().isOk());
+
+        cancel(requester, requestId)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-017"));
+    }
+
+    @Test
+    @DisplayName("다른 계정의 요청과 없는 요청은 403으로 거부하고 요청은 그대로 남는다")
+    void rejectsCancelOfOthersOrMissingRequest() throws Exception {
+        long requester = ACCOUNT_IDS.incrementAndGet();
+        long requestId = result(request(requester, createCompany("남의 요청 발주사").code(), "STAFF"))
+                .path("requestId")
+                .asLong();
+        long other = ACCOUNT_IDS.incrementAndGet();
+
+        cancel(other, requestId)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-016"));
+        cancel(other, Long.MAX_VALUE)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-016"));
+        cancel(requester, 0L)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(post("/api/v1/participation-requests/{requestId}/cancel", requestId))
+                .andExpect(status().isUnauthorized());
+        assertThat(jdbcTemplate.queryForObject(
+                        "select status from participation_requests where id = ?", String.class, requestId))
+                .isEqualTo("PENDING");
+    }
+
+    private ResultActions cancel(long accountId, long requestId) throws Exception {
+        return mockMvc.perform(post("/api/v1/participation-requests/{requestId}/cancel", requestId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId)));
+    }
+
     private ResultActions request(long accountId, String companyCode, String desiredType) throws Exception {
         return mockMvc.perform(post("/api/v1/participation-requests")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))

@@ -277,6 +277,24 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsParticipationRequestCancelWithoutBody() throws Exception {
+        String operation = "$.paths['/api/v1/participation-requests/{requestId}/cancel'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("참여 요청 취소"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("requestId"))
+                .andExpect(jsonPath(operation + ".requestBody").doesNotExist())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-016'].value.code")
+                        .value("ORGANIZATION-016"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-017'].value.code")
+                        .value("ORGANIZATION-017"));
+    }
+
+    @Test
     void documentsRequestAndResponseFields() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
