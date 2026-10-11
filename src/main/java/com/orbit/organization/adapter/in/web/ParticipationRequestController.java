@@ -3,6 +3,7 @@ package com.orbit.organization.adapter.in.web;
 import jakarta.validation.Valid;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,8 @@ import com.orbit.organization.application.port.in.command.CancelParticipationReq
 import com.orbit.organization.application.port.in.command.RequestParticipationUseCase;
 import com.orbit.organization.application.port.in.command.dto.CancelParticipationRequestCommand;
 import com.orbit.organization.application.port.in.command.dto.RequestParticipationCommand;
+import com.orbit.organization.application.port.in.query.ListMyParticipationRequestsUseCase;
+import com.orbit.organization.application.port.in.query.dto.ListMyParticipationRequestsQuery;
 
 @RestController
 @RequestMapping("/api/v1/participation-requests")
@@ -22,12 +25,22 @@ class ParticipationRequestController implements ParticipationRequestControllerDo
 
     private final RequestParticipationUseCase requestParticipationUseCase;
     private final CancelParticipationRequestUseCase cancelParticipationRequestUseCase;
+    private final ListMyParticipationRequestsUseCase listMyParticipationRequestsUseCase;
 
     ParticipationRequestController(
             RequestParticipationUseCase requestParticipationUseCase,
-            CancelParticipationRequestUseCase cancelParticipationRequestUseCase) {
+            CancelParticipationRequestUseCase cancelParticipationRequestUseCase,
+            ListMyParticipationRequestsUseCase listMyParticipationRequestsUseCase) {
         this.requestParticipationUseCase = requestParticipationUseCase;
         this.cancelParticipationRequestUseCase = cancelParticipationRequestUseCase;
+        this.listMyParticipationRequestsUseCase = listMyParticipationRequestsUseCase;
+    }
+
+    @Override
+    @GetMapping
+    public MyParticipationRequestsResponse listMine(@AuthenticationPrincipal AccountPrincipal requester) {
+        return MyParticipationRequestsResponse.from(
+                listMyParticipationRequestsUseCase.list(new ListMyParticipationRequestsQuery(requester.accountId())));
     }
 
     @Override

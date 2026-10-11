@@ -1,6 +1,7 @@
 package com.orbit.organization.adapter.in.web.docs;
 
 import com.orbit.auth.AccountPrincipal;
+import com.orbit.organization.adapter.in.web.MyParticipationRequestsResponse;
 import com.orbit.organization.adapter.in.web.ParticipationRequestResponse;
 import com.orbit.organization.adapter.in.web.RequestParticipationRequest;
 import com.orbit.organization.application.error.OrganizationErrorCode;
@@ -17,6 +18,23 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(name = "Participation Requests", description = "참여 요청 API")
 public interface ParticipationRequestControllerDocs {
+
+    @Operation(
+            summary = "내 신청 현황 조회",
+            description = "요청자가 보낸 모든 참여 요청(승인 대기·승인·거절·취소)을 요청 일시순으로 돌려줍니다. 승인된 요청은 확정 유형을, "
+                    + "사유를 입력해 거절된 요청은 거절 사유를 함께 보여줍니다. 다시 요청하면 이전 요청과 별개의 줄로 나옵니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = MyParticipationRequestsResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"UNAUTHORIZED"})
+    MyParticipationRequestsResponse listMine(@Parameter(hidden = true) AccountPrincipal requester);
 
     @Operation(
             summary = "참여 요청",

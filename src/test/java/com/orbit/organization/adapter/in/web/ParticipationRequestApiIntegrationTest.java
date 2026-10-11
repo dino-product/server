@@ -315,6 +315,56 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
                 .isEqualTo("PENDING");
     }
 
+    @Test
+    @DisplayName("신청 현황은 보낸 요청을 취소·재요청 포함 모두 요청 일시순으로 보이고 다른 계정의 요청은 보이지 않는다")
+    void listsAllOwnRequestsInRequestOrder() throws Exception {
+        long requester = ACCOUNT_IDS.incrementAndGet();
+        Company first = createCompany("현황 첫 발주사");
+        Company second = createCompany("현황 둘째 발주사");
+        long canceled = result(request(requester, first.code(), "STAFF"))
+                .path("requestId")
+                .asLong();
+        cancel(requester, canceled).andExpect(status().isOk());
+        long pendingOther = result(request(requester, second.code(), "TECHNICIAN"))
+                .path("requestId")
+                .asLong();
+        long renewed = result(request(requester, first.code(), "TECHNICIAN"))
+                .path("requestId")
+                .asLong();
+        result(request(ACCOUNT_IDS.incrementAndGet(), first.code(), "STAFF"));
+
+        listMine(requester)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.requests.length()").value(3))
+                .andExpect(jsonPath("$.result.requests[0].requestId").value(canceled))
+                .andExpect(jsonPath("$.result.requests[0].organizationName").value("현황 첫 발주사"))
+                .andExpect(jsonPath("$.result.requests[0].desiredType").value("STAFF"))
+                .andExpect(jsonPath("$.result.requests[0].status").value("CANCELED"))
+                .andExpect(jsonPath("$.result.requests[0].decidedAt").doesNotExist())
+                .andExpect(jsonPath("$.result.requests[1].requestId").value(pendingOther))
+                .andExpect(jsonPath("$.result.requests[1].organizationName").value("현황 둘째 발주사"))
+                .andExpect(jsonPath("$.result.requests[1].status").value("PENDING"))
+                .andExpect(jsonPath("$.result.requests[2].requestId").value(renewed))
+                .andExpect(jsonPath("$.result.requests[2].status").value("PENDING"))
+                .andExpect(jsonPath("$.result.requests[2].requestedAt").exists());
+    }
+
+    @Test
+    @DisplayName("요청이 없으면 빈 신청 현황이고, 인증하지 않으면 401로 거부한다")
+    void returnsEmptyListAndRejectsUnauthenticatedList() throws Exception {
+        listMine(ACCOUNT_IDS.incrementAndGet())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.requests").isEmpty());
+        mockMvc.perform(get("/api/v1/participation-requests"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON-401"));
+    }
+
+    private ResultActions listMine(long accountId) throws Exception {
+        return mockMvc.perform(get("/api/v1/participation-requests")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId)));
+    }
+
     private ResultActions cancel(long accountId, long requestId) throws Exception {
         return mockMvc.perform(post("/api/v1/participation-requests/{requestId}/cancel", requestId)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId)));
