@@ -56,6 +56,9 @@ class MemberCategoryPersistenceAdapterTest {
     private SpringDataMembershipRepository membershipRepository;
 
     @Autowired
+    private SpringDataTechnicianRepository technicianContractRepository;
+
+    @Autowired
     private TestEntityManager entityManager;
 
     @Autowired
@@ -63,11 +66,13 @@ class MemberCategoryPersistenceAdapterTest {
 
     private MemberCategoryPersistenceAdapter categories;
     private MembershipPersistenceAdapter memberships;
+    private TechnicianPersistenceAdapter technicians;
 
     @BeforeEach
     void setUp() {
         categories = new MemberCategoryPersistenceAdapter(staffRepository, technicianRepository);
         memberships = new MembershipPersistenceAdapter(membershipRepository);
+        technicians = new TechnicianPersistenceAdapter(technicianContractRepository);
     }
 
     @Test
@@ -211,6 +216,48 @@ class MemberCategoryPersistenceAdapterTest {
         assertThat(updatedAtOf(target)).isEqualTo(LATER);
         assertThat(staffCategoryOf(otherCategory)).isEqualTo(6L);
         assertThat(staffCategoryOf(otherOrganization)).isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("기사 유형 해제는 그 발주사에서 그 유형이 지정된 기사 계약만 유형 없음으로 바꾼다")
+    void unassignsTechnicianCategoryOnlyFromMatchingTechnicians() {
+        Long target = technicianWithCategory(ORGANIZATION, 1L, 5L);
+        Long otherCategory = technicianWithCategory(ORGANIZATION, 2L, 6L);
+        Long otherOrganization = technicianWithCategory(OTHER_ORGANIZATION, 3L, 5L);
+
+        int changed = technicians.unassignTechnicianCategory(ORGANIZATION, new MemberCategoryId(5L), LATER);
+
+        assertThat(changed).isEqualTo(1);
+        assertThat(technicianCategoryOf(target)).isNull();
+        assertThat(jdbcTemplate
+                        .queryForObject("select updated_at from technician where id = ?", Timestamp.class, target)
+                        .toInstant())
+                .isEqualTo(LATER);
+        assertThat(technicianCategoryOf(otherCategory)).isEqualTo(6L);
+        assertThat(technicianCategoryOf(otherOrganization)).isEqualTo(5L);
+    }
+
+    /** 기사 계약 도메인이 아직 없어 행을 직접 넣는다. */
+    private Long technicianWithCategory(OrganizationId organizationId, long accountId, long categoryId) {
+        jdbcTemplate.update(
+                "insert into technician (company_id, member_id, company_technician_category_id, status,"
+                        + " status_changed_at, created_at, updated_at) values (?, ?, ?, 'ACTIVE', ?, ?, ?)",
+                organizationId.value(),
+                accountId,
+                categoryId,
+                Timestamp.from(NOW),
+                Timestamp.from(NOW),
+                Timestamp.from(NOW));
+        return jdbcTemplate.queryForObject(
+                "select id from technician where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId.value(),
+                accountId);
+    }
+
+    private Long technicianCategoryOf(Long technicianId) {
+        return jdbcTemplate.queryForObject(
+                "select company_technician_category_id from technician where id = ?", Long.class, technicianId);
     }
 
     private Long membershipWithCategory(OrganizationId organizationId, long accountId, long categoryId) {

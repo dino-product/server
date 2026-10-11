@@ -35,6 +35,7 @@ import com.orbit.organization.application.port.in.command.dto.DeleteMemberCatego
 import com.orbit.organization.application.port.out.MemberCategoryRepository;
 import com.orbit.organization.application.port.out.MembershipRepository;
 import com.orbit.organization.application.port.out.OrganizationRepository;
+import com.orbit.organization.application.port.out.TechnicianRepository;
 import com.orbit.organization.domain.MemberCategory;
 import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.MemberCategoryKind;
@@ -56,12 +57,19 @@ class DeleteMemberCategoryServiceTest {
     @Mock
     private MemberCategoryRepository categoryRepository;
 
+    @Mock
+    private TechnicianRepository technicianRepository;
+
     private DeleteMemberCategoryService service;
 
     @BeforeEach
     void setUp() {
         service = new DeleteMemberCategoryService(
-                organizationRepository, membershipRepository, categoryRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+                organizationRepository,
+                membershipRepository,
+                categoryRepository,
+                technicianRepository,
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -77,19 +85,22 @@ class DeleteMemberCategoryServiceTest {
         order.verify(organizationRepository).lock(ORGANIZATION_ID);
         order.verify(categoryRepository).save(saved.capture());
         order.verify(membershipRepository).unassignStaffCategory(ORGANIZATION_ID, CATEGORY_ID, NOW);
+        verify(technicianRepository, never()).unassignTechnicianCategory(any(), any(), any());
         assertThat(saved.getValue().isDeleted()).isTrue();
         assertThat(saved.getValue().deletedAt()).contains(NOW);
     }
 
     @Test
-    @DisplayName("기사 유형 삭제는 직원 소속을 건드리지 않는다")
-    void deletesTechnicianCategoryWithoutTouchingMemberships() {
+    @DisplayName("기사 유형을 삭제하면 그 유형이 지정된 기사 계약을 유형 없음으로 바꾸고 직원 소속은 건드리지 않는다")
+    void softDeletesTechnicianCategoryAndUnassignsTechnicians() {
         givenRequesterIs(true);
         givenCategory(MemberCategoryKind.TECHNICIAN, category(5L, MemberCategoryKind.TECHNICIAN, "전기 기사"));
 
         service.delete(command(MemberCategoryKind.TECHNICIAN));
 
-        verify(categoryRepository).save(any());
+        InOrder order = inOrder(categoryRepository, technicianRepository);
+        order.verify(categoryRepository).save(any());
+        order.verify(technicianRepository).unassignTechnicianCategory(ORGANIZATION_ID, CATEGORY_ID, NOW);
         verify(membershipRepository, never()).unassignStaffCategory(any(), any(), any());
     }
 
@@ -105,6 +116,7 @@ class DeleteMemberCategoryServiceTest {
         assertThat(deleted.deletedAt()).contains(CREATED_AT);
         verify(categoryRepository, never()).save(any());
         verify(membershipRepository, never()).unassignStaffCategory(any(), any(), any());
+        verify(technicianRepository, never()).unassignTechnicianCategory(any(), any(), any());
     }
 
     @Test

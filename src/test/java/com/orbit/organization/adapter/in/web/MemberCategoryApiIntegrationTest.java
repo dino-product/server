@@ -220,6 +220,21 @@ class MemberCategoryApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("기사 유형을 삭제하면 그 유형이 지정된 기사 계약은 유형 없음이 되고 다른 유형은 그대로다")
+    void deletingTechnicianCategoryUnassignsTechnicians() throws Exception {
+        long organizationId = organizationOfNewOwner();
+        long deleted = createCategory(organizationId, TECHNICIAN, "전기 기사", "#3B82F6");
+        long kept = createCategory(organizationId, TECHNICIAN, "배관 기사", "#3B82F6");
+        long firstTechnician = joinAsTechnician(organizationId, ACCOUNT_IDS.incrementAndGet(), deleted);
+        long secondTechnician = joinAsTechnician(organizationId, ACCOUNT_IDS.incrementAndGet(), kept);
+
+        remove(organizationId, TECHNICIAN, deleted).andExpect(status().isNoContent());
+
+        assertThat(technicianCategoryOf(firstTechnician)).isNull();
+        assertThat(technicianCategoryOf(secondTechnician)).isEqualTo(kept);
+    }
+
+    @Test
     @DisplayName("총관리자가 아닌 직원은 유형 목록을 볼 수 있지만 만들거나 바꾸거나 지울 수 없다")
     void staffListsButCannotChangeCategories() throws Exception {
         long organizationId = organizationOfNewOwner();
@@ -375,6 +390,32 @@ class MemberCategoryApiIntegrationTest extends IntegrationTestSupport {
                 Long.class,
                 organizationId,
                 accountId);
+    }
+
+    /** 참여 요청 승인(HM-290)과 유형 지정(HM-292)이 아직 없어 활성 기사 계약을 직접 넣는다. */
+    private long joinAsTechnician(long organizationId, long accountId, Long technicianCategoryId) {
+        Timestamp joinedAt = Timestamp.from(Instant.parse("2026-10-06T00:00:00Z"));
+        jdbcTemplate.update(
+                "insert into technician"
+                        + " (company_id, member_id, company_technician_category_id, status, status_changed_at,"
+                        + " created_at, updated_at)"
+                        + " values (?, ?, ?, 'ACTIVE', ?, ?, ?)",
+                organizationId,
+                accountId,
+                technicianCategoryId,
+                joinedAt,
+                joinedAt,
+                joinedAt);
+        return jdbcTemplate.queryForObject(
+                "select id from technician where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId,
+                accountId);
+    }
+
+    private Long technicianCategoryOf(long technicianId) {
+        return jdbcTemplate.queryForObject(
+                "select company_technician_category_id from technician where id = ?", Long.class, technicianId);
     }
 
     private Long staffCategoryOf(long membershipId) {

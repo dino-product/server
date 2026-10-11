@@ -202,7 +202,7 @@ public interface MemberCategoryControllerDocs {
 
     @Operation(
             summary = "기사 유형 삭제",
-            description = DELETE,
+            description = DELETE + " 그 유형이 지정된 기사 계약은 유형 없음이 됩니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "삭제 성공(이미 삭제된 유형 포함)")
     @ApiErrorCodes(
