@@ -53,7 +53,7 @@ public class CreateOrganizationService implements CreateOrganizationUseCase {
 
         CompanyCode code = CompanyCodeIssuer.issue(organizationRepository, codeGenerator);
 
-        Organization organization = organizationRepository.save(Organization.create(name, industry, code, now));
+        Organization organization = organizationRepository.save(Organization.create(name, industry, code));
         OrganizationId organizationId =
                 organization.id().orElseThrow(() -> new IllegalStateException("saved organization must have an id"));
         membershipRepository.save(Membership.founder(organizationId, founder, now));

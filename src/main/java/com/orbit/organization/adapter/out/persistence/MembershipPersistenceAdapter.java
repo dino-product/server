@@ -1,6 +1,5 @@
 package com.orbit.organization.adapter.out.persistence;
 
-import java.time.Clock;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
@@ -12,16 +11,14 @@ import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
 
-/** 저장된 소속을 다시 저장하면 수정 시각을 주입 시계로 찍는다. 감사 컬럼 공통 처리가 생기면 그쪽으로 옮긴다. */
+/** 저장된 소속을 다시 저장하면 총관리자 표시만 옮긴다. 수정 시각은 감사 컬럼이 채운다. */
 @Repository
 class MembershipPersistenceAdapter implements MembershipRepository {
 
     private final SpringDataMembershipRepository repository;
-    private final Clock clock;
 
-    MembershipPersistenceAdapter(SpringDataMembershipRepository repository, Clock clock) {
+    MembershipPersistenceAdapter(SpringDataMembershipRepository repository) {
         this.repository = repository;
-        this.clock = clock;
     }
 
     @Override
@@ -32,7 +29,7 @@ class MembershipPersistenceAdapter implements MembershipRepository {
         MembershipJpaEntity entity = repository
                 .findById(membership.id().get().value())
                 .orElseThrow(() -> new IllegalStateException("membership to update must exist"));
-        entity.changeOwner(membership.isOwner(), clock.instant());
+        entity.changeOwner(membership.isOwner());
         return entity.toDomain();
     }
 

@@ -4,9 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Timestamp;
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,18 +29,17 @@ import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
 import com.orbit.organization.domain.RetiredCompanyCode;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceTestConfiguration;
 
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
+@Import(PersistenceTestConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("발주사·직원 소속 저장")
 class OrganizationPersistenceAdapterTest {
 
     private static final Instant NOW = Instant.parse("2026-10-06T00:00:00.123456Z");
-    private static final Instant LATER = Instant.parse("2026-10-08T09:30:00.654321Z");
 
     @Autowired
     private SpringDataOrganizationRepository organizationRepository;
@@ -65,19 +62,23 @@ class OrganizationPersistenceAdapterTest {
     @BeforeEach
     void setUp() {
         organizations = new OrganizationPersistenceAdapter(organizationRepository, retiredCodeRepository);
-        memberships = new MembershipPersistenceAdapter(membershipRepository, Clock.fixed(LATER, ZoneOffset.UTC));
+        memberships = new MembershipPersistenceAdapter(membershipRepository);
     }
 
     @Test
-    @DisplayName("발주사를 저장하면 식별자와 함께 같은 값으로 복원된다")
+    @DisplayName("발주사를 저장하면 식별자와 함께 같은 값으로 복원되고 생성·수정 시각이 채워진다")
     void savesAndRestoresOrganization() {
         Organization saved = organizations.save(organization("7K2M9X"));
+        organizationRepository.flush();
 
         assertThat(saved.id()).isPresent();
         assertThat(saved.name()).isEqualTo(new OrganizationName("오르빗 설비"));
         assertThat(saved.industry()).isEqualTo(Industry.PLUMBING);
         assertThat(saved.code()).isEqualTo(new CompanyCode("7K2M9X"));
-        assertThat(saved.createdAt()).isEqualTo(NOW);
+        assertThat(jdbcTemplate.queryForMap(
+                        "select created_at, updated_at from companies where id = ?",
+                        saved.id().orElseThrow().value()))
+                .allSatisfy((column, value) -> assertThat(value).isNotNull());
     }
 
     @Test
@@ -107,7 +108,6 @@ class OrganizationPersistenceAdapterTest {
 
         Organization restored = organizations.findById(organizationId).orElseThrow();
         assertThat(restored.code()).isEqualTo(new CompanyCode("W5X6Y7"));
-        assertThat(restored.updatedAt()).isEqualTo(changedAt);
         assertThat(restored.name()).isEqualTo(new OrganizationName("오르빗 설비"));
         assertThat(retiredCodeRepository.findAll()).singleElement().satisfies(retired -> assertThat(retired.toDomain())
                 .isEqualTo(new RetiredCompanyCode(organizationId, new CompanyCode("S2T3V4"), changedAt)));
@@ -172,13 +172,15 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("저장된 발주사의 발주사명·업종·수정 시각을 바꿔 저장하고 회사 코드·생성 시각은 그대로 둔다")
+    @DisplayName("저장된 발주사의 발주사명·업종을 바꿔 저장하고 회사 코드·생성 시각은 그대로 둔다")
     void updatesExistingOrganization() {
         Organization organization = organizations.save(organization("P1M2N3"));
         OrganizationId organizationId = organization.id().orElseThrow();
-        Instant changedAt = NOW.plusSeconds(60);
+        organizationRepository.flush();
+        Timestamp createdAt = jdbcTemplate.queryForObject(
+                "select created_at from companies where id = ?", Timestamp.class, organizationId.value());
 
-        organization.changeInfo(new OrganizationName("새 발주사"), Industry.HVAC, changedAt);
+        organization.changeInfo(new OrganizationName("새 발주사"), Industry.HVAC);
         organizations.save(organization);
         organizationRepository.flush();
         entityManager.clear();
@@ -186,9 +188,10 @@ class OrganizationPersistenceAdapterTest {
         Organization restored = organizations.findById(organizationId).orElseThrow();
         assertThat(restored.name()).isEqualTo(new OrganizationName("새 발주사"));
         assertThat(restored.industry()).isEqualTo(Industry.HVAC);
-        assertThat(restored.updatedAt()).isEqualTo(changedAt);
         assertThat(restored.code()).isEqualTo(new CompanyCode("P1M2N3"));
-        assertThat(restored.createdAt()).isEqualTo(NOW);
+        assertThat(jdbcTemplate.queryForObject(
+                        "select created_at from companies where id = ?", Timestamp.class, organizationId.value()))
+                .isEqualTo(createdAt);
     }
 
     @Test
@@ -229,7 +232,7 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("저장된 직원 소속을 다시 저장하면 총관리자 표시와 수정 시각을 바꾼다")
+    @DisplayName("저장된 직원 소속을 다시 저장하면 총관리자 표시와 수정 시각을 바꾸고 가입·생성 시각은 그대로 둔다")
     void updatesOwnerMarkOfStoredMembership() {
         OrganizationId organizationId =
                 organizations.save(organization("M1N2P3")).id().orElseThrow();
@@ -241,11 +244,13 @@ class OrganizationPersistenceAdapterTest {
 
         assertThat(saved.isOwner()).isTrue();
         assertThat(jdbcTemplate.queryForMap(
-                        "select is_owner, joined_at, updated_at from company_memberships where id = ?",
+                        "select is_owner, joined_at, created_at, updated_at from company_memberships where id = ?",
                         staffId.value()))
                 .containsEntry("is_owner", true)
                 .containsEntry("joined_at", Timestamp.from(NOW))
-                .containsEntry("updated_at", Timestamp.from(LATER));
+                .containsEntry("created_at", Timestamp.from(NOW))
+                .hasEntrySatisfying("updated_at", updatedAt -> assertThat((Timestamp) updatedAt)
+                        .isAfter(Timestamp.from(NOW)));
     }
 
     @Test
@@ -288,6 +293,6 @@ class OrganizationPersistenceAdapterTest {
     }
 
     private static Organization organization(String code) {
-        return Organization.create(new OrganizationName("오르빗 설비"), Industry.PLUMBING, new CompanyCode(code), NOW);
+        return Organization.create(new OrganizationName("오르빗 설비"), Industry.PLUMBING, new CompanyCode(code));
     }
 }

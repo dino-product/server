@@ -12,11 +12,12 @@ import jakarta.persistence.Table;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.RetiredCompanyCode;
+import com.orbit.shared.persistence.BaseTimeEntity;
 
 /** 폐기된 회사 코드. 코드는 모든 폐기 코드 사이에서 유일하며, 현재 코드와의 중복은 발급 전 확인이 막는다. */
 @Entity
 @Table(name = "retired_company_codes")
-class RetiredCompanyCodeJpaEntity {
+class RetiredCompanyCodeJpaEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

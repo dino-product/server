@@ -93,7 +93,6 @@ class ChangeCompanyCodeServiceTest {
         ArgumentCaptor<Organization> saved = ArgumentCaptor.forClass(Organization.class);
         verify(organizationRepository).save(saved.capture());
         assertThat(saved.getValue().code()).isEqualTo(FREE_CODE);
-        assertThat(saved.getValue().updatedAt()).isEqualTo(NOW);
     }
 
     @Test
@@ -175,11 +174,6 @@ class ChangeCompanyCodeServiceTest {
 
     private static Organization organization() {
         return Organization.reconstitute(
-                ORGANIZATION_ID,
-                new OrganizationName("오르빗 설비"),
-                Industry.PLUMBING,
-                CURRENT_CODE,
-                CREATED_AT,
-                CREATED_AT);
+                ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CURRENT_CODE);
     }
 }

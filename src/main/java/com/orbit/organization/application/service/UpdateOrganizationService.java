@@ -1,7 +1,5 @@
 package com.orbit.organization.application.service;
 
-import java.time.Clock;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,13 +22,11 @@ public class UpdateOrganizationService implements UpdateOrganizationUseCase {
 
     private final OrganizationRepository organizationRepository;
     private final MembershipRepository membershipRepository;
-    private final Clock clock;
 
     public UpdateOrganizationService(
-            OrganizationRepository organizationRepository, MembershipRepository membershipRepository, Clock clock) {
+            OrganizationRepository organizationRepository, MembershipRepository membershipRepository) {
         this.organizationRepository = organizationRepository;
         this.membershipRepository = membershipRepository;
-        this.clock = clock;
     }
 
     @Override
@@ -45,7 +41,7 @@ public class UpdateOrganizationService implements UpdateOrganizationUseCase {
         Organization organization = organizationRepository
                 .findById(organizationId)
                 .orElseThrow(() -> new IllegalStateException("active membership must belong to an organization"));
-        organization.changeInfo(name, industry, clock.instant());
+        organization.changeInfo(name, industry);
 
         return OrganizationInfo.from(organizationRepository.save(organization));
     }

@@ -13,6 +13,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 import com.orbit.organization.domain.TechnicianStatus;
+import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 기사 계약. 발주사·계정은 다른 애그리게잇·모듈이므로 ID로만 둔다. 같은 계정·같은 발주사의 기사 계약은 1행이며 역할 변경으로 다시 활성이 되면 이 행을 재사용한다.
@@ -21,7 +22,7 @@ import com.orbit.organization.domain.TechnicianStatus;
  */
 @Entity
 @Table(name = "technician", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "member_id"}))
-class TechnicianJpaEntity {
+class TechnicianJpaEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,12 +40,6 @@ class TechnicianJpaEntity {
 
     @Column(name = "status_changed_at", nullable = false)
     private Instant statusChangedAt;
-
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
 
     protected TechnicianJpaEntity() {}
 }
