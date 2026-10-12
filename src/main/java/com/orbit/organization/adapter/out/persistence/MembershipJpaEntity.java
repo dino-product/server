@@ -72,6 +72,11 @@ class MembershipJpaEntity {
         return new MembershipJpaEntity(membership);
     }
 
+    void changeOwner(boolean owner, Instant changedAt) {
+        this.owner = owner;
+        this.updatedAt = changedAt;
+    }
+
     Membership toDomain() {
         return Membership.reconstitute(
                 new MembershipId(id),
