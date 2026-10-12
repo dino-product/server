@@ -17,6 +17,7 @@ class ApplicationProfileConfigurationTest {
 
     private static final String EVENT_SCHEMA_INITIALIZATION =
             "spring.modulith.events.jdbc.schema-initialization.enabled";
+    private static final String EVENT_RESUBMISSION = "app.events.resubmission.enabled";
 
     @Test
     void doesNotActivateLocalProfileWhenNoProfileIsSpecified() {
@@ -70,6 +71,16 @@ class ApplicationProfileConfigurationTest {
             assertThat(environment.getProperty(EVENT_SCHEMA_INITIALIZATION)).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
+        }
+    }
+
+    @Test
+    void resubmitsFailedEventPublicationsOutsideTestProfile() {
+        try (ConfigurableApplicationContext context = runApplication()) {
+            assertThat(context.getEnvironment().getProperty(EVENT_RESUBMISSION)).isEqualTo("true");
+        }
+        try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=prod")) {
+            assertThat(context.getEnvironment().getProperty(EVENT_RESUBMISSION)).isEqualTo("true");
         }
     }
 
