@@ -1,2 +1,2 @@
-@org.springframework.modulith.ApplicationModule(allowedDependencies = {"shared::error"})
+@org.springframework.modulith.ApplicationModule(allowedDependencies = {"shared::error", "organization"})
 package com.orbit.schedule;

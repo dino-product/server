@@ -39,4 +39,9 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
     public boolean existsByCode(CompanyCode code) {
         return repository.existsByCode(code.value());
     }
+
+    @Override
+    public void lock(OrganizationId id) {
+        repository.lockById(id.value());
+    }
 }
