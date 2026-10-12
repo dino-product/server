@@ -3,6 +3,7 @@ package com.orbit.organization.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.text.Normalizer;
 import java.time.Instant;
 
 import org.junit.jupiter.api.DisplayName;
@@ -171,10 +172,43 @@ class MemberCategoryTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"설치\u2028팀", "설치\u2029팀", "설치\u200B팀", "설치\u202E팀", "설치\uFEFF팀", "설치\u00AD팀"})
-    @DisplayName("줄·문단 구분자와 서식 문자(제로폭·방향 제어 등)가 들어간 유형 이름은 거부한다")
-    void rejectsNameContainingSeparatorOrFormatCharacter(String value) {
+    @ValueSource(strings = {"설치\u2028팀", "설치\u2029팀"})
+    @DisplayName("줄·문단 구분자가 들어간 유형 이름은 거부한다")
+    void rejectsNameContainingLineSeparator(String value) {
         assertThatThrownBy(() -> new CategoryName(value)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"설치\u200B팀", "설치\u202E팀", "\uFEFF설치팀", "설치\u00AD팀", "설치\u2060팀\u200D"})
+    @DisplayName("서식 문자(제로폭·방향 제어·BOM·소프트 하이픈 등)는 거부하지 않고 지운다")
+    void removesFormatCharacters(String value) {
+        assertThat(new CategoryName(value).value()).isEqualTo("설치팀");
+    }
+
+    @Test
+    @DisplayName("NBSP 등 공백류 문자는 일반 공백으로 바꾼 뒤 앞뒤를 지우고, 공백류만 있으면 거부한다")
+    void treatsSpaceSeparatorsAsSpaces() {
+        assertThat(new CategoryName("\u00A0설치\u202F팀\u2007").value()).isEqualTo("설치 팀");
+        assertThatThrownBy(() -> new CategoryName("\u00A0\u00A0")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new CategoryName("\u00A0가\u2007")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\u3164\u3164", "\uFFA0\uFFA0", "\u115F\u1160", "\u2800\u2800", "설치\u3164팀"})
+    @DisplayName("한글 채움 문자·점자 빈칸처럼 보이지 않는 글자가 들어간 유형 이름은 거부한다")
+    void rejectsNameContainingBlankLetter(String value) {
+        assertThatThrownBy(() -> new CategoryName(value)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("한글 자모가 분리된(NFD) 입력은 합친 형태(NFC)로 바꾼 뒤 길이를 세고 같은 이름으로 본다")
+    void normalizesToComposedForm() {
+        String composed = "가".repeat(10);
+        String decomposed = Normalizer.normalize(composed, Normalizer.Form.NFD);
+
+        assertThat(new CategoryName(decomposed).value()).isEqualTo(composed);
+        assertThat(new CategoryName(Normalizer.normalize("설치팀", Normalizer.Form.NFD)))
+                .isEqualTo(new CategoryName("설치팀"));
     }
 
     @Test

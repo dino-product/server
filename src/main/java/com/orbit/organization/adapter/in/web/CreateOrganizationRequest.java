@@ -4,10 +4,11 @@ import com.orbit.organization.domain.Industry;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 발주사명 규칙(앞뒤 공백 제거, 길이, 이모지·제어·서식 문자 불가)은 도메인이 한 번만 검사한다(문자 수를 코드 포인트로 세기 위해). */
+/** 발주사명 규칙(보이지 않는 문자 정리, 앞뒤 공백 제거, 길이, 이모지·제어 문자 불가)은 도메인이 한 번만 검사한다(문자 수를 코드 포인트로 세기 위해). */
 public record CreateOrganizationRequest(
         @Schema(
-                description = "발주사명. 앞뒤 공백을 지운 뒤 2~30자, 이모지·제어·서식 문자(줄바꿈·탭·제로폭 문자 등) 불가",
+                description =
+                        "발주사명. 제로폭 등 서식 문자는 지우고 NBSP 등은 공백으로 바꿔 앞뒤 공백을 지운 뒤 2~30자, 이모지·제어 문자(줄바꿈·탭 등)·한글 채움 문자 불가",
                 example = "오르빗 설비",
                 minLength = 2,
                 maxLength = 30,
