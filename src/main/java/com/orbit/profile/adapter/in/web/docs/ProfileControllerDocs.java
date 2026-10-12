@@ -135,8 +135,10 @@ public interface ProfileControllerDocs {
             summary = "회원 탈퇴",
             description = "본인 계정을 즉시 탈퇴합니다. 이름·연락처를 지우고 탈퇴 상태와 시각을 남기며, 같은 카카오·Apple 계정으로 다시 로그인하면 "
                     + "새 계정으로 가입을 시작합니다. 가입 미완료 계정도 탈퇴할 수 있습니다. 성공하면 지금까지 받은 Access Token은 폐기된 토큰과 같은 "
-                    + "404를 받으므로 로그인 화면으로 돌아갑니다. 탈퇴를 막는 조건이 생겼으면 PROFILE-006이므로 탈퇴 가능 여부를 다시 확인해 "
-                    + "안내합니다. 다른 계정의 ID면 PROFILE-002, 같은 프로필을 다른 요청이 먼저 저장했으면 COMMON-409입니다.",
+                    + "404를 받으므로 로그인 화면으로 돌아갑니다. 이미 탈퇴한 계정의 재요청도 204입니다. 탈퇴를 막는 조건이 생겼으면 "
+                    + "PROFILE-006이므로 탈퇴 가능 여부를 다시 확인해 안내합니다. 다른 계정의 ID면 PROFILE-002입니다. 같은 프로필을 다른 "
+                    + "요청이 먼저 저장했으면 COMMON-409이며, 탈퇴를 두 번 보낸 직후라면 앞선 요청으로 이미 탈퇴된 것이므로 로그인 화면으로 "
+                    + "돌아갑니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "탈퇴 성공")
     @ApiErrorCodes(
