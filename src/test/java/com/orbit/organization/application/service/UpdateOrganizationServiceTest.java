@@ -9,9 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +47,6 @@ import com.orbit.shared.error.CommonErrorCode;
 class UpdateOrganizationServiceTest {
 
     private static final Instant CREATED_AT = Instant.parse("2026-10-06T00:00:00Z");
-    private static final Instant NOW = Instant.parse("2026-10-08T00:00:00Z");
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(10L);
     private static final AccountId ACCOUNT_ID = new AccountId(7L);
     private static final CompanyCode CODE = new CompanyCode("7K2M9X");
@@ -64,8 +61,7 @@ class UpdateOrganizationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UpdateOrganizationService(
-                organizationRepository, membershipRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new UpdateOrganizationService(organizationRepository, membershipRepository);
     }
 
     @Test
@@ -86,7 +82,6 @@ class UpdateOrganizationServiceTest {
         verify(organizationRepository).save(saved.capture());
         assertThat(saved.getValue().name().value()).isEqualTo("새 발주사");
         assertThat(saved.getValue().industry()).isEqualTo(Industry.FACILITY_MANAGEMENT);
-        assertThat(saved.getValue().updatedAt()).isEqualTo(NOW);
         assertThat(saved.getValue().code()).isEqualTo(CODE);
     }
 
@@ -172,7 +167,6 @@ class UpdateOrganizationServiceTest {
     }
 
     private static Organization organization() {
-        return Organization.reconstitute(
-                ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CODE, CREATED_AT, CREATED_AT);
+        return Organization.reconstitute(ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CODE);
     }
 }

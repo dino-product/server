@@ -77,7 +77,6 @@ class CreateOrganizationServiceTest {
         verify(organizationRepository).save(organization.capture());
         assertThat(organization.getValue().name().value()).isEqualTo("오르빗 설비");
         assertThat(organization.getValue().industry()).isEqualTo(Industry.HVAC);
-        assertThat(organization.getValue().createdAt()).isEqualTo(NOW);
 
         ArgumentCaptor<Membership> membership = ArgumentCaptor.forClass(Membership.class);
         verify(membershipRepository).save(membership.capture());
@@ -136,11 +135,6 @@ class CreateOrganizationServiceTest {
 
     private static Organization persisted(Organization organization) {
         return Organization.reconstitute(
-                new OrganizationId(10L),
-                organization.name(),
-                organization.industry(),
-                organization.code(),
-                organization.createdAt(),
-                organization.updatedAt());
+                new OrganizationId(10L), organization.name(), organization.industry(), organization.code());
     }
 }

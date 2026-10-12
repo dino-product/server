@@ -207,12 +207,10 @@ class CheckCompanyServiceTest {
                 ParticipationRequestStatus.PENDING,
                 null,
                 AT,
-                null,
-                AT);
+                null);
     }
 
     private static Organization organization() {
-        return Organization.reconstitute(
-                ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CODE, AT, AT);
+        return Organization.reconstitute(ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CODE);
     }
 }

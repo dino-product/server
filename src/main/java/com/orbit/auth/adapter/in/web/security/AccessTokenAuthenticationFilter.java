@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -25,15 +26,16 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Bearer 토큰을 인증한다. 토큰이 없으면 익명으로 넘겨 인증 필요 자원은 401을 받게 하고, 토큰이 있는데 폐기·만료·위조됐으면 자원 존재를 드러내지 않도록
- * 실제 404와 같은 응답으로 끝낸다. 카카오 로그인 경로는 만료·로그아웃된 토큰을 아직 들고 있는 클라이언트가 다시 로그인할 수 있도록 검사하지 않는다. Bean으로
+ * 실제 404와 같은 응답으로 끝낸다. 카카오·Apple 로그인 경로는 만료·로그아웃된 토큰을 아직 들고 있는 클라이언트가 다시 로그인할 수 있도록 검사하지 않는다. Bean으로
  * 등록하지 않고 {@link AuthSecurityCustomizer}가 Security 체인에만 끼워 서블릿 필터로 중복 등록되지 않게 한다.
  */
 @Slf4j
 class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final RequestMatcher LOGIN_PATHS =
-            PathPatternRequestMatcher.withDefaults().matcher(AuthSecurityCustomizer.KAKAO_LOGIN_PATHS);
+    private static final RequestMatcher LOGIN_PATHS = new OrRequestMatcher(
+            PathPatternRequestMatcher.withDefaults().matcher(AuthSecurityCustomizer.KAKAO_LOGIN_PATHS),
+            PathPatternRequestMatcher.withDefaults().matcher(AuthSecurityCustomizer.APPLE_LOGIN_PATHS));
 
     private final AuthenticateAccessTokenUseCase useCase;
     private final ApiErrorResponseWriter responseWriter;

@@ -1,11 +1,11 @@
 <a id="bounded-contexts"></a>
 # 바운디드 컨텍스트 지도 (P1~P4)
 
-- 상태: 설계 초안 — P1은 모듈 골격 생성, `schedule`의 도메인·일부 Application·Adapter 구현, `auth` 카카오 로그인 구현, `organization` 발주사 생성 구현, P2~P4는 코드 없음
+- 상태: 설계 초안 — P1은 모듈 골격 생성, `schedule`의 도메인·일부 Application·Adapter 구현, `auth` 카카오·Apple 로그인 구현, `organization` 발주사 생성 구현, P2~P4는 코드 없음
 - 기준일: 2026-10-04
 - 기획 원본: [기획 원본 색인](../planning/README.md#planning)의 Notion 정책서 (기준 버전은 색인이 소유, 결정 배경은 [ADR-003](../adr/003-planning-source-of-truth.md))
 
-이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter, `auth`의 카카오 로그인·계정·토큰, `organization`의 발주사 생성(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈(`notification`)의 허용 의존성은 현재 없다.
+이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter, `auth`의 카카오·Apple 로그인·계정·토큰, `organization`의 발주사 생성(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈(`notification`)의 허용 의존성은 현재 없다.
 
 제품 규칙(누가·무엇을·언제, 사용자가 체감하는 제한)은 이 문서에 다시 적지 않는다. 구현이 시작된 BC는 모듈별 문서(현재 [schedule](schedule.md#schedule)·[auth](auth.md))로 분리하고, 이 문서에는 관계·로드맵만 남긴다. 각 BC는 **기획 원본**(기준 정책서) · **제품 규칙 참조**(Notion 절 번호) · **구현 결정**(BC 문서가 원본) · **차이·공백**(Notion과 구현의 차이, 제품 결정 필요 항목)으로 나눠 적는다. 차이·공백 항목은 [대역별 구현 규칙](../planning/README.md#gap-actions)대로 다루며, 운영 절차는 [동기화 규칙](../planning/README.md#sync)을 따른다.
 
@@ -26,11 +26,20 @@
 
 | 항목 | 내용 |
 | --- | --- |
-| 책임 | 카카오 OIDC 로그인, 계정(accountId) 발급·조회, Access Token 발급·검증·로그아웃. accountId 발급까지가 책임 범위 |
-| 상태 | 구현 — 앱의 id_token 제출 로그인·Bearer 인증·로그아웃. 웹 Authorization Code 흐름·Refresh 회전은 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
-| 기획 원본 | [조직·계정] §1·§5 (카카오 로그인만 지원, ORG-001), §13 (ID/PW·구글 로그인 MVP 제외) |
-| 소유 애그리게잇 | **Account**(Root) — 제공자별 외부 식별(`ExternalIdentity`: 카카오 `sub`)과 등록 시각. 프로필·역할 없음. `AuthSubject`는 예제로만 남음 |
+| 책임 | 카카오·Apple OIDC 로그인, 계정(accountId) 발급·조회, Access Token 발급·검증·로그아웃, Apple refresh token 보관(계정 삭제 시 철회용). accountId 발급까지가 책임 범위 |
+| 상태 | 구현 — 카카오 앱·Apple iOS의 id_token 제출 로그인, Apple 웹·Android authorize·callback, Bearer 인증·로그아웃. 카카오 웹 흐름·Refresh 회전·계정 삭제는 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
+| 기획 원본 | [조직·계정] §1·§5 (카카오 로그인만 지원, ORG-001 — Apple 로그인은 [A-10](#auth-gaps)), §13 (ID/PW·구글 로그인 MVP 제외), §5.1 (탈퇴, ORG-009) |
+| 소유 애그리게잇 | **Account**(Root) — 제공자별 외부 식별(`ExternalIdentity`: 카카오·Apple `sub`)과 등록 시각. 프로필·역할 없음. Apple refresh token은 애그리게잇 밖 저장소에 암호화 보관. `AuthSubject`는 예제로만 남음 |
 | 관계 | 다른 모듈의 웹 어댑터가 루트 계약 `AccountPrincipal`로 인증된 계정 식별자를 받음(organization 발주사 생성, notification 알림센터, schedule 작업 API) — 이 모듈들이 auth에 의존하므로 auth는 이들을 조회·구독하지 않음 · `organization`이 이 모듈의 공개 계약을 참조(ID)해 accountId 유효성을 확인 (Conformist, 계약은 organization 구현 시 추가) |
+
+<a id="auth-gaps"></a>
+#### 1.1 차이·공백
+
+ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#gaps)를 따른다.
+
+| 유형 | ID | 내용 | 추적 |
+| --- | --- | --- | --- |
+| 구현에서 정한 제품 결정, Notion 결정 필요 | A-10 | [조직·계정] §1·§5는 카카오 로그인만 지원(ORG-001)한다. HM-272에서 iOS App Store 심사 지침 4.8 대응으로 Apple 로그인(iOS·웹·Android, 카카오와 별개 계정, 이름·이메일 미저장)을 Notion 반영 전에 구현했다 | 미등록 |
 
 > **"계정"이라는 이름을 조직 컨텍스트에서 뺀 이유**: "계정"은 마이페이지·내 정보 수정·회원탈퇴처럼 개인정보 관리 뉘앙스가 강해서, 조직 소속을 다루는 컨텍스트와 이름이 섞이면 안 된다고 판단했다. 개인 계정·프로필 관리 자체를 어느 컨텍스트가 가질지(이 `auth`인지, 별도 컨텍스트인지)는 아직 미정 — §미해결 설계 이슈 참고.
 
@@ -40,7 +49,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 회사 참여 요청, 직원 소속(Membership)·기사 계약(Technician) 관리 |
-| 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회(기사 계약은 조회만). 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
+| 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회(기사 계약은 조회만). 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
 | 기획 원본 | [조직·계정] 정책 |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
 | 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
@@ -50,7 +59,7 @@
 
 | 주제 | Notion 원본 | 차이 |
 | --- | --- | --- |
-| 사용자 계층·총관리자 | [조직·계정] §4·§4.1·§11 (ORG-010) | 미구현 (지정·해제) |
+| 사용자 계층·총관리자 | [조직·계정] §4·§4.1·§11 (ORG-010) | 총관리자 지정·해제 구현 |
 | 가입·프로필·소속 없는 계정 | [조직·계정] §5 (ORG-013) | 발주사 생성만 구현, O-21 |
 | 마이페이지·다중 소속·탈퇴 | [조직·계정] §1·§5.1 (ORG-012, ORG-009) | 내 소속 목록 조회만 구현 |
 | 회사 코드·참여 요청·승인·거절·취소 | [조직·계정] §6 (ORG-017, ORG-018, ORG-021) | 회사 코드 형식·발급·조회·변경, 회사 확인, 참여 요청 생성·취소·내 신청 현황 구현(승인·거절 미구현), O-02, O-15, O-16, O-34 |
@@ -62,7 +71,7 @@
 <a id="organization-design"></a>
 #### 2.2 설계 결정 (부분 구현)
 
-발주사 생성, 발주사 정보 조회·수정, 회사 코드 조회·변경, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회(소속·기사 계약 활성·비활성 상태, 계정·발주사당 소속·계약 각 1행 제약), 내 소속 목록 조회(아래 역할 변경 행 규칙의 발주사당 한 줄)만 구현됐다. 아래는 구현할 때 따를 레포 쪽 설계이며, 구현하면서 이 절을 구현 결정으로 옮긴다. 구현된 부분(총관리자 표현, 회사 코드 발급·폐기, 참여 요청 잠금)의 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md)에 있다.
+발주사 생성, 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회(소속·기사 계약 활성·비활성 상태, 계정·발주사당 소속·계약 각 1행 제약), 내 소속 목록 조회(아래 역할 변경 행 규칙의 발주사당 한 줄)만 구현됐다. 아래는 구현할 때 따를 레포 쪽 설계이며, 구현하면서 이 절을 구현 결정으로 옮긴다. 구현된 부분(총관리자 표현, 회사 코드 발급·폐기, 참여 요청 잠금)의 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md)에 있다.
 
 - **참여 요청을 별도 모듈로 분리하지 않는다**: 회사 코드와 참여 요청은 소속 생성 규칙에 포함되고, 승인과 소속 생성이 하나의 유즈케이스에서 함께 성공·실패해야 하므로 `organization` 안의 애그리게잇으로 둔다. 요청 생명주기가 복잡해지거나 별도 팀 경계가 필요해지면 그때 모듈 분리를 검토한다(BC-002).
 - **계정과 소속 분리**: 계정은 조직을 모르고, 조직별 직원 소속·기사 계약이 역할·상태를 가진다. 요청에는 희망 유형, 승인 결과에는 확정 유형에 따라 직원 소속 또는 기사 계약을 만든다. 같은 조직 안에서만 중복 소속·대기 요청을 차단하는 규칙은 `organization`이 소유한다.

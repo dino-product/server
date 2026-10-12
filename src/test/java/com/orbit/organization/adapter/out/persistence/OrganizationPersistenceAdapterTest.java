@@ -3,6 +3,7 @@ package com.orbit.organization.adapter.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -21,17 +23,18 @@ import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Industry;
 import com.orbit.organization.domain.Membership;
+import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
 import com.orbit.organization.domain.RetiredCompanyCode;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceTestConfiguration;
 
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
+@Import(PersistenceTestConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("발주사·직원 소속 저장")
 class OrganizationPersistenceAdapterTest {
@@ -50,6 +53,9 @@ class OrganizationPersistenceAdapterTest {
     @Autowired
     private TestEntityManager entityManager;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private OrganizationPersistenceAdapter organizations;
     private MembershipPersistenceAdapter memberships;
 
@@ -60,15 +66,19 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("발주사를 저장하면 식별자와 함께 같은 값으로 복원된다")
+    @DisplayName("발주사를 저장하면 식별자와 함께 같은 값으로 복원되고 생성·수정 시각이 채워진다")
     void savesAndRestoresOrganization() {
         Organization saved = organizations.save(organization("7K2M9X"));
+        organizationRepository.flush();
 
         assertThat(saved.id()).isPresent();
         assertThat(saved.name()).isEqualTo(new OrganizationName("오르빗 설비"));
         assertThat(saved.industry()).isEqualTo(Industry.PLUMBING);
         assertThat(saved.code()).isEqualTo(new CompanyCode("7K2M9X"));
-        assertThat(saved.createdAt()).isEqualTo(NOW);
+        assertThat(jdbcTemplate.queryForMap(
+                        "select created_at, updated_at from companies where id = ?",
+                        saved.id().orElseThrow().value()))
+                .allSatisfy((column, value) -> assertThat(value).isNotNull());
     }
 
     @Test
@@ -114,7 +124,6 @@ class OrganizationPersistenceAdapterTest {
 
         Organization restored = organizations.findById(organizationId).orElseThrow();
         assertThat(restored.code()).isEqualTo(new CompanyCode("W5X6Y7"));
-        assertThat(restored.updatedAt()).isEqualTo(changedAt);
         assertThat(restored.name()).isEqualTo(new OrganizationName("오르빗 설비"));
         assertThat(retiredCodeRepository.findAll()).singleElement().satisfies(retired -> assertThat(retired.toDomain())
                 .isEqualTo(new RetiredCompanyCode(organizationId, new CompanyCode("S2T3V4"), changedAt)));
@@ -179,13 +188,15 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("저장된 발주사의 발주사명·업종·수정 시각을 바꿔 저장하고 회사 코드·생성 시각은 그대로 둔다")
+    @DisplayName("저장된 발주사의 발주사명·업종을 바꿔 저장하고 회사 코드·생성 시각은 그대로 둔다")
     void updatesExistingOrganization() {
         Organization organization = organizations.save(organization("P1M2N3"));
         OrganizationId organizationId = organization.id().orElseThrow();
-        Instant changedAt = NOW.plusSeconds(60);
+        organizationRepository.flush();
+        Timestamp createdAt = jdbcTemplate.queryForObject(
+                "select created_at from companies where id = ?", Timestamp.class, organizationId.value());
 
-        organization.changeInfo(new OrganizationName("새 발주사"), Industry.HVAC, changedAt);
+        organization.changeInfo(new OrganizationName("새 발주사"), Industry.HVAC);
         organizations.save(organization);
         organizationRepository.flush();
         entityManager.clear();
@@ -193,9 +204,10 @@ class OrganizationPersistenceAdapterTest {
         Organization restored = organizations.findById(organizationId).orElseThrow();
         assertThat(restored.name()).isEqualTo(new OrganizationName("새 발주사"));
         assertThat(restored.industry()).isEqualTo(Industry.HVAC);
-        assertThat(restored.updatedAt()).isEqualTo(changedAt);
         assertThat(restored.code()).isEqualTo(new CompanyCode("P1M2N3"));
-        assertThat(restored.createdAt()).isEqualTo(NOW);
+        assertThat(jdbcTemplate.queryForObject(
+                        "select created_at from companies where id = ?", Timestamp.class, organizationId.value()))
+                .isEqualTo(createdAt);
     }
 
     @Test
@@ -211,22 +223,92 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("계정의 그 발주사 활성 직원 소속만 찾는다")
+    @DisplayName("식별자로 직원 소속을 찾는다")
+    void findsMembershipById() {
+        OrganizationId organizationId =
+                organizations.save(organization("B2C3D4")).id().orElseThrow();
+        Membership saved = memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+
+        assertThat(memberships.findById(saved.id().orElseThrow()))
+                .hasValueSatisfying(found -> assertThat(found.accountId()).isEqualTo(new AccountId(7L)));
+        assertThat(memberships.findById(new MembershipId(Long.MAX_VALUE))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("계정의 그 발주사 활성 소속만 찾는다")
     void findsActiveMembershipOfAccountInOrganization() {
         OrganizationId organizationId =
                 organizations.save(organization("E5F6G7")).id().orElseThrow();
-        OrganizationId otherOrganizationId =
-                organizations.save(organization("H8J9K0")).id().orElseThrow();
+        OrganizationId otherId = organizations.save(organization("H8J9K0")).id().orElseThrow();
         memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
 
-        assertThat(memberships.findActive(organizationId, new AccountId(7L)))
-                .hasValueSatisfying(found -> assertThat(found.isOwner()).isTrue());
-        assertThat(memberships.findActive(otherOrganizationId, new AccountId(7L)))
-                .isEmpty();
+        assertThat(memberships.findActive(organizationId, new AccountId(7L))).isPresent();
+        assertThat(memberships.findActive(otherId, new AccountId(7L))).isEmpty();
         assertThat(memberships.findActive(organizationId, new AccountId(8L))).isEmpty();
     }
 
+    @Test
+    @DisplayName("저장된 직원 소속을 다시 저장하면 총관리자 표시와 수정 시각을 바꾸고 가입·생성 시각은 그대로 둔다")
+    void updatesOwnerMarkOfStoredMembership() {
+        OrganizationId organizationId =
+                organizations.save(organization("M1N2P3")).id().orElseThrow();
+        MembershipId staffId = staffMembership(organizationId, 8L);
+        Membership staff = memberships.findById(staffId).orElseThrow();
+
+        Membership saved = memberships.save(staff.designateAsOwner());
+        membershipRepository.flush();
+
+        assertThat(saved.isOwner()).isTrue();
+        assertThat(jdbcTemplate.queryForMap(
+                        "select is_owner, joined_at, created_at, updated_at from company_memberships where id = ?",
+                        staffId.value()))
+                .containsEntry("is_owner", true)
+                .containsEntry("joined_at", Timestamp.from(NOW))
+                .containsEntry("created_at", Timestamp.from(NOW))
+                .hasEntrySatisfying("updated_at", updatedAt -> assertThat((Timestamp) updatedAt)
+                        .isAfter(Timestamp.from(NOW)));
+    }
+
+    @Test
+    @DisplayName("그 발주사의 활성 총관리자 수를 센다")
+    void countsActiveOwnersOfOrganization() {
+        OrganizationId organizationId =
+                organizations.save(organization("Q1R2S3")).id().orElseThrow();
+        OrganizationId otherId = organizations.save(organization("T4V5W6")).id().orElseThrow();
+        memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+        memberships.save(Membership.founder(organizationId, new AccountId(8L), NOW));
+        staffMembership(organizationId, 9L);
+        memberships.save(Membership.founder(otherId, new AccountId(7L), NOW));
+
+        assertThat(memberships.countActiveOwners(organizationId)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("발주사가 없어도 잠금 요청은 실패하지 않는다")
+    void lockingMissingOrganizationDoesNotFail() {
+        organizations.lock(new OrganizationId(Long.MAX_VALUE));
+    }
+
+    private MembershipId staffMembership(OrganizationId organizationId, long accountId) {
+        jdbcTemplate.update(
+                "insert into company_memberships"
+                        + " (company_id, member_id, is_owner, status,"
+                        + " joined_at, status_changed_at, created_at, updated_at)"
+                        + " values (?, ?, false, 'ACTIVE', ?, ?, ?, ?)",
+                organizationId.value(),
+                accountId,
+                Timestamp.from(NOW),
+                Timestamp.from(NOW),
+                Timestamp.from(NOW),
+                Timestamp.from(NOW));
+        return new MembershipId(jdbcTemplate.queryForObject(
+                "select id from company_memberships where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId.value(),
+                accountId));
+    }
+
     private static Organization organization(String code) {
-        return Organization.create(new OrganizationName("오르빗 설비"), Industry.PLUMBING, new CompanyCode(code), NOW);
+        return Organization.create(new OrganizationName("오르빗 설비"), Industry.PLUMBING, new CompanyCode(code));
     }
 }

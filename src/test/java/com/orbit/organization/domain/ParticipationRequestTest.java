@@ -29,7 +29,6 @@ class ParticipationRequestTest {
         assertThat(request.confirmedType()).isEmpty();
         assertThat(request.decidedAt()).isEmpty();
         assertThat(request.rejectReason()).isEmpty();
-        assertThat(request.updatedAt()).isEqualTo(REQUESTED_AT);
     }
 
     @Test
@@ -80,12 +79,11 @@ class ParticipationRequestTest {
         ParticipationRequest request =
                 ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT);
 
-        request.cancel(DECIDED_AT);
+        request.cancel();
 
         assertThat(request.status()).isEqualTo(ParticipationRequestStatus.CANCELED);
         assertThat(request.isPending()).isFalse();
         assertThat(request.decidedAt()).isEmpty();
-        assertThat(request.updatedAt()).isEqualTo(DECIDED_AT);
     }
 
     @Test
@@ -94,20 +92,9 @@ class ParticipationRequestTest {
         ParticipationRequest rejected = restore(null, ParticipationRequestStatus.REJECTED, null, DECIDED_AT);
         ParticipationRequest canceled = restore(null, ParticipationRequestStatus.CANCELED, null, null);
 
-        assertThatThrownBy(() -> rejected.cancel(DECIDED_AT)).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> canceled.cancel(DECIDED_AT)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> rejected.cancel()).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> canceled.cancel()).isInstanceOf(IllegalStateException.class);
         assertThat(rejected.status()).isEqualTo(ParticipationRequestStatus.REJECTED);
-    }
-
-    @Test
-    @DisplayName("취소 시각은 요청 시각보다 앞설 수 없다")
-    void rejectsCancelBeforeRequest() {
-        ParticipationRequest request =
-                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT);
-
-        assertThatThrownBy(() -> request.cancel(REQUESTED_AT.minusSeconds(1)))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThat(request.isPending()).isTrue();
     }
 
     @Test
@@ -134,7 +121,6 @@ class ParticipationRequestTest {
                 status,
                 rejectReason,
                 REQUESTED_AT,
-                decidedAt,
-                decidedAt == null ? REQUESTED_AT : decidedAt);
+                decidedAt);
     }
 }

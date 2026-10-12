@@ -22,13 +22,13 @@ import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceTestConfiguration;
 
 /** 승인·거절 유즈케이스가 아직 없어 발주사와 요청 행은 SQL로 넣는다. */
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
+@Import(PersistenceTestConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("계정의 참여 요청 목록 조회")
 class ParticipationRequestQueryAdapterTest {

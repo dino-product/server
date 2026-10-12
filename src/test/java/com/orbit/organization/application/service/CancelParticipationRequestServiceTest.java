@@ -8,9 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +47,6 @@ class CancelParticipationRequestServiceTest {
 
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-06T00:00:00Z");
     private static final Instant DECIDED_AT = Instant.parse("2026-10-07T00:00:00Z");
-    private static final Instant NOW = Instant.parse("2026-10-10T00:00:00Z");
     private static final ParticipationRequestId REQUEST_ID = new ParticipationRequestId(30L);
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(10L);
     private static final AccountId ACCOUNT_ID = new AccountId(7L);
@@ -64,8 +61,7 @@ class CancelParticipationRequestServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CancelParticipationRequestService(
-                requestRepository, organizationRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new CancelParticipationRequestService(requestRepository, organizationRepository);
     }
 
     @Test
@@ -90,7 +86,6 @@ class CancelParticipationRequestServiceTest {
         ArgumentCaptor<ParticipationRequest> saved = ArgumentCaptor.forClass(ParticipationRequest.class);
         verify(requestRepository).save(saved.capture());
         assertThat(saved.getValue().status()).isEqualTo(ParticipationRequestStatus.CANCELED);
-        assertThat(saved.getValue().updatedAt()).isEqualTo(NOW);
     }
 
     @Test
@@ -146,17 +141,11 @@ class CancelParticipationRequestServiceTest {
                 status,
                 null,
                 REQUESTED_AT,
-                decidedAt,
-                decidedAt == null ? REQUESTED_AT : decidedAt);
+                decidedAt);
     }
 
     private static Organization organization() {
         return Organization.reconstitute(
-                ORGANIZATION_ID,
-                new OrganizationName("오르빗 설비"),
-                Industry.PLUMBING,
-                new CompanyCode("7K2M9X"),
-                REQUESTED_AT,
-                REQUESTED_AT);
+                ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, new CompanyCode("7K2M9X"));
     }
 }

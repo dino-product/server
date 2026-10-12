@@ -17,11 +17,12 @@ import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
+import com.orbit.shared.persistence.BaseTimeEntity;
 
 /** 직원 소속. 발주사·계정은 다른 애그리게잇·모듈이므로 ID로만 둔다. 같은 계정·같은 발주사의 소속은 1행이다. */
 @Entity
 @Table(name = "company_memberships", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "member_id"}))
-class MembershipJpaEntity {
+class MembershipJpaEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,12 +47,6 @@ class MembershipJpaEntity {
     @Column(name = "status_changed_at", nullable = false)
     private Instant statusChangedAt;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
     protected MembershipJpaEntity() {}
 
     private MembershipJpaEntity(Membership membership) {
@@ -61,8 +56,6 @@ class MembershipJpaEntity {
         this.status = membership.status();
         this.joinedAt = membership.joinedAt();
         this.statusChangedAt = membership.statusChangedAt();
-        this.createdAt = membership.joinedAt();
-        this.updatedAt = membership.statusChangedAt();
     }
 
     static MembershipJpaEntity from(Membership membership) {
@@ -70,6 +63,10 @@ class MembershipJpaEntity {
             throw new IllegalArgumentException("only new memberships can be saved");
         }
         return new MembershipJpaEntity(membership);
+    }
+
+    void changeOwner(boolean owner) {
+        this.owner = owner;
     }
 
     Membership toDomain() {

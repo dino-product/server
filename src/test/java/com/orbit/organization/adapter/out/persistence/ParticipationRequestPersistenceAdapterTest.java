@@ -21,13 +21,13 @@ import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceTestConfiguration;
 
 /** 승인·거절 유즈케이스가 아직 없어 처리된 요청 행은 SQL로 넣는다. */
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
+@Import(PersistenceTestConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("참여 요청 저장")
 class ParticipationRequestPersistenceAdapterTest {
@@ -66,7 +66,6 @@ class ParticipationRequestPersistenceAdapterTest {
             assertThat(found.confirmedType()).isEmpty();
             assertThat(found.decidedAt()).isEmpty();
             assertThat(found.requestedAt()).isEqualTo(REQUESTED_AT);
-            assertThat(found.updatedAt()).isEqualTo(REQUESTED_AT);
         });
     }
 
@@ -84,7 +83,7 @@ class ParticipationRequestPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("잠가 읽은 요청을 취소해 저장하면 취소 상태와 수정 시각만 바뀐다")
+    @DisplayName("잠가 읽은 요청을 취소해 저장하면 상태만 바뀌고 요청 시각은 그대로다")
     void savesCanceledRequest() {
         ParticipationRequest saved = adapter.save(
                 ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT));
@@ -93,7 +92,7 @@ class ParticipationRequestPersistenceAdapterTest {
 
         ParticipationRequest locked =
                 adapter.findByIdForUpdate(saved.id().orElseThrow()).orElseThrow();
-        locked.cancel(REQUESTED_AT.plusSeconds(60));
+        locked.cancel();
         adapter.save(locked);
         repository.flush();
         entityManager.clear();
@@ -101,7 +100,6 @@ class ParticipationRequestPersistenceAdapterTest {
         ParticipationRequest found =
                 adapter.findByIdForUpdate(saved.id().orElseThrow()).orElseThrow();
         assertThat(found.status()).isEqualTo(ParticipationRequestStatus.CANCELED);
-        assertThat(found.updatedAt()).isEqualTo(REQUESTED_AT.plusSeconds(60));
         assertThat(found.requestedAt()).isEqualTo(REQUESTED_AT);
         assertThat(found.decidedAt()).isEmpty();
         assertThat(adapter.findPending(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();

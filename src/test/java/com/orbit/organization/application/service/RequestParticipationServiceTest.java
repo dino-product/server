@@ -216,8 +216,7 @@ class RequestParticipationServiceTest {
                 request.status(),
                 null,
                 request.requestedAt(),
-                null,
-                request.updatedAt());
+                null);
     }
 
     private static AccountMembership membership(MemberRole role, boolean active) {
@@ -225,7 +224,6 @@ class RequestParticipationServiceTest {
     }
 
     private static Organization organization() {
-        return Organization.reconstitute(
-                ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CODE, CREATED_AT, CREATED_AT);
+        return Organization.reconstitute(ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CODE);
     }
 }

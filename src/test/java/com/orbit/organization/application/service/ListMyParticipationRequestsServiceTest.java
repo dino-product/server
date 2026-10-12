@@ -147,8 +147,7 @@ class ListMyParticipationRequestsServiceTest {
                         status,
                         rejectReason,
                         requestedAt,
-                        decidedAt,
-                        decidedAt == null ? requestedAt : decidedAt),
+                        decidedAt),
                 "오르빗 설비");
     }
 }

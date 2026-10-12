@@ -1,6 +1,5 @@
 package com.orbit.organization.application.service;
 
-import java.time.Clock;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
@@ -28,15 +27,11 @@ public class CancelParticipationRequestService implements CancelParticipationReq
 
     private final ParticipationRequestRepository requestRepository;
     private final OrganizationRepository organizationRepository;
-    private final Clock clock;
 
     public CancelParticipationRequestService(
-            ParticipationRequestRepository requestRepository,
-            OrganizationRepository organizationRepository,
-            Clock clock) {
+            ParticipationRequestRepository requestRepository, OrganizationRepository organizationRepository) {
         this.requestRepository = requestRepository;
         this.organizationRepository = organizationRepository;
-        this.clock = clock;
     }
 
     @Override
@@ -51,7 +46,7 @@ public class CancelParticipationRequestService implements CancelParticipationReq
             throw new BusinessException(OrganizationErrorCode.REQUEST_NOT_PENDING);
         }
 
-        request.cancel(clock.instant());
+        request.cancel();
         ParticipationRequest saved = requestRepository.save(request);
         Organization organization = organizationRepository
                 .findById(saved.organizationId())

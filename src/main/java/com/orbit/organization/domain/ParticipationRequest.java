@@ -19,7 +19,6 @@ public final class ParticipationRequest {
     private final String rejectReason;
     private final Instant requestedAt;
     private final Instant decidedAt;
-    private Instant updatedAt;
 
     private ParticipationRequest(
             ParticipationRequestId id,
@@ -30,15 +29,13 @@ public final class ParticipationRequest {
             ParticipationRequestStatus status,
             String rejectReason,
             Instant requestedAt,
-            Instant decidedAt,
-            Instant updatedAt) {
+            Instant decidedAt) {
         this.id = id;
         this.organizationId = Objects.requireNonNull(organizationId, "organizationId must not be null");
         this.accountId = Objects.requireNonNull(accountId, "accountId must not be null");
         this.desiredType = Objects.requireNonNull(desiredType, "desiredType must not be null");
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.requestedAt = Objects.requireNonNull(requestedAt, "requestedAt must not be null");
-        this.updatedAt = requireNotBeforeRequest(updatedAt);
         boolean decided =
                 status == ParticipationRequestStatus.APPROVED || status == ParticipationRequestStatus.REJECTED;
         if (decided != (decidedAt != null)) {
@@ -67,8 +64,7 @@ public final class ParticipationRequest {
                 ParticipationRequestStatus.PENDING,
                 null,
                 requestedAt,
-                null,
-                requestedAt);
+                null);
     }
 
     public static ParticipationRequest reconstitute(
@@ -80,8 +76,7 @@ public final class ParticipationRequest {
             ParticipationRequestStatus status,
             String rejectReason,
             Instant requestedAt,
-            Instant decidedAt,
-            Instant updatedAt) {
+            Instant decidedAt) {
         return new ParticipationRequest(
                 Objects.requireNonNull(id, "id must not be null"),
                 organizationId,
@@ -91,18 +86,15 @@ public final class ParticipationRequest {
                 status,
                 rejectReason,
                 requestedAt,
-                decidedAt,
-                updatedAt);
+                decidedAt);
     }
 
     /** 요청자가 승인 대기 중인 요청을 거둬들인다. 처리 시각은 승인·거절에만 쓰므로 남기지 않는다. */
-    public void cancel(Instant canceledAt) {
+    public void cancel() {
         if (!isPending()) {
             throw new IllegalStateException("only pending requests can be canceled");
         }
-        Instant newUpdatedAt = requireNotBeforeRequest(canceledAt);
         this.status = ParticipationRequestStatus.CANCELED;
-        this.updatedAt = newUpdatedAt;
     }
 
     public boolean isRequestedBy(AccountId requester) {
@@ -155,9 +147,5 @@ public final class ParticipationRequest {
 
     public Optional<Instant> decidedAt() {
         return Optional.ofNullable(decidedAt);
-    }
-
-    public Instant updatedAt() {
-        return updatedAt;
     }
 }

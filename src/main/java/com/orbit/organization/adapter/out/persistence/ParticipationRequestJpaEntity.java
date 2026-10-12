@@ -18,6 +18,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 참여 요청. 발주사·계정은 다른 애그리게잇·모듈이므로 ID로만 둔다. 재요청은 새 행이므로 같은 계정·발주사의 행이 여럿일 수 있고, 승인 대기 행이 하나뿐인지는 참여
@@ -30,7 +31,7 @@ import com.orbit.organization.domain.ParticipationType;
             @Index(name = "idx_participation_requests_member", columnList = "member_id"),
             @Index(name = "idx_participation_requests_company_status", columnList = "company_id, status")
         })
-class ParticipationRequestJpaEntity {
+class ParticipationRequestJpaEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -63,12 +64,6 @@ class ParticipationRequestJpaEntity {
     @Column(name = "decided_at")
     private Instant decidedAt;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
     protected ParticipationRequestJpaEntity() {}
 
     private ParticipationRequestJpaEntity(ParticipationRequest request) {
@@ -76,7 +71,6 @@ class ParticipationRequestJpaEntity {
         this.accountId = request.accountId().value();
         this.desiredType = request.desiredType();
         this.requestedAt = request.requestedAt();
-        this.createdAt = request.requestedAt();
         update(request);
     }
 
@@ -93,7 +87,6 @@ class ParticipationRequestJpaEntity {
         this.status = request.status();
         this.rejectReason = request.rejectReason().orElse(null);
         this.decidedAt = request.decidedAt().orElse(null);
-        this.updatedAt = request.updatedAt();
     }
 
     ParticipationRequest toDomain() {
@@ -106,7 +99,6 @@ class ParticipationRequestJpaEntity {
                 status,
                 rejectReason,
                 requestedAt,
-                decidedAt,
-                updatedAt);
+                decidedAt);
     }
 }
