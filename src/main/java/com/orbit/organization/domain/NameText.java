@@ -7,8 +7,8 @@ import java.util.Set;
  * 이름 입력 공통 규칙([조직·계정] §5). 앞뒤 공백을 지운 값을 쓰고, 길이는 문자 수(코드 포인트)로 센다. 이모지는 받지 않는다 — 유니코드
  * Extended_Pictographic·Emoji_Presentation 문자(국기 문자, ©·®·™ 포함)와 이모지 표시 선택자·키캡 결합 문자를 거부한다.
  *
- * <p>보이지 않게 같은 이름이 달라지지 않도록 검사 전에 정리한다(잠정 O-14): 합친 형태(NFC)로 바꾸고, 붙여넣기에 섞이는 서식 문자(제로폭·방향 제어·BOM·소프트
- * 하이픈 등 유니코드 Cf)는 지우고, NBSP 같은 공백류(유니코드 Zs)는 일반 공백으로 바꾼다. 제어 문자(NUL·줄바꿈·탭 등 {@link Character#isISOControl}),
+ * <p>보이지 않게 같은 이름이 달라지지 않도록 검사 전에 정리한다(잠정 O-14): 붙여넣기에 섞이는 서식 문자(제로폭·방향 제어·BOM·소프트 하이픈 등 유니코드 Cf)는
+ * 지우고, NBSP 같은 공백류(유니코드 Zs)는 일반 공백으로 바꾼 뒤 합친 형태(NFC)로 바꾼다. 제어 문자(NUL·줄바꿈·탭 등 {@link Character#isISOControl}),
  * 줄·문단 구분자(U+2028·U+2029), 글자로 분류되지만 보이지 않는 한글 채움 문자·점자 빈칸은 거부한다 — PostgreSQL은 NUL을 저장하지 못하고, 나머지는 한 줄
  * 이름을 깨뜨리거나 빈 이름을 만든다.
  */
@@ -42,17 +42,18 @@ final class NameText {
         return stripped;
     }
 
+    /** 서식 문자가 자모 사이에 끼면 NFC가 합치지 못하므로 서식 문자를 먼저 지우고 마지막에 합친다. */
     private static String normalize(String value) {
-        StringBuilder normalized = new StringBuilder(value.length());
-        Normalizer.normalize(value, Normalizer.Form.NFC).codePoints().forEach(codePoint -> {
+        StringBuilder cleaned = new StringBuilder(value.length());
+        value.codePoints().forEach(codePoint -> {
             int type = Character.getType(codePoint);
             if (type == Character.SPACE_SEPARATOR) {
-                normalized.append(' ');
+                cleaned.append(' ');
             } else if (type != Character.FORMAT) {
-                normalized.appendCodePoint(codePoint);
+                cleaned.appendCodePoint(codePoint);
             }
         });
-        return normalized.toString();
+        return Normalizer.normalize(cleaned, Normalizer.Form.NFC);
     }
 
     private static boolean isBreakingOrBlank(int codePoint) {

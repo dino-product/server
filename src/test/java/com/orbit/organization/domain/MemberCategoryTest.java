@@ -201,7 +201,7 @@ class MemberCategoryTest {
     }
 
     @Test
-    @DisplayName("한글 자모가 분리된(NFD) 입력은 합친 형태(NFC)로 바꾼 뒤 길이를 세고 같은 이름으로 본다")
+    @DisplayName("한글 자모가 분리된(NFD) 입력은 자모 사이 서식 문자를 지우고 합친 형태(NFC)로 바꾼 뒤 길이를 세고 같은 이름으로 본다")
     void normalizesToComposedForm() {
         String composed = "가".repeat(10);
         String decomposed = Normalizer.normalize(composed, Normalizer.Form.NFD);
@@ -209,6 +209,7 @@ class MemberCategoryTest {
         assertThat(new CategoryName(decomposed).value()).isEqualTo(composed);
         assertThat(new CategoryName(Normalizer.normalize("설치팀", Normalizer.Form.NFD)))
                 .isEqualTo(new CategoryName("설치팀"));
+        assertThat(new CategoryName("\u1100\u200B\u1161나")).isEqualTo(new CategoryName("가나"));
     }
 
     @Test
