@@ -219,16 +219,18 @@ class MemberCategoryPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("기사 유형 해제는 그 발주사에서 그 유형이 지정된 기사 계약만 유형 없음으로 바꾼다")
+    @DisplayName("기사 유형 해제는 그 발주사에서 그 유형이 지정된 기사 계약만 상태와 무관하게 유형 없음으로 바꾼다")
     void unassignsTechnicianCategoryOnlyFromMatchingTechnicians() {
-        Long target = technicianWithCategory(ORGANIZATION, 1L, 5L);
-        Long otherCategory = technicianWithCategory(ORGANIZATION, 2L, 6L);
-        Long otherOrganization = technicianWithCategory(OTHER_ORGANIZATION, 3L, 5L);
+        Long target = technicianWithCategory(ORGANIZATION, 1L, 5L, "ACTIVE");
+        Long deactivated = technicianWithCategory(ORGANIZATION, 4L, 5L, "DEACTIVATED");
+        Long otherCategory = technicianWithCategory(ORGANIZATION, 2L, 6L, "ACTIVE");
+        Long otherOrganization = technicianWithCategory(OTHER_ORGANIZATION, 3L, 5L, "ACTIVE");
 
         int changed = technicians.unassignTechnicianCategory(ORGANIZATION, new MemberCategoryId(5L), LATER);
 
-        assertThat(changed).isEqualTo(1);
+        assertThat(changed).isEqualTo(2);
         assertThat(technicianCategoryOf(target)).isNull();
+        assertThat(technicianCategoryOf(deactivated)).isNull();
         assertThat(jdbcTemplate
                         .queryForObject("select updated_at from technician where id = ?", Timestamp.class, target)
                         .toInstant())
@@ -238,13 +240,14 @@ class MemberCategoryPersistenceAdapterTest {
     }
 
     /** 기사 계약 도메인이 아직 없어 행을 직접 넣는다. */
-    private Long technicianWithCategory(OrganizationId organizationId, long accountId, long categoryId) {
+    private Long technicianWithCategory(OrganizationId organizationId, long accountId, long categoryId, String status) {
         jdbcTemplate.update(
                 "insert into technician (company_id, member_id, company_technician_category_id, status,"
-                        + " status_changed_at, created_at, updated_at) values (?, ?, ?, 'ACTIVE', ?, ?, ?)",
+                        + " status_changed_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
                 organizationId.value(),
                 accountId,
                 categoryId,
+                status,
                 Timestamp.from(NOW),
                 Timestamp.from(NOW),
                 Timestamp.from(NOW));
