@@ -2,6 +2,7 @@ package com.orbit.organization.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.dto.DesignateOwnerCommand;
+import com.orbit.organization.application.port.out.OrganizationBusyException;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.Membership;
@@ -70,6 +72,19 @@ class DesignateOwnerServiceTest {
 
         assertRejected(command(staff), OrganizationErrorCode.NOT_ORGANIZATION_MEMBER);
         verify(organizationRepository).lock(ORGANIZATION);
+    }
+
+    @Test
+    @DisplayName("앞선 변경이 대기 한도 안에 끝나지 않으면 요청자 확인 전에 409로 거부한다")
+    void rejectsWhenOrganizationIsBusy() {
+        memberships.given(ORGANIZATION, REQUESTER, true);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+        doThrow(new OrganizationBusyException(new IllegalStateException("lock timeout")))
+                .when(organizationRepository)
+                .lock(ORGANIZATION);
+
+        assertRejected(command(staff), OrganizationErrorCode.ORGANIZATION_BUSY);
+        assertThat(memberships.stored(id(staff)).isOwner()).isFalse();
     }
 
     @Test

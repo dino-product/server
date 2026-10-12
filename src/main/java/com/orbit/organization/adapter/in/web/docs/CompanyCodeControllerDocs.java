@@ -44,7 +44,8 @@ public interface CompanyCodeControllerDocs {
             description = "서버가 무작위로 새 회사 코드를 발급합니다(본문 없음). 이전 코드는 폐기되어 어느 발주사에도 다시 발급하지 않으며, "
                     + "이전 코드로 만든 링크·QR로는 새 참여 요청을 할 수 없습니다. 기존 소속은 그대로 유지됩니다. "
                     + "그 발주사의 활성 총관리자만 바꿀 수 있습니다. 활성 소속이 아니면(없는 발주사 포함) ORGANIZATION-002, "
-                    + "총관리자가 아닌 직원이면 ORGANIZATION-003입니다.",
+                    + "총관리자가 아닌 직원이면 ORGANIZATION-003입니다. "
+                    + "같은 발주사의 다른 변경이 끝나기를 기다리다 대기 한도를 넘기면 ORGANIZATION-010입니다(잠시 후 다시 시도).",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
@@ -58,7 +59,7 @@ public interface CompanyCodeControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY"})
+            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "ORGANIZATION_BUSY"})
     CompanyCodeResponse change(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId);
