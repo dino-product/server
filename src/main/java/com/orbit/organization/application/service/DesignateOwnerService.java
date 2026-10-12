@@ -16,7 +16,7 @@ import com.orbit.shared.error.BusinessException;
 
 /**
  * 총관리자가 같은 발주사의 활성 직원 소속을 총관리자로 추가 지정한다. 확인 순서는 {@link OrganizationOwners}를 따르고, 대상이 비활성 소속이면
- * 409(ORGANIZATION-006, O-13)다. 이미 총관리자인 소속을 다시 지정하면 저장하지 않고 성공한다(결과가 요청과 같으므로 중복·재전송 요청을 실패로 돌려주지 않는다).
+ * 409(ORGANIZATION-006, [조직·계정] §4.1)다. 이미 총관리자인 소속을 다시 지정하면 저장하지 않고 성공한다(결과가 요청과 같으므로 중복·재전송 요청을 실패로 돌려주지 않는다).
  */
 @Service
 public class DesignateOwnerService implements DesignateOwnerUseCase {
