@@ -14,7 +14,7 @@ import com.orbit.organization.domain.AccountId;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 계정별로 첫 실패부터 10분 동안 실패를 세고 10회에 이르면 그 10분이 끝날 때까지 막는다(고정 창). 회사 코드 6자리는 약 10억 가지라 한 계정이 하루 1,440회
+ * 계정별로 첫 시도부터 10분 동안 실패를 세고 10회에 이르면 그 10분이 끝날 때까지 막는다(고정 창). 회사 코드 6자리는 약 10억 가지라 한 계정이 하루 1,440회
  * 안에서 맞힐 가능성은 낮다. Redis에 닿지 못하면 회사 확인·참여 요청을 막지 않도록 제한 없이 통과시킨다.
  */
 @Slf4j
@@ -26,12 +26,20 @@ class RedisCompanyCodeAttemptLimiter implements CompanyCodeAttemptLimiter {
     static final Duration WINDOW = Duration.ofMinutes(10);
 
     // 증가와 만료 설정을 한 스크립트로 묶어 그 사이에 멈춰도 만료 없는 키가 남아 계정이 계속 막히지 않게 한다.
-    private static final RedisScript<Long> RECORD_FAILURE = RedisScript.of("""
-            local failures = redis.call('INCR', KEYS[1])
-            if failures == 1 then
+    private static final RedisScript<Long> TRY_ATTEMPT = RedisScript.of("""
+            local attempts = redis.call('INCR', KEYS[1])
+            if attempts == 1 then
                 redis.call('PEXPIRE', KEYS[1], ARGV[1])
             end
-            return failures
+            return attempts
+            """, Long.class);
+
+    // 창이 끝나 키가 사라진 뒤에 되돌리면 만료 없는 음수 키가 생기므로 키가 있을 때만 줄인다.
+    private static final RedisScript<Long> REFUND = RedisScript.of("""
+            if redis.call('EXISTS', KEYS[1]) == 1 then
+                return redis.call('DECR', KEYS[1])
+            end
+            return 0
             """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
@@ -41,22 +49,23 @@ class RedisCompanyCodeAttemptLimiter implements CompanyCodeAttemptLimiter {
     }
 
     @Override
-    public boolean isBlocked(AccountId accountId) {
+    public boolean tryAttempt(AccountId accountId) {
         try {
-            String failures = redisTemplate.opsForValue().get(key(accountId));
-            return failures != null && Long.parseLong(failures) >= MAX_FAILURES;
+            Long attempts =
+                    redisTemplate.execute(TRY_ATTEMPT, List.of(key(accountId)), String.valueOf(WINDOW.toMillis()));
+            return attempts == null || attempts <= MAX_FAILURES;
         } catch (DataAccessException exception) {
             log.warn("Company code attempt limit check skipped", exception);
-            return false;
+            return true;
         }
     }
 
     @Override
-    public void recordFailure(AccountId accountId) {
+    public void refund(AccountId accountId) {
         try {
-            redisTemplate.execute(RECORD_FAILURE, List.of(key(accountId)), String.valueOf(WINDOW.toMillis()));
+            redisTemplate.execute(REFUND, List.of(key(accountId)));
         } catch (DataAccessException exception) {
-            log.warn("Company code attempt failure not recorded", exception);
+            log.warn("Company code attempt refund skipped", exception);
         }
     }
 

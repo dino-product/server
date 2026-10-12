@@ -9,10 +9,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.crypto.spec.SecretKeySpec;
@@ -140,6 +146,34 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("ORGANIZATION-018"));
         check(ACCOUNT_IDS.incrementAndGet(), company.code()).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("한 계정이 없는 코드 확인을 한꺼번에 몰아 보내도 코드를 찾아보는 것은 열 번뿐이고 나머지는 429로 거부한다")
+    void limitsConcurrentUnknownCodeChecksToMaxFailures() throws Exception {
+        long attacker = ACCOUNT_IDS.incrementAndGet();
+        int attempts = 30;
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(attempts);
+        try {
+            List<Future<Integer>> statuses = new ArrayList<>();
+            for (int attempt = 0; attempt < attempts; attempt++) {
+                statuses.add(executor.submit(() -> {
+                    start.await();
+                    return check(attacker, "UUUUUU").andReturn().getResponse().getStatus();
+                }));
+            }
+            start.countDown();
+            List<Integer> results = new ArrayList<>();
+            for (Future<Integer> status : statuses) {
+                results.add(status.get());
+            }
+
+            assertThat(results).filteredOn(status -> status == 404).hasSize(10);
+            assertThat(results).filteredOn(status -> status == 429).hasSize(attempts - 10);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test

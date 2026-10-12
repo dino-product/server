@@ -3,6 +3,7 @@ package com.orbit.organization.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -71,6 +72,7 @@ class CheckCompanyServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(attemptLimiter.tryAttempt(any())).thenReturn(true);
         service =
                 new CheckCompanyService(organizationRepository, membershipQueryPort, requestRepository, attemptLimiter);
     }
@@ -85,7 +87,7 @@ class CheckCompanyServiceTest {
         CompanyCheckInfo result = service.check(new CheckCompanyQuery(7L, " 7k2m-9x "));
 
         assertThat(result).isEqualTo(new CompanyCheckInfo(10L, "오르빗 설비", ParticipationAvailability.AVAILABLE, null));
-        verify(attemptLimiter, never()).recordFailure(any());
+        verify(attemptLimiter).refund(ACCOUNT_ID);
     }
 
     @Test
@@ -153,7 +155,7 @@ class CheckCompanyServiceTest {
         when(organizationRepository.existsRetiredCode(CODE)).thenReturn(false);
 
         assertRejected("7K2M9X", OrganizationErrorCode.COMPANY_NOT_FOUND);
-        verify(attemptLimiter).recordFailure(ACCOUNT_ID);
+        verify(attemptLimiter, never()).refund(any());
     }
 
     @Test
@@ -164,7 +166,7 @@ class CheckCompanyServiceTest {
 
         assertRejected("7k2m-9x", OrganizationErrorCode.RETIRED_COMPANY_CODE);
         verifyNoInteractions(membershipQueryPort, requestRepository);
-        verify(attemptLimiter, never()).recordFailure(any());
+        verify(attemptLimiter).refund(ACCOUNT_ID);
     }
 
     @ParameterizedTest
@@ -174,17 +176,17 @@ class CheckCompanyServiceTest {
     void rejectsMalformedCodeAsUnknown(String input) {
         assertRejected(input, OrganizationErrorCode.COMPANY_NOT_FOUND);
         verifyNoInteractions(organizationRepository, membershipQueryPort, requestRepository);
-        verify(attemptLimiter).recordFailure(ACCOUNT_ID);
+        verify(attemptLimiter, never()).refund(any());
     }
 
     @Test
     @DisplayName("실패가 한도에 이른 계정은 코드를 찾아보지 않고 거부해 코드의 존재 여부를 드러내지 않는다")
     void rejectsBlockedAccountWithoutLookingUpCode() {
-        when(attemptLimiter.isBlocked(ACCOUNT_ID)).thenReturn(true);
+        when(attemptLimiter.tryAttempt(ACCOUNT_ID)).thenReturn(false);
 
         assertRejected("7K2M9X", OrganizationErrorCode.TOO_MANY_COMPANY_CODE_ATTEMPTS);
         verifyNoInteractions(organizationRepository, membershipQueryPort, requestRepository);
-        verify(attemptLimiter, never()).recordFailure(any());
+        verify(attemptLimiter, never()).refund(any());
     }
 
     private void assertRejected(String input, BaseCode errorCode) {

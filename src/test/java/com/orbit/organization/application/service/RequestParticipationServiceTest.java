@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -73,6 +74,7 @@ class RequestParticipationServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(attemptLimiter.tryAttempt(any())).thenReturn(true);
         service = new RequestParticipationService(
                 organizationRepository,
                 membershipQueryPort,
@@ -129,7 +131,7 @@ class RequestParticipationServiceTest {
         assertRejected("7K2M9X", OrganizationErrorCode.RETIRED_COMPANY_CODE);
         verify(organizationRepository, never()).lock(any());
         verifyNoInteractions(requestRepository);
-        verify(attemptLimiter, never()).recordFailure(any());
+        verify(attemptLimiter).refund(ACCOUNT_ID);
     }
 
     @Test
@@ -139,17 +141,17 @@ class RequestParticipationServiceTest {
 
         assertRejected("7K2M9X", OrganizationErrorCode.COMPANY_NOT_FOUND);
         verifyNoInteractions(requestRepository);
-        verify(attemptLimiter).recordFailure(ACCOUNT_ID);
+        verify(attemptLimiter, never()).refund(any());
     }
 
     @Test
     @DisplayName("회사 확인 실패가 한도에 이른 계정은 코드를 찾아보지 않고 거부한다")
     void rejectsBlockedAccountWithoutLookingUpCode() {
-        when(attemptLimiter.isBlocked(ACCOUNT_ID)).thenReturn(true);
+        when(attemptLimiter.tryAttempt(ACCOUNT_ID)).thenReturn(false);
 
         assertRejected("7K2M9X", OrganizationErrorCode.TOO_MANY_COMPANY_CODE_ATTEMPTS);
         verifyNoInteractions(organizationRepository, membershipQueryPort, requestRepository);
-        verify(attemptLimiter, never()).recordFailure(any());
+        verify(attemptLimiter, never()).refund(any());
     }
 
     @Test
