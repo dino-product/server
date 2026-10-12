@@ -138,7 +138,7 @@ class ProfileTest {
     }
 
     @Test
-    @DisplayName("탈퇴하면 이름·연락처를 지우고 탈퇴 시각을 남기며, 가입일·약관 동의 이력·마케팅 동의는 그대로 둔다")
+    @DisplayName("탈퇴하면 이름·연락처를 지우고 탈퇴 시각을 남기며, 가입일·약관 동의 이력은 그대로 둔다. 동의하지 않은 마케팅은 그대로다")
     void withdrawsActiveProfile() {
         Profile profile = newProfile();
         profile.agreeToTerms(V1, SIGNUP_AT);
@@ -154,6 +154,19 @@ class ProfileTest {
         assertThat(profile.agreements()).hasSize(2);
         assertThat(profile.marketingConsent()).contains(new MarketingConsent(false, SIGNUP_AT));
         assertThat(profile.isUsable(V1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("마케팅 수신에 동의한 채 탈퇴하면 현재 동의를 탈퇴 시각으로 해제하고 동의 이력은 남긴다")
+    void withdrawsMarketingConsent() {
+        Profile profile = newProfile();
+        profile.agreeToTerms(V1, SIGNUP_AT);
+        profile.changeMarketingConsent(true, V1, SIGNUP_AT);
+
+        profile.withdraw(LATER);
+
+        assertThat(profile.marketingConsent()).contains(new MarketingConsent(false, LATER));
+        assertThat(profile.agreements()).contains(new TermsAgreement(TermsType.MARKETING, "m1", SIGNUP_AT));
     }
 
     @Test

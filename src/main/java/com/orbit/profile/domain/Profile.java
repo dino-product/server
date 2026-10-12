@@ -104,13 +104,19 @@ public final class Profile {
                 marketingConsent);
     }
 
-    /** 탈퇴한다. 이름·연락처를 지우고 탈퇴 시각을 남긴다. 가입 미완료 프로필도 탈퇴할 수 있다. */
+    /**
+     * 탈퇴한다. 이름·연락처를 지우고 탈퇴 시각을 남긴다. 마케팅 수신에 동의한 상태였으면 현재 동의를 탈퇴 시각으로 해제해 탈퇴한 계정이 수신 대상에 남지 않게 하고,
+     * 약관 동의 이력은 그대로 둔다. 가입 미완료 프로필도 탈퇴할 수 있다.
+     */
     public void withdraw(Instant withdrawnAt) {
         requireNotWithdrawn();
         this.withdrawnAt = Objects.requireNonNull(withdrawnAt, "withdrawnAt must not be null");
         this.status = SignupStatus.WITHDRAWN;
         this.name = null;
         this.phoneNumber = null;
+        if (marketingConsent != null && marketingConsent.agreed()) {
+            this.marketingConsent = new MarketingConsent(false, withdrawnAt);
+        }
     }
 
     public void changeBasics(PersonName name, PhoneNumber phoneNumber) {
