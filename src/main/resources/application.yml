@@ -109,6 +109,10 @@ app:
         return-uris:
           web: ${APPLE_WEB_RETURN_URI}
           android: ${APPLE_ANDROID_RETURN_URI}
+    provider-unlink:
+      # 탈퇴한 계정의 카카오 연결 끊기·Apple 토큰 철회 재시도 주기
+      retry-enabled: true
+      retry-interval: PT1M
     jwt:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}

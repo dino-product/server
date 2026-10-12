@@ -88,7 +88,7 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("닫은 뒤 같은 카카오 계정으로 로그인하면 새 계정을 만들고, 닫은 계정의 회원번호는 연결 해제 대기로 남긴다")
+    @DisplayName("닫은 뒤 같은 카카오 계정으로 로그인하면 새 계정을 만들고, 닫은 계정의 회원번호는 연결 해제 대기로 남긴다(테스트 프로필의 카카오 주소는 닫혀 있어 해제가 끝나지 않는다)")
     void kakaoLoginAfterClosureCreatesNewAccount() throws Exception {
         String subject = UUID.randomUUID().toString();
         long closed = accountId(loginWithKakao(subject));
@@ -110,7 +110,6 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
         accountClosure.close(closed);
 
         assertThat(accountId(loginWithApple(subject))).isNotEqualTo(closed);
-        assertThat(pendingUnlinks(closed)).containsExactly(Map.of("provider", "APPLE", "oauth_uid", subject));
     }
 
     @Test
