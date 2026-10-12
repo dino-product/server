@@ -231,6 +231,10 @@ class MemberCategoryPersistenceAdapterTest {
         assertThat(changed).isEqualTo(2);
         assertThat(technicianCategoryOf(target)).isNull();
         assertThat(technicianCategoryOf(deactivated)).isNull();
+        assertThat(jdbcTemplate.queryForMap(
+                        "select status, status_changed_at from technician where id = ?", deactivated))
+                .containsEntry("status", "DEACTIVATED")
+                .containsEntry("status_changed_at", Timestamp.from(NOW));
         assertThat(jdbcTemplate
                         .queryForObject("select updated_at from technician where id = ?", Timestamp.class, target)
                         .toInstant())
