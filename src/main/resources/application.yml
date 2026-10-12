@@ -36,6 +36,12 @@ spring:
       completion-mode: archive
       # 재기동 때 미완료 발행을 한꺼번에 다시 보내지 않는다. 여러 인스턴스가 같은 발행을 겹쳐 보내기 때문이다.
       republish-outstanding-events-on-restart: false
+      staleness:
+        # 대기·처리·재전송 중인 채로 이 시간을 넘긴 발행(인스턴스 중단 등)은 실패로 바꿔 재전송 대상으로 만든다. 최초 발행 시각 기준이다.
+        published: PT5M
+        processing: PT5M
+        resubmitted: PT5M
+        check-interval: PT1M
       jdbc:
         schema-initialization:
           # 운영 스키마는 자동으로 만들지 않는다. local·test 프로필만 켠다.
@@ -124,3 +130,9 @@ app:
   schedule:
     technician-lock:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
+  events:
+    resubmission:
+      # 실패한 이벤트 발행을 다시 보내는 주기와 최초 처리를 포함한 최대 처리 시도 횟수
+      enabled: true
+      interval: PT1M
+      max-attempts: 10

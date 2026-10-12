@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.events.ApplicationModuleListener;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -25,7 +28,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.orbit.support.IntegrationTestSupport;
 
 @Import(EventPublicationRegistryIntegrationTest.ProbeListeners.class)
+@TestPropertySource(
+        properties = {
+            "app.events.resubmission.max-attempts=" + EventPublicationRegistryIntegrationTest.MAX_ATTEMPTS,
+            "spring.modulith.events.staleness.processing=PT1S",
+            "spring.modulith.events.staleness.check-interval=PT1S"
+        })
 class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
+
+    static final int MAX_ATTEMPTS = 3;
 
     private static final String PUBLICATIONS = "event_publication";
     private static final String ARCHIVE = "event_publication_archive";
@@ -46,6 +57,9 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private PlainProbeListener plainListener;
+
+    @Autowired
+    private FailedEventPublicationResubmitter resubmitter;
 
     @Test
     void recordsPublicationInPublishingTransactionAndArchivesItAfterListenerCompletes() {
@@ -117,6 +131,75 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
         assertThat(statuses(ARCHIVE, key)).isEmpty();
     }
 
+    @Test
+    void resubmitsFailedPublicationUntilListenerSucceeds() {
+        String key = newKey();
+
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> events.publishEvent(new RegistryProbe(key, 1)));
+        await().atMost(ASYNC_WAIT).until(() -> statuses(PUBLICATIONS, key).equals(List.of("FAILED")));
+
+        resubmitter.resubmitFailed();
+
+        await().atMost(ASYNC_WAIT).untilAsserted(() -> {
+            assertThat(statuses(PUBLICATIONS, key)).isEmpty();
+            assertThat(completionAttempts(ARCHIVE, key))
+                    .as("다시 보낸 발행이 처리되면 시도 횟수와 함께 보관된다")
+                    .containsExactly(2);
+        });
+        assertThat(moduleListener.attempts(key)).isEqualTo(2);
+    }
+
+    @Test
+    void stopsResubmittingWhenAttemptsReachLimit() {
+        String key = newKey();
+
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> events.publishEvent(new RegistryProbe(key, ALWAYS_FAIL)));
+        for (int attempt = 1; attempt < MAX_ATTEMPTS; attempt++) {
+            awaitFailedAfter(key, attempt);
+            resubmitter.resubmitFailed();
+        }
+        awaitFailedAfter(key, MAX_ATTEMPTS);
+
+        resubmitter.resubmitFailed();
+
+        await().during(Duration.ofMillis(500)).atMost(Duration.ofSeconds(2)).untilAsserted(() -> assertThat(
+                        moduleListener.attempts(key))
+                .as("시도 횟수 상한에 닿은 발행은 더 보내지 않는다")
+                .isEqualTo(MAX_ATTEMPTS));
+        assertThat(statuses(PUBLICATIONS, key)).as("상한에 닿은 발행은 실패로 남아 조회할 수 있다").containsExactly("FAILED");
+        assertThat(completionAttempts(PUBLICATIONS, key)).containsExactly(MAX_ATTEMPTS);
+    }
+
+    @Test
+    void marksStalledPublicationFailedSoItCanBeResubmitted() {
+        String key = newKey();
+        moduleListener.holdFirstAttempt(key);
+        try {
+            new TransactionTemplate(transactionManager)
+                    .executeWithoutResult(status -> events.publishEvent(new RegistryProbe(key, 0)));
+
+            await().atMost(ASYNC_WAIT).untilAsserted(() -> assertThat(statuses(PUBLICATIONS, key))
+                    .as("처리 중인 채로 멈춘 발행은 실패로 바뀐다")
+                    .containsExactly("FAILED"));
+
+            resubmitter.resubmitFailed();
+
+            await().atMost(ASYNC_WAIT).untilAsserted(() -> assertThat(completionAttempts(ARCHIVE, key))
+                    .as("실패로 바뀐 발행은 다시 보내 처리된다")
+                    .containsExactly(2));
+        } finally {
+            moduleListener.release(key);
+        }
+    }
+
+    private void awaitFailedAfter(String key, int attempts) {
+        await().atMost(ASYNC_WAIT)
+                .until(() -> moduleListener.attempts(key) == attempts
+                        && statuses(PUBLICATIONS, key).equals(List.of("FAILED")));
+    }
+
     private List<String> statuses(String table, String key) {
         return jdbcTemplate.queryForList(
                 "select status from " + table + " where serialized_event like ?", String.class, "%" + key + "%");
@@ -126,6 +209,13 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
         return jdbcTemplate.queryForList(
                 "select completion_date from " + table + " where serialized_event like ?",
                 Object.class,
+                "%" + key + "%");
+    }
+
+    private List<Integer> completionAttempts(String table, String key) {
+        return jdbcTemplate.queryForList(
+                "select completion_attempts from " + table + " where serialized_event like ?",
+                Integer.class,
                 "%" + key + "%");
     }
 
@@ -142,11 +232,16 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
     static class RegistryProbeListener {
 
         private final Map<String, AtomicInteger> attempts = new ConcurrentHashMap<>();
+        private final Map<String, CountDownLatch> firstAttemptHolds = new ConcurrentHashMap<>();
 
         @ApplicationModuleListener
-        void on(RegistryProbe event) {
+        void on(RegistryProbe event) throws InterruptedException {
             int attempt = attempts.computeIfAbsent(event.key(), key -> new AtomicInteger())
                     .incrementAndGet();
+            CountDownLatch hold = attempt == 1 ? firstAttemptHolds.get(event.key()) : null;
+            if (hold != null) {
+                hold.await(30, TimeUnit.SECONDS);
+            }
             if (attempt <= event.failuresBeforeSuccess()) {
                 throw new IllegalStateException("시험용 처리 실패 " + attempt);
             }
@@ -154,6 +249,15 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
 
         int attempts(String key) {
             return attempts.getOrDefault(key, new AtomicInteger()).get();
+        }
+
+        /** 첫 처리 시도를 {@link #release}까지 붙잡아 처리 중에 멈춘 발행을 만든다. */
+        void holdFirstAttempt(String key) {
+            firstAttemptHolds.put(key, new CountDownLatch(1));
+        }
+
+        void release(String key) {
+            firstAttemptHolds.get(key).countDown();
         }
     }
 
