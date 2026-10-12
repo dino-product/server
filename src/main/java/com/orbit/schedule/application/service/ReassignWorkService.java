@@ -21,7 +21,7 @@ import com.orbit.schedule.domain.WorkSchedule;
 /**
  * 담당기사 재배정. 다른 기사와 그 기사의 일정으로 바꾸고 새 기사에게 다시 수락받는다. 새 기사의 활성 작업과 겹치면 확인한 요청만 반영하며, 현재
  * 기사로의 재배정은 SAME_TECHNICIAN(409)이다. 오류 확인 순서는 schedule 지침의 공통 순서를 따른다. 새 담당기사가 같은 조직의 활성 기사인지는
- * organization 계약이 연결될 때 검증한다.
+ * organization의 기사 계약 확인 계약이 연결될 때 검증한다.
  */
 @Service
 public class ReassignWorkService implements ReassignWorkUseCase {
