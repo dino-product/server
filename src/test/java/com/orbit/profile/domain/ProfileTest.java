@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,8 +24,8 @@ class ProfileTest {
         Profile profile = newProfile();
 
         assertThat(profile.accountId()).isEqualTo(ACCOUNT);
-        assertThat(profile.name()).isEqualTo(new PersonName("홍길동"));
-        assertThat(profile.phoneNumber()).isEqualTo(new PhoneNumber("01012345678"));
+        assertThat(profile.name()).contains(new PersonName("홍길동"));
+        assertThat(profile.phoneNumber()).contains(new PhoneNumber("01012345678"));
         assertThat(profile.status()).isEqualTo(SignupStatus.PENDING_SIGNUP);
         assertThat(profile.signedUpAt()).isEmpty();
         assertThat(profile.marketingConsent()).isEmpty();
@@ -39,8 +40,8 @@ class ProfileTest {
 
         profile.changeBasics(new PersonName("김철수"), new PhoneNumber("01087654321"));
 
-        assertThat(profile.name()).isEqualTo(new PersonName("김철수"));
-        assertThat(profile.phoneNumber()).isEqualTo(new PhoneNumber("01087654321"));
+        assertThat(profile.name()).contains(new PersonName("김철수"));
+        assertThat(profile.phoneNumber()).contains(new PhoneNumber("01087654321"));
         assertThat(profile.status()).isEqualTo(SignupStatus.PENDING_SIGNUP);
     }
 
@@ -134,6 +135,98 @@ class ProfileTest {
         profile.agreeToTerms(V1, SIGNUP_AT);
 
         assertThat(profile.isUsable(new TermsVersions("s1", "p1", "m2"))).isTrue();
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 이름·연락처를 지우고 탈퇴 시각을 남기며, 가입일·약관 동의 이력·마케팅 동의는 그대로 둔다")
+    void withdrawsActiveProfile() {
+        Profile profile = newProfile();
+        profile.agreeToTerms(V1, SIGNUP_AT);
+
+        profile.withdraw(LATER);
+
+        assertThat(profile.status()).isEqualTo(SignupStatus.WITHDRAWN);
+        assertThat(profile.isWithdrawn()).isTrue();
+        assertThat(profile.withdrawnAt()).contains(LATER);
+        assertThat(profile.name()).isEmpty();
+        assertThat(profile.phoneNumber()).isEmpty();
+        assertThat(profile.signedUpAt()).contains(SIGNUP_AT);
+        assertThat(profile.agreements()).hasSize(2);
+        assertThat(profile.marketingConsent()).contains(new MarketingConsent(false, SIGNUP_AT));
+        assertThat(profile.isUsable(V1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("가입 미완료 프로필도 탈퇴할 수 있다")
+    void withdrawsPendingProfile() {
+        Profile profile = newProfile();
+
+        profile.withdraw(LATER);
+
+        assertThat(profile.status()).isEqualTo(SignupStatus.WITHDRAWN);
+        assertThat(profile.signedUpAt()).isEmpty();
+        assertThat(profile.name()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("프로필을 입력하기 전에 탈퇴하면 탈퇴 표시만 남는다")
+    void marksWithdrawalWithoutProfile() {
+        Profile profile = Profile.withdrawnWithoutProfile(ACCOUNT, LATER);
+
+        assertThat(profile.accountId()).isEqualTo(ACCOUNT);
+        assertThat(profile.status()).isEqualTo(SignupStatus.WITHDRAWN);
+        assertThat(profile.withdrawnAt()).contains(LATER);
+        assertThat(profile.name()).isEmpty();
+        assertThat(profile.phoneNumber()).isEmpty();
+        assertThat(profile.agreements()).isEmpty();
+        assertThat(profile.marketingConsent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 프로필은 다시 탈퇴하거나 프로필·약관·마케팅 동의를 바꿀 수 없다")
+    void rejectsChangesAfterWithdrawal() {
+        Profile profile = newProfile();
+        profile.agreeToTerms(V1, SIGNUP_AT);
+        profile.withdraw(LATER);
+
+        assertThatThrownBy(() -> profile.withdraw(LATER))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("profile already withdrawn");
+        assertThatThrownBy(() -> profile.changeBasics(new PersonName("김철수"), new PhoneNumber("01087654321")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("profile already withdrawn");
+        assertThatThrownBy(() -> profile.agreeToTerms(V1, LATER))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("profile already withdrawn");
+        assertThatThrownBy(() -> profile.changeMarketingConsent(true, V1, LATER))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> profile.nextStep(V1))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("profile already withdrawn");
+    }
+
+    @Test
+    @DisplayName("탈퇴 상태와 탈퇴 시각·이름·연락처가 서로 맞지 않으면 재구성하지 않는다")
+    void rejectsInconsistentWithdrawalState() {
+        assertThatThrownBy(() ->
+                        Profile.reconstitute(ACCOUNT, null, null, SignupStatus.WITHDRAWN, null, null, List.of(), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("only withdrawn profiles have withdrawnAt");
+        assertThatThrownBy(() -> Profile.reconstitute(
+                        ACCOUNT,
+                        new PersonName("홍길동"),
+                        new PhoneNumber("01012345678"),
+                        SignupStatus.WITHDRAWN,
+                        null,
+                        LATER,
+                        List.of(),
+                        null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("withdrawn profiles must not keep name or phoneNumber");
+        assertThatThrownBy(() -> Profile.reconstitute(
+                        ACCOUNT, null, null, SignupStatus.PENDING_SIGNUP, null, null, List.of(), null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("name must not be null");
     }
 
     private static Profile newProfile() {

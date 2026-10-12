@@ -14,7 +14,7 @@ import com.orbit.profile.domain.Profile;
 import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.SignupStep;
 
-/** 프로필이 없는 계정은 카카오 인증만 마친 가입 미완료 계정으로 보고 프로필 입력 단계를 돌려준다. */
+/** 프로필이 없는 계정은 카카오 인증만 마친 가입 미완료 계정으로 보고 프로필 입력 단계를 돌려준다. 탈퇴한 계정은 없는 프로필과 같은 PROFILE-002다. */
 @Service
 public class GetProfileService implements GetProfileUseCase {
 
@@ -31,6 +31,7 @@ public class GetProfileService implements GetProfileUseCase {
     public ProfileInfo getProfile(GetProfileQuery query) {
         AccountId accountId = ProfileOwnership.requireSelf(query.requesterAccountId(), query.accountId());
         return profiles.findByAccountId(accountId)
+                .map(ProfileOwnership::requireNotWithdrawn)
                 .map(this::toInfo)
                 .orElseGet(() -> new ProfileInfo(
                         accountId.value(), SignupStatus.PENDING_SIGNUP, SignupStep.PROFILE, null, null, null, null));
@@ -41,8 +42,8 @@ public class GetProfileService implements GetProfileUseCase {
                 profile.accountId().value(),
                 profile.status(),
                 profile.nextStep(currentTerms.currentVersions()),
-                profile.name().value(),
-                profile.phoneNumber().value(),
+                profile.name().orElseThrow().value(),
+                profile.phoneNumber().orElseThrow().value(),
                 profile.signedUpAt().orElse(null),
                 profile.marketingConsent().map(MarketingConsent::agreed).orElse(null));
     }

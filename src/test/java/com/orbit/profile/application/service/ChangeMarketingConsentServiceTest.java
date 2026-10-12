@@ -126,4 +126,17 @@ class ChangeMarketingConsentServiceTest {
         profile.agreeToTerms(CURRENT, SIGNUP_AT);
         return profile;
     }
+
+    @Test
+    @DisplayName("탈퇴한 계정은 마케팅 동의를 바꿀 수 없고 없는 프로필과 같은 PROFILE-002다")
+    void rejectsWithdrawnProfile() {
+        when(profiles.findByAccountId(new AccountId(1L)))
+                .thenReturn(Optional.of(
+                        Profile.withdrawnWithoutProfile(new AccountId(1L), Instant.parse("2026-11-01T00:00:00Z"))));
+
+        assertThatThrownBy(() -> service.change(new ChangeMarketingConsentCommand(1L, 1L, true)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(ProfileErrorCode.PROFILE_NOT_FOUND));
+        verify(profiles, never()).save(any());
+    }
 }
