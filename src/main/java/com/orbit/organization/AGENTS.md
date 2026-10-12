@@ -9,7 +9,7 @@
 - 총관리자 수를 바꾸거나 그 수로 판단하는 변경(총관리자 지정·해제, 이후 소속 비활성화·탈퇴 차단)은 요청자를 확인하기 전에 `OrganizationLocks`를 거쳐 발주사 행을 잠그고, 활성 총관리자 수는 잠근 뒤에 셉니다. 마지막 1명 판단은 `Membership#revokeOwner`처럼 Domain이 하고 서비스가 오류 코드로 바꿉니다.
 - 요청자 계정은 컨트롤러가 auth의 루트 공개 계약 `AccountPrincipal`을 `@AuthenticationPrincipal`로 받아 계정 식별자만 Command에 넘깁니다. 이 타입은 웹 어댑터에서만 참조하고 Application·Domain에는 `AccountId`나 `Long`만 넘깁니다. auth 내부 principal(`AuthenticatedAccount`)이나 `Authentication#getName()`에 기대지 않습니다. 이 의존 때문에 auth는 organization을 조회·구독할 수 없습니다.
 - 입력 규칙(발주사명·유형 이름 보이지 않는 문자 정리·앞뒤 공백 제거·길이·이모지·제어 문자 불가 등)은 Domain 값객체가 한 번만 검사하고(공통 이름 규칙은 `NameText`) 서비스가 발주사는 `ORGANIZATION-001`, 유형은 `ORGANIZATION-007`로 바꿉니다. Request에 같은 길이 제약을 중복하지 않습니다(Bean Validation은 UTF-16 단위로, Domain은 코드 포인트로 셉니다). Domain은 Spring·JPA·Web 타입과 `Clock`에 의존하지 않습니다.
-- 직원 유형·기사 유형은 테이블이 달라 식별자가 겹칠 수 있으므로 항상 `MemberCategoryKind`와 함께 찾습니다. 유형 생성·수정·삭제는 권한 확인 뒤 발주사 행을 잠그고(`OrganizationLocks`를 거쳐 `OrganizationRepository#lock`) 이름 중복·삭제 여부를 확인합니다. 발주사 잠금은 모든 유즈케이스가 `OrganizationLocks`를 거치며, 대기 한도는 `app.organization.lock.wait-limit`(기본 2초)이고 넘기면 `OrganizationBusyException`을 거쳐 `ORGANIZATION-010`이 됩니다. 삭제되지 않은 행끼리의 (발주사, 이름) 부분 유일 인덱스가 잠금을 거치지 않은 저장의 최종 방어선이며, 위반은 `DuplicateCategoryNameException`을 거쳐 `ORGANIZATION-009`가 됩니다. JPA 매핑으로 표현할 수 없어 `src/main/resources/db/partial-unique-indexes.sql`에 두고 스키마를 자동 생성하는 프로필에서만 실행되므로, 운영 DDL에도 같은 인덱스를 둡니다.
+- 직원 유형·기사 유형은 테이블이 달라 식별자가 겹칠 수 있으므로 항상 `MemberCategoryKind`와 함께 찾습니다. 유형 생성·수정·삭제는 권한 확인 뒤 발주사 행을 잠그고(`OrganizationLocks`를 거쳐 `OrganizationRepository#lock`) 이름 중복·삭제 여부를 확인합니다. 발주사 잠금은 모든 유즈케이스가 `OrganizationLocks`를 거치며, 대기 한도는 `app.organization.lock.wait-limit`(기본 2초)이고 넘기면 `OrganizationBusyException`을 거쳐 `ORGANIZATION-010`이 됩니다. 삭제되지 않은 행끼리의 (발주사, 이름) 부분 유일 인덱스가 잠금을 거치지 않은 저장의 최종 방어선이며, 위반은 `DuplicateCategoryNameException`을 거쳐 `ORGANIZATION-009`가 됩니다. JPA 매핑으로 표현할 수 없어 `src/main/resources/db/partial-unique-indexes.sql`에 두며, 스키마를 자동 생성하는 프로필에서 실행됩니다.
 
 ## 오류 순서
 
@@ -21,7 +21,7 @@
 4. 그 발주사의 활성 직원 소속이 아님(없는 발주사·다른 발주사·기사 포함) — 403 `ORGANIZATION-002`. 발주사 존재 여부를 드러내지 않으려고 404를 쓰지 않습니다
 5. 활성 소속이지만 총관리자가 아님 — 403 `ORGANIZATION-003`
 6. 요청 값 — 발주사명 규칙·업종 누락은 400 `ORGANIZATION-001`, 유형 이름·색상 규칙은 400 `ORGANIZATION-007`
-7. 같은 발주사의 앞선 변경이 잠금 대기 한도 안에 끝나지 않음(발주사 정보 수정, 회사 코드 변경, 유형 생성·수정·삭제) — 409 `ORGANIZATION-010`
+7. 같은 발주사의 앞선 변경이 잠금 대기 한도 안에 끝나지 않음(발주사 정보 수정, 회사 코드 변경, 유형 생성·수정·삭제) — 409 `ORGANIZATION-010`. 총관리자 지정·해제는 요청자 확인보다 먼저 잠그므로 이 오류가 1번 다음에 옵니다
 8. 유형이 없거나 다른 발주사 유형, 수정하려는 유형이 삭제됨 — 404 `ORGANIZATION-008`. 삭제는 이미 삭제된 유형도 성공합니다
 9. 같은 발주사·같은 종류의 삭제되지 않은 유형과 이름 중복 — 409 `ORGANIZATION-009`
 
