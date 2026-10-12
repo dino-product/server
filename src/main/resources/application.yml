@@ -8,6 +8,11 @@ spring:
     name: spring-settings
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  task:
+    scheduling:
+      pool:
+        # 외부 연결 해제 재시도가 제공자 장애로 길어져도 폐쇄 표시 재확정이 밀리지 않도록 주기 작업마다 스레드를 둔다
+        size: 2
   docker:
     compose:
       enabled: ${SPRING_DOCKER_COMPOSE_ENABLED:false}

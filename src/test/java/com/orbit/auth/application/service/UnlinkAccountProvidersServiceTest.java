@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -153,33 +152,29 @@ class UnlinkAccountProvidersServiceTest {
     }
 
     @Test
-    @DisplayName("요청 7일 뒤를 넘겨 포기하면 대기와 남은 Apple 토큰을 지운다")
-    void givesUpAfterRetryWindow() {
-        ProviderUnlink lastChance =
-                new ProviderUnlink(ACCOUNT_ID, OAuthProvider.APPLE, null, NOW.minus(Duration.ofDays(7)), 10, NOW);
-        when(providerUnlinks.listByAccount(ACCOUNT_ID)).thenReturn(List.of(lastChance));
-        when(appleTokens.listByAccount(ACCOUNT_ID)).thenReturn(List.of(WEB_TOKEN));
-        doThrow(new AppleTokenApiException(AppleTokenApiException.Failure.UNAVAILABLE, "unavailable"))
-                .when(appleRevoke)
-                .revoke(WEB_TOKEN);
+    @DisplayName("예상하지 못한 오류도 일시 실패처럼 다음 재시도를 잡고, 다른 제공자는 계속 처리한다")
+    void schedulesRetryAfterUnexpectedError() {
+        when(providerUnlinks.listByAccount(ACCOUNT_ID)).thenReturn(List.of(APPLE, KAKAO));
+        when(appleTokens.listByAccount(ACCOUNT_ID)).thenThrow(new IllegalStateException("decrypt failed"));
 
         service.unlink(new UnlinkAccountProvidersCommand(7L));
 
-        verify(appleTokens).deleteByAccount(ACCOUNT_ID);
-        verify(providerUnlinks).delete(ACCOUNT_ID, OAuthProvider.APPLE);
-        verify(providerUnlinks, never()).update(any());
+        verify(providerUnlinks).update(APPLE.afterFailure(NOW).orElseThrow());
+        verify(providerUnlinks, never()).delete(ACCOUNT_ID, OAuthProvider.APPLE);
+        verify(kakao).unlink(KAKAO_USER_ID);
+        verify(providerUnlinks).delete(ACCOUNT_ID, OAuthProvider.KAKAO);
     }
 
     @Test
-    @DisplayName("한 제공자 처리에서 예상하지 못한 오류가 나도 다른 제공자는 처리한다")
-    void continuesAfterUnexpectedError() {
-        when(providerUnlinks.listByAccount(ACCOUNT_ID)).thenReturn(List.of(APPLE, KAKAO));
-        when(appleTokens.listByAccount(ACCOUNT_ID)).thenThrow(new IllegalStateException("db down"));
+    @DisplayName("커밋 직후 시도는 아직 시도하지 않은 대기만 처리하고, 실패한 적 있는 대기는 재시도 시각을 기다리게 둔다")
+    void skipsUnlinksAlreadyRetrying() {
+        ProviderUnlink retrying = KAKAO.afterFailure(NOW.minusSeconds(30)).orElseThrow();
+        when(providerUnlinks.listByAccount(ACCOUNT_ID)).thenReturn(List.of(retrying));
 
         service.unlink(new UnlinkAccountProvidersCommand(7L));
 
-        verify(kakao).unlink(KAKAO_USER_ID);
-        verify(providerUnlinks).delete(ACCOUNT_ID, OAuthProvider.KAKAO);
-        verify(providerUnlinks, never()).delete(ACCOUNT_ID, OAuthProvider.APPLE);
+        verify(kakao, never()).unlink(any());
+        verify(providerUnlinks, never()).update(any());
+        verify(providerUnlinks, never()).delete(any(), any());
     }
 }

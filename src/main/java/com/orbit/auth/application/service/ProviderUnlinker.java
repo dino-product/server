@@ -49,14 +49,26 @@ final class ProviderUnlinker {
         this.clock = clock;
     }
 
-    /** 대기 하나를 처리한다. 예상하지 못한 오류는 기록만 하고 대기를 그대로 두어 다음 주기에 다시 시도하게 한다. */
+    /**
+     * 대기 하나를 처리한다. 예상하지 못한 오류(복호화 실패·저장소 오류 등)도 일시 실패처럼 다음 재시도를 잡아, 요청 7일 뒤에는 포기하고 대기를 지운다. 결과
+     * 저장마저 실패하면 기록만 하고 대기를 그대로 두어 다음 주기에 다시 시도하게 한다.
+     */
     void process(ProviderUnlink unlink) {
+        Outcome outcome;
         try {
-            Outcome outcome =
-                    switch (unlink.provider()) {
-                        case KAKAO -> unlinkKakao(unlink);
-                        case APPLE -> revokeApple(unlink.accountId());
-                    };
+            outcome = switch (unlink.provider()) {
+                case KAKAO -> unlinkKakao(unlink);
+                case APPLE -> revokeApple(unlink.accountId());
+            };
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Provider unlink failed unexpectedly: accountId={}, provider={}, error={}",
+                    unlink.accountId().value(),
+                    unlink.provider(),
+                    exception.getClass().getSimpleName());
+            outcome = Outcome.RETRY;
+        }
+        try {
             if (outcome == Outcome.DONE) {
                 providerUnlinks.delete(unlink.accountId(), unlink.provider());
                 return;
@@ -64,7 +76,7 @@ final class ProviderUnlinker {
             unlink.afterFailure(clock.instant()).ifPresentOrElse(providerUnlinks::update, () -> giveUp(unlink));
         } catch (RuntimeException exception) {
             log.error(
-                    "Provider unlink failed unexpectedly: accountId={}, provider={}, error={}",
+                    "Provider unlink result was not saved: accountId={}, provider={}, error={}",
                     unlink.accountId().value(),
                     unlink.provider(),
                     exception.getClass().getSimpleName());
