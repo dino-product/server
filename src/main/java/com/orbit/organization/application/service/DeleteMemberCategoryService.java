@@ -60,10 +60,11 @@ public class DeleteMemberCategoryService implements DeleteMemberCategoryUseCase 
             return;
         }
         categoryRepository.save(category);
-        if (kind == MemberCategoryKind.STAFF) {
-            membershipRepository.unassignStaffCategory(organizationId, categoryId, now);
-        } else {
-            technicianRepository.unassignTechnicianCategory(organizationId, categoryId, now);
-        }
+        // 값을 받는 switch 식이라 유형 종류가 늘면 해제 경로를 정하지 않은 채 컴파일되지 않는다.
+        int unassigned =
+                switch (kind) {
+                    case STAFF -> membershipRepository.unassignStaffCategory(organizationId, categoryId, now);
+                    case TECHNICIAN -> technicianRepository.unassignTechnicianCategory(organizationId, categoryId, now);
+                };
     }
 }
