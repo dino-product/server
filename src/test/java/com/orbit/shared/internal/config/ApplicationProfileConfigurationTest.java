@@ -15,10 +15,15 @@ import org.springframework.core.env.StandardEnvironment;
 
 class ApplicationProfileConfigurationTest {
 
+    private static final String EVENT_SCHEMA_INITIALIZATION =
+            "spring.modulith.events.jdbc.schema-initialization.enabled";
+
     @Test
     void doesNotActivateLocalProfileWhenNoProfileIsSpecified() {
         try (ConfigurableApplicationContext context = runApplication()) {
             assertThat(context.getEnvironment().getActiveProfiles()).isEmpty();
+            assertThat(context.getEnvironment().getProperty(EVENT_SCHEMA_INITIALIZATION))
+                    .isEqualTo("false");
         }
     }
 
@@ -30,6 +35,7 @@ class ApplicationProfileConfigurationTest {
             assertThat(environment.getProperty("spring.datasource.url"))
                     .isEqualTo("jdbc:postgresql://localhost:54321/postgres");
             assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("create-drop");
+            assertThat(environment.getProperty(EVENT_SCHEMA_INITIALIZATION)).isEqualTo("true");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("true");
         }
     }
@@ -61,6 +67,7 @@ class ApplicationProfileConfigurationTest {
             Environment environment = context.getEnvironment();
 
             assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(environment.getProperty(EVENT_SCHEMA_INITIALIZATION)).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
         }
@@ -72,6 +79,7 @@ class ApplicationProfileConfigurationTest {
             Environment environment = context.getEnvironment();
 
             assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(environment.getProperty(EVENT_SCHEMA_INITIALIZATION)).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
             assertThatThrownBy(() -> environment.getRequiredProperty("spring.datasource.url"))
                     .isInstanceOf(IllegalArgumentException.class)

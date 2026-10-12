@@ -28,6 +28,18 @@ spring:
       hibernate:
         show_sql: false
         default_schema: public
+  modulith:
+    events:
+      # 모듈 리스너(@ApplicationModuleListener)로 가는 이벤트만 발행 트랜잭션 안에서 event_publication에 기록한다.
+      registry-trigger-annotation: org.springframework.modulith.events.ApplicationModuleListener
+      # 처리를 마친 발행은 지우지 않고 이벤트 원문과 함께 event_publication_archive로 옮긴다.
+      completion-mode: archive
+      # 재기동 때 미완료 발행을 한꺼번에 다시 보내지 않는다. 여러 인스턴스가 같은 발행을 겹쳐 보내기 때문이다.
+      republish-outstanding-events-on-restart: false
+      jdbc:
+        schema-initialization:
+          # 운영 스키마는 자동으로 만들지 않는다. local·test 프로필만 켠다.
+          enabled: false
   data:
     redis:
       host: ${REDIS_HOST:localhost}
