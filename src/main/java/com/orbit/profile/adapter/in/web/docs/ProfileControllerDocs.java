@@ -108,4 +108,20 @@ public interface ProfileControllerDocs {
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId,
             ChangeMarketingConsentRequest request);
+
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "본인 계정을 즉시 탈퇴합니다. 이름·연락처를 지우고 탈퇴 상태와 시각을 남기며, 같은 카카오·Apple 계정으로 다시 로그인하면 "
+                    + "새 계정으로 가입을 시작합니다. 가입 미완료 계정도 탈퇴할 수 있습니다. 성공하면 지금까지 받은 Access Token은 폐기된 토큰과 같은 "
+                    + "404를 받으므로 로그인 화면으로 돌아갑니다. 다른 계정의 ID면 PROFILE-002, 같은 프로필을 다른 요청이 먼저 저장했으면 "
+                    + "COMMON-409입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(responseCode = "204", description = "탈퇴 성공")
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND", "CONFLICT"})
+    @ApiErrorCodes(enumClass = ProfileErrorCode.class, includes = "PROFILE_NOT_FOUND")
+    void withdraw(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId);
 }

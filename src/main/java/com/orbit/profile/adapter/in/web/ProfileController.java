@@ -1,5 +1,6 @@
 package com.orbit.profile.adapter.in.web;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbit.auth.AccountPrincipal;
@@ -15,9 +17,11 @@ import com.orbit.profile.adapter.in.web.docs.ProfileControllerDocs;
 import com.orbit.profile.application.port.in.command.AgreeToTermsUseCase;
 import com.orbit.profile.application.port.in.command.ChangeMarketingConsentUseCase;
 import com.orbit.profile.application.port.in.command.SaveProfileUseCase;
+import com.orbit.profile.application.port.in.command.WithdrawUseCase;
 import com.orbit.profile.application.port.in.command.dto.AgreeToTermsCommand;
 import com.orbit.profile.application.port.in.command.dto.ChangeMarketingConsentCommand;
 import com.orbit.profile.application.port.in.command.dto.SaveProfileCommand;
+import com.orbit.profile.application.port.in.command.dto.WithdrawCommand;
 import com.orbit.profile.application.port.in.query.GetProfileUseCase;
 import com.orbit.profile.application.port.in.query.dto.GetProfileQuery;
 
@@ -37,16 +41,19 @@ class ProfileController implements ProfileControllerDocs {
     private final SaveProfileUseCase saveProfileUseCase;
     private final AgreeToTermsUseCase agreeToTermsUseCase;
     private final ChangeMarketingConsentUseCase changeMarketingConsentUseCase;
+    private final WithdrawUseCase withdrawUseCase;
 
     ProfileController(
             GetProfileUseCase getProfileUseCase,
             SaveProfileUseCase saveProfileUseCase,
             AgreeToTermsUseCase agreeToTermsUseCase,
-            ChangeMarketingConsentUseCase changeMarketingConsentUseCase) {
+            ChangeMarketingConsentUseCase changeMarketingConsentUseCase,
+            WithdrawUseCase withdrawUseCase) {
         this.getProfileUseCase = getProfileUseCase;
         this.saveProfileUseCase = saveProfileUseCase;
         this.agreeToTermsUseCase = agreeToTermsUseCase;
         this.changeMarketingConsentUseCase = changeMarketingConsentUseCase;
+        this.withdrawUseCase = withdrawUseCase;
     }
 
     @Override
@@ -91,6 +98,13 @@ class ProfileController implements ProfileControllerDocs {
         changeMarketingConsentUseCase.change(
                 new ChangeMarketingConsentCommand(requester.accountId(), accountId, request.agreed()));
         return read(requester, accountId);
+    }
+
+    @Override
+    @PostMapping("/{accountId}/withdrawals")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdraw(@AuthenticationPrincipal AccountPrincipal requester, @PathVariable Long accountId) {
+        withdrawUseCase.withdraw(new WithdrawCommand(requester.accountId(), accountId));
     }
 
     private ProfileResponse read(AccountPrincipal requester, Long accountId) {
