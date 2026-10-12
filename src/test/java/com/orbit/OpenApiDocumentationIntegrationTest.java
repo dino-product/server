@@ -98,6 +98,176 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsOrganizationCreationAsProtectedOperationWithInputErrors() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.summary")
+                        .value("발주사 생성"))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web."
+                                + "CreatedOrganizationResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.responses['400']"
+                                + ".content['application/json'].examples['ORGANIZATION-001'].value.code")
+                        .value("ORGANIZATION-001"))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations'].post.responses['400']"
+                                + ".content['application/json'].examples['COMMON-400'].value.code")
+                        .value("COMMON-400"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.CreateOrganizationRequest']"
+                                + ".properties.industry.enum.length()")
+                        .value(6));
+    }
+
+    @Test
+    void documentsOrganizationReadAsOwnerOnlyOperation() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}'].get";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("발주사 정보 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("organizationId"))
+                .andExpect(jsonPath(operation + ".parameters[0].in").value("path"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.OrganizationResponse"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
+    void documentsOrganizationUpdateAsOwnerOnlyOperationWithInputErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}'].put";
+        String badRequest = operation + ".responses['400'].content['application/json'].examples";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("발주사 정보 수정"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("organizationId"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.OrganizationResponse"))
+                .andExpect(
+                        jsonPath(badRequest + "['ORGANIZATION-001'].value.code").value("ORGANIZATION-001"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.UpdateOrganizationRequest']"
+                                + ".properties.industry.enum.length()")
+                        .value(6));
+    }
+
+    @Test
+    void documentsCompanyCodeReadAsOwnerOnlyOperation() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/company-code'].get";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("회사 코드 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("organizationId"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.CompanyCodeResponse"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
+    void documentsCompanyCodeChangeAsOwnerOnlyOperationWithoutBody() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/company-code'].post";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("회사 코드 변경"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("organizationId"))
+                .andExpect(jsonPath(operation + ".requestBody").doesNotExist())
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.CompanyCodeResponse"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
+    void documentsMyMembershipListAsProtectedOperation() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/memberships'].get.summary").value("내 소속 목록 조회"))
+                .andExpect(jsonPath("$.paths['/api/v1/memberships'].get.security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/memberships'].get.parameters")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/memberships'].get.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.MyMembershipsResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/memberships'].get.responses['401']"
+                                + ".content['application/json'].examples['COMMON-401'].value.code")
+                        .value("COMMON-401"));
+    }
+
+    @Test
+    void documentsOwnerDesignationAsProtectedOperationWithAccessErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/owners/{membershipId}'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("총관리자 지정"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters.length()").value(2))
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-002'].value.code")
+                        .value("ORGANIZATION-002"))
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-003'].value.code")
+                        .value("ORGANIZATION-003"))
+                .andExpect(jsonPath(operation + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-004'].value.code")
+                        .value("ORGANIZATION-004"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-006'].value.code")
+                        .value("ORGANIZATION-006"));
+    }
+
+    @Test
+    void documentsOwnerRevocationWithLastOwnerConflict() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/owners/{membershipId}'].delete";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("총관리자 해제"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-003'].value.code")
+                        .value("ORGANIZATION-003"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-005'].value.code")
+                        .value("ORGANIZATION-005"));
+    }
+
+    @Test
     void documentsAppleLoginOperationsWithoutAuthentication() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
