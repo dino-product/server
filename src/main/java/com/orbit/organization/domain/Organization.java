@@ -10,7 +10,7 @@ public final class Organization {
     private final OrganizationId id;
     private OrganizationName name;
     private Industry industry;
-    private final CompanyCode code;
+    private CompanyCode code;
     private final Instant createdAt;
     private Instant updatedAt;
 
@@ -52,6 +52,24 @@ public final class Organization {
         this.name = newName;
         this.industry = newIndustry;
         this.updatedAt = newUpdatedAt;
+    }
+
+    /**
+     * 회사 코드를 새 코드로 바꾸고 이전 코드를 폐기 코드로 돌려준다. 새 코드가 발급된 적 없는 코드인지는 호출자가 확인한다. 폐기 코드는 발주사 식별자로 남으므로
+     * 저장된 발주사만 바꿀 수 있다.
+     */
+    public RetiredCompanyCode changeCode(CompanyCode newCode, Instant changedAt) {
+        Objects.requireNonNull(newCode, "newCode must not be null");
+        if (newCode.equals(code)) {
+            throw new IllegalArgumentException("newCode must differ from the current code");
+        }
+        OrganizationId organizationId =
+                id().orElseThrow(() -> new IllegalStateException("only saved organizations can change their code"));
+        Instant newUpdatedAt = requireNotBeforeCreation(changedAt);
+        RetiredCompanyCode retired = new RetiredCompanyCode(organizationId, code, newUpdatedAt);
+        this.code = newCode;
+        this.updatedAt = newUpdatedAt;
+        return retired;
     }
 
     private Instant requireNotBeforeCreation(Instant at) {

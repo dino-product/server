@@ -21,15 +21,11 @@ import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
 
 /**
- * 발주사와 생성자의 최초 총관리자 직원 소속을 한 트랜잭션에서 만든다. 요청자가 다른 발주사에 소속돼 있어도 막지 않는다.
- *
- * <p>회사 코드는 현재 쓰이는 코드와 겹치지 않을 때까지 후보를 다시 만든다. 사전 확인과 저장 사이의 동시 발급은 {@code companies.code} 유일 제약이
- * 막으며, 이 경우 요청은 실패하고 클라이언트가 다시 시도한다. 32^6 후보 공간에서 겹칠 확률이 매우 낮아 재시도 횟수를 작게 둔다.
+ * 발주사와 생성자의 최초 총관리자 직원 소속을 한 트랜잭션에서 만든다. 요청자가 다른 발주사에 소속돼 있어도 막지 않는다. 회사 코드는
+ * {@link CompanyCodeIssuer}가 발급한다.
  */
 @Service
 public class CreateOrganizationService implements CreateOrganizationUseCase {
-
-    static final int MAX_CODE_ATTEMPTS = 5;
 
     private final OrganizationRepository organizationRepository;
     private final MembershipRepository membershipRepository;
@@ -55,22 +51,14 @@ public class CreateOrganizationService implements CreateOrganizationUseCase {
         Industry industry = OrganizationInputs.industry(command.industry());
         Instant now = clock.instant();
 
-        Organization organization = organizationRepository.save(Organization.create(name, industry, issueCode(), now));
+        CompanyCode code = CompanyCodeIssuer.issue(organizationRepository, codeGenerator);
+
+        Organization organization = organizationRepository.save(Organization.create(name, industry, code, now));
         OrganizationId organizationId =
                 organization.id().orElseThrow(() -> new IllegalStateException("saved organization must have an id"));
         membershipRepository.save(Membership.founder(organizationId, founder, now));
 
         return new CreatedOrganizationInfo(
                 organizationId.value(), organization.code().value());
-    }
-
-    private CompanyCode issueCode() {
-        for (int attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
-            CompanyCode candidate = codeGenerator.generate();
-            if (!organizationRepository.existsByCode(candidate)) {
-                return candidate;
-            }
-        }
-        throw new IllegalStateException("could not issue a unique company code");
     }
 }

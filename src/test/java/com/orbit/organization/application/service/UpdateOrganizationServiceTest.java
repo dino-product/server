@@ -3,6 +3,7 @@ package com.orbit.organization.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -21,6 +22,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -67,7 +69,7 @@ class UpdateOrganizationServiceTest {
     }
 
     @Test
-    @DisplayName("총관리자가 발주사명·업종을 바꾸면 저장하고 바뀐 정보를 돌려준다")
+    @DisplayName("총관리자가 발주사명·업종을 바꾸면 발주사 행을 잠근 뒤 읽어 저장하고 바뀐 정보를 돌려준다")
     void ownerChangesNameAndIndustry() {
         givenRequesterIs(true);
         when(organizationRepository.findById(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
@@ -77,6 +79,9 @@ class UpdateOrganizationServiceTest {
                 service.update(new UpdateOrganizationCommand(7L, 10L, "  새 발주사  ", Industry.FACILITY_MANAGEMENT));
 
         assertThat(result).isEqualTo(new OrganizationInfo(10L, "새 발주사", Industry.FACILITY_MANAGEMENT));
+        InOrder order = inOrder(organizationRepository);
+        order.verify(organizationRepository).lock(ORGANIZATION_ID);
+        order.verify(organizationRepository).findById(ORGANIZATION_ID);
         ArgumentCaptor<Organization> saved = ArgumentCaptor.forClass(Organization.class);
         verify(organizationRepository).save(saved.capture());
         assertThat(saved.getValue().name().value()).isEqualTo("새 발주사");
