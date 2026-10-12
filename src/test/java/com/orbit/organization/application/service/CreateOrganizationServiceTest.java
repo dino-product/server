@@ -77,7 +77,6 @@ class CreateOrganizationServiceTest {
         verify(organizationRepository).save(organization.capture());
         assertThat(organization.getValue().name().value()).isEqualTo("오르빗 설비");
         assertThat(organization.getValue().industry()).isEqualTo(Industry.HVAC);
-        assertThat(organization.getValue().createdAt()).isEqualTo(NOW);
 
         ArgumentCaptor<Membership> membership = ArgumentCaptor.forClass(Membership.class);
         verify(membershipRepository).save(membership.capture());
@@ -89,10 +88,10 @@ class CreateOrganizationServiceTest {
     }
 
     @Test
-    @DisplayName("후보 코드가 이미 쓰이고 있으면 새 후보를 만든다")
+    @DisplayName("후보 코드가 현재 코드나 폐기 코드로 발급된 적 있으면 새 후보를 만든다")
     void regeneratesCodeWhenCandidateIsTaken() {
         when(codeGenerator.generate()).thenReturn(TAKEN_CODE, FREE_CODE);
-        when(organizationRepository.existsByCode(TAKEN_CODE)).thenReturn(true);
+        when(organizationRepository.existsIssuedCode(TAKEN_CODE)).thenReturn(true);
         when(organizationRepository.save(any(Organization.class)))
                 .thenAnswer(invocation -> persisted(invocation.getArgument(0)));
 
@@ -105,7 +104,7 @@ class CreateOrganizationServiceTest {
     @DisplayName("정해진 횟수 안에 겹치지 않는 코드를 얻지 못하면 저장하지 않고 실패한다")
     void failsWithoutSavingWhenNoFreeCodeWithinAttempts() {
         when(codeGenerator.generate()).thenReturn(TAKEN_CODE);
-        when(organizationRepository.existsByCode(TAKEN_CODE)).thenReturn(true);
+        when(organizationRepository.existsIssuedCode(TAKEN_CODE)).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(new CreateOrganizationCommand(7L, "오르빗 설비", Industry.HVAC)))
                 .isInstanceOf(IllegalStateException.class);
@@ -136,11 +135,6 @@ class CreateOrganizationServiceTest {
 
     private static Organization persisted(Organization organization) {
         return Organization.reconstitute(
-                new OrganizationId(10L),
-                organization.name(),
-                organization.industry(),
-                organization.code(),
-                organization.createdAt(),
-                organization.updatedAt());
+                new OrganizationId(10L), organization.name(), organization.industry(), organization.code());
     }
 }

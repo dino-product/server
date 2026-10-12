@@ -19,6 +19,7 @@ import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
+import com.orbit.organization.domain.RetiredCompanyCode;
 
 /**
  * 발주사 저장소. 잠금({@link #lock})은 발주사 행을 {@code FOR NO KEY UPDATE}로 잠가 외래 키 검사({@code FOR KEY SHARE})와는 충돌하지 않게 하고,
@@ -32,15 +33,18 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
     private static final String LOCK_NOT_AVAILABLE = "55P03";
 
     private final SpringDataOrganizationRepository repository;
+    private final SpringDataRetiredCompanyCodeRepository retiredCodeRepository;
     private final JdbcTemplate jdbcTemplate;
     private final DataSource dataSource;
     private final OrganizationLockProperties lockProperties;
 
     OrganizationPersistenceAdapter(
             SpringDataOrganizationRepository repository,
+            SpringDataRetiredCompanyCodeRepository retiredCodeRepository,
             JdbcTemplate jdbcTemplate,
             OrganizationLockProperties lockProperties) {
         this.repository = repository;
+        this.retiredCodeRepository = retiredCodeRepository;
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.dataSource = Objects.requireNonNull(jdbcTemplate.getDataSource(), "jdbcTemplate must have a DataSource");
         this.lockProperties = Objects.requireNonNull(lockProperties, "lockProperties must not be null");
@@ -54,7 +58,7 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
         OrganizationJpaEntity entity = repository
                 .findById(organization.id().get().value())
                 .orElseThrow(() -> new IllegalStateException("organization to update must exist"));
-        entity.changeInfo(organization);
+        entity.update(organization);
         return entity.toDomain();
     }
 
@@ -64,8 +68,13 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
     }
 
     @Override
-    public boolean existsByCode(CompanyCode code) {
-        return repository.existsByCode(code.value());
+    public boolean existsIssuedCode(CompanyCode code) {
+        return repository.existsIssuedCode(code.value());
+    }
+
+    @Override
+    public void saveRetiredCode(RetiredCompanyCode retiredCode) {
+        retiredCodeRepository.save(RetiredCompanyCodeJpaEntity.from(retiredCode));
     }
 
     @Override

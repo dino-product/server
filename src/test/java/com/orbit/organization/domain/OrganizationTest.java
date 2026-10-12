@@ -15,55 +15,73 @@ import org.junit.jupiter.params.provider.ValueSource;
 @DisplayName("발주사 도메인")
 class OrganizationTest {
 
-    private static final Instant NOW = Instant.parse("2026-10-06T00:00:00Z");
     private static final Instant LATER = Instant.parse("2026-10-08T00:00:00Z");
     private static final CompanyCode CODE = new CompanyCode("7K2M9X");
 
     @Test
-    @DisplayName("새 발주사는 식별자 없이 발주사명·업종·회사 코드·생성 시각을 가진다")
+    @DisplayName("새 발주사는 식별자 없이 발주사명·업종·회사 코드를 가진다")
     void createsOrganizationWithoutId() {
-        Organization organization = Organization.create(new OrganizationName("오르빗 설비"), Industry.HVAC, CODE, NOW);
+        Organization organization = Organization.create(new OrganizationName("오르빗 설비"), Industry.HVAC, CODE);
 
         assertThat(organization.id()).isEmpty();
         assertThat(organization.name().value()).isEqualTo("오르빗 설비");
         assertThat(organization.industry()).isEqualTo(Industry.HVAC);
         assertThat(organization.code()).isEqualTo(CODE);
-        assertThat(organization.createdAt()).isEqualTo(NOW);
-        assertThat(organization.updatedAt()).isEqualTo(NOW);
     }
 
     @Test
     @DisplayName("저장된 발주사는 식별자와 함께 복원된다")
     void reconstitutesPersistedOrganization() {
-        Organization organization = Organization.reconstitute(
-                new OrganizationId(1L), new OrganizationName("오르빗 설비"), Industry.OTHER, CODE, NOW, LATER);
+        Organization organization =
+                Organization.reconstitute(new OrganizationId(1L), new OrganizationName("오르빗 설비"), Industry.OTHER, CODE);
 
         assertThat(organization.id()).contains(new OrganizationId(1L));
-        assertThat(organization.updatedAt()).isEqualTo(LATER);
+        assertThat(organization.industry()).isEqualTo(Industry.OTHER);
     }
 
     @Test
-    @DisplayName("발주사명·업종을 바꾸면 수정 시각이 바뀌고 회사 코드·생성 시각은 그대로다")
+    @DisplayName("발주사명·업종을 바꾸면 회사 코드는 그대로다")
     void changesNameAndIndustry() {
-        Organization organization = Organization.create(new OrganizationName("오르빗 설비"), Industry.HVAC, CODE, NOW);
+        Organization organization = Organization.create(new OrganizationName("오르빗 설비"), Industry.HVAC, CODE);
 
-        organization.changeInfo(new OrganizationName("새 발주사"), Industry.PLUMBING, LATER);
+        organization.changeInfo(new OrganizationName("새 발주사"), Industry.PLUMBING);
 
         assertThat(organization.name().value()).isEqualTo("새 발주사");
         assertThat(organization.industry()).isEqualTo(Industry.PLUMBING);
-        assertThat(organization.updatedAt()).isEqualTo(LATER);
         assertThat(organization.code()).isEqualTo(CODE);
-        assertThat(organization.createdAt()).isEqualTo(NOW);
     }
 
     @Test
-    @DisplayName("수정 시각은 생성 시각보다 앞설 수 없다")
-    void rejectsChangeBeforeCreation() {
-        Organization organization = Organization.create(new OrganizationName("오르빗 설비"), Industry.HVAC, CODE, NOW);
+    @DisplayName("회사 코드를 바꾸면 이전 코드를 폐기 시각과 함께 폐기 코드로 돌려준다")
+    void changesCodeAndRetiresPreviousCode() {
+        Organization organization =
+                Organization.reconstitute(new OrganizationId(1L), new OrganizationName("오르빗 설비"), Industry.HVAC, CODE);
 
-        assertThatThrownBy(() ->
-                        organization.changeInfo(new OrganizationName("새 발주사"), Industry.PLUMBING, NOW.minusSeconds(1)))
-                .isInstanceOf(IllegalArgumentException.class);
+        RetiredCompanyCode retired = organization.changeCode(new CompanyCode("Q4ZT8B"), LATER);
+
+        assertThat(organization.code()).isEqualTo(new CompanyCode("Q4ZT8B"));
+        assertThat(organization.name().value()).isEqualTo("오르빗 설비");
+        assertThat(retired).isEqualTo(new RetiredCompanyCode(new OrganizationId(1L), CODE, LATER));
+    }
+
+    @Test
+    @DisplayName("현재 코드와 같은 코드로는 바꿀 수 없다")
+    void rejectsChangeToSameCode() {
+        Organization organization =
+                Organization.reconstitute(new OrganizationId(1L), new OrganizationName("오르빗 설비"), Industry.HVAC, CODE);
+
+        assertThatThrownBy(() -> organization.changeCode(CODE, LATER)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(organization.code()).isEqualTo(CODE);
+    }
+
+    @Test
+    @DisplayName("저장되지 않은 발주사는 폐기 코드를 남길 수 없어 회사 코드를 바꿀 수 없다")
+    void rejectsCodeChangeOfUnsavedOrganization() {
+        Organization organization = Organization.create(new OrganizationName("오르빗 설비"), Industry.HVAC, CODE);
+
+        assertThatThrownBy(() -> organization.changeCode(new CompanyCode("Q4ZT8B"), LATER))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(organization.code()).isEqualTo(CODE);
     }
 
     @ParameterizedTest

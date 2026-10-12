@@ -16,7 +16,7 @@ import com.orbit.schedule.domain.WorkTypeId;
 
 /**
  * 작업 기본정보 수정. 작업명·작업 유형·고객정보·결제정보를 한꺼번에 교체하고 상태·배정은 그대로 둔다. 오류 확인 순서는 schedule 지침의 공통 순서를
- * 따른다. 작업 유형이 같은 조직의 것인지는 organization 계약이 연결될 때 검증한다.
+ * 따른다. 작업 유형이 같은 조직의 것인지는 organization의 작업 유형 확인 계약이 연결될 때 검증한다.
  */
 @Service
 public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {

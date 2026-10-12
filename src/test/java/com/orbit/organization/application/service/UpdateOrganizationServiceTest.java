@@ -3,14 +3,13 @@ package com.orbit.organization.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +20,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -47,7 +47,6 @@ import com.orbit.shared.error.CommonErrorCode;
 class UpdateOrganizationServiceTest {
 
     private static final Instant CREATED_AT = Instant.parse("2026-10-06T00:00:00Z");
-    private static final Instant NOW = Instant.parse("2026-10-08T00:00:00Z");
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(10L);
     private static final AccountId ACCOUNT_ID = new AccountId(7L);
     private static final CompanyCode CODE = new CompanyCode("7K2M9X");
@@ -62,12 +61,11 @@ class UpdateOrganizationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UpdateOrganizationService(
-                organizationRepository, membershipRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new UpdateOrganizationService(organizationRepository, membershipRepository);
     }
 
     @Test
-    @DisplayName("총관리자가 발주사명·업종을 바꾸면 저장하고 바뀐 정보를 돌려준다")
+    @DisplayName("총관리자가 발주사명·업종을 바꾸면 발주사 행을 잠근 뒤 읽어 저장하고 바뀐 정보를 돌려준다")
     void ownerChangesNameAndIndustry() {
         givenRequesterIs(true);
         when(organizationRepository.findById(ORGANIZATION_ID)).thenReturn(Optional.of(organization()));
@@ -77,11 +75,13 @@ class UpdateOrganizationServiceTest {
                 service.update(new UpdateOrganizationCommand(7L, 10L, "  새 발주사  ", Industry.FACILITY_MANAGEMENT));
 
         assertThat(result).isEqualTo(new OrganizationInfo(10L, "새 발주사", Industry.FACILITY_MANAGEMENT));
+        InOrder order = inOrder(organizationRepository);
+        order.verify(organizationRepository).lock(ORGANIZATION_ID);
+        order.verify(organizationRepository).findById(ORGANIZATION_ID);
         ArgumentCaptor<Organization> saved = ArgumentCaptor.forClass(Organization.class);
         verify(organizationRepository).save(saved.capture());
         assertThat(saved.getValue().name().value()).isEqualTo("새 발주사");
         assertThat(saved.getValue().industry()).isEqualTo(Industry.FACILITY_MANAGEMENT);
-        assertThat(saved.getValue().updatedAt()).isEqualTo(NOW);
         assertThat(saved.getValue().code()).isEqualTo(CODE);
     }
 
@@ -167,7 +167,6 @@ class UpdateOrganizationServiceTest {
     }
 
     private static Organization organization() {
-        return Organization.reconstitute(
-                ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CODE, CREATED_AT, CREATED_AT);
+        return Organization.reconstitute(ORGANIZATION_ID, new OrganizationName("오르빗 설비"), Industry.PLUMBING, CODE);
     }
 }

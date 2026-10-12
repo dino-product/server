@@ -22,4 +22,6 @@ interface SpringDataMembershipRepository extends JpaRepository<MembershipJpaEnti
             @Param("organizationId") Long organizationId,
             @Param("categoryId") Long categoryId,
             @Param("at") Instant at);
+
+    long countByOrganizationIdAndOwnerTrueAndStatus(Long organizationId, MembershipStatus status);
 }
