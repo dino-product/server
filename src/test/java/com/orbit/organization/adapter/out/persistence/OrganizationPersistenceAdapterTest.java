@@ -3,7 +3,10 @@ package com.orbit.organization.adapter.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +16,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -20,6 +24,7 @@ import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Industry;
 import com.orbit.organization.domain.Membership;
+import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
@@ -35,6 +40,7 @@ import com.orbit.support.TestcontainersConfiguration;
 class OrganizationPersistenceAdapterTest {
 
     private static final Instant NOW = Instant.parse("2026-10-06T00:00:00.123456Z");
+    private static final Instant LATER = Instant.parse("2026-10-08T09:30:00.654321Z");
 
     @Autowired
     private SpringDataOrganizationRepository organizationRepository;
@@ -42,13 +48,16 @@ class OrganizationPersistenceAdapterTest {
     @Autowired
     private SpringDataMembershipRepository membershipRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private OrganizationPersistenceAdapter organizations;
     private MembershipPersistenceAdapter memberships;
 
     @BeforeEach
     void setUp() {
         organizations = new OrganizationPersistenceAdapter(organizationRepository);
-        memberships = new MembershipPersistenceAdapter(membershipRepository);
+        memberships = new MembershipPersistenceAdapter(membershipRepository, Clock.fixed(LATER, ZoneOffset.UTC));
     }
 
     @Test
@@ -113,6 +122,90 @@ class OrganizationPersistenceAdapterTest {
                     membershipRepository.flush();
                 })
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("식별자로 직원 소속을 찾는다")
+    void findsMembershipById() {
+        OrganizationId organizationId =
+                organizations.save(organization("B2C3D4")).id().orElseThrow();
+        Membership saved = memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+
+        assertThat(memberships.findById(saved.id().orElseThrow()))
+                .hasValueSatisfying(found -> assertThat(found.accountId()).isEqualTo(new AccountId(7L)));
+        assertThat(memberships.findById(new MembershipId(Long.MAX_VALUE))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("계정의 그 발주사 활성 소속만 찾는다")
+    void findsActiveMembershipOfAccountInOrganization() {
+        OrganizationId organizationId =
+                organizations.save(organization("E5F6G7")).id().orElseThrow();
+        OrganizationId otherId = organizations.save(organization("H8J9K0")).id().orElseThrow();
+        memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+
+        assertThat(memberships.findActive(organizationId, new AccountId(7L))).isPresent();
+        assertThat(memberships.findActive(otherId, new AccountId(7L))).isEmpty();
+        assertThat(memberships.findActive(organizationId, new AccountId(8L))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("저장된 직원 소속을 다시 저장하면 총관리자 표시와 수정 시각을 바꾼다")
+    void updatesOwnerMarkOfStoredMembership() {
+        OrganizationId organizationId =
+                organizations.save(organization("M1N2P3")).id().orElseThrow();
+        MembershipId staffId = staffMembership(organizationId, 8L);
+        Membership staff = memberships.findById(staffId).orElseThrow();
+
+        Membership saved = memberships.save(staff.designateAsOwner());
+        membershipRepository.flush();
+
+        assertThat(saved.isOwner()).isTrue();
+        assertThat(jdbcTemplate.queryForMap(
+                        "select is_owner, joined_at, updated_at from company_memberships where id = ?",
+                        staffId.value()))
+                .containsEntry("is_owner", true)
+                .containsEntry("joined_at", Timestamp.from(NOW))
+                .containsEntry("updated_at", Timestamp.from(LATER));
+    }
+
+    @Test
+    @DisplayName("그 발주사의 활성 총관리자 수를 센다")
+    void countsActiveOwnersOfOrganization() {
+        OrganizationId organizationId =
+                organizations.save(organization("Q1R2S3")).id().orElseThrow();
+        OrganizationId otherId = organizations.save(organization("T4V5W6")).id().orElseThrow();
+        memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+        memberships.save(Membership.founder(organizationId, new AccountId(8L), NOW));
+        staffMembership(organizationId, 9L);
+        memberships.save(Membership.founder(otherId, new AccountId(7L), NOW));
+
+        assertThat(memberships.countActiveOwners(organizationId)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("발주사가 없어도 잠금 요청은 실패하지 않는다")
+    void lockingMissingOrganizationDoesNotFail() {
+        organizations.lock(new OrganizationId(Long.MAX_VALUE));
+    }
+
+    private MembershipId staffMembership(OrganizationId organizationId, long accountId) {
+        jdbcTemplate.update(
+                "insert into company_memberships"
+                        + " (company_id, member_id, is_owner, status,"
+                        + " joined_at, status_changed_at, created_at, updated_at)"
+                        + " values (?, ?, false, 'ACTIVE', ?, ?, ?, ?)",
+                organizationId.value(),
+                accountId,
+                Timestamp.from(NOW),
+                Timestamp.from(NOW),
+                Timestamp.from(NOW),
+                Timestamp.from(NOW));
+        return new MembershipId(jdbcTemplate.queryForObject(
+                "select id from company_memberships where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId.value(),
+                accountId));
     }
 
     private static Organization organization(String code) {
