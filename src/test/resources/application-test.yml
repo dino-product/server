@@ -46,8 +46,10 @@ app:
         return-uris:
           web: http://localhost:3000/login/apple
           android: orbit-test://auth/apple
+    closed-account:
+      reconfirm-enabled: false
     provider-unlink:
-      # 주기 재시도는 끈다. 재시도를 검사하는 테스트는 유즈케이스를 직접 부른다.
+      # 주기 작업은 끈다. 재시도·재확정을 검사하는 테스트는 유즈케이스를 직접 부른다.
       retry-enabled: false
     jwt:
       secret: test-only-secret-key-with-at-least-32-bytes

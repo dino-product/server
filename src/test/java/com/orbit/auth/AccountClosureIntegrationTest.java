@@ -34,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.orbit.auth.application.port.in.command.ReconfirmClosedAccountsUseCase;
 import com.orbit.auth.domain.HashedNonce;
 import com.orbit.support.AppleAuthStub;
 import com.orbit.support.IntegrationTestSupport;
@@ -68,6 +69,9 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private ReconfirmClosedAccountsUseCase reconfirmClosedAccounts;
 
     @Value("${app.auth.jwt.access-token-ttl}")
     private Duration accessTokenTtl;
@@ -203,6 +207,22 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
                 .isBetween(
                         accessTokenTtl.toSeconds() + 1,
                         accessTokenTtl.plusMinutes(10).toSeconds());
+    }
+
+    @Test
+    @DisplayName("커밋 뒤 폐쇄 표시가 남지 않았어도 주기 재확정이 최근 폐쇄 계정의 표시를 되살린다")
+    void reconfirmsClosedMarkPeriodically() throws Exception {
+        JsonNode login = loginWithKakao(UUID.randomUUID().toString());
+        long accountId = accountId(login);
+        accountClosure.close(accountId);
+        redisTemplate.delete(CLOSED_ACCOUNT_KEY + accountId);
+
+        reconfirmClosedAccounts.reconfirm();
+
+        assertThat(closedMark(accountId)).isTrue();
+        mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMON-404"));
     }
 
     @Test
