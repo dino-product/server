@@ -62,8 +62,20 @@ class OrganizationJpaEntity {
                 organization.createdAt());
     }
 
+    /** 발주사 정보 수정이 바꾸는 값만 옮긴다. 회사 코드 변경은 별도 유즈케이스(HM-287)가 다룬다. */
+    void changeInfo(Organization organization) {
+        this.name = organization.name().value();
+        this.industry = organization.industry();
+        this.updatedAt = organization.updatedAt();
+    }
+
     Organization toDomain() {
         return Organization.reconstitute(
-                new OrganizationId(id), new OrganizationName(name), industry, new CompanyCode(code), createdAt);
+                new OrganizationId(id),
+                new OrganizationName(name),
+                industry,
+                new CompanyCode(code),
+                createdAt,
+                updatedAt);
     }
 }
