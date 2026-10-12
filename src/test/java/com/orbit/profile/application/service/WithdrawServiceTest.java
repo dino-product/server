@@ -25,8 +25,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.orbit.auth.AccountClosure;
+import com.orbit.profile.AccountWithdrawn;
 import com.orbit.profile.WithdrawalBlock;
 import com.orbit.profile.WithdrawalBlocker;
 import com.orbit.profile.application.error.ProfileErrorCode;
@@ -55,6 +57,9 @@ class WithdrawServiceTest {
     @Mock
     private AccountClosure accountClosure;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final List<WithdrawalBlock> blocks = new ArrayList<>();
     private final WithdrawalBlocker blocker = accountId -> List.copyOf(blocks);
 
@@ -62,7 +67,8 @@ class WithdrawServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new WithdrawService(profiles, List.of(blocker), accountClosure, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new WithdrawService(
+                profiles, List.of(blocker), accountClosure, eventPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -75,9 +81,10 @@ class WithdrawServiceTest {
         service.withdraw(new WithdrawCommand(7L, 7L));
 
         ArgumentCaptor<Profile> saved = ArgumentCaptor.forClass(Profile.class);
-        InOrder order = inOrder(profiles, accountClosure);
+        InOrder order = inOrder(profiles, accountClosure, eventPublisher);
         order.verify(profiles).save(saved.capture());
         order.verify(accountClosure).close(7L);
+        order.verify(eventPublisher).publishEvent(new AccountWithdrawn(7L, NOW));
         assertThat(saved.getValue().status()).isEqualTo(SignupStatus.WITHDRAWN);
         assertThat(saved.getValue().withdrawnAt()).contains(NOW);
         assertThat(saved.getValue().name()).isEmpty();
@@ -106,6 +113,7 @@ class WithdrawServiceTest {
 
         verify(profiles, never()).save(any());
         verify(accountClosure).close(7L);
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test
@@ -119,6 +127,7 @@ class WithdrawServiceTest {
                         .isEqualTo(ProfileErrorCode.WITHDRAWAL_BLOCKED));
         verify(profiles, never()).save(any());
         verify(accountClosure, never()).close(anyLong());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test

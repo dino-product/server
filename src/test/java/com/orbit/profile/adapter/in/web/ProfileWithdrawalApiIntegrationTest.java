@@ -8,11 +8,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +27,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -32,6 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.orbit.auth.AccountClosure;
+import com.orbit.profile.AccountWithdrawn;
 import com.orbit.profile.WithdrawalBlock;
 import com.orbit.profile.WithdrawalBlocker;
 import com.orbit.support.IntegrationTestSupport;
@@ -50,6 +54,9 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
 
     /** 탈퇴를 막을 계정. 실제 차단 판정(organization·schedule)은 다음 작업이라 테스트 구현으로 대신한다. */
     private static final Set<Long> BLOCKED_ACCOUNTS = ConcurrentHashMap.newKeySet();
+
+    /** 다음 작업의 구독자(organization·schedule)처럼 커밋 뒤 다른 스레드에서 받은 탈퇴 이벤트. */
+    private static final List<ReceivedWithdrawal> RECEIVED = new CopyOnWriteArrayList<>();
 
     private static final KakaoJwksStub KAKAO = KakaoJwksStub.start();
 
@@ -93,6 +100,37 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
         getProfile(account)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COMMON-404"));
+    }
+
+    @Test
+    @DisplayName("탈퇴가 커밋되면 다른 스레드의 구독자가 계정 식별자와 발생 시각만 담긴 탈퇴 이벤트를 받는다")
+    void publishesWithdrawalEventAfterCommit() throws Exception {
+        TestAccount account = login(kakaoSubject());
+        long requestThread = Thread.currentThread().threadId();
+
+        withdraw(account, account.accountId()).andExpect(status().isNoContent());
+
+        ReceivedWithdrawal received = receivedFor(account.accountId(), Duration.ofSeconds(10));
+        assertThat(received).isNotNull();
+        assertThat(received.event().occurredAt()).isNotNull();
+        assertThat(received.threadId()).isNotEqualTo(requestThread);
+    }
+
+    @Test
+    @DisplayName("탈퇴가 막히거나 롤백되면 탈퇴 이벤트를 받지 않는다")
+    void doesNotPublishWhenWithdrawalFails() throws Exception {
+        TestAccount blocked = login(kakaoSubject());
+        BLOCKED_ACCOUNTS.add(blocked.accountId());
+        withdraw(blocked, blocked.accountId()).andExpect(status().isConflict());
+
+        TestAccount rolledBack = login(kakaoSubject());
+        doThrow(new IllegalStateException("closure failed"))
+                .when(accountClosure)
+                .close(anyLong());
+        withdraw(rolledBack, rolledBack.accountId()).andExpect(status().isInternalServerError());
+
+        assertThat(receivedFor(blocked.accountId(), Duration.ofMillis(500))).isNull();
+        assertThat(receivedFor(rolledBack.accountId(), Duration.ofMillis(500))).isNull();
     }
 
     @Test
@@ -197,6 +235,20 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("PROFILE-002"));
     }
 
+    /** 구독자가 받은 이벤트 중 그 계정의 것을 기다린다. 다른 테스트의 이벤트는 건너뛴다. */
+    private static ReceivedWithdrawal receivedFor(long accountId, Duration timeout) throws InterruptedException {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (System.nanoTime() < deadline) {
+            for (ReceivedWithdrawal received : RECEIVED) {
+                if (received.event().accountId() == accountId) {
+                    return received;
+                }
+            }
+            Thread.sleep(20);
+        }
+        return null;
+    }
+
     private ResultActions checkEligibility(TestAccount requester, long accountId) throws Exception {
         return mockMvc.perform(get("/api/v1/profiles/{accountId}/withdrawal-eligibility", accountId)
                 .header(HttpHeaders.AUTHORIZATION, requester.bearer()));
@@ -254,5 +306,20 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
             return accountId ->
                     BLOCKED_ACCOUNTS.contains(accountId) ? List.of(new WithdrawalBlock("TEST_BLOCK", 2)) : List.of();
         }
+
+        @Bean
+        WithdrawalSubscriber testWithdrawalSubscriber() {
+            return new WithdrawalSubscriber();
+        }
     }
+
+    static class WithdrawalSubscriber {
+
+        @ApplicationModuleListener
+        void on(AccountWithdrawn event) {
+            RECEIVED.add(new ReceivedWithdrawal(event, Thread.currentThread().threadId()));
+        }
+    }
+
+    private record ReceivedWithdrawal(AccountWithdrawn event, long threadId) {}
 }
