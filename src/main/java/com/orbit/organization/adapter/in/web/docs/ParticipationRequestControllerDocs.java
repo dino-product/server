@@ -41,7 +41,8 @@ public interface ParticipationRequestControllerDocs {
             description = "회사 코드로 확인한 발주사에 희망 유형(직원/기사)으로 승인 대기 요청을 보냅니다. 요청 경로(코드·링크·QR)는 받지 "
                     + "않습니다. 다른 발주사에는 동시에 요청할 수 있습니다. 없는 코드 ORGANIZATION-011, 이전 코드 ORGANIZATION-012, "
                     + "이미 참여 중 ORGANIZATION-013, 같은 발주사에 승인 대기 요청이 있으면 ORGANIZATION-014(새로 만들지 않음), "
-                    + "비활성화된 소속이 있으면 ORGANIZATION-015입니다.",
+                    + "비활성화된 소속이 있으면 ORGANIZATION-015입니다. 없는 코드 실패는 회사 확인과 함께 세어 한도를 넘으면 "
+                    + "ORGANIZATION-018입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
@@ -60,7 +61,8 @@ public interface ParticipationRequestControllerDocs {
                 "RETIRED_COMPANY_CODE",
                 "ALREADY_MEMBER",
                 "PENDING_REQUEST_EXISTS",
-                "DEACTIVATED_MEMBER"
+                "DEACTIVATED_MEMBER",
+                "TOO_MANY_COMPANY_CODE_ATTEMPTS"
             })
     ParticipationRequestResponse request(
             @Parameter(hidden = true) AccountPrincipal requester, RequestParticipationRequest request);

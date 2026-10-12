@@ -230,6 +230,7 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     void documentsCompanyCheckWithCodeParameterAndLookupErrors() throws Exception {
         String operation = "$.paths['/api/v1/organizations/lookup'].get";
         String notFound = operation + ".responses['404'].content['application/json'].examples";
+        String tooMany = operation + ".responses['429'].content['application/json'].examples";
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(operation + ".summary").value("회사 확인"))
@@ -243,7 +244,8 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(
                         jsonPath(notFound + "['ORGANIZATION-011'].value.code").value("ORGANIZATION-011"))
                 .andExpect(
-                        jsonPath(notFound + "['ORGANIZATION-012'].value.code").value("ORGANIZATION-012"));
+                        jsonPath(notFound + "['ORGANIZATION-012'].value.code").value("ORGANIZATION-012"))
+                .andExpect(jsonPath(tooMany + "['ORGANIZATION-018'].value.code").value("ORGANIZATION-018"));
     }
 
     @Test
@@ -251,6 +253,7 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
         String operation = "$.paths['/api/v1/participation-requests'].post";
         String conflict = operation + ".responses['409'].content['application/json'].examples";
         String notFound = operation + ".responses['404'].content['application/json'].examples";
+        String tooMany = operation + ".responses['429'].content['application/json'].examples";
         String schemas = "#/components/schemas/com.orbit.organization.adapter.in.web.";
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
@@ -270,6 +273,7 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         jsonPath(conflict + "['ORGANIZATION-014'].value.code").value("ORGANIZATION-014"))
                 .andExpect(
                         jsonPath(conflict + "['ORGANIZATION-015'].value.code").value("ORGANIZATION-015"))
+                .andExpect(jsonPath(tooMany + "['ORGANIZATION-018'].value.code").value("ORGANIZATION-018"))
                 .andExpect(jsonPath("$.components.schemas"
                                 + "['com.orbit.organization.adapter.in.web.RequestParticipationRequest']"
                                 + ".properties.desiredType.enum.length()")

@@ -29,6 +29,7 @@ import com.orbit.organization.application.port.in.command.dto.ParticipationReque
 import com.orbit.organization.application.port.in.command.dto.RequestParticipationCommand;
 import com.orbit.organization.application.port.out.AccountMembership;
 import com.orbit.organization.application.port.out.AccountMembershipQueryPort;
+import com.orbit.organization.application.port.out.CompanyCodeAttemptLimiter;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.application.port.out.ParticipationRequestRepository;
 import com.orbit.organization.domain.AccountId;
@@ -65,12 +66,19 @@ class RequestParticipationServiceTest {
     @Mock
     private ParticipationRequestRepository requestRepository;
 
+    @Mock
+    private CompanyCodeAttemptLimiter attemptLimiter;
+
     private RequestParticipationService service;
 
     @BeforeEach
     void setUp() {
         service = new RequestParticipationService(
-                organizationRepository, membershipQueryPort, requestRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+                organizationRepository,
+                membershipQueryPort,
+                requestRepository,
+                attemptLimiter,
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -121,6 +129,7 @@ class RequestParticipationServiceTest {
         assertRejected("7K2M9X", OrganizationErrorCode.RETIRED_COMPANY_CODE);
         verify(organizationRepository, never()).lock(any());
         verifyNoInteractions(requestRepository);
+        verify(attemptLimiter, never()).recordFailure(any());
     }
 
     @Test
@@ -130,6 +139,17 @@ class RequestParticipationServiceTest {
 
         assertRejected("7K2M9X", OrganizationErrorCode.COMPANY_NOT_FOUND);
         verifyNoInteractions(requestRepository);
+        verify(attemptLimiter).recordFailure(ACCOUNT_ID);
+    }
+
+    @Test
+    @DisplayName("회사 확인 실패가 한도에 이른 계정은 코드를 찾아보지 않고 거부한다")
+    void rejectsBlockedAccountWithoutLookingUpCode() {
+        when(attemptLimiter.isBlocked(ACCOUNT_ID)).thenReturn(true);
+
+        assertRejected("7K2M9X", OrganizationErrorCode.TOO_MANY_COMPANY_CODE_ATTEMPTS);
+        verifyNoInteractions(organizationRepository, membershipQueryPort, requestRepository);
+        verify(attemptLimiter, never()).recordFailure(any());
     }
 
     @Test
@@ -172,7 +192,7 @@ class RequestParticipationServiceTest {
         assertThatThrownBy(() -> service.request(new RequestParticipationCommand(7L, "7K2M9X", null)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(CommonErrorCode.BAD_REQUEST));
-        verifyNoInteractions(organizationRepository, membershipQueryPort, requestRepository);
+        verifyNoInteractions(organizationRepository, membershipQueryPort, requestRepository, attemptLimiter);
     }
 
     private void lockedOrganization() {

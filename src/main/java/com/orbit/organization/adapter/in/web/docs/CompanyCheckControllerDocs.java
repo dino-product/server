@@ -21,7 +21,8 @@ public interface CompanyCheckControllerDocs {
             summary = "회사 확인",
             description = "회사 코드로 발주사를 찾아 발주사명과 요청자가 지금 참여 요청을 보낼 수 있는지 돌려줍니다. 참여 링크·QR도 회사 코드로 "
                     + "확인합니다. 입력은 대소문자를 무시하고 공백·하이픈을 지웁니다. 소속이 없어도 인증된 계정이면 확인할 수 있습니다. "
-                    + "없는 코드(형식이 틀린 입력 포함)는 ORGANIZATION-011, 회사 코드 변경으로 폐기된 이전 코드는 ORGANIZATION-012입니다.",
+                    + "없는 코드(형식이 틀린 입력 포함)는 ORGANIZATION-011, 회사 코드 변경으로 폐기된 이전 코드는 ORGANIZATION-012입니다. "
+                    + "참여 요청과 합쳐 10분 안에 없는 코드로 10번 실패하면 그 10분이 끝날 때까지 코드와 상관없이 ORGANIZATION-018입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
@@ -35,7 +36,7 @@ public interface CompanyCheckControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"COMPANY_NOT_FOUND", "RETIRED_COMPANY_CODE"})
+            includes = {"COMPANY_NOT_FOUND", "RETIRED_COMPANY_CODE", "TOO_MANY_COMPANY_CODE_ATTEMPTS"})
     CompanyCheckResponse check(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "사용자가 입력한 회사 코드. 대소문자 무시, 공백·하이픈 무시", example = "7k2m-9x", required = true)

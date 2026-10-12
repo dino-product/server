@@ -124,6 +124,25 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("회사 확인과 참여 요청에서 합쳐 열 번 없는 코드를 넣은 계정은 맞는 코드도 429로 거부하고 다른 계정은 그대로 확인한다")
+    void blocksAccountAfterRepeatedUnknownCodes() throws Exception {
+        Company company = createCompany("대입 방어 발주사");
+        long attacker = ACCOUNT_IDS.incrementAndGet();
+        for (int attempt = 0; attempt < 5; attempt++) {
+            check(attacker, "UUUUUU").andExpect(status().isNotFound());
+            request(attacker, "7K2M", "STAFF").andExpect(status().isNotFound());
+        }
+
+        check(attacker, company.code())
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-018"));
+        request(attacker, company.code(), "STAFF")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-018"));
+        check(ACCOUNT_IDS.incrementAndGet(), company.code()).andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("회사 코드 없이 확인하면 400, 인증하지 않으면 401로 거부한다")
     void rejectsMissingCodeAndUnauthenticatedCheck() throws Exception {
         mockMvc.perform(get("/api/v1/organizations/lookup")

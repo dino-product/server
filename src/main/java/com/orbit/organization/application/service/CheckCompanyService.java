@@ -9,6 +9,7 @@ import com.orbit.organization.application.port.in.query.CheckCompanyUseCase;
 import com.orbit.organization.application.port.in.query.dto.CheckCompanyQuery;
 import com.orbit.organization.application.port.in.query.dto.CompanyCheckInfo;
 import com.orbit.organization.application.port.out.AccountMembershipQueryPort;
+import com.orbit.organization.application.port.out.CompanyCodeAttemptLimiter;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.application.port.out.ParticipationRequestRepository;
 import com.orbit.organization.domain.AccountId;
@@ -24,26 +25,28 @@ public class CheckCompanyService implements CheckCompanyUseCase {
     private final OrganizationRepository organizationRepository;
     private final AccountMembershipQueryPort membershipQueryPort;
     private final ParticipationRequestRepository requestRepository;
+    private final CompanyCodeAttemptLimiter attemptLimiter;
 
     public CheckCompanyService(
             OrganizationRepository organizationRepository,
             AccountMembershipQueryPort membershipQueryPort,
-            ParticipationRequestRepository requestRepository) {
+            ParticipationRequestRepository requestRepository,
+            CompanyCodeAttemptLimiter attemptLimiter) {
         this.organizationRepository = organizationRepository;
         this.membershipQueryPort = membershipQueryPort;
         this.requestRepository = requestRepository;
+        this.attemptLimiter = attemptLimiter;
     }
 
     @Override
     @Transactional(readOnly = true)
     public CompanyCheckInfo check(CheckCompanyQuery query) {
-        Organization organization = CompanyCodes.resolve(organizationRepository, query.companyCode());
+        AccountId requester = new AccountId(Objects.requireNonNull(query.accountId(), "accountId must not be null"));
+        Organization organization =
+                CompanyCodes.resolve(organizationRepository, attemptLimiter, requester, query.companyCode());
         OrganizationId organizationId = organization.id().orElseThrow();
-        ParticipationEligibility eligibility = ParticipationEligibility.evaluate(
-                membershipQueryPort,
-                requestRepository,
-                organizationId,
-                new AccountId(Objects.requireNonNull(query.accountId(), "accountId must not be null")));
+        ParticipationEligibility eligibility =
+                ParticipationEligibility.evaluate(membershipQueryPort, requestRepository, organizationId, requester);
         return new CompanyCheckInfo(
                 organizationId.value(),
                 organization.name().value(),

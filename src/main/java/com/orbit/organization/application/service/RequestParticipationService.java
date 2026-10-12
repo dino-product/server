@@ -12,6 +12,7 @@ import com.orbit.organization.application.port.in.command.dto.ParticipationReque
 import com.orbit.organization.application.port.in.command.dto.RequestParticipationCommand;
 import com.orbit.organization.application.port.in.query.dto.ParticipationAvailability;
 import com.orbit.organization.application.port.out.AccountMembershipQueryPort;
+import com.orbit.organization.application.port.out.CompanyCodeAttemptLimiter;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.application.port.out.ParticipationRequestRepository;
 import com.orbit.organization.domain.AccountId;
@@ -31,16 +32,19 @@ public class RequestParticipationService implements RequestParticipationUseCase 
     private final OrganizationRepository organizationRepository;
     private final AccountMembershipQueryPort membershipQueryPort;
     private final ParticipationRequestRepository requestRepository;
+    private final CompanyCodeAttemptLimiter attemptLimiter;
     private final Clock clock;
 
     public RequestParticipationService(
             OrganizationRepository organizationRepository,
             AccountMembershipQueryPort membershipQueryPort,
             ParticipationRequestRepository requestRepository,
+            CompanyCodeAttemptLimiter attemptLimiter,
             Clock clock) {
         this.organizationRepository = organizationRepository;
         this.membershipQueryPort = membershipQueryPort;
         this.requestRepository = requestRepository;
+        this.attemptLimiter = attemptLimiter;
         this.clock = clock;
     }
 
@@ -51,9 +55,10 @@ public class RequestParticipationService implements RequestParticipationUseCase 
         if (command.desiredType() == null) {
             throw new BusinessException(CommonErrorCode.BAD_REQUEST);
         }
-        organizationRepository.lock(
-                organizationIdOf(CompanyCodes.resolve(organizationRepository, command.companyCode())));
-        Organization organization = CompanyCodes.resolve(organizationRepository, command.companyCode());
+        organizationRepository.lock(organizationIdOf(
+                CompanyCodes.resolve(organizationRepository, attemptLimiter, requester, command.companyCode())));
+        Organization organization =
+                CompanyCodes.resolve(organizationRepository, attemptLimiter, requester, command.companyCode());
         OrganizationId organizationId = organizationIdOf(organization);
 
         ParticipationEligibility eligibility =
