@@ -37,7 +37,7 @@ com.orbit
 아래 경로는 `src/main/java/com/orbit/{module}` 기준입니다.
 
 - Adapter는 Application Port와 Domain, 필요한 다른 모듈의 공개 계약에 의존합니다. `domain`은 식별자·값의 불변식을 보장하며 Application/Adapter 및 Spring·JPA·Web 타입·annotation에 의존하지 않습니다.
-- 입력 Adapter는 입력 Port를 호출합니다. Application Service 구현·출력 Port·Persistence 직접 호출은 금지합니다. HTTP는 `adapter/in/web`, 이벤트 소비는 `adapter/in/event`에 둡니다.
+- 입력 Adapter는 입력 Port를 호출합니다. Application Service 구현·출력 Port·Persistence 직접 호출은 금지합니다. HTTP는 `adapter/in/web`, 이벤트 소비는 `adapter/in/event`, 다른 모듈이 선언한 [요구 인터페이스](communication.md#요구-인터페이스)의 구현은 `adapter/in/{선언 모듈}`에 둡니다.
 - `application/service`는 트랜잭션 흐름을 조율하며 Domain·Port와 다른 모듈의 공개 계약([모듈 간 통신](communication.md#communication))에 의존합니다. Adapter·영속 기술에 직접 의존하지 않습니다. 구현 증가로 탐색·책임 구분이 필요할 때만 `service/command`, `service/query`로 나눕니다.
 - 외부 기술 계약은 `application/port/out`, 이를 구현하는 JPA·외부 연동 Adapter는 `adapter/out`에 둡니다.
 - 입력 Port는 상태 변경·후속 처리를 `application/port/in/command`, 조회를 `application/port/in/query`로 나눕니다. 빈 책임의 패키지는 만들지 않습니다.

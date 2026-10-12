@@ -10,4 +10,6 @@ interface SpringDataMembershipRepository extends JpaRepository<MembershipJpaEnti
 
     Optional<MembershipJpaEntity> findByOrganizationIdAndAccountIdAndStatus(
             Long organizationId, Long accountId, MembershipStatus status);
+
+    long countByOrganizationIdAndOwnerTrueAndStatus(Long organizationId, MembershipStatus status);
 }
