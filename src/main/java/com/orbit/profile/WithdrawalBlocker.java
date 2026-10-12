@@ -1,0 +1,14 @@
+package com.orbit.profile;
+
+import java.util.List;
+
+/**
+ * 계정 탈퇴를 막는 조건을 판정하는 요구 인터페이스. 막아야 할 상태를 소유한 모듈이 구현하고, profile이 탈퇴 가능 여부 확인과 탈퇴 직전에 모든 구현을 부른다.
+ * 예: organization은 어느 발주사에서든 유일한 총관리자, schedule은 기사 소속의 작업중·배정됨 작업([조직·계정] 정책 §5.1). 탈퇴 직전 판정은 탈퇴 트랜잭션
+ * 안에서 실행되므로 읽기만 한다. 구현이 없으면 아무것도 막지 않는다.
+ */
+public interface WithdrawalBlocker {
+
+    /** 계정의 탈퇴를 막는 사유. 막을 것이 없으면 빈 목록이다. */
+    List<WithdrawalBlock> blocksFor(Long accountId);
+}

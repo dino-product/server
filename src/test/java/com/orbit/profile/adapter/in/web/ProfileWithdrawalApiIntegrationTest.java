@@ -8,14 +8,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,6 +32,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.orbit.auth.AccountClosure;
+import com.orbit.profile.WithdrawalBlock;
+import com.orbit.profile.WithdrawalBlocker;
 import com.orbit.support.IntegrationTestSupport;
 import com.orbit.support.KakaoJwksStub;
 import com.orbit.support.SignupTestSupport;
@@ -36,8 +44,12 @@ import tools.jackson.databind.ObjectMapper;
 
 /** 실제 Access Token으로 탈퇴하고, 같은 토큰·같은 카카오 계정의 다음 동작을 auth까지 이어서 확인한다. 카카오 id_token은 로컬 JWKS 스텁이 서명한다. */
 @AutoConfigureMockMvc
+@Import(ProfileWithdrawalApiIntegrationTest.TestWithdrawalBlockers.class)
 @DisplayName("회원 탈퇴 API")
 class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
+
+    /** 탈퇴를 막을 계정. 실제 차단 판정(organization·schedule)은 다음 작업이라 테스트 구현으로 대신한다. */
+    private static final Set<Long> BLOCKED_ACCOUNTS = ConcurrentHashMap.newKeySet();
 
     private static final KakaoJwksStub KAKAO = KakaoJwksStub.start();
 
@@ -143,6 +155,53 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.result.status").value("ACTIVE"));
     }
 
+    @Test
+    @DisplayName("막는 조건이 없으면 탈퇴 가능 여부 확인은 탈퇴할 수 있다고 알린다")
+    void reportsWithdrawableAccount() throws Exception {
+        TestAccount account = login(kakaoSubject());
+
+        checkEligibility(account, account.accountId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.withdrawable").value(true))
+                .andExpect(jsonPath("$.result.blocks").isEmpty());
+    }
+
+    @Test
+    @DisplayName("차단 판정 구현이 막으면 확인 API는 사유와 건수를 알리고, 탈퇴 요청은 PROFILE-006으로 거부해 아무것도 바꾸지 않는다")
+    void rejectsBlockedWithdrawal() throws Exception {
+        TestAccount account = login(kakaoSubject());
+        SignupTestSupport.completeSignup(mockMvc, objectMapper, account);
+        BLOCKED_ACCOUNTS.add(account.accountId());
+
+        checkEligibility(account, account.accountId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.withdrawable").value(false))
+                .andExpect(jsonPath("$.result.blocks[0].reason").value("TEST_BLOCK"))
+                .andExpect(jsonPath("$.result.blocks[0].count").value(2));
+        withdraw(account, account.accountId())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PROFILE-006"));
+
+        assertThat(storedProfile(account.accountId())).containsEntry("status", "ACTIVE");
+        getProfile(account).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("다른 계정의 탈퇴 가능 여부는 PROFILE-002로 거부한다")
+    void hidesOtherAccountEligibility() throws Exception {
+        TestAccount requester = login(kakaoSubject());
+        TestAccount other = login(kakaoSubject());
+
+        checkEligibility(requester, other.accountId())
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PROFILE-002"));
+    }
+
+    private ResultActions checkEligibility(TestAccount requester, long accountId) throws Exception {
+        return mockMvc.perform(get("/api/v1/profiles/{accountId}/withdrawal-eligibility", accountId)
+                .header(HttpHeaders.AUTHORIZATION, requester.bearer()));
+    }
+
     private TestAccount login(String subject) throws Exception {
         JsonNode nonce = objectMapper.readTree(mockMvc.perform(post("/api/v1/auth/kakao/nonces"))
                 .andExpect(status().isOk())
@@ -185,5 +244,15 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
 
     private static String kakaoSubject() {
         return UUID.randomUUID().toString();
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class TestWithdrawalBlockers {
+
+        @Bean
+        WithdrawalBlocker testWithdrawalBlocker() {
+            return accountId ->
+                    BLOCKED_ACCOUNTS.contains(accountId) ? List.of(new WithdrawalBlock("TEST_BLOCK", 2)) : List.of();
+        }
     }
 }

@@ -22,7 +22,9 @@ import com.orbit.profile.application.port.in.command.dto.AgreeToTermsCommand;
 import com.orbit.profile.application.port.in.command.dto.ChangeMarketingConsentCommand;
 import com.orbit.profile.application.port.in.command.dto.SaveProfileCommand;
 import com.orbit.profile.application.port.in.command.dto.WithdrawCommand;
+import com.orbit.profile.application.port.in.query.CheckWithdrawalEligibilityUseCase;
 import com.orbit.profile.application.port.in.query.GetProfileUseCase;
+import com.orbit.profile.application.port.in.query.dto.CheckWithdrawalEligibilityQuery;
 import com.orbit.profile.application.port.in.query.dto.GetProfileQuery;
 
 /**
@@ -42,18 +44,21 @@ class ProfileController implements ProfileControllerDocs {
     private final AgreeToTermsUseCase agreeToTermsUseCase;
     private final ChangeMarketingConsentUseCase changeMarketingConsentUseCase;
     private final WithdrawUseCase withdrawUseCase;
+    private final CheckWithdrawalEligibilityUseCase checkWithdrawalEligibilityUseCase;
 
     ProfileController(
             GetProfileUseCase getProfileUseCase,
             SaveProfileUseCase saveProfileUseCase,
             AgreeToTermsUseCase agreeToTermsUseCase,
             ChangeMarketingConsentUseCase changeMarketingConsentUseCase,
-            WithdrawUseCase withdrawUseCase) {
+            WithdrawUseCase withdrawUseCase,
+            CheckWithdrawalEligibilityUseCase checkWithdrawalEligibilityUseCase) {
         this.getProfileUseCase = getProfileUseCase;
         this.saveProfileUseCase = saveProfileUseCase;
         this.agreeToTermsUseCase = agreeToTermsUseCase;
         this.changeMarketingConsentUseCase = changeMarketingConsentUseCase;
         this.withdrawUseCase = withdrawUseCase;
+        this.checkWithdrawalEligibilityUseCase = checkWithdrawalEligibilityUseCase;
     }
 
     @Override
@@ -98,6 +103,14 @@ class ProfileController implements ProfileControllerDocs {
         changeMarketingConsentUseCase.change(
                 new ChangeMarketingConsentCommand(requester.accountId(), accountId, request.agreed()));
         return read(requester, accountId);
+    }
+
+    @Override
+    @GetMapping("/{accountId}/withdrawal-eligibility")
+    public WithdrawalEligibilityResponse checkWithdrawalEligibility(
+            @AuthenticationPrincipal AccountPrincipal requester, @PathVariable Long accountId) {
+        return WithdrawalEligibilityResponse.from(checkWithdrawalEligibilityUseCase.check(
+                new CheckWithdrawalEligibilityQuery(requester.accountId(), accountId)));
     }
 
     @Override

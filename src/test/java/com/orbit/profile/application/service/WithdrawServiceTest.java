@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +27,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbit.auth.AccountClosure;
+import com.orbit.profile.WithdrawalBlock;
+import com.orbit.profile.WithdrawalBlocker;
 import com.orbit.profile.application.error.ProfileErrorCode;
 import com.orbit.profile.application.port.in.command.dto.WithdrawCommand;
 import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
@@ -51,11 +55,14 @@ class WithdrawServiceTest {
     @Mock
     private AccountClosure accountClosure;
 
+    private final List<WithdrawalBlock> blocks = new ArrayList<>();
+    private final WithdrawalBlocker blocker = accountId -> List.copyOf(blocks);
+
     private WithdrawService service;
 
     @BeforeEach
     void setUp() {
-        service = new WithdrawService(profiles, accountClosure, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new WithdrawService(profiles, List.of(blocker), accountClosure, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -99,6 +106,19 @@ class WithdrawServiceTest {
 
         verify(profiles, never()).save(any());
         verify(accountClosure).close(7L);
+    }
+
+    @Test
+    @DisplayName("차단 판정 구현이 사유를 돌려주면 PROFILE-006으로 거부하고 아무것도 바꾸지 않는다")
+    void rejectsBlockedWithdrawal() {
+        when(profiles.findByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
+        blocks.add(new WithdrawalBlock("SOLE_OWNER", 1));
+
+        assertThatThrownBy(() -> service.withdraw(new WithdrawCommand(7L, 7L)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(ProfileErrorCode.WITHDRAWAL_BLOCKED));
+        verify(profiles, never()).save(any());
+        verify(accountClosure, never()).close(anyLong());
     }
 
     @Test
