@@ -14,6 +14,7 @@ import com.orbit.organization.domain.MemberCategory;
 import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.MemberCategoryKind;
 import com.orbit.organization.domain.OrganizationId;
+import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 직원 유형·기사 유형 테이블의 공통 컬럼. 두 종류는 테이블이 달라 식별자가 따로 매겨진다. 발주사는 ID로만 둔다. 각 테이블은 삭제되지 않은 행끼리만 (발주사, 이름)이
@@ -21,7 +22,7 @@ import com.orbit.organization.domain.OrganizationId;
  * 잠금으로 먼저 거르고, 인덱스는 잠금을 거치지 않은 저장의 최종 방어선이다.
  */
 @MappedSuperclass
-abstract class MemberCategoryJpaEntity {
+abstract class MemberCategoryJpaEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,12 +40,6 @@ abstract class MemberCategoryJpaEntity {
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
@@ -55,7 +50,6 @@ abstract class MemberCategoryJpaEntity {
             throw new IllegalArgumentException("only new categories can be saved");
         }
         this.organizationId = category.organizationId().value();
-        this.createdAt = category.createdAt();
         apply(category);
     }
 
@@ -66,7 +60,6 @@ abstract class MemberCategoryJpaEntity {
         this.name = category.name().value();
         this.color = category.color().value();
         this.deleted = category.isDeleted();
-        this.updatedAt = category.updatedAt();
         this.deletedAt = category.deletedAt().orElse(null);
     }
 
@@ -77,8 +70,6 @@ abstract class MemberCategoryJpaEntity {
                 kind(),
                 new CategoryName(name),
                 new CategoryColor(color),
-                createdAt,
-                updatedAt,
                 deleted,
                 deletedAt);
     }

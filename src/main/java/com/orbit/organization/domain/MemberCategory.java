@@ -15,8 +15,6 @@ public final class MemberCategory {
     private final MemberCategoryKind kind;
     private CategoryName name;
     private CategoryColor color;
-    private final Instant createdAt;
-    private Instant updatedAt;
     private boolean deleted;
     private Instant deletedAt;
 
@@ -26,8 +24,6 @@ public final class MemberCategory {
             MemberCategoryKind kind,
             CategoryName name,
             CategoryColor color,
-            Instant createdAt,
-            Instant updatedAt,
             boolean deleted,
             Instant deletedAt) {
         this.id = id;
@@ -35,22 +31,16 @@ public final class MemberCategory {
         this.kind = Objects.requireNonNull(kind, "kind must not be null");
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.color = Objects.requireNonNull(color, "color must not be null");
-        this.createdAt = Objects.requireNonNull(createdAt, "createdAt must not be null");
-        this.updatedAt = requireNotBeforeCreation(updatedAt);
         if (deleted != (deletedAt != null)) {
             throw new IllegalArgumentException("deleted and deletedAt must be set together");
         }
         this.deleted = deleted;
-        this.deletedAt = deletedAt == null ? null : requireNotBeforeCreation(deletedAt);
+        this.deletedAt = deletedAt;
     }
 
     public static MemberCategory create(
-            OrganizationId organizationId,
-            MemberCategoryKind kind,
-            CategoryName name,
-            CategoryColor color,
-            Instant createdAt) {
-        return new MemberCategory(null, organizationId, kind, name, color, createdAt, createdAt, false, null);
+            OrganizationId organizationId, MemberCategoryKind kind, CategoryName name, CategoryColor color) {
+        return new MemberCategory(null, organizationId, kind, name, color, false, null);
     }
 
     public static MemberCategory reconstitute(
@@ -59,8 +49,6 @@ public final class MemberCategory {
             MemberCategoryKind kind,
             CategoryName name,
             CategoryColor color,
-            Instant createdAt,
-            Instant updatedAt,
             boolean deleted,
             Instant deletedAt) {
         return new MemberCategory(
@@ -69,43 +57,30 @@ public final class MemberCategory {
                 kind,
                 name,
                 color,
-                createdAt,
-                updatedAt,
                 deleted,
                 deletedAt);
     }
 
     /** 이름·색상을 함께 교체한다. 삭제된 유형은 바꿀 수 없다. */
-    public void change(CategoryName name, CategoryColor color, Instant changedAt) {
+    public void change(CategoryName name, CategoryColor color) {
         CategoryName newName = Objects.requireNonNull(name, "name must not be null");
         CategoryColor newColor = Objects.requireNonNull(color, "color must not be null");
-        Instant newUpdatedAt = requireNotBeforeCreation(changedAt);
         if (deleted) {
             throw new IllegalStateException("deleted category cannot be changed");
         }
         this.name = newName;
         this.color = newColor;
-        this.updatedAt = newUpdatedAt;
     }
 
     /** 소프트 삭제한다. 이미 삭제됐으면 처음 삭제 시각을 그대로 두고 {@code false}를 돌려준다(재삭제 멱등). */
     public boolean delete(Instant deletedAt) {
-        Instant at = requireNotBeforeCreation(deletedAt);
+        Instant at = Objects.requireNonNull(deletedAt, "deletedAt must not be null");
         if (deleted) {
             return false;
         }
         this.deleted = true;
         this.deletedAt = at;
-        this.updatedAt = at;
         return true;
-    }
-
-    private Instant requireNotBeforeCreation(Instant at) {
-        Objects.requireNonNull(at, "at must not be null");
-        if (at.isBefore(createdAt)) {
-            throw new IllegalArgumentException("category time must not be before createdAt");
-        }
-        return at;
     }
 
     public Optional<MemberCategoryId> id() {
@@ -126,14 +101,6 @@ public final class MemberCategory {
 
     public CategoryColor color() {
         return color;
-    }
-
-    public Instant createdAt() {
-        return createdAt;
-    }
-
-    public Instant updatedAt() {
-        return updatedAt;
     }
 
     public boolean isDeleted() {

@@ -31,12 +31,12 @@ import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.MemberCategoryKind;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.OrganizationId;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceTestConfiguration;
 
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
+@Import(PersistenceTestConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("직원·기사 유형 저장")
 class MemberCategoryPersistenceAdapterTest {
@@ -91,8 +91,11 @@ class MemberCategoryPersistenceAdapterTest {
         assertThat(restored.organizationId()).isEqualTo(ORGANIZATION);
         assertThat(restored.name()).isEqualTo(new CategoryName("전기 기사"));
         assertThat(restored.color()).isEqualTo(new CategoryColor("#3B82F6"));
-        assertThat(restored.createdAt()).isEqualTo(NOW);
         assertThat(restored.isDeleted()).isFalse();
+        assertThat(jdbcTemplate.queryForMap(
+                        "select created_at, updated_at from company_technician_category where id = ?",
+                        technician.id().orElseThrow().value()))
+                .allSatisfy((column, value) -> assertThat(value).isNotNull());
         assertThat(categories.findById(MemberCategoryKind.STAFF, staff.id().orElseThrow()))
                 .get()
                 .extracting(MemberCategory::kind)
@@ -103,7 +106,7 @@ class MemberCategoryPersistenceAdapterTest {
     @DisplayName("이름·색상 변경과 소프트 삭제를 저장하고 삭제된 유형도 식별자로 찾는다")
     void savesChangesAndSoftDeletion() {
         MemberCategory saved = categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "정규직"));
-        saved.change(new CategoryName("계약직"), new CategoryColor("#EF4444"), LATER);
+        saved.change(new CategoryName("계약직"), new CategoryColor("#EF4444"));
         categories.save(saved);
         saved.delete(LATER);
         categories.save(saved);
@@ -116,7 +119,6 @@ class MemberCategoryPersistenceAdapterTest {
         assertThat(restored.color().value()).isEqualTo("#EF4444");
         assertThat(restored.isDeleted()).isTrue();
         assertThat(restored.deletedAt()).contains(LATER);
-        assertThat(restored.updatedAt()).isEqualTo(LATER);
     }
 
     @Test
@@ -170,7 +172,7 @@ class MemberCategoryPersistenceAdapterTest {
     void reportsDuplicateNameOnRename() {
         insertRow("company_membership_category", ORGANIZATION, "정규직", false);
         MemberCategory renamed = categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "계약직"));
-        renamed.change(new CategoryName("정규직"), new CategoryColor("#3B82F6"), LATER);
+        renamed.change(new CategoryName("정규직"), new CategoryColor("#3B82F6"));
 
         assertThatThrownBy(() -> categories.save(renamed)).isInstanceOf(DuplicateCategoryNameException.class);
     }
@@ -187,18 +189,18 @@ class MemberCategoryPersistenceAdapterTest {
     @Test
     @DisplayName("목록은 그 발주사·그 종류의 삭제되지 않은 유형을 만든 순서대로 돌려준다")
     void listsUndeletedCategoriesInCreationOrder() {
-        categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "다유형", LATER));
-        categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "가유형", NOW));
-        MemberCategory deleted = categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "나유형", NOW));
+        categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "다유형"));
+        categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "가유형"));
+        MemberCategory deleted = categories.save(category(ORGANIZATION, MemberCategoryKind.STAFF, "나유형"));
         deleted.delete(LATER);
         categories.save(deleted);
-        categories.save(category(ORGANIZATION, MemberCategoryKind.TECHNICIAN, "기사유형", NOW));
-        categories.save(category(OTHER_ORGANIZATION, MemberCategoryKind.STAFF, "남의유형", NOW));
+        categories.save(category(ORGANIZATION, MemberCategoryKind.TECHNICIAN, "기사유형"));
+        categories.save(category(OTHER_ORGANIZATION, MemberCategoryKind.STAFF, "남의유형"));
         clear();
 
         assertThat(categories.listUndeleted(ORGANIZATION, MemberCategoryKind.STAFF))
                 .extracting(category -> category.name().value())
-                .containsExactly("가유형", "다유형");
+                .containsExactly("다유형", "가유형");
     }
 
     @Test
@@ -315,12 +317,6 @@ class MemberCategoryPersistenceAdapterTest {
     }
 
     private static MemberCategory category(OrganizationId organizationId, MemberCategoryKind kind, String name) {
-        return category(organizationId, kind, name, NOW);
-    }
-
-    private static MemberCategory category(
-            OrganizationId organizationId, MemberCategoryKind kind, String name, Instant createdAt) {
-        return MemberCategory.create(
-                organizationId, kind, new CategoryName(name), new CategoryColor("#3B82F6"), createdAt);
+        return MemberCategory.create(organizationId, kind, new CategoryName(name), new CategoryColor("#3B82F6"));
     }
 }

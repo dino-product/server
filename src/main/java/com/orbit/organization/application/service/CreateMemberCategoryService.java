@@ -1,6 +1,5 @@
 package com.orbit.organization.application.service;
 
-import java.time.Clock;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
@@ -25,17 +24,14 @@ public class CreateMemberCategoryService implements CreateMemberCategoryUseCase 
     private final OrganizationRepository organizationRepository;
     private final MembershipRepository membershipRepository;
     private final MemberCategoryRepository categoryRepository;
-    private final Clock clock;
 
     public CreateMemberCategoryService(
             OrganizationRepository organizationRepository,
             MembershipRepository membershipRepository,
-            MemberCategoryRepository categoryRepository,
-            Clock clock) {
+            MemberCategoryRepository categoryRepository) {
         this.organizationRepository = organizationRepository;
         this.membershipRepository = membershipRepository;
         this.categoryRepository = categoryRepository;
-        this.clock = clock;
     }
 
     @Override
@@ -49,7 +45,7 @@ public class CreateMemberCategoryService implements CreateMemberCategoryUseCase 
 
         OrganizationLocks.lock(organizationRepository, organizationId);
         MemberCategories.requireUniqueName(categoryRepository, organizationId, kind, name, null);
-        MemberCategory category = MemberCategory.create(organizationId, kind, name, color, clock.instant());
+        MemberCategory category = MemberCategory.create(organizationId, kind, name, color);
         return MemberCategoryInfo.from(MemberCategories.save(categoryRepository, category));
     }
 }

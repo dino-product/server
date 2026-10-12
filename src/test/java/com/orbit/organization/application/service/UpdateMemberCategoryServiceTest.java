@@ -1,7 +1,6 @@
 package com.orbit.organization.application.service;
 
 import static com.orbit.organization.application.service.MemberCategoryFixtures.ACCOUNT_ID;
-import static com.orbit.organization.application.service.MemberCategoryFixtures.NOW;
 import static com.orbit.organization.application.service.MemberCategoryFixtures.ORGANIZATION_ID;
 import static com.orbit.organization.application.service.MemberCategoryFixtures.OTHER_ORGANIZATION_ID;
 import static com.orbit.organization.application.service.MemberCategoryFixtures.category;
@@ -16,8 +15,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
-import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -62,8 +59,7 @@ class UpdateMemberCategoryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UpdateMemberCategoryService(
-                organizationRepository, membershipRepository, categoryRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new UpdateMemberCategoryService(organizationRepository, membershipRepository, categoryRepository);
     }
 
     @Test
@@ -97,7 +93,6 @@ class UpdateMemberCategoryServiceTest {
         MemberCategoryInfo result = service.update(command(5L, "정규직", "#EF4444"));
 
         assertThat(result.color()).isEqualTo("#EF4444");
-        assertThat(current.updatedAt()).isEqualTo(NOW);
     }
 
     @Test

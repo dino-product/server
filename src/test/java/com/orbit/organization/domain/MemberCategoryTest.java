@@ -15,7 +15,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 @DisplayName("직원·기사 유형 도메인")
 class MemberCategoryTest {
 
-    private static final Instant NOW = Instant.parse("2026-10-09T00:00:00Z");
     private static final Instant LATER = Instant.parse("2026-10-10T00:00:00Z");
     private static final Instant LATEST = Instant.parse("2026-10-11T00:00:00Z");
     private static final OrganizationId ORGANIZATION = new OrganizationId(1L);
@@ -25,7 +24,7 @@ class MemberCategoryTest {
     @Test
     @DisplayName("새 유형은 식별자 없이 발주사·종류·이름·색상을 가지며 삭제되지 않은 상태다")
     void createsUndeletedCategoryWithoutId() {
-        MemberCategory category = MemberCategory.create(ORGANIZATION, MemberCategoryKind.STAFF, NAME, COLOR, NOW);
+        MemberCategory category = MemberCategory.create(ORGANIZATION, MemberCategoryKind.STAFF, NAME, COLOR);
 
         assertThat(category.id()).isEmpty();
         assertThat(category.organizationId()).isEqualTo(ORGANIZATION);
@@ -34,23 +33,19 @@ class MemberCategoryTest {
         assertThat(category.color()).isEqualTo(COLOR);
         assertThat(category.isDeleted()).isFalse();
         assertThat(category.deletedAt()).isEmpty();
-        assertThat(category.createdAt()).isEqualTo(NOW);
-        assertThat(category.updatedAt()).isEqualTo(NOW);
     }
 
     @Test
-    @DisplayName("이름·색상을 바꾸면 수정 시각이 바뀌고 종류·발주사·생성 시각은 그대로다")
+    @DisplayName("이름·색상을 바꿔도 종류·발주사는 그대로다")
     void changesNameAndColor() {
-        MemberCategory category = MemberCategory.create(ORGANIZATION, MemberCategoryKind.TECHNICIAN, NAME, COLOR, NOW);
+        MemberCategory category = MemberCategory.create(ORGANIZATION, MemberCategoryKind.TECHNICIAN, NAME, COLOR);
 
-        category.change(new CategoryName("전기 기사"), new CategoryColor("#EF4444"), LATER);
+        category.change(new CategoryName("전기 기사"), new CategoryColor("#EF4444"));
 
         assertThat(category.name().value()).isEqualTo("전기 기사");
         assertThat(category.color().value()).isEqualTo("#EF4444");
-        assertThat(category.updatedAt()).isEqualTo(LATER);
         assertThat(category.kind()).isEqualTo(MemberCategoryKind.TECHNICIAN);
         assertThat(category.organizationId()).isEqualTo(ORGANIZATION);
-        assertThat(category.createdAt()).isEqualTo(NOW);
     }
 
     @Test
@@ -63,7 +58,6 @@ class MemberCategoryTest {
         assertThat(deleted).isTrue();
         assertThat(category.isDeleted()).isTrue();
         assertThat(category.deletedAt()).contains(LATER);
-        assertThat(category.updatedAt()).isEqualTo(LATER);
         assertThat(category.name()).isEqualTo(NAME);
     }
 
@@ -77,7 +71,6 @@ class MemberCategoryTest {
 
         assertThat(deletedAgain).isFalse();
         assertThat(category.deletedAt()).contains(LATER);
-        assertThat(category.updatedAt()).isEqualTo(LATER);
     }
 
     @Test
@@ -86,44 +79,18 @@ class MemberCategoryTest {
         MemberCategory category = persisted();
         category.delete(LATER);
 
-        assertThatThrownBy(() -> category.change(new CategoryName("새 유형"), COLOR, LATEST))
+        assertThatThrownBy(() -> category.change(new CategoryName("새 유형"), COLOR))
                 .isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    @DisplayName("수정·삭제 시각은 생성 시각보다 앞설 수 없다")
-    void rejectsChangeBeforeCreation() {
-        MemberCategory category = persisted();
-
-        assertThatThrownBy(() -> category.change(NAME, COLOR, NOW.minusSeconds(1)))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> category.delete(NOW.minusSeconds(1))).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("삭제 표시와 삭제 시각은 함께 있거나 함께 없어야 한다")
     void rejectsInconsistentDeletion() {
         assertThatThrownBy(() -> MemberCategory.reconstitute(
-                        new MemberCategoryId(1L),
-                        ORGANIZATION,
-                        MemberCategoryKind.STAFF,
-                        NAME,
-                        COLOR,
-                        NOW,
-                        NOW,
-                        true,
-                        null))
+                        new MemberCategoryId(1L), ORGANIZATION, MemberCategoryKind.STAFF, NAME, COLOR, true, null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> MemberCategory.reconstitute(
-                        new MemberCategoryId(1L),
-                        ORGANIZATION,
-                        MemberCategoryKind.STAFF,
-                        NAME,
-                        COLOR,
-                        NOW,
-                        LATER,
-                        false,
-                        LATER))
+                        new MemberCategoryId(1L), ORGANIZATION, MemberCategoryKind.STAFF, NAME, COLOR, false, LATER))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -238,6 +205,6 @@ class MemberCategoryTest {
 
     private static MemberCategory persisted() {
         return MemberCategory.reconstitute(
-                new MemberCategoryId(7L), ORGANIZATION, MemberCategoryKind.STAFF, NAME, COLOR, NOW, NOW, false, null);
+                new MemberCategoryId(7L), ORGANIZATION, MemberCategoryKind.STAFF, NAME, COLOR, false, null);
     }
 }

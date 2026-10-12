@@ -1,6 +1,5 @@
 package com.orbit.organization.application.service;
 
-import java.time.Clock;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
@@ -31,17 +30,14 @@ public class UpdateMemberCategoryService implements UpdateMemberCategoryUseCase 
     private final OrganizationRepository organizationRepository;
     private final MembershipRepository membershipRepository;
     private final MemberCategoryRepository categoryRepository;
-    private final Clock clock;
 
     public UpdateMemberCategoryService(
             OrganizationRepository organizationRepository,
             MembershipRepository membershipRepository,
-            MemberCategoryRepository categoryRepository,
-            Clock clock) {
+            MemberCategoryRepository categoryRepository) {
         this.organizationRepository = organizationRepository;
         this.membershipRepository = membershipRepository;
         this.categoryRepository = categoryRepository;
-        this.clock = clock;
     }
 
     @Override
@@ -61,7 +57,7 @@ public class UpdateMemberCategoryService implements UpdateMemberCategoryUseCase 
             throw new BusinessException(OrganizationErrorCode.CATEGORY_NOT_FOUND);
         }
         MemberCategories.requireUniqueName(categoryRepository, organizationId, kind, name, categoryId);
-        category.change(name, color, clock.instant());
+        category.change(name, color);
         return MemberCategoryInfo.from(MemberCategories.save(categoryRepository, category));
     }
 }

@@ -1,7 +1,6 @@
 package com.orbit.organization.application.service;
 
 import static com.orbit.organization.application.service.MemberCategoryFixtures.ACCOUNT_ID;
-import static com.orbit.organization.application.service.MemberCategoryFixtures.NOW;
 import static com.orbit.organization.application.service.MemberCategoryFixtures.ORGANIZATION_ID;
 import static com.orbit.organization.application.service.MemberCategoryFixtures.category;
 import static com.orbit.organization.application.service.MemberCategoryFixtures.requester;
@@ -14,8 +13,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
-import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -61,8 +58,7 @@ class CreateMemberCategoryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CreateMemberCategoryService(
-                organizationRepository, membershipRepository, categoryRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new CreateMemberCategoryService(organizationRepository, membershipRepository, categoryRepository);
     }
 
     @Test
@@ -85,7 +81,6 @@ class CreateMemberCategoryServiceTest {
         order.verify(categoryRepository).findUndeletedByName(any(), any(), any());
         order.verify(categoryRepository).save(saved.capture());
         assertThat(saved.getValue().organizationId()).isEqualTo(ORGANIZATION_ID);
-        assertThat(saved.getValue().createdAt()).isEqualTo(NOW);
         assertThat(saved.getValue().isDeleted()).isFalse();
     }
 
@@ -180,8 +175,6 @@ class CreateMemberCategoryServiceTest {
                 category.kind(),
                 category.name(),
                 category.color(),
-                category.createdAt(),
-                category.updatedAt(),
                 false,
                 null);
     }

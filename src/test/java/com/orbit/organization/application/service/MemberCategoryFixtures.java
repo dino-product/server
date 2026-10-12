@@ -48,8 +48,6 @@ final class MemberCategoryFixtures {
                 kind,
                 new CategoryName(name),
                 new CategoryColor(BLUE),
-                CREATED_AT,
-                CREATED_AT,
                 false,
                 null);
     }
