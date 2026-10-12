@@ -5,8 +5,8 @@ import org.springframework.modulith.events.ResubmissionOptions;
 import org.springframework.stereotype.Component;
 
 /**
- * 실패로 남은 이벤트 발행을 최대 처리 시도 횟수까지 다시 보낸다. 여러 인스턴스가 함께 불러도 한 발행은 먼저 재전송 상태로 바꾼 인스턴스만 보낸다. 상한에 닿은 발행은 실패
- * 상태로 남긴다.
+ * 실패로 남은 이벤트 발행을 최대 처리 시도 횟수까지 다시 보낸다. 상한에 닿은 발행은 실패 상태로 남긴다. 여러 인스턴스가 함께 돌면 재전송 표시는 같은 발행을 동시에 집는
+ * 일만 줄인다. 처리가 시작되거나 다시 실패한 뒤에는 앞서 목록을 읽은 다른 인스턴스가 또 보낼 수 있으므로 리스너는 같은 이벤트를 여러 번 받아도 결과가 같아야 한다.
  */
 @Component
 class FailedEventPublicationResubmitter {
