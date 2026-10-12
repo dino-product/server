@@ -14,7 +14,7 @@ import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 
 /**
- * 임시 WorkQueryPort 구현. 어떤 조건에도 빈 목록을 돌려준다(저장한 작업도 목록 조회에는 나오지 않는다). JPA 어댑터(HM-234)로 교체한 뒤 삭제한다.
+ * 임시 WorkQueryPort 구현. 어떤 조건에도 빈 목록을 돌려준다(저장한 작업도 목록 조회에는 나오지 않는다). JPA 어댑터(HM-219)로 교체한 뒤 삭제한다.
  * {@code local}·{@code test} 프로필에서만 등록한다.
  */
 @Component
