@@ -51,7 +51,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 회사 참여 요청, 직원 소속(Membership)·기사 계약(Technician) 관리 |
 | 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, 참여 요청 승인 대기 목록·승인·거절(직원 소속·기사 계약 생성), schedule용 활성 구성원 조회, 직원·기사 유형 관리. 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
 | 기획 원본 | [조직·계정] 정책 |
-| 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
+| 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**ParticipationRequest**(Root) — 참여 요청. 사용자가 회사 코드로 생성(링크·QR도 클라이언트가 회사 코드로 바꿔 보냄, O-02), 희망 유형·확정 유형·처리자 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
 | 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현) · `notification` ← 이벤트 발행(`ParticipationRequestApproved`·`ParticipationRequestRejected`) |
 
 <a id="organization-product"></a>
