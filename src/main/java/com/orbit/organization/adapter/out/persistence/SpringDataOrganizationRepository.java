@@ -1,9 +1,13 @@
 package com.orbit.organization.adapter.out.persistence;
 
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 interface SpringDataOrganizationRepository extends JpaRepository<OrganizationJpaEntity, Long> {
+
+    Optional<OrganizationJpaEntity> findByCode(String code);
 
     /**
      * 현재 코드와 폐기 코드를 한 문장으로 확인한다. 다른 트랜잭션의 코드 변경이 커밋되는 순간에도 그 코드는 둘 중 한쪽에서 보이므로, 폐기된 코드가 확인을 빠져나가지
