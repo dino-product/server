@@ -402,6 +402,8 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         jsonPath(conflict + "['ORGANIZATION-014'].value.code").value("ORGANIZATION-014"))
                 .andExpect(
                         jsonPath(conflict + "['ORGANIZATION-015'].value.code").value("ORGANIZATION-015"))
+                .andExpect(
+                        jsonPath(conflict + "['ORGANIZATION-010'].value.code").value("ORGANIZATION-010"))
                 .andExpect(jsonPath(tooMany + "['ORGANIZATION-018'].value.code").value("ORGANIZATION-018"))
                 .andExpect(jsonPath("$.components.schemas"
                                 + "['com.orbit.organization.adapter.in.web.RequestParticipationRequest']"
