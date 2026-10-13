@@ -11,9 +11,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbit.organization.ParticipationRequestApproved;
+import com.orbit.organization.ParticipationRequestRejected;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.ApproveParticipationRequestsUseCase;
 import com.orbit.organization.application.port.in.command.RejectParticipationRequestsUseCase;
@@ -31,6 +34,7 @@ import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
+import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
 import com.orbit.organization.domain.RejectReason;
 import com.orbit.organization.domain.Technician;
@@ -47,6 +51,8 @@ import com.orbit.shared.error.CommonErrorCode;
  *       커밋한 상태를 보고 그 행을 실패로 돌려준다(먼저 처리된 결과만 반영). 요청자 취소도 같은 행 잠금으로 줄을 선다.
  *   <li>처리할 수 없는 행(없음·다른 발주사·이미 처리·취소·이미 소속 행이 있음)은 건너뛰고 결과에 실패로 남기며, 나머지 행은 같은 트랜잭션에서 처리한다.
  *   <li>승인하면 같은 트랜잭션에서 확정 유형의 활성 직원 소속 또는 기사 계약을 만든다. 신청자에게 그 발주사의 행이 이미 있으면 재활성화하지 않는다(O-15).
+ *   <li>처리한 행마다 {@link ParticipationRequestApproved}·{@link ParticipationRequestRejected}를 같은 트랜잭션에서 발행한다. 롤백되면 소비 모듈에
+ *       전달되지 않는다.
  * </ul>
  */
 @Service
@@ -60,6 +66,7 @@ public class DecideParticipationRequestsService
     private final ParticipationRequestRepository requestRepository;
     private final TechnicianRepository technicianRepository;
     private final AccountMembershipQueryPort membershipQueryPort;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public DecideParticipationRequestsService(
@@ -67,11 +74,13 @@ public class DecideParticipationRequestsService
             ParticipationRequestRepository requestRepository,
             TechnicianRepository technicianRepository,
             AccountMembershipQueryPort membershipQueryPort,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.membershipRepository = membershipRepository;
         this.requestRepository = requestRepository;
         this.technicianRepository = technicianRepository;
         this.membershipQueryPort = membershipQueryPort;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -146,7 +155,34 @@ public class DecideParticipationRequestsService
         if (request.isPending()) {
             return result(request, outcome);
         }
-        return result(requestRepository.save(request), outcome);
+        ParticipationRequest saved = requestRepository.save(request);
+        eventPublisher.publishEvent(decidedEvent(saved));
+        return result(saved, outcome);
+    }
+
+    private static Object decidedEvent(ParticipationRequest request) {
+        Long requestId = request.id().orElseThrow().value();
+        Long organizationId = request.organizationId().value();
+        Long accountId = request.accountId().value();
+        Instant decidedAt = request.decidedAt().orElseThrow();
+        if (request.status() == ParticipationRequestStatus.REJECTED) {
+            return new ParticipationRequestRejected(
+                    requestId, organizationId, accountId, request.rejectReason().orElse(null), decidedAt);
+        }
+        return new ParticipationRequestApproved(
+                requestId,
+                organizationId,
+                accountId,
+                eventType(request.desiredType()),
+                eventType(request.confirmedType().orElseThrow()),
+                decidedAt);
+    }
+
+    private static ParticipationRequestApproved.Type eventType(ParticipationType type) {
+        return switch (type) {
+            case STAFF -> ParticipationRequestApproved.Type.STAFF;
+            case TECHNICIAN -> ParticipationRequestApproved.Type.TECHNICIAN;
+        };
     }
 
     private ParticipationRequestDecisionOutcome approve(
