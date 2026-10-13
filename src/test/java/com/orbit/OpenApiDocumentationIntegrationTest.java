@@ -412,6 +412,26 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsPendingParticipationRequestListForOwners() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/participation-requests'].get";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("승인 대기 목록 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("organizationId"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/"
+                                + "com.orbit.organization.adapter.in.web.PendingParticipationRequestsResponse"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
     void documentsParticipationRequestCancelWithoutBody() throws Exception {
         String operation = "$.paths['/api/v1/participation-requests/{requestId}/cancel'].post";
         mockMvc.perform(get("/docs-json"))
