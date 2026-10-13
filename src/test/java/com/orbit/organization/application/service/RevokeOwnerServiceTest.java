@@ -2,7 +2,9 @@ package com.orbit.organization.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -92,13 +94,14 @@ class RevokeOwnerServiceTest {
     }
 
     @Test
-    @DisplayName("요청자가 그 발주사의 활성 소속이 아니면 403으로 거부한다")
+    @DisplayName("요청자가 그 발주사의 활성 소속이 아니면 발주사를 잠그지 않고 403으로 거부한다")
     void rejectsRequesterOutsideOrganization() {
         memberships.given(OTHER_ORGANIZATION, REQUESTER, true);
         Membership owner = memberships.given(ORGANIZATION, new AccountId(8L), true);
         memberships.given(ORGANIZATION, new AccountId(9L), true);
 
         assertRejected(command(owner), OrganizationErrorCode.NOT_ORGANIZATION_MEMBER);
+        verify(organizationRepository, never()).lock(any());
     }
 
     @Test

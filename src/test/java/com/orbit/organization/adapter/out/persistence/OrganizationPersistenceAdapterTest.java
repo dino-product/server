@@ -243,7 +243,7 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("계정의 그 발주사 활성 소속만 찾는다")
+    @DisplayName("계정의 그 발주사 활성 소속만 찾고 그 소속이 있는지 확인한다")
     void findsActiveMembershipOfAccountInOrganization() {
         OrganizationId organizationId =
                 organizations.save(organization("E5F6G7")).id().orElseThrow();
@@ -253,6 +253,9 @@ class OrganizationPersistenceAdapterTest {
         assertThat(memberships.findActive(organizationId, new AccountId(7L))).isPresent();
         assertThat(memberships.findActive(otherId, new AccountId(7L))).isEmpty();
         assertThat(memberships.findActive(organizationId, new AccountId(8L))).isEmpty();
+        assertThat(memberships.existsActive(organizationId, new AccountId(7L))).isTrue();
+        assertThat(memberships.existsActive(otherId, new AccountId(7L))).isFalse();
+        assertThat(memberships.existsActive(organizationId, new AccountId(8L))).isFalse();
     }
 
     @Test

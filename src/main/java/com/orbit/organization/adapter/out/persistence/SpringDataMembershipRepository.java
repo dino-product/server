@@ -15,6 +15,8 @@ interface SpringDataMembershipRepository extends JpaRepository<MembershipJpaEnti
     Optional<MembershipJpaEntity> findByOrganizationIdAndAccountIdAndStatus(
             Long organizationId, Long accountId, MembershipStatus status);
 
+    boolean existsByOrganizationIdAndAccountIdAndStatus(Long organizationId, Long accountId, MembershipStatus status);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update MembershipJpaEntity m set m.staffCategoryId = null, m.updatedAt = :at"
             + " where m.organizationId = :organizationId and m.staffCategoryId = :categoryId")

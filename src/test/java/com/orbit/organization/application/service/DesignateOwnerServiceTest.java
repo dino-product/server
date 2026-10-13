@@ -2,8 +2,10 @@ package com.orbit.organization.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -65,17 +67,17 @@ class DesignateOwnerServiceTest {
     }
 
     @Test
-    @DisplayName("요청자가 그 발주사의 활성 소속이 아니면 403으로 거부한다")
+    @DisplayName("요청자가 그 발주사의 활성 소속이 아니면 발주사를 잠그지 않고 403으로 거부한다")
     void rejectsRequesterOutsideOrganization() {
         memberships.given(OTHER_ORGANIZATION, REQUESTER, true);
         Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
 
         assertRejected(command(staff), OrganizationErrorCode.NOT_ORGANIZATION_MEMBER);
-        verify(organizationRepository).lock(ORGANIZATION);
+        verify(organizationRepository, never()).lock(any());
     }
 
     @Test
-    @DisplayName("앞선 변경이 대기 한도 안에 끝나지 않으면 요청자 확인 전에 409로 거부한다")
+    @DisplayName("앞선 변경이 대기 한도 안에 끝나지 않으면 총관리자 확인 전에 409로 거부한다")
     void rejectsWhenOrganizationIsBusy() {
         memberships.given(ORGANIZATION, REQUESTER, true);
         Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);

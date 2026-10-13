@@ -49,6 +49,12 @@ class MembershipPersistenceAdapter implements MembershipRepository {
     }
 
     @Override
+    public boolean existsActive(OrganizationId organizationId, AccountId accountId) {
+        return repository.existsByOrganizationIdAndAccountIdAndStatus(
+                organizationId.value(), accountId.value(), MembershipStatus.ACTIVE);
+    }
+
+    @Override
     public int unassignStaffCategory(OrganizationId organizationId, MemberCategoryId categoryId, Instant unassignedAt) {
         return repository.unassignStaffCategory(organizationId.value(), categoryId.value(), unassignedAt);
     }

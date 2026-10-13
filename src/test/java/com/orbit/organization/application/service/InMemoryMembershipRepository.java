@@ -74,6 +74,11 @@ class InMemoryMembershipRepository implements MembershipRepository {
     }
 
     @Override
+    public boolean existsActive(OrganizationId organizationId, AccountId accountId) {
+        return findActive(organizationId, accountId).isPresent();
+    }
+
+    @Override
     public long countActiveOwners(OrganizationId organizationId) {
         return memberships.values().stream()
                 .filter(membership -> membership.organizationId().equals(organizationId))
