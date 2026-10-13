@@ -249,6 +249,8 @@ class OrganizationPersistenceAdapterTest {
                 organizations.save(organization("E5F6G7")).id().orElseThrow();
         OrganizationId otherId = organizations.save(organization("H8J9K0")).id().orElseThrow();
         memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+        MembershipId deactivated = staffMembership(organizationId, 9L);
+        jdbcTemplate.update("update company_memberships set status = 'DEACTIVATED' where id = ?", deactivated.value());
 
         assertThat(memberships.findActive(organizationId, new AccountId(7L))).isPresent();
         assertThat(memberships.findActive(otherId, new AccountId(7L))).isEmpty();
@@ -256,6 +258,8 @@ class OrganizationPersistenceAdapterTest {
         assertThat(memberships.existsActive(organizationId, new AccountId(7L))).isTrue();
         assertThat(memberships.existsActive(otherId, new AccountId(7L))).isFalse();
         assertThat(memberships.existsActive(organizationId, new AccountId(8L))).isFalse();
+        assertThat(memberships.findActive(organizationId, new AccountId(9L))).isEmpty();
+        assertThat(memberships.existsActive(organizationId, new AccountId(9L))).isFalse();
     }
 
     @Test

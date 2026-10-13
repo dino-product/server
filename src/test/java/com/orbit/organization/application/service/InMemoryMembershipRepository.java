@@ -34,6 +34,21 @@ class InMemoryMembershipRepository implements MembershipRepository {
         return membership;
     }
 
+    /** 다른 트랜잭션이 커밋한 비활성화처럼 저장된 소속을 비활성으로 바꾼다. 저장 횟수에 넣지 않는다. */
+    void deactivate(MembershipId id) {
+        Membership current = memberships.get(id);
+        memberships.put(
+                id,
+                Membership.reconstitute(
+                        id,
+                        current.organizationId(),
+                        current.accountId(),
+                        current.isOwner(),
+                        MembershipStatus.DEACTIVATED,
+                        current.joinedAt(),
+                        current.statusChangedAt()));
+    }
+
     Membership stored(MembershipId id) {
         return memberships.get(id);
     }

@@ -3,6 +3,7 @@ package com.orbit.organization.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -77,15 +78,31 @@ class DesignateOwnerServiceTest {
     }
 
     @Test
-    @DisplayName("앞선 변경이 대기 한도 안에 끝나지 않으면 총관리자 확인 전에 409로 거부한다")
+    @DisplayName("앞선 변경이 대기 한도 안에 끝나지 않으면 총관리자가 아닌 직원의 요청도 총관리자 확인 전에 409로 거부한다")
     void rejectsWhenOrganizationIsBusy() {
-        memberships.given(ORGANIZATION, REQUESTER, true);
+        memberships.given(ORGANIZATION, REQUESTER, false);
         Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
         doThrow(new OrganizationBusyException(new IllegalStateException("lock timeout")))
                 .when(organizationRepository)
                 .lock(ORGANIZATION);
 
         assertRejected(command(staff), OrganizationErrorCode.ORGANIZATION_BUSY);
+        assertThat(memberships.stored(id(staff)).isOwner()).isFalse();
+    }
+
+    @Test
+    @DisplayName("잠금을 기다리는 사이 요청자 소속이 비활성화되면 잠근 뒤 다시 읽어 403으로 거부한다")
+    void rejectsRequesterDeactivatedWhileWaitingForLock() {
+        Membership requester = memberships.given(ORGANIZATION, REQUESTER, true);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+        doAnswer(invocation -> {
+                    memberships.deactivate(id(requester));
+                    return null;
+                })
+                .when(organizationRepository)
+                .lock(ORGANIZATION);
+
+        assertRejected(command(staff), OrganizationErrorCode.NOT_ORGANIZATION_MEMBER);
         assertThat(memberships.stored(id(staff)).isOwner()).isFalse();
     }
 
