@@ -432,6 +432,37 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsParticipationRequestApprovalAndRejectionAsBatches() throws Exception {
+        String base = "$.paths['/api/v1/organizations/{organizationId}/participation-requests";
+        String approve = base + "/approvals'].post";
+        String reject = base + "/rejections'].post";
+        String schemas = "#/components/schemas/com.orbit.organization.adapter.in.web.";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(approve + ".summary").value("참여 요청 승인"))
+                .andExpect(jsonPath(approve + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(approve + ".requestBody.content['application/json'].schema['$ref']")
+                        .value(schemas + "ApproveParticipationRequestsRequest"))
+                .andExpect(jsonPath(approve + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "ParticipationRequestDecisionsResponse"))
+                .andExpect(jsonPath(approve + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-003'].value.code")
+                        .value("ORGANIZATION-003"))
+                .andExpect(jsonPath(reject + ".summary").value("참여 요청 거절"))
+                .andExpect(jsonPath(reject + ".requestBody.content['application/json'].schema['$ref']")
+                        .value(schemas + "RejectParticipationRequestsRequest"))
+                .andExpect(jsonPath(reject + ".responses['400'].content['application/json']"
+                                + ".examples['ORGANIZATION-019'].value.code")
+                        .value("ORGANIZATION-019"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.ApproveParticipationRequestsRequest']"
+                                + ".properties.approvals.maxItems")
+                        .value(100));
+    }
+
+    @Test
     void documentsParticipationRequestCancelWithoutBody() throws Exception {
         String operation = "$.paths['/api/v1/participation-requests/{requestId}/cancel'].post";
         mockMvc.perform(get("/docs-json"))

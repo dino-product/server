@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import com.orbit.organization.application.port.out.TechnicianRepository;
 import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.OrganizationId;
+import com.orbit.organization.domain.Technician;
 
 @Repository
 class TechnicianPersistenceAdapter implements TechnicianRepository {
@@ -15,6 +16,11 @@ class TechnicianPersistenceAdapter implements TechnicianRepository {
 
     TechnicianPersistenceAdapter(SpringDataTechnicianRepository repository) {
         this.repository = repository;
+    }
+
+    @Override
+    public Technician save(Technician technician) {
+        return repository.save(TechnicianJpaEntity.from(technician)).toDomain();
     }
 
     @Override
