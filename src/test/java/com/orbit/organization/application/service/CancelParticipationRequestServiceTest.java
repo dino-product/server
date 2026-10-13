@@ -30,6 +30,7 @@ import com.orbit.organization.application.port.out.ParticipationRequestRepositor
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Industry;
+import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
@@ -141,7 +142,8 @@ class CancelParticipationRequestServiceTest {
                 status,
                 null,
                 REQUESTED_AT,
-                decidedAt);
+                decidedAt,
+                decidedAt == null ? null : new MembershipId(3L));
     }
 
     private static Organization organization() {

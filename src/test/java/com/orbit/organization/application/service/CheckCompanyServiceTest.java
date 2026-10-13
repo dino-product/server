@@ -209,6 +209,7 @@ class CheckCompanyServiceTest {
                 ParticipationRequestStatus.PENDING,
                 null,
                 AT,
+                null,
                 null);
     }
 

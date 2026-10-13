@@ -13,6 +13,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 
 import com.orbit.organization.domain.AccountId;
+import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
@@ -22,7 +23,7 @@ import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 참여 요청. 발주사·계정은 다른 애그리게잇·모듈이므로 ID로만 둔다. 재요청은 새 행이므로 같은 계정·발주사의 행이 여럿일 수 있고, 승인 대기 행이 하나뿐인지는 참여
- * 요청 서비스가 발주사 행 잠금 안에서 확인한다. 처리한 총관리자 소속은 승인·거절(HM-290)과 함께 추가한다.
+ * 요청 서비스가 발주사 행 잠금 안에서 확인한다. 처리한 총관리자는 직원 소속 ID로 둔다.
  */
 @Entity
 @Table(
@@ -64,6 +65,9 @@ class ParticipationRequestJpaEntity extends BaseTimeEntity {
     @Column(name = "decided_at")
     private Instant decidedAt;
 
+    @Column(name = "decided_by_membership_id")
+    private Long decidedByMembershipId;
+
     protected ParticipationRequestJpaEntity() {}
 
     private ParticipationRequestJpaEntity(ParticipationRequest request) {
@@ -87,6 +91,8 @@ class ParticipationRequestJpaEntity extends BaseTimeEntity {
         this.status = request.status();
         this.rejectReason = request.rejectReason().orElse(null);
         this.decidedAt = request.decidedAt().orElse(null);
+        this.decidedByMembershipId =
+                request.decidedBy().map(MembershipId::value).orElse(null);
     }
 
     ParticipationRequest toDomain() {
@@ -99,6 +105,7 @@ class ParticipationRequestJpaEntity extends BaseTimeEntity {
                 status,
                 rejectReason,
                 requestedAt,
-                decidedAt);
+                decidedAt,
+                decidedByMembershipId == null ? null : new MembershipId(decidedByMembershipId));
     }
 }

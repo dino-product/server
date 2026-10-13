@@ -28,6 +28,18 @@ class MembershipTest {
     }
 
     @Test
+    @DisplayName("참여 요청 승인으로 생긴 소속은 총관리자 표시가 없는 활성 직원 소속이고 참여일은 승인 시각이다")
+    void joinedMembershipIsActiveStaff() {
+        Membership membership = Membership.join(new OrganizationId(1L), new AccountId(7L), NOW);
+
+        assertThat(membership.id()).isEmpty();
+        assertThat(membership.isOwner()).isFalse();
+        assertThat(membership.status()).isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(membership.joinedAt()).isEqualTo(NOW);
+        assertThat(membership.statusChangedAt()).isEqualTo(NOW);
+    }
+
+    @Test
     @DisplayName("직원 소속을 총관리자로 지정하면 총관리자 표시만 붙고 나머지는 그대로다")
     void designatesStaffAsOwner() {
         Membership staff = staff();

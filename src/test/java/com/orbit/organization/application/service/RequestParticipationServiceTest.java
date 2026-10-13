@@ -232,6 +232,7 @@ class RequestParticipationServiceTest {
                 request.status(),
                 null,
                 request.requestedAt(),
+                null,
                 null);
     }
 

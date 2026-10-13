@@ -17,10 +17,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.domain.AccountId;
+import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RejectReason;
 import com.orbit.support.PersistenceTestConfiguration;
 
 /** 승인·거절 유즈케이스가 아직 없어 처리된 요청 행은 SQL로 넣는다. */
@@ -37,6 +39,8 @@ class ParticipationRequestPersistenceAdapterTest {
     private static final OrganizationId OTHER_ORGANIZATION_ID = new OrganizationId(11L);
     private static final AccountId ACCOUNT_ID = new AccountId(7L);
     private static final AccountId OTHER_ACCOUNT_ID = new AccountId(8L);
+    private static final Instant DECIDED_AT = Instant.parse("2026-10-07T00:00:00.654321Z");
+    private static final MembershipId DECIDER = new MembershipId(3L);
 
     @Autowired
     private SpringDataParticipationRequestRepository repository;
@@ -105,13 +109,62 @@ class ParticipationRequestPersistenceAdapterTest {
         assertThat(adapter.findPending(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
     }
 
+    @Test
+    @DisplayName("희망과 다르게 승인한 요청을 저장하면 확정 유형·처리자·처리 시각이 복원된다")
+    void savesApprovedRequestWithDecider() {
+        ParticipationRequest saved = adapter.save(
+                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, REQUESTED_AT));
+        repository.flush();
+        entityManager.clear();
+
+        ParticipationRequest locked =
+                adapter.findByIdForUpdate(saved.id().orElseThrow()).orElseThrow();
+        locked.approve(ParticipationType.STAFF, DECIDER, DECIDED_AT);
+        adapter.save(locked);
+        repository.flush();
+        entityManager.clear();
+
+        ParticipationRequest found =
+                adapter.findByIdForUpdate(saved.id().orElseThrow()).orElseThrow();
+        assertThat(found.status()).isEqualTo(ParticipationRequestStatus.APPROVED);
+        assertThat(found.desiredType()).isEqualTo(ParticipationType.TECHNICIAN);
+        assertThat(found.confirmedType()).contains(ParticipationType.STAFF);
+        assertThat(found.decidedBy()).contains(DECIDER);
+        assertThat(found.decidedAt()).contains(DECIDED_AT);
+        assertThat(found.rejectReason()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사유와 함께 거절한 요청을 저장하면 사유·처리자가 복원된다")
+    void savesRejectedRequestWithReason() {
+        ParticipationRequest saved = adapter.save(
+                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT));
+        repository.flush();
+        entityManager.clear();
+
+        ParticipationRequest locked =
+                adapter.findByIdForUpdate(saved.id().orElseThrow()).orElseThrow();
+        String longestReason = "가".repeat(RejectReason.MAX_LENGTH);
+        locked.reject(RejectReason.from(longestReason), DECIDER, DECIDED_AT);
+        adapter.save(locked);
+        repository.flush();
+        entityManager.clear();
+
+        ParticipationRequest found =
+                adapter.findByIdForUpdate(saved.id().orElseThrow()).orElseThrow();
+        assertThat(found.status()).isEqualTo(ParticipationRequestStatus.REJECTED);
+        assertThat(found.rejectReason()).contains(longestReason);
+        assertThat(found.confirmedType()).isEmpty();
+        assertThat(found.decidedBy()).contains(DECIDER);
+    }
+
     private void insertDecided(OrganizationId organizationId, AccountId accountId, String status) {
         entityManager
                 .createNativeQuery("""
                         insert into participation_requests
                             (company_id, member_id, desired_type, status,
-                             requested_at, decided_at, created_at, updated_at)
-                        values (?, ?, 'STAFF', ?, ?, ?, ?, ?)
+                             requested_at, decided_at, decided_by_membership_id, created_at, updated_at)
+                        values (?, ?, 'STAFF', ?, ?, ?, 3, ?, ?)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())

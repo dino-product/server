@@ -110,8 +110,8 @@ class ParticipationRequestQueryAdapterTest {
                 .createNativeQuery("""
                         insert into participation_requests
                             (company_id, member_id, desired_type, confirmed_type, status, reject_reason,
-                             requested_at, decided_at, created_at, updated_at)
-                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             requested_at, decided_at, decided_by_membership_id, created_at, updated_at)
+                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())
@@ -121,8 +121,9 @@ class ParticipationRequestQueryAdapterTest {
                 .setParameter(6, rejectReason)
                 .setParameter(7, requestedAt)
                 .setParameter(8, decidedAt)
-                .setParameter(9, requestedAt)
-                .setParameter(10, decidedAt == null ? requestedAt : decidedAt)
+                .setParameter(9, decidedAt == null ? null : 3L)
+                .setParameter(10, requestedAt)
+                .setParameter(11, decidedAt == null ? requestedAt : decidedAt)
                 .executeUpdate();
     }
 

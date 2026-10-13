@@ -18,6 +18,7 @@ import com.orbit.organization.application.port.in.query.dto.MyParticipationReque
 import com.orbit.organization.application.port.out.AccountParticipationRequest;
 import com.orbit.organization.application.port.out.ParticipationRequestQueryPort;
 import com.orbit.organization.domain.AccountId;
+import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
@@ -147,7 +148,8 @@ class ListMyParticipationRequestsServiceTest {
                         status,
                         rejectReason,
                         requestedAt,
-                        decidedAt),
+                        decidedAt,
+                        decidedAt == null ? null : new MembershipId(3L)),
                 "오르빗 설비");
     }
 }

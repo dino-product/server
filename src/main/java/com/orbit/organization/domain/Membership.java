@@ -40,6 +40,11 @@ public final class Membership {
         return new Membership(null, organizationId, accountId, true, MembershipStatus.ACTIVE, joinedAt, joinedAt);
     }
 
+    /** 참여 요청 승인으로 생기는 활성 직원 소속. 총관리자 표시가 없고 참여일은 승인 시각이다. */
+    public static Membership join(OrganizationId organizationId, AccountId accountId, Instant joinedAt) {
+        return new Membership(null, organizationId, accountId, false, MembershipStatus.ACTIVE, joinedAt, joinedAt);
+    }
+
     public static Membership reconstitute(
             MembershipId id,
             OrganizationId organizationId,
