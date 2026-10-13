@@ -40,6 +40,11 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
     }
 
     @Override
+    public Optional<Organization> findByCode(CompanyCode code) {
+        return repository.findByCode(code.value()).map(OrganizationJpaEntity::toDomain);
+    }
+
+    @Override
     public void lock(OrganizationId id) {
         repository.lockById(id.value());
     }
@@ -52,5 +57,10 @@ class OrganizationPersistenceAdapter implements OrganizationRepository {
     @Override
     public void saveRetiredCode(RetiredCompanyCode retiredCode) {
         retiredCodeRepository.save(RetiredCompanyCodeJpaEntity.from(retiredCode));
+    }
+
+    @Override
+    public boolean existsRetiredCode(CompanyCode code) {
+        return retiredCodeRepository.existsByCode(code.value());
     }
 }

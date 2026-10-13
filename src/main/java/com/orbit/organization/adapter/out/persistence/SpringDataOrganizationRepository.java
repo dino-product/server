@@ -11,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 
 interface SpringDataOrganizationRepository extends JpaRepository<OrganizationJpaEntity, Long> {
 
+    Optional<OrganizationJpaEntity> findByCode(String code);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o.id from OrganizationJpaEntity o where o.id = :id")
     Optional<Long> lockById(@Param("id") Long id);
