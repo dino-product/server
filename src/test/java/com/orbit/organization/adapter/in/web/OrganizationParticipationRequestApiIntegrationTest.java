@@ -142,7 +142,8 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
                 .andExpect(jsonPath("$.result.results[0].status").value("APPROVED"));
 
         assertThat(jdbcTemplate.queryForMap(
-                        "select status, company_technician_category_id from technician where company_id = ? and member_id = ?",
+                        "select status, company_technician_category_id from technician"
+                                + " where company_id = ? and member_id = ?",
                         company.organizationId(),
                         applicant))
                 .containsEntry("status", "ACTIVE")
