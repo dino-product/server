@@ -16,7 +16,7 @@ public record CreatedWorkResponse(
                 example = "true")
         boolean applied,
 
-        @Schema(description = "같은 기사의 겹친 작업(시작시각 순)") List<ScheduleChangeResponse.ConflictingWork> conflicts) {
+        @Schema(description = "같은 기사의 겹친 작업(시작시각 순)") List<ConflictingWorkResponse> conflicts) {
 
     static CreatedWorkResponse from(CreatedWorkInfo info) {
         ScheduleChangeResponse change = ScheduleChangeResponse.from(info.scheduleChange());

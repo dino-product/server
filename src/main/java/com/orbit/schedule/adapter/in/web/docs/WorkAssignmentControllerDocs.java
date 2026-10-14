@@ -22,12 +22,12 @@ public interface WorkAssignmentControllerDocs {
             summary = "배정 변경",
             description = "타임테이블에서 작업을 놓거나 옮긴 결과(담당기사·시작 시각·예상 소요시간)를 반영합니다. "
                     + "대기함 작업이면 배정, 지금 담당기사와 같은 기사면 일정 변경, 다른 기사면 재배정으로 처리하고 "
-                    + "배정·재배정은 기사에게 다시 수락을 받습니다. "
+                    + "어느 경우든 기사의 수락을 기다립니다(수락됨이었으면 수락대기로 돌아갑니다). "
                     + "같은 기사의 다른 작업과 시간이 겹치는데 conflictConfirmed가 false면 반영하지 않고 applied=false와 겹친 작업을 돌려줍니다(오류 아님). "
                     + "사용자가 확인하면 conflictConfirmed=true로 다시 보내 반영합니다. "
                     + "같은 기사·같은 시간이면 SCHEDULE-008, 배정·재배정할 기사가 그 조직의 활성 기사 계약이 아니면 SCHEDULE-013, "
                     + "같은 기사의 다른 변경을 기다리다 시간이 지나면 SCHEDULE-006입니다. "
-                    + "대기함·수락대기·수락됨이 아닌 작업은 SCHEDULE-002, 입력 규칙 위반은 SCHEDULE-003입니다. "
+                    + "대기함·수락대기·수락됨이 아닌 작업은 SCHEDULE-002, 입력 규칙 위반은 SCHEDULE-003, 본문 형식 오류는 COMMON-400입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005, "
                     + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))

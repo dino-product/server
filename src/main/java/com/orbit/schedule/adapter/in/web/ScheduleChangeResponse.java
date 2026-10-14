@@ -1,6 +1,5 @@
 package com.orbit.schedule.adapter.in.web;
 
-import java.time.Instant;
 import java.util.List;
 
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
@@ -13,24 +12,11 @@ public record ScheduleChangeResponse(
         boolean applied,
 
         @Schema(description = "같은 기사의 겹친 작업(시작시각 순). 반영했어도 겹쳤으면 담는다")
-        List<ConflictingWork> conflicts) {
-
-    public record ConflictingWork(
-            @Schema(description = "작업 식별자", example = "88") Long workId,
-            @Schema(description = "작업명", example = "세탁기 설치") String name,
-
-            @Schema(description = "시작 시각", example = "2026-10-21T04:00:00Z")
-            Instant startTime,
-
-            @Schema(description = "종료 시각", example = "2026-10-21T06:00:00Z")
-            Instant endTime) {}
+        List<ConflictingWorkResponse> conflicts) {
 
     static ScheduleChangeResponse from(ScheduleChangeInfo info) {
         return new ScheduleChangeResponse(
                 info.applied(),
-                info.conflicts().stream()
-                        .map(conflict -> new ConflictingWork(
-                                conflict.workId(), conflict.name(), conflict.startTime(), conflict.endTime()))
-                        .toList());
+                info.conflicts().stream().map(ConflictingWorkResponse::from).toList());
     }
 }

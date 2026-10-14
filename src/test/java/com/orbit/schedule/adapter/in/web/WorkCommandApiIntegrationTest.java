@@ -39,6 +39,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
+import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
@@ -273,6 +274,22 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
         }
 
         @Test
+        @DisplayName("그 조직의 구성원이 아니면 403 SCHEDULE-004, 기사면 403 SCHEDULE-005다")
+        void rejectsNonMemberAndTechnician() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+            long technician = account();
+            technicianContract(organization.id(), technician);
+
+            update(account(), organization.id(), workId, Map.of("name", "보일러 점검"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-004"));
+            update(technician, organization.id(), workId, Map.of("name", "보일러 점검"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+        }
+
+        @Test
         @DisplayName("본문 형식이 깨졌거나 목록에 없는 결제 방식이면 400 COMMON-400이다")
         void rejectsMalformedBody() throws Exception {
             Organization organization = organization();
@@ -444,6 +461,57 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
         }
 
         @Test
+        @DisplayName("다른 기사로 옮기면 재배정되어 이전 배정은 재배정으로 끝나고 새 배정 이력이 쌓인다")
+        void reassignsToOtherTechnician() throws Exception {
+            Organization organization = organization();
+            long workId = assignedWork(organization);
+            activeTechnician(organization, 12L);
+
+            change(organization.owner(), organization.id(), workId, assignment(12L, START, 120, false))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true));
+
+            Work saved = stored(organization, workId);
+            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(saved.schedule()).contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofHours(2)));
+            assertThat(saved.assignmentHistory()).hasSize(2);
+            assertThat(saved.assignmentHistory().getFirst().ending())
+                    .hasValueSatisfying(
+                            ending -> assertThat(ending.reason()).isEqualTo(AssignmentEndReason.REASSIGNED));
+        }
+
+        @Test
+        @DisplayName("취소된 작업은 409 SCHEDULE-002, 다른 조직의 작업은 404 SCHEDULE-001이다")
+        void rejectsCancelledAndOtherOrganizationWork() throws Exception {
+            Organization organization = organization();
+            long cancelled = cancelledWork(organization);
+            long otherOrganizationWork = registeredWork(organization());
+
+            change(organization.owner(), organization.id(), cancelled, assignment(1L, START, 60, false))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-002"));
+            change(organization.owner(), organization.id(), otherOrganizationWork, assignment(1L, START, 60, false))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-001"));
+        }
+
+        @Test
+        @DisplayName("그 조직의 구성원이 아니면 403 SCHEDULE-004, 기사면 403 SCHEDULE-005다")
+        void rejectsNonMemberAndTechnician() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+            long technician = account();
+            technicianContract(organization.id(), technician);
+
+            change(account(), organization.id(), workId, assignment(1L, START, 60, false))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-004"));
+            change(technician, organization.id(), workId, assignment(1L, START, 60, false))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+        }
+
+        @Test
         @DisplayName("같은 기사의 다른 작업과 겹치면 확인 전에는 반영하지 않고 겹친 작업을 돌려주며, 확인하면 반영한다")
         void withholdsConflictUntilConfirmed() throws Exception {
             Organization organization = organization();
@@ -540,6 +608,23 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
             unassign(organization.owner(), organization.id(), workId)
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-002"));
+        }
+
+        @Test
+        @DisplayName("그 조직의 구성원이 아니면 403 SCHEDULE-004, 기사면 403 SCHEDULE-005다")
+        void rejectsNonMemberAndTechnician() throws Exception {
+            Organization organization = organization();
+            long workId = assignedWork(organization);
+            long technician = account();
+            technicianContract(organization.id(), technician);
+
+            unassign(account(), organization.id(), workId)
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-004"));
+            unassign(technician, organization.id(), workId)
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         }
 
         @Test

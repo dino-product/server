@@ -1,6 +1,7 @@
 package com.orbit.schedule.application.service;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -78,7 +79,8 @@ public class CreateWorkService implements CreateWorkUseCase {
         if (schedule == null) {
             return new CreatedWorkInfo(idOf(workRepository.save(work)), ScheduleChangeInfo.applied(List.of()));
         }
-        DomainRuleViolations.run(() -> work.assign(schedule, clock.instant(), actor.membershipId()));
+        Instant now = clock.instant();
+        DomainRuleViolations.run(() -> work.assign(schedule, now, actor.membershipId()));
         ScheduleChanges.Outcome outcome = ScheduleChanges.apply(
                 workRepository,
                 lockTechnicianSchedulePort,
