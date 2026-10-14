@@ -40,7 +40,7 @@ class WorkAssignmentController implements WorkAssignmentControllerDocs {
             @AuthenticationPrincipal AccountPrincipal requester,
             @PathVariable Long organizationId,
             @PathVariable Long workId,
-            @Valid @RequestBody ChangeWorkAssignmentRequest request) {
+            @Valid @RequestBody WorkScheduleRequest request) {
         Integer minutes = request.expectedDurationMinutes();
         return ScheduleChangeResponse.from(changeWorkAssignmentUseCase.change(new ChangeWorkAssignmentCommand(
                 requester.accountId(),

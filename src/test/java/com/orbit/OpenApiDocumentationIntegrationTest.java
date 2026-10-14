@@ -269,6 +269,23 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsWorkRegistrationWithOptionalSchedule() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업 등록"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['200']").exists())
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-013'].value.code")
+                        .value("SCHEDULE-013"))
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.CreateWorkRequest']"
+                                + ".properties.schedule")
+                        .exists());
+    }
+
+    @Test
     void documentsWorkDetailsUpdateWithScheduleErrors() throws Exception {
         String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}'].put";
         mockMvc.perform(get("/docs-json"))

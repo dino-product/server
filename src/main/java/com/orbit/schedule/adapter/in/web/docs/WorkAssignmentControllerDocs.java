@@ -1,8 +1,8 @@
 package com.orbit.schedule.adapter.in.web.docs;
 
 import com.orbit.auth.AccountPrincipal;
-import com.orbit.schedule.adapter.in.web.ChangeWorkAssignmentRequest;
 import com.orbit.schedule.adapter.in.web.ScheduleChangeResponse;
+import com.orbit.schedule.adapter.in.web.WorkScheduleRequest;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.shared.error.CommonErrorCode;
 import com.orbit.shared.openapi.ApiErrorCodes;
@@ -57,7 +57,7 @@ public interface WorkAssignmentControllerDocs {
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "조직(발주사) 식별자", example = "1", required = true) Long organizationId,
             @Parameter(description = "작업 식별자", example = "10", required = true) Long workId,
-            ChangeWorkAssignmentRequest request);
+            WorkScheduleRequest request);
 
     @Operation(
             summary = "배정 해제",

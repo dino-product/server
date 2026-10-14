@@ -57,7 +57,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * 작업 변경 API를 공통 응답·보안·트랜잭션·영속성과 함께 확인한다. 발주사는 API로 만들고(생성자가 총관리자), 다른 직원 소속·기사 계약은 참여 승인 기능이 아직 없어
- * 테이블에 직접 넣는다. 작업은 등록 API가 생기기 전이라 저장소로 준비한다.
+ * 테이블에 직접 넣는다. 다른 API를 검증할 작업은 원하는 상태로 바로 맞추려고 저장소로 준비한다.
  */
 @AutoConfigureMockMvc
 @DisplayName("작업 변경 API")
@@ -87,6 +87,115 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
 
     @Value("${app.auth.jwt.issuer}")
     private String jwtIssuer;
+
+    @Nested
+    @DisplayName("작업 등록")
+    class Create {
+
+        @Test
+        @DisplayName("작업명만으로 등록하면 대기함에 두고 새 식별자를 돌려준다")
+        void registersBacklogWork() throws Exception {
+            Organization organization = organization();
+
+            long workId = createdId(create(organization.owner(), organization.id(), Map.of("name", "에어컨 수리"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true)));
+
+            Work saved = stored(organization, workId);
+            assertThat(saved.status()).isEqualTo(WorkStatus.REGISTERED);
+            assertThat(saved.registrarId()).isEqualTo(new MembershipId(organization.ownerMembership()));
+        }
+
+        @Test
+        @DisplayName("담당기사·일정을 함께 주면 등록과 함께 배정한다")
+        void registersAndAssigns() throws Exception {
+            Organization organization = organization();
+            activeTechnician(organization, 12L);
+
+            long workId = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of(
+                                    "name", "에어컨 수리",
+                                    "customer", Map.of("name", "이정호"),
+                                    "schedule", assignment(12L, START, 90, false)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true)));
+
+            Work saved = stored(organization, workId);
+            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(saved.schedule())
+                    .contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofMinutes(90)));
+        }
+
+        @Test
+        @DisplayName("겹치는데 확인하지 않으면 작업을 만들지 않고 겹친 작업을 돌려주며, 확인하면 한 번만 만든다")
+        void doesNotCreateUntilConflictConfirmed() throws Exception {
+            Organization organization = organization();
+            long existing = assignedWork(organization);
+            activeTechnician(organization, 1L);
+            Map<String, Object> unconfirmed = Map.of("name", "에어컨 수리", "schedule", assignment(1L, START, 60, false));
+
+            create(organization.owner(), organization.id(), unconfirmed)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(false))
+                    .andExpect(jsonPath("$.result.workId").doesNotExist())
+                    .andExpect(jsonPath("$.result.conflicts[0].workId").value(existing));
+            assertThat(worksIn(organization)).isEqualTo(1);
+
+            create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "schedule", assignment(1L, START, 60, true)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true))
+                    .andExpect(jsonPath("$.result.workId").isNumber());
+            assertThat(worksIn(organization)).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("일정 항목을 일부만 주거나 작업명이 비면 400 SCHEDULE-003이고 만들지 않는다")
+        void rejectsPartialScheduleAndBlankName() throws Exception {
+            Organization organization = organization();
+
+            create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "schedule", Map.of("technicianId", 12)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            create(organization.owner(), organization.id(), Map.of("name", " "))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            assertThat(worksIn(organization)).isZero();
+        }
+
+        @Test
+        @DisplayName("배정할 기사가 활성 기사 계약이 아니면 400 SCHEDULE-013이고 만들지 않는다")
+        void rejectsTechnicianWithoutActiveContract() throws Exception {
+            Organization organization = organization();
+
+            create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "schedule", assignment(12L, START, 60, true)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-013"));
+            assertThat(worksIn(organization)).isZero();
+        }
+
+        @Test
+        @DisplayName("기사는 403 SCHEDULE-005다")
+        void rejectsTechnician() throws Exception {
+            Organization organization = organization();
+            long technician = account();
+            technicianContract(organization.id(), technician);
+
+            create(technician, organization.id(), Map.of("name", "에어컨 수리"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+        }
+    }
 
     @Nested
     @DisplayName("기본정보 수정")
@@ -448,9 +557,27 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
         }
     }
 
-    private static final String WORK = "/api/v1/organizations/{organizationId}/works/{workId}";
+    private static final String WORKS = "/api/v1/organizations/{organizationId}/works";
+    private static final String WORK = WORKS + "/{workId}";
     private static final String CANCELLATION = WORK + "/cancellation";
     private static final String ASSIGNMENT = WORK + "/assignment";
+
+    private ResultActions create(long requester, long organizationId, Map<String, ?> body) throws Exception {
+        return mockMvc.perform(post(WORKS, organizationId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(requester))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body)));
+    }
+
+    private long createdId(ResultActions result) throws Exception {
+        String body = result.andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body).path("result").path("workId").asLong();
+    }
+
+    private int worksIn(Organization organization) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from work where company_id = ?", Integer.class, organization.id());
+    }
 
     private ResultActions update(long requester, long organizationId, long workId, Map<String, ?> body)
             throws Exception {

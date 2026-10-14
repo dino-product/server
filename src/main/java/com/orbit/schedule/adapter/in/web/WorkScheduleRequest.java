@@ -4,8 +4,8 @@ import java.time.Instant;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 타임테이블에서 작업을 놓거나 옮긴 결과. 입력 규칙은 도메인이 한 번만 검사한다. */
-public record ChangeWorkAssignmentRequest(
+/** 담당기사·일정. 배정 변경의 본문이자 작업 등록의 선택 항목이다. 입력 규칙은 도메인이 한 번만 검사한다. */
+public record WorkScheduleRequest(
         @Schema(description = "담당기사(기사 계약) 식별자", example = "12", requiredMode = Schema.RequiredMode.REQUIRED)
         Long technicianId,
 
