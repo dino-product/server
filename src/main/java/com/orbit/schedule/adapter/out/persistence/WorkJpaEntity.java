@@ -35,8 +35,8 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
- * 작업(Work) 애그리게잇 루트의 JPA Entity. 테이블 구조는 팀 ERD의 {@code Work}를 따르고 매핑 결정(현재 일정 비정규화와 대기함의 미리 입력한 일정, 완료보고 인라인·사진 분리, 배정 순번,
- * 정정 기록 미저장)은 {@link WorkMapper}가 원본이다. 값 검증은 Domain이 하며 이 Entity는 컬럼 제약만 선언한다.
+ * 작업(Work) 애그리게잇 루트의 JPA Entity. 테이블 구조는 팀 ERD의 {@code Work}를 따르고 매핑 결정(현재 일정 비정규화와 대기함의 미리
+ * 입력한 일정, 완료보고 인라인·사진 분리, 배정 순번, 정정 기록 미저장)은 {@link WorkMapper}가 원본이다. 값 검증은 Domain이 하며 이 Entity는 컬럼 제약만 선언한다.
  *
  * <p>이 Entity와 자식 Entity는 모두 {@code BaseTimeEntity}를 상속한다. ERD의 배정 이력·사진 테이블에는 감사 컬럼이, 활성 작업 조회용 인덱스
  * {@code (company_id, technician_id, status)}와 자식 테이블의 {@code work_id} 인덱스는 ERD에 빠져 있어 Entity 기준으로 ERD에 추가한다(운영은
