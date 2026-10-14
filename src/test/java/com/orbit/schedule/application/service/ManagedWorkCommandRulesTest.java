@@ -21,6 +21,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.ChangeWorkAssignmentCommand;
 import com.orbit.schedule.application.port.in.command.dto.CorrectWorkStatusCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
@@ -68,6 +69,16 @@ class ManagedWorkCommandRulesTest {
                 new UseCase("재배정", (f, request) -> new ReassignWorkService(
                                 f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
                         .reassign(new ReassignWorkCommand(
+                                request.accountId(),
+                                request.organizationId(),
+                                request.workId(),
+                                request.validInput() ? OTHER_TECHNICIAN_ID.value() : 0L,
+                                TEN,
+                                request.validInput() ? TWO_HOURS : Duration.ZERO,
+                                false))),
+                new UseCase("배정 변경(통합)", (f, request) -> new ChangeWorkAssignmentService(
+                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
+                        .change(new ChangeWorkAssignmentCommand(
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),

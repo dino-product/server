@@ -37,6 +37,7 @@ class TechnicianScheduleLockIsolationTest {
                 .extracting(Class::getSimpleName)
                 .contains(
                         "AssignWorkService",
+                        "ChangeWorkAssignmentService",
                         "ReassignWorkService",
                         "RescheduleWorkService",
                         "StartWorkService",
