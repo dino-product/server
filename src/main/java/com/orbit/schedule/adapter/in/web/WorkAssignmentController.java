@@ -1,26 +1,55 @@
 package com.orbit.schedule.adapter.in.web;
 
+import java.time.Duration;
+
+import jakarta.validation.Valid;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.schedule.adapter.in.web.docs.WorkAssignmentControllerDocs;
+import com.orbit.schedule.application.port.in.command.ChangeWorkAssignmentUseCase;
 import com.orbit.schedule.application.port.in.command.UnassignWorkUseCase;
+import com.orbit.schedule.application.port.in.command.dto.ChangeWorkAssignmentCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 
 @RestController
 @RequestMapping("/api/v1/organizations/{organizationId}/works/{workId}/assignment")
 class WorkAssignmentController implements WorkAssignmentControllerDocs {
 
+    private final ChangeWorkAssignmentUseCase changeWorkAssignmentUseCase;
     private final UnassignWorkUseCase unassignWorkUseCase;
 
-    WorkAssignmentController(UnassignWorkUseCase unassignWorkUseCase) {
+    WorkAssignmentController(
+            ChangeWorkAssignmentUseCase changeWorkAssignmentUseCase, UnassignWorkUseCase unassignWorkUseCase) {
+        this.changeWorkAssignmentUseCase = changeWorkAssignmentUseCase;
         this.unassignWorkUseCase = unassignWorkUseCase;
+    }
+
+    @Override
+    @PutMapping
+    public ScheduleChangeResponse change(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long organizationId,
+            @PathVariable Long workId,
+            @Valid @RequestBody ChangeWorkAssignmentRequest request) {
+        Integer minutes = request.expectedDurationMinutes();
+        return ScheduleChangeResponse.from(changeWorkAssignmentUseCase.change(new ChangeWorkAssignmentCommand(
+                requester.accountId(),
+                organizationId,
+                workId,
+                request.technicianId(),
+                request.startTime(),
+                minutes == null ? null : Duration.ofMinutes(minutes),
+                Boolean.TRUE.equals(request.conflictConfirmed()))));
     }
 
     @Override

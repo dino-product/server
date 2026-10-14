@@ -1,6 +1,7 @@
 package com.orbit.schedule.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -27,6 +28,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -35,6 +37,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CustomerInfo;
@@ -74,6 +77,10 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private WorkRepository workRepository;
+
+    // 배정할 기사의 계약 확인. organization 계약 전이라 대체하며, 넣지 않으면 임시 어댑터처럼 거부한다.
+    @MockitoBean
+    private TechnicianContractPort technicianContractPort;
 
     @Value("${app.auth.jwt.secret}")
     private String jwtSecret;
@@ -292,6 +299,113 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Nested
+    @DisplayName("배정 변경")
+    class ChangeAssignment {
+
+        @Test
+        @DisplayName("대기함 작업을 기사·시간에 놓으면 배정되고 200 applied=true다")
+        void assignsBacklogWork() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+            activeTechnician(organization, 12L);
+
+            change(organization.owner(), organization.id(), workId, assignment(12L, START, 120, false))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true))
+                    .andExpect(jsonPath("$.result.conflicts").isEmpty());
+
+            Work saved = stored(organization, workId);
+            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(saved.schedule()).contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofHours(2)));
+        }
+
+        @Test
+        @DisplayName("같은 기사에서 시간만 옮기면 일정 변경이다")
+        void reschedulesForSameTechnician() throws Exception {
+            Organization organization = organization();
+            long workId = assignedWork(organization);
+            Instant later = START.plus(Duration.ofHours(3));
+
+            change(organization.owner(), organization.id(), workId, assignment(1L, later, 60, false))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true));
+
+            assertThat(stored(organization, workId).schedule())
+                    .contains(new WorkSchedule(new TechnicianId(1L), later, Duration.ofHours(1)));
+        }
+
+        @Test
+        @DisplayName("같은 기사의 다른 작업과 겹치면 확인 전에는 반영하지 않고 겹친 작업을 돌려주며, 확인하면 반영한다")
+        void withholdsConflictUntilConfirmed() throws Exception {
+            Organization organization = organization();
+            long existing = assignedWork(organization);
+            long target = registeredWork(organization);
+            activeTechnician(organization, 1L);
+
+            change(
+                            organization.owner(),
+                            organization.id(),
+                            target,
+                            assignment(1L, START.plus(Duration.ofHours(1)), 120, false))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(false))
+                    .andExpect(jsonPath("$.result.conflicts[0].workId").value(existing));
+            assertThat(stored(organization, target).status()).isEqualTo(WorkStatus.REGISTERED);
+
+            change(
+                            organization.owner(),
+                            organization.id(),
+                            target,
+                            assignment(1L, START.plus(Duration.ofHours(1)), 120, true))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true))
+                    .andExpect(jsonPath("$.result.conflicts[0].workId").value(existing));
+            assertThat(stored(organization, target).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        }
+
+        @Test
+        @DisplayName("배정할 기사가 그 조직의 활성 기사 계약이 아니면 400 SCHEDULE-013이다")
+        void rejectsTechnicianWithoutActiveContract() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+
+            change(organization.owner(), organization.id(), workId, assignment(12L, START, 120, true))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-013"));
+            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.REGISTERED);
+        }
+
+        @Test
+        @DisplayName("같은 기사·같은 시간이면 409 SCHEDULE-008이다")
+        void rejectsUnchangedSchedule() throws Exception {
+            Organization organization = organization();
+            long workId = assignedWork(organization);
+
+            change(organization.owner(), organization.id(), workId, assignment(1L, START, 120, false))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-008"));
+        }
+
+        @Test
+        @DisplayName("소요시간이 없거나 0이면 400 SCHEDULE-003이다")
+        void rejectsInvalidDuration() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+
+            change(
+                            organization.owner(),
+                            organization.id(),
+                            workId,
+                            Map.of("technicianId", 12, "startTime", START.toString()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            change(organization.owner(), organization.id(), workId, assignment(12L, START, 0, false))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+        }
+    }
+
+    @Nested
     @DisplayName("배정 해제")
     class Unassign {
 
@@ -352,6 +466,27 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, bearer(requester))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(body)));
+    }
+
+    private ResultActions change(long requester, long organizationId, long workId, Map<String, ?> body)
+            throws Exception {
+        return mockMvc.perform(put(ASSIGNMENT, organizationId, workId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(requester))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body)));
+    }
+
+    private static Map<String, Object> assignment(long technicianId, Instant start, int minutes, boolean confirmed) {
+        return Map.of(
+                "technicianId", technicianId,
+                "startTime", start.toString(),
+                "expectedDurationMinutes", minutes,
+                "conflictConfirmed", confirmed);
+    }
+
+    private void activeTechnician(Organization organization, long technicianId) {
+        given(technicianContractPort.isActive(new OrganizationId(organization.id()), new TechnicianId(technicianId)))
+                .willReturn(true);
     }
 
     private ResultActions unassign(long requester, long organizationId, long workId) throws Exception {

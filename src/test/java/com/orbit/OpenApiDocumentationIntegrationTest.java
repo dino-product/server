@@ -307,6 +307,26 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsAssignmentChangeWithConflictResultAndErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/assignment'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("배정 변경"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['200']").exists())
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-013'].value.code")
+                        .value("SCHEDULE-013"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-008'].value.code")
+                        .value("SCHEDULE-008"))
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.ScheduleChangeResponse']"
+                                + ".properties.applied")
+                        .exists());
+    }
+
+    @Test
     void documentsWorkUnassignment() throws Exception {
         String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/assignment'].delete";
         mockMvc.perform(get("/docs-json"))
