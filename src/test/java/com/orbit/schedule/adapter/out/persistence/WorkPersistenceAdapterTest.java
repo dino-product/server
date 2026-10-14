@@ -36,6 +36,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.TechnicianId;
@@ -171,6 +172,51 @@ class WorkPersistenceAdapterTest {
                             work.cancel(NOW.plusSeconds(30), MANAGER, CancellationReason.TECHNICIAN_ISSUE, null);
                         },
                         WorkStatus.CANCELLED));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("plannedSchedules")
+    @DisplayName("대기함 작업이 미리 입력한 일정은 일정 컬럼에 담아 저장했다가 그대로 복원한다")
+    void roundTripsPlannedScheduleOfBacklogWork(String name, PlannedSchedule planned) {
+        OrganizationId organization = organization();
+        Work work = Work.register(organization, name, REGISTRAR, null, null, null, planned);
+
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+        Work found = find(organization, id);
+
+        assertThat(found.status()).isEqualTo(WorkStatus.REGISTERED);
+        assertThat(found.schedule()).isEmpty();
+        assertThat(found.plannedSchedule()).contains(planned);
+        assertThat(found).usingRecursiveComparison().ignoringFields("id").isEqualTo(work);
+    }
+
+    static Stream<Arguments> plannedSchedules() {
+        return Stream.of(
+                Arguments.of("담당기사만", new PlannedSchedule(TECHNICIAN, null, null)),
+                Arguments.of("시간만", new PlannedSchedule(null, NOW, Duration.ofMinutes(90))),
+                Arguments.of("담당기사·시작시각", new PlannedSchedule(TECHNICIAN, NOW, null)));
+    }
+
+    @Test
+    @DisplayName("미리 입력한 담당기사는 기사의 활성 작업이 아니고, 배정하면 실제 일정으로 저장되어 활성 작업으로 조회된다")
+    void storesAssignedScheduleAfterPlanned() {
+        OrganizationId organization = organization();
+        Work work = Work.register(
+                organization, "배정 전환", REGISTRAR, null, null, null, new PlannedSchedule(TECHNICIAN, null, null));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+        assertThat(inTx(() -> adapter().listActiveByTechnician(organization, TECHNICIAN)))
+                .isEmpty();
+        Work stored = find(organization, id);
+
+        stored.assign(SCHEDULE, NOW, MANAGER);
+        inTx(() -> adapter().save(stored));
+
+        Work found = find(organization, id);
+        assertThat(found.plannedSchedule()).isEmpty();
+        assertThat(found.schedule()).contains(SCHEDULE);
+        assertThat(inTx(() -> adapter().listActiveByTechnician(organization, TECHNICIAN)))
+                .extracting(active -> active.id().orElseThrow())
+                .containsExactly(id);
     }
 
     private static void completeWithHistory(Work work) {

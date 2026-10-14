@@ -47,6 +47,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -155,8 +156,38 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
         }
 
         @Test
-        @DisplayName("일정 항목을 일부만 주거나 작업명이 비면 400 SCHEDULE-003이고 만들지 않는다")
-        void rejectsPartialScheduleAndBlankName() throws Exception {
+        @DisplayName("일정 항목을 일부만 주면 입력한 값을 남긴 채 대기함에 둔다")
+        void keepsPartialScheduleInBacklog() throws Exception {
+            Organization organization = organization();
+            activeTechnician(organization, 12L);
+
+            long technicianOnly = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "schedule", Map.of("technicianId", 12)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true)));
+            long timeOnly = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of(
+                                    "name",
+                                    "보일러 점검",
+                                    "schedule",
+                                    Map.of("startTime", START.toString(), "expectedDurationMinutes", 60)))
+                    .andExpect(status().isOk()));
+
+            Work technicianWork = stored(organization, technicianOnly);
+            assertThat(technicianWork.status()).isEqualTo(WorkStatus.REGISTERED);
+            assertThat(technicianWork.plannedSchedule())
+                    .contains(new PlannedSchedule(new TechnicianId(12L), null, null));
+            assertThat(stored(organization, timeOnly).plannedSchedule())
+                    .contains(new PlannedSchedule(null, START, Duration.ofHours(1)));
+        }
+
+        @Test
+        @DisplayName("일부만 준 담당기사가 활성 기사 계약이 아니거나 작업명이 비면 400이고 만들지 않는다")
+        void rejectsInactivePlannedTechnicianAndBlankName() throws Exception {
             Organization organization = organization();
 
             create(
@@ -164,7 +195,7 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                             organization.id(),
                             Map.of("name", "에어컨 수리", "schedule", Map.of("technicianId", 12)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-013"));
             create(organization.owner(), organization.id(), Map.of("name", " "))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-003"));

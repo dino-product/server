@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,6 +34,7 @@ import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -277,15 +279,47 @@ class CreateWorkServiceTest {
     }
 
     @Test
-    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 대기함 보관을 아직 지원하지 않아 입력 오류다(S-15)")
-    void rejectsPartialSchedule() {
+    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고 기사를 잠그지 않는다")
+    void keepsPartialScheduleInBacklog() {
         fixture.givenManager();
 
+        CreatedWorkInfo technicianOnly = service.create(scheduled(TECHNICIAN_ID.value(), null, null, false));
+        CreatedWorkInfo timeOnly = service.create(scheduled(null, TEN, TWO_HOURS, false));
+
+        assertThat(technicianOnly.scheduleChange().applied()).isTrue();
+        assertThat(fixture.workRepository.saved())
+                .extracting(Work::status, work -> work.plannedSchedule().orElseThrow())
+                .containsExactly(
+                        Tuple.tuple(WorkStatus.REGISTERED, new PlannedSchedule(TECHNICIAN_ID, null, null)),
+                        Tuple.tuple(WorkStatus.REGISTERED, new PlannedSchedule(null, TEN, TWO_HOURS)));
+        assertThat(timeOnly.workId()).isNotNull();
+        assertThat(fixture.scheduleLock.locks()).isEmpty();
+        assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("일부만 준 담당기사가 활성 기사 계약이 아니면 저장하지 않고 배정할 수 없는 기사 오류다")
+    void rejectsInactiveTechnicianOfPartialSchedule() {
+        fixture.givenManager();
+        fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
+
         fixture.assertRejected(
-                () -> service.create(scheduled(TECHNICIAN_ID.value(), null, null, false)),
+                () -> service.create(scheduled(TECHNICIAN_ID.value(), TEN, null, false)),
+                ScheduleErrorCode.TECHNICIAN_NOT_ASSIGNABLE);
+    }
+
+    @Test
+    @DisplayName("일부만 준 값도 형식이 틀리면 기사 계약 확인보다 먼저 입력 오류다")
+    void checksPartialInputBeforeTechnicianContract() {
+        fixture.givenManager();
+        fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
+
+        fixture.assertRejected(
+                () -> service.create(scheduled(TECHNICIAN_ID.value(), null, Duration.ZERO, false)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
         fixture.assertRejected(
-                () -> service.create(scheduled(null, TEN, TWO_HOURS, false)), ScheduleErrorCode.INVALID_WORK_INPUT);
+                () -> service.create(scheduled(0L, null, null, false)), ScheduleErrorCode.INVALID_WORK_INPUT);
+        assertThat(fixture.technicianContracts.checks()).isZero();
     }
 
     @Test

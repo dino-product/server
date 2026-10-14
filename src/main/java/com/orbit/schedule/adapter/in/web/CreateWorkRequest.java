@@ -16,5 +16,5 @@ public record CreateWorkRequest(
         @Schema(description = "고객 정보") @Valid WorkCustomerRequest customer,
         @Schema(description = "결제 정보") @Valid WorkPaymentRequest payment,
 
-        @Schema(description = "담당기사·일정. 주면 등록과 함께 배정하고, 비우면 대기함에 둔다. 항목 일부만 주면 SCHEDULE-003") @Valid
+        @Schema(description = "담당기사·일정. 모두 주면 등록과 함께 배정하고, 일부만 주면 입력한 값을 남긴 채 대기함에 두며, 비우면 대기함에 둔다") @Valid
         WorkScheduleRequest schedule) {}

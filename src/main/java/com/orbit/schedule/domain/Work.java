@@ -37,6 +37,7 @@ public final class Work {
     private Instant completedAt;
     private Cancellation cancellation;
     private final List<StatusCorrection> statusCorrections;
+    private PlannedSchedule plannedSchedule;
 
     private Work(
             WorkId id,
@@ -106,6 +107,20 @@ public final class Work {
                 List.of());
     }
 
+    /** 등록 때 담당기사·시간을 일부만 입력했으면 그 값을 미리 입력한 일정으로 남겨 대기함에 둔다. 없으면 {@code null}이다. */
+    public static Work register(
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            WorkTypeId workType,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            PlannedSchedule plannedSchedule) {
+        Work work = register(organizationId, name, registrarId, workType, customerInfo, paymentInfo);
+        work.plannedSchedule = plannedSchedule;
+        return work;
+    }
+
     public static Work reconstitute(
             WorkId id,
             OrganizationId organizationId,
@@ -142,6 +157,47 @@ public final class Work {
         return work;
     }
 
+    /** 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간까지 복원한다. 미리 입력한 일정은 대기함(등록) 작업에만 있다. */
+    public static Work reconstitute(
+            WorkId id,
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            WorkTypeId workType,
+            WorkSchedule schedule,
+            PlannedSchedule plannedSchedule,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            WorkStatus status,
+            List<AssignmentHistory> assignmentHistory,
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt,
+            Cancellation cancellation,
+            List<StatusCorrection> statusCorrections) {
+        Work work = reconstitute(
+                id,
+                organizationId,
+                name,
+                registrarId,
+                workType,
+                schedule,
+                customerInfo,
+                paymentInfo,
+                status,
+                assignmentHistory,
+                completionReport,
+                startedAt,
+                completedAt,
+                cancellation,
+                statusCorrections);
+        if (plannedSchedule != null && status != WorkStatus.REGISTERED) {
+            throw new IllegalArgumentException("Only a REGISTERED work can have a planned schedule");
+        }
+        work.plannedSchedule = plannedSchedule;
+        return work;
+    }
+
     public Optional<WorkId> id() {
         return Optional.ofNullable(id);
     }
@@ -164,6 +220,10 @@ public final class Work {
 
     public Optional<WorkSchedule> schedule() {
         return Optional.ofNullable(schedule);
+    }
+
+    public Optional<PlannedSchedule> plannedSchedule() {
+        return Optional.ofNullable(plannedSchedule);
     }
 
     public CustomerInfo customerInfo() {
@@ -237,6 +297,7 @@ public final class Work {
         requireNotBeforeLatestCorrection(assignedAt, "assignedAt");
         WorkStatus nextStatus = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
         schedule = newSchedule;
+        plannedSchedule = null;
         assignmentHistory.add(newAssignment);
         status = nextStatus;
     }
@@ -366,6 +427,7 @@ public final class Work {
                             AssignmentEndReason.CANCELLED));
         }
         cancellation = newCancellation;
+        plannedSchedule = null;
         status = cancelled;
     }
 

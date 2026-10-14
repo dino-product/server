@@ -13,6 +13,7 @@ import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
@@ -64,12 +65,16 @@ final class WorkMapper {
                 customer.address().orElse(null),
                 payment.method().orElse(null),
                 payment.fee().map(Money::won).orElse(null));
+        // 대기함 작업은 일정 대신 등록 때 일부만 입력해 둔 값을 같은 컬럼에 담는다(둘은 동시에 있지 않다).
         WorkSchedule schedule = work.schedule().orElse(null);
+        PlannedSchedule planned = work.plannedSchedule().orElse(null);
+        TechnicianId technician =
+                schedule != null ? schedule.technicianId() : planned == null ? null : planned.technicianId();
         entity.updateStatusAndSchedule(
                 work.status(),
-                schedule == null ? null : schedule.technicianId().value(),
-                schedule == null ? null : schedule.startTime(),
-                schedule == null ? null : schedule.expectedDuration());
+                technician == null ? null : technician.value(),
+                schedule != null ? schedule.startTime() : planned == null ? null : planned.startTime(),
+                schedule != null ? schedule.expectedDuration() : planned == null ? null : planned.expectedDuration());
         Cancellation cancellation = work.cancellation().orElse(null);
         entity.updateProgress(
                 work.startedAt().orElse(null),
@@ -85,10 +90,20 @@ final class WorkMapper {
     static Work toDomain(WorkJpaEntity entity) {
         List<AssignmentHistory> histories =
                 entity.assignments().stream().map(WorkMapper::toHistory).toList();
-        WorkSchedule schedule = entity.technicianId() == null
+        boolean backlog = entity.status() == WorkStatus.REGISTERED;
+        WorkSchedule schedule = backlog || entity.technicianId() == null
                 ? null
                 : new WorkSchedule(
                         new TechnicianId(entity.technicianId()), entity.scheduledStartAt(), entity.expectedDuration());
+        PlannedSchedule planned = !backlog
+                        || (entity.technicianId() == null
+                                && entity.scheduledStartAt() == null
+                                && entity.expectedDuration() == null)
+                ? null
+                : new PlannedSchedule(
+                        entity.technicianId() == null ? null : new TechnicianId(entity.technicianId()),
+                        entity.scheduledStartAt(),
+                        entity.expectedDuration());
         Cancellation cancellation = entity.cancelledAt() == null
                 ? null
                 : new Cancellation(
@@ -103,6 +118,7 @@ final class WorkMapper {
                 new MembershipId(entity.createdBy()),
                 entity.jobTypeId() == null ? null : new WorkTypeId(entity.jobTypeId()),
                 schedule,
+                planned,
                 new CustomerInfo(entity.customerName(), entity.customerPhone(), entity.customerAddress()),
                 new PaymentInfo(entity.fee() == null ? null : new Money(entity.fee()), entity.paymentMethod()),
                 entity.status(),

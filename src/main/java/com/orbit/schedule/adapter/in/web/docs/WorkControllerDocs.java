@@ -23,11 +23,11 @@ public interface WorkControllerDocs {
     @Operation(
             summary = "작업 등록",
             description = "작업을 등록합니다. 작업명만 필수입니다. schedule(담당기사·시작 시각·예상 소요시간)을 모두 주면 등록과 함께 배정해 "
-                    + "기사의 수락을 기다리고, 비우면 대기함에 둡니다. schedule 항목을 일부만 주면 SCHEDULE-003입니다. "
+                    + "기사의 수락을 기다리고, 비우면 대기함에 둡니다. schedule 항목을 일부만 주면 입력한 값을 남긴 채 대기함에 둡니다. "
                     + "같은 기사의 다른 작업과 시간이 겹치는데 schedule.conflictConfirmed가 false면 작업을 만들지 않고 applied=false와 "
                     + "겹친 작업을 돌려줍니다(오류 아님). 확인 뒤 schedule.conflictConfirmed=true로 다시 보내면 만듭니다. "
                     + "입력 규칙 위반은 SCHEDULE-003, 본문 형식 오류(목록에 없는 결제 방식 등)는 COMMON-400, 선택할 수 없는 작업 유형은 SCHEDULE-014, "
-                    + "배정할 기사가 그 조직의 활성 기사 계약이 아니면 SCHEDULE-013, 같은 기사의 다른 변경을 기다리다 시간이 지나면 SCHEDULE-006입니다. "
+                    + "배정하거나 일부만 준 담당기사가 그 조직의 활성 기사 계약이 아니면 SCHEDULE-013, 같은 기사의 다른 변경을 기다리다 시간이 지나면 SCHEDULE-006입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
