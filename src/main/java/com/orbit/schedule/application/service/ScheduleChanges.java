@@ -2,6 +2,7 @@ package com.orbit.schedule.application.service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
@@ -39,6 +40,19 @@ final class ScheduleChanges {
             Work changedWork,
             boolean conflictConfirmed,
             Runnable afterLock) {
+        return apply(workRepository, lockTechnicianSchedulePort, changedWork, conflictConfirmed, afterLock)
+                .info();
+    }
+
+    /** 판정 결과와, 반영했으면 저장소가 돌려준 작업. 새로 등록하는 작업은 저장한 뒤에야 식별자가 생긴다. */
+    record Outcome(ScheduleChangeInfo info, Optional<Work> saved) {}
+
+    static Outcome apply(
+            WorkRepository workRepository,
+            LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            Work changedWork,
+            boolean conflictConfirmed,
+            Runnable afterLock) {
         WorkSchedule schedule = changedWork
                 .schedule()
                 .orElseThrow(() -> new IllegalStateException("changed work must have a schedule"));
@@ -52,11 +66,11 @@ final class ScheduleChanges {
                         .sorted(Comparator.comparing(ConflictingWork::startTime).thenComparing(ConflictingWork::workId))
                         .toList();
         if (!conflicts.isEmpty() && !conflictConfirmed) {
-            return ScheduleChangeInfo.withheld(conflicts);
+            return new Outcome(ScheduleChangeInfo.withheld(conflicts), Optional.empty());
         }
 
-        workRepository.save(changedWork);
-        return ScheduleChangeInfo.applied(conflicts);
+        Work saved = workRepository.save(changedWork);
+        return new Outcome(ScheduleChangeInfo.applied(conflicts), Optional.of(saved));
     }
 
     private static ConflictingWork toConflictingWork(Work work) {

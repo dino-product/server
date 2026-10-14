@@ -203,7 +203,19 @@ class ScheduleModuleTest {
     @Test
     void assembledCreateWorkUseCaseDeniesAccountWithoutActiveOrganizationMember() {
         assertThatThrownBy(() -> createWorkUseCase.create(new CreateWorkCommand(
-                        1L, ORGANIZATION_ID.value(), "모듈 작업", null, null, null, null, null, null)))
+                        1L,
+                        ORGANIZATION_ID.value(),
+                        "모듈 작업",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
     }

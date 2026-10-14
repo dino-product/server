@@ -246,7 +246,19 @@ class ScheduleUseCaseFlowTest {
     private long create(String name) {
         return createWorkUseCase
                 .create(new CreateWorkCommand(
-                        ACCOUNT_ID, organizationId.value(), name, null, null, null, null, null, null))
+                        ACCOUNT_ID,
+                        organizationId.value(),
+                        name,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false))
                 .workId();
     }
 

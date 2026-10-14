@@ -38,6 +38,7 @@ class TechnicianScheduleLockIsolationTest {
                 .contains(
                         "AssignWorkService",
                         "ChangeWorkAssignmentService",
+                        "CreateWorkService",
                         "ReassignWorkService",
                         "RescheduleWorkService",
                         "StartWorkService",
