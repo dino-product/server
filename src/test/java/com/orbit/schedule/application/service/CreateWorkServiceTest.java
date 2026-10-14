@@ -4,6 +4,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCO
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.WORK_TYPE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -34,7 +35,8 @@ import com.orbit.shared.error.BusinessException;
 class CreateWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final CreateWorkService service = new CreateWorkService(fixture.actorPort, fixture.workRepository);
+    private final CreateWorkService service =
+            new CreateWorkService(fixture.actorPort, fixture.workRepository, fixture.workTypes);
 
     @ParameterizedTest
     @EnumSource(
@@ -138,11 +140,41 @@ class CreateWorkServiceTest {
     }
 
     @Test
+    @DisplayName("작업 유형이 요청 조직에서 선택할 수 없는 유형이면 저장하지 않고 선택할 수 없는 작업 유형 오류다")
+    void rejectsWorkTypeNotSelectable() {
+        fixture.givenManager();
+        fixture.workTypes.givenSelectable(OTHER_ORGANIZATION_ID, new WorkTypeId(10L));
+        fixture.workTypes.givenNotSelectable(ORGANIZATION_ID, WORK_TYPE_ID);
+
+        for (long workTypeId : new long[] {WORK_TYPE_ID.value(), 10L}) {
+            fixture.assertRejected(
+                    () -> service.create(new CreateWorkCommand(
+                            ACCOUNT_ID, ORGANIZATION_ID.value(), "에어컨 수리", workTypeId, null, null, null, null, null)),
+                    ScheduleErrorCode.WORK_TYPE_NOT_SELECTABLE);
+        }
+    }
+
+    @Test
+    @DisplayName("작업 유형은 입력 확인을 통과했고 유형을 지정한 요청만 확인한다")
+    void checksWorkTypeOnlyAfterInputWhenGiven() {
+        fixture.givenManager();
+        fixture.workTypes.givenNotSelectable(ORGANIZATION_ID, WORK_TYPE_ID);
+
+        fixture.assertRejected(() -> service.create(command(" ", null)), ScheduleErrorCode.INVALID_WORK_INPUT);
+        service.create(new CreateWorkCommand(
+                ACCOUNT_ID, ORGANIZATION_ID.value(), "에어컨 수리", null, null, null, null, null, null));
+
+        assertThat(fixture.singleSaved().workType()).isEmpty();
+        assertThat(fixture.workTypes.checks()).isZero();
+    }
+
+    @Test
     @DisplayName("행위자 포트가 요청과 다른 조직의 행위자를 돌려주면 프로그래밍 오류로 멈추고 저장하지 않는다")
     void failsFastWhenActorBelongsToOtherOrganization() {
         LoadActorPort misbehavingPort = (accountId, organizationId) ->
                 Optional.of(new ManagerActor(new MembershipId(11L), OTHER_ORGANIZATION_ID, ActorRole.OWNER));
-        CreateWorkService serviceWithMisbehavingPort = new CreateWorkService(misbehavingPort, fixture.workRepository);
+        CreateWorkService serviceWithMisbehavingPort =
+                new CreateWorkService(misbehavingPort, fixture.workRepository, fixture.workTypes);
 
         assertThatThrownBy(() -> serviceWithMisbehavingPort.create(command("에어컨 수리", null)))
                 .isInstanceOf(IllegalStateException.class)

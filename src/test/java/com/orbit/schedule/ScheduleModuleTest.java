@@ -64,8 +64,10 @@ import com.orbit.schedule.application.port.in.query.dto.GetWorkHistoryQuery;
 import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
+import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
+import com.orbit.schedule.application.port.out.WorkTypePort;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.MembershipId;
@@ -75,6 +77,7 @@ import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.schedule.domain.WorkTypeId;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.support.TestcontainersConfiguration;
 
@@ -91,6 +94,12 @@ class ScheduleModuleTest {
 
     @Autowired
     private LoadActorPort loadActorPort;
+
+    @Autowired
+    private TechnicianContractPort technicianContractPort;
+
+    @Autowired
+    private WorkTypePort workTypePort;
 
     // organization 공개 계약. 조립 테스트는 schedule만 띄우므로 대체하며, 넣지 않으면 활성 구성원이 없다.
     @MockitoBean
@@ -268,6 +277,14 @@ class ScheduleModuleTest {
         workRepository.save(Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), null, null, null));
 
         assertThat(workQueryPort.listBacklog(ORGANIZATION_ID)).isEmpty();
+    }
+
+    @Test
+    void assembledOrganizationReferencePortsDenyUntilOrganizationContracts() {
+        assertThat(technicianContractPort.isActive(ORGANIZATION_ID, new TechnicianId(3L)))
+                .isFalse();
+        assertThat(workTypePort.isSelectable(ORGANIZATION_ID, new WorkTypeId(2L)))
+                .isFalse();
     }
 
     @Test
