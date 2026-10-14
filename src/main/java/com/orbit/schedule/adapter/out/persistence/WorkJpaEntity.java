@@ -26,6 +26,7 @@ import org.hibernate.type.SqlTypes;
 
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.Cancellation;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.PaymentMethod;
@@ -109,8 +110,12 @@ class WorkJpaEntity extends BaseTimeEntity {
     @Column(name = "cancelled_by")
     private Long cancelledBy;
 
-    @Column(name = "cancel_reason", length = Cancellation.MAX_REASON_LENGTH)
-    private String cancelReason;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancel_reason", length = 30)
+    private CancellationReason cancelReason;
+
+    @Column(name = "cancel_note", length = Cancellation.MAX_NOTE_LENGTH)
+    private String cancelNote;
 
     @Column(name = "used_parts", length = CompletionReport.MAX_USED_PARTS_LENGTH)
     private String usedParts;
@@ -220,8 +225,12 @@ class WorkJpaEntity extends BaseTimeEntity {
         return cancelledBy;
     }
 
-    String cancelReason() {
+    CancellationReason cancelReason() {
         return cancelReason;
+    }
+
+    String cancelNote() {
+        return cancelNote;
     }
 
     String usedParts() {
@@ -281,12 +290,14 @@ class WorkJpaEntity extends BaseTimeEntity {
             Instant newCompletedAt,
             Instant newCancelledAt,
             Long newCancelledBy,
-            String newCancelReason) {
+            CancellationReason newCancelReason,
+            String newCancelNote) {
         this.startedAt = newStartedAt;
         this.completedAt = newCompletedAt;
         this.cancelledAt = newCancelledAt;
         this.cancelledBy = newCancelledBy;
         this.cancelReason = newCancelReason;
+        this.cancelNote = newCancelNote;
     }
 
     /** 완료보고 스칼라 항목. 보고가 없으면 null 넷. 사진은 {@link #images()}를 바꾼다. */

@@ -28,6 +28,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
@@ -154,14 +155,20 @@ class WorkPersistenceAdapterTest {
                         },
                         WorkStatus.COMPLETED),
                 Arguments.of(
-                        "취소(대기함에서)", (Consumer<Work>) work -> work.cancel(NOW, MANAGER, "고객 요청"), WorkStatus.CANCELLED),
+                        "취소(대기함에서)",
+                        (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.CUSTOMER_REQUEST, null),
+                        WorkStatus.CANCELLED),
+                Arguments.of(
+                        "취소(대기함에서, 기타 사유 메모)",
+                        (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.OTHER, "고객 연락 두절"),
+                        WorkStatus.CANCELLED),
                 Arguments.of(
                         "취소(작업중에서)",
                         (Consumer<Work>) work -> {
                             work.assign(SCHEDULE, NOW, MANAGER);
                             work.accept(NOW.plusSeconds(10));
                             work.start(NOW.plusSeconds(20));
-                            work.cancel(NOW.plusSeconds(30), MANAGER, "기사 사정");
+                            work.cancel(NOW.plusSeconds(30), MANAGER, CancellationReason.TECHNICIAN_ISSUE, null);
                         },
                         WorkStatus.CANCELLED));
     }
@@ -329,7 +336,7 @@ class WorkPersistenceAdapterTest {
         OrganizationId organization = organization();
         Work work = registered(organization, "정정된 작업");
         work.assign(SCHEDULE, NOW, MANAGER);
-        work.cancel(NOW.plusSeconds(10), MANAGER, "중복 등록");
+        work.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
         work.correctStatus(WorkStatus.REGISTERED, NOW.plusSeconds(20), MANAGER, "잘못 취소");
 
         assertThatThrownBy(() -> inTx(() -> adapter().save(work)))
@@ -395,7 +402,7 @@ class WorkPersistenceAdapterTest {
         reassignedAway.reassign(OTHER_SCHEDULE, NOW.plusSeconds(10), MANAGER);
         Work cancelled = registered(organization, "취소");
         cancelled.assign(SCHEDULE, NOW, MANAGER);
-        cancelled.cancel(NOW.plusSeconds(10), MANAGER, "중복 등록");
+        cancelled.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
         Work backlog = registered(organization, "대기함");
         Work otherOrganization = registered(organization(), "다른 조직");
         otherOrganization.assign(SCHEDULE, NOW, MANAGER);

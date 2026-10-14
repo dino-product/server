@@ -76,7 +76,8 @@ final class WorkMapper {
                 work.completedAt().orElse(null),
                 cancellation == null ? null : cancellation.cancelledAt(),
                 cancellation == null ? null : cancellation.cancelledBy().value(),
-                cancellation == null ? null : cancellation.reason());
+                cancellation == null ? null : cancellation.reason(),
+                cancellation == null ? null : cancellation.note());
         applyAssignments(entity, work.assignmentHistory());
         applyCompletionReport(entity, previousStatus, work.completionReport().orElse(null));
     }
@@ -90,7 +91,11 @@ final class WorkMapper {
                         new TechnicianId(entity.technicianId()), entity.scheduledStartAt(), entity.expectedDuration());
         Cancellation cancellation = entity.cancelledAt() == null
                 ? null
-                : new Cancellation(entity.cancelledAt(), new MembershipId(entity.cancelledBy()), entity.cancelReason());
+                : new Cancellation(
+                        entity.cancelledAt(),
+                        new MembershipId(entity.cancelledBy()),
+                        entity.cancelReason(),
+                        entity.cancelNote());
         return Work.reconstitute(
                 new WorkId(entity.id()),
                 new OrganizationId(entity.companyId()),

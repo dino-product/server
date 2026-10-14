@@ -27,6 +27,7 @@ import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
 
@@ -91,7 +92,8 @@ class ManagedWorkCommandRulesTest {
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),
-                                request.validInput() ? "고객 요청" : " "))),
+                                request.validInput() ? CancellationReason.CUSTOMER_REQUEST : null,
+                                null))),
                 new UseCase("관리자 강제 상태 변경", (f, request) -> new CorrectWorkStatusService(
                                 f.actorPort, f.workRepository, f.scheduleLock, f.clock)
                         .correct(new CorrectWorkStatusCommand(

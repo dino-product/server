@@ -62,7 +62,10 @@ final class WorkViews {
 
     static WorkDetailInfo.Cancellation cancellation(Cancellation cancellation) {
         return new WorkDetailInfo.Cancellation(
-                cancellation.cancelledAt(), cancellation.cancelledBy().value(), cancellation.reason());
+                cancellation.cancelledAt(),
+                cancellation.cancelledBy().value(),
+                cancellation.reason(),
+                cancellation.note());
     }
 
     /** 사진은 식별자와 함께 내려받을 주소를 담는다. */

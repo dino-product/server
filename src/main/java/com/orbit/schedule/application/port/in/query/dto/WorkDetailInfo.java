@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.WorkStatus;
@@ -73,7 +74,7 @@ public record WorkDetailInfo(
             Instant endedAt,
             Long endedBy) {}
 
-    public record Cancellation(Instant cancelledAt, Long cancelledBy, String reason) {}
+    public record Cancellation(Instant cancelledAt, Long cancelledBy, CancellationReason reason, String note) {}
 
     /**
      * 관리자 강제 변경 한 건과 그때 작업에서 치운 기록. 치운 것이 없으면 해당 항목이 null이다.

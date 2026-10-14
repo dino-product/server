@@ -17,6 +17,7 @@ import com.orbit.schedule.application.service.fake.FakeTechnicianContractPort;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
 import com.orbit.schedule.application.service.fake.FakeWorkTypePort;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
@@ -115,7 +116,7 @@ final class ScheduleServiceFixture {
             work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), ACCEPTED_AT);
         }
         if (status == WorkStatus.CANCELLED) {
-            work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID, "고객 요청");
+            work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         }
         return workRepository.store(work);
     }

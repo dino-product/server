@@ -347,12 +347,12 @@ public final class Work {
     }
 
     /**
-     * 완료 전 작업을 취소하고 취소 시각·처리자·사유를 작업에 남긴다. 현재 배정이 있으면(수락대기·수락됨·작업중) 같은 시각·처리자를 그 배정의 종료로도 남겨,
+     * 완료 전 작업을 취소하고 취소 시각·처리자·사유(기타면 메모)를 작업에 남긴다. 현재 배정이 있으면(수락대기·수락됨·작업중) 같은 시각·처리자를 그 배정의 종료로도 남겨,
      * 배정이 왜 끝났는지 이력에서 알 수 있게 한다. 작업중이던 작업은 시작 시각을 그대로 둔다. 취소 시각은 배정 이력의 마지막 시각, 시작 시각과 마지막
      * 상태 정정 시각보다 앞설 수 없다. 입력(사유 등)을 상태보다 먼저 검증한다.
      */
-    public void cancel(Instant cancelledAt, MembershipId cancelledBy, String reason) {
-        Cancellation newCancellation = new Cancellation(cancelledAt, cancelledBy, reason);
+    public void cancel(Instant cancelledAt, MembershipId cancelledBy, CancellationReason reason, String note) {
+        Cancellation newCancellation = new Cancellation(cancelledAt, cancelledBy, reason, note);
         WorkStatus cancelled = status.transitionTo(WorkStatus.CANCELLED);
         requireNotBeforeStart(newCancellation.cancelledAt(), "cancelledAt");
         // 현재 배정이 있어도 없어도 같은 이름(cancelledAt)으로 알리도록, 배정 종료의 하한보다 먼저 확인한다.
