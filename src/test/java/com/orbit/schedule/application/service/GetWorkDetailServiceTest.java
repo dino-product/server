@@ -29,6 +29,7 @@ import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.MembershipId;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -128,6 +129,25 @@ class GetWorkDetailServiceTest {
                             NOW.minusSeconds(60), SETUP_MANAGER_ID.value(), CancellationReason.CUSTOMER_REQUEST, null));
             assertThat(correction.restoredAssignmentNumber()).isEqualTo(2);
         });
+    }
+
+    @Test
+    @DisplayName("관리자는 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간을 본다")
+    void showsPlannedScheduleOfBacklogWork() {
+        fixture.givenManager();
+        WorkId id = fixture.workRepository.store(Work.register(
+                ORGANIZATION_ID,
+                "시간만 정한 작업",
+                SETUP_MANAGER_ID,
+                null,
+                null,
+                null,
+                new PlannedSchedule(null, TEN, TWO_HOURS)));
+
+        WorkDetailInfo detail = service.get(query(id.value()));
+
+        assertThat(detail.schedule()).isNull();
+        assertThat(detail.plannedSchedule()).isEqualTo(new WorkDetailInfo.PlannedSchedule(null, TEN, TWO_HOURS));
     }
 
     @Test

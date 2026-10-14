@@ -309,6 +309,32 @@ class CreateWorkServiceTest {
     }
 
     @Test
+    @DisplayName("작업 유형은 일부만 준 담당기사의 기사 계약보다 먼저 확인한다")
+    void checksWorkTypeBeforePlannedTechnician() {
+        fixture.givenManager();
+        fixture.workTypes.givenNotSelectable(ORGANIZATION_ID, WORK_TYPE_ID);
+        fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
+
+        fixture.assertRejected(
+                () -> service.create(new CreateWorkCommand(
+                        ACCOUNT_ID,
+                        ORGANIZATION_ID.value(),
+                        "에어컨 수리",
+                        WORK_TYPE_ID.value(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        TECHNICIAN_ID.value(),
+                        null,
+                        null,
+                        false)),
+                ScheduleErrorCode.WORK_TYPE_NOT_SELECTABLE);
+        assertThat(fixture.technicianContracts.checks()).isZero();
+    }
+
+    @Test
     @DisplayName("일부만 준 값도 형식이 틀리면 기사 계약 확인보다 먼저 입력 오류다")
     void checksPartialInputBeforeTechnicianContract() {
         fixture.givenManager();

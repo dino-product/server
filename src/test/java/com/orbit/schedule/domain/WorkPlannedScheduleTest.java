@@ -44,6 +44,17 @@ class WorkPlannedScheduleTest {
     }
 
     @Test
+    @DisplayName("기본정보를 수정해도 미리 입력한 일정은 그대로 둔다")
+    void keepsPlannedScheduleOnDetailsChange() {
+        PlannedSchedule planned = new PlannedSchedule(TECHNICIAN, TEN, null);
+        Work work = register(planned);
+
+        work.changeDetails("보일러 점검", null, null, null);
+
+        assertThat(work.plannedSchedule()).contains(planned);
+    }
+
+    @Test
     @DisplayName("대기함에서 취소하면 미리 입력한 일정도 지운다")
     void clearsPlannedScheduleOnCancel() {
         Work work = register(new PlannedSchedule(null, TEN, null));

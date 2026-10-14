@@ -20,6 +20,7 @@ import com.orbit.schedule.domain.WorkStatus;
  * @param customer 고객 정보. 기사가 지금 담당이 아니면 null
  * @param payment 결제 정보. 기사가 지금 담당이 아니면 null
  * @param schedule 현재 일정. 대기함 작업이거나 기사가 지금 담당이 아니면 null
+ * @param plannedSchedule 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간. 없거나 기사가 지금 담당이 아니면 null
  * @param assignments 배정 이력. 기사에게는 자기 배정만 원래 순번 그대로 담는다
  * @param startedAt 작업 시작 시각. 없거나 기사가 지금 담당이 아니면 null
  * @param completedAt 완료 시각. 없거나 기사가 지금 담당이 아니면 null
@@ -36,6 +37,7 @@ public record WorkDetailInfo(
         Customer customer,
         Payment payment,
         Schedule schedule,
+        PlannedSchedule plannedSchedule,
         List<Assignment> assignments,
         Instant startedAt,
         Instant completedAt,
@@ -53,6 +55,9 @@ public record WorkDetailInfo(
 
     /** 입력하지 않은 항목은 null이다. */
     public record Payment(Long fee, PaymentMethod method) {}
+
+    /** 미리 입력한 일정. 셋 중 일부만 있다. */
+    public record PlannedSchedule(Long technicianId, Instant startTime, Duration expectedDuration) {}
 
     public record Schedule(Long technicianId, Instant startTime, Duration expectedDuration, Instant endTime) {}
 

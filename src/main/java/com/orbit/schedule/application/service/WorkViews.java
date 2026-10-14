@@ -14,6 +14,7 @@ import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.StatusCorrection;
 import com.orbit.schedule.domain.TechnicianActor;
@@ -58,6 +59,13 @@ final class WorkViews {
     /** 그 기사의 배정만 옮긴다. 순번은 전체 이력 기준 그대로다. */
     static List<WorkDetailInfo.Assignment> assignmentsOf(Work work, TechnicianId technicianId) {
         return assignments(work, technicianId);
+    }
+
+    static WorkDetailInfo.PlannedSchedule plannedSchedule(PlannedSchedule planned) {
+        return new WorkDetailInfo.PlannedSchedule(
+                planned.technicianId() == null ? null : planned.technicianId().value(),
+                planned.startTime(),
+                planned.expectedDuration());
     }
 
     static WorkDetailInfo.Cancellation cancellation(Cancellation cancellation) {
