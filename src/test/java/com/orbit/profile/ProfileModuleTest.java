@@ -57,7 +57,7 @@ class ProfileModuleTest {
     void withdrawsThroughAuthAccountClosureContract() {
         saveProfile.save(new SaveProfileCommand(79L, 79L, "홍길동", "01012345678"));
 
-        withdraw.withdraw(new WithdrawCommand(79L, 79L));
+        withdraw.withdraw(new WithdrawCommand(79L, 79L, null));
 
         verify(accountClosure).close(79L);
     }

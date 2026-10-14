@@ -23,6 +23,7 @@ import com.orbit.profile.domain.PhoneNumber;
 import com.orbit.profile.domain.Profile;
 import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.TermsAgreement;
+import com.orbit.profile.domain.WithdrawalReason;
 import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
@@ -52,6 +53,9 @@ class ProfileJpaEntity extends BaseTimeEntity {
 
     @Column(name = "withdrawn_at")
     private Instant withdrawnAt;
+
+    @Column(name = "withdrawal_reason", length = 200)
+    private String withdrawalReason;
 
     @Column(name = "marketing_agreed")
     private Boolean marketingAgreed;
@@ -83,6 +87,8 @@ class ProfileJpaEntity extends BaseTimeEntity {
         this.status = profile.status();
         this.signedUpAt = profile.signedUpAt().orElse(null);
         this.withdrawnAt = profile.withdrawnAt().orElse(null);
+        this.withdrawalReason =
+                profile.withdrawalReason().map(WithdrawalReason::value).orElse(null);
         this.marketingAgreed =
                 profile.marketingConsent().map(MarketingConsent::agreed).orElse(null);
         this.marketingChangedAt =
@@ -104,6 +110,7 @@ class ProfileJpaEntity extends BaseTimeEntity {
                 status,
                 signedUpAt,
                 withdrawnAt,
+                withdrawalReason == null ? null : new WithdrawalReason(withdrawalReason),
                 agreements.stream().map(TermsAgreementJpaEntity::toDomain).toList(),
                 marketingConsent);
     }

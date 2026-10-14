@@ -18,6 +18,7 @@ import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.ProfileRepository;
 import com.orbit.profile.domain.AccountId;
 import com.orbit.profile.domain.Profile;
+import com.orbit.profile.domain.WithdrawalReason;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.error.CommonErrorCode;
 
@@ -55,6 +56,7 @@ public class WithdrawService implements WithdrawUseCase {
     @Transactional
     public void withdraw(WithdrawCommand command) {
         AccountId accountId = ProfileOwnership.requireSelf(command.requesterAccountId(), command.accountId());
+        WithdrawalReason reason = withdrawalReason(command.reason());
         Profile profile = profiles.findByAccountId(accountId).orElse(null);
         if (profile != null && profile.isWithdrawn()) {
             accountClosure.close(accountId.value());
@@ -66,9 +68,9 @@ public class WithdrawService implements WithdrawUseCase {
         Instant now = clock.instant();
         Profile withdrawn;
         if (profile == null) {
-            withdrawn = Profile.withdrawnWithoutProfile(accountId, now);
+            withdrawn = Profile.withdrawnWithoutProfile(accountId, now, reason);
         } else {
-            profile.withdraw(now);
+            profile.withdraw(now, reason);
             withdrawn = profile;
         }
         try {
@@ -78,5 +80,13 @@ public class WithdrawService implements WithdrawUseCase {
         }
         accountClosure.close(accountId.value());
         eventPublisher.publishEvent(new AccountWithdrawn(accountId.value(), now));
+    }
+
+    private static WithdrawalReason withdrawalReason(String raw) {
+        try {
+            return WithdrawalReason.from(raw).orElse(null);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ProfileErrorCode.INVALID_WITHDRAWAL_REASON, exception);
+        }
     }
 }

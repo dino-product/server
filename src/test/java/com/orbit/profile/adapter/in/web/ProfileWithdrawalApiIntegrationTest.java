@@ -134,6 +134,25 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("탈퇴 사유를 적으면 함께 남기고, 200자를 넘으면 PROFILE-007로 거부해 아무것도 바꾸지 않는다")
+    void storesOrRejectsWithdrawalReason() throws Exception {
+        TestAccount rejected = login(kakaoSubject());
+        withdraw(rejected, rejected.accountId(), "가".repeat(201))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PROFILE-007"));
+        getProfile(rejected).andExpect(status().isOk());
+
+        TestAccount account = login(kakaoSubject());
+        withdraw(account, account.accountId(), "가".repeat(200)).andExpect(status().isNoContent());
+
+        assertThat(jdbcTemplate.queryForObject(
+                        "select withdrawal_reason from profiles where account_id = ?",
+                        String.class,
+                        account.accountId()))
+                .isEqualTo("가".repeat(200));
+    }
+
+    @Test
     @DisplayName("프로필을 입력하기 전인 가입 미완료 계정도 탈퇴할 수 있다")
     void withdrawsAccountBeforeProfile() throws Exception {
         TestAccount account = login(kakaoSubject());
@@ -277,6 +296,13 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
     private ResultActions withdraw(TestAccount requester, long accountId) throws Exception {
         return mockMvc.perform(post("/api/v1/profiles/{accountId}/withdrawals", accountId)
                 .header(HttpHeaders.AUTHORIZATION, requester.bearer()));
+    }
+
+    private ResultActions withdraw(TestAccount requester, long accountId, String reason) throws Exception {
+        return mockMvc.perform(post("/api/v1/profiles/{accountId}/withdrawals", accountId)
+                .header(HttpHeaders.AUTHORIZATION, requester.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("reason", reason))));
     }
 
     private ResultActions getProfile(TestAccount account) throws Exception {

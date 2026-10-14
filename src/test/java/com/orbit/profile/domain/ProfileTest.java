@@ -143,7 +143,7 @@ class ProfileTest {
         Profile profile = newProfile();
         profile.agreeToTerms(V1, SIGNUP_AT);
 
-        profile.withdraw(LATER);
+        profile.withdraw(LATER, null);
 
         assertThat(profile.status()).isEqualTo(SignupStatus.WITHDRAWN);
         assertThat(profile.isWithdrawn()).isTrue();
@@ -163,10 +163,23 @@ class ProfileTest {
         profile.agreeToTerms(V1, SIGNUP_AT);
         profile.changeMarketingConsent(true, V1, SIGNUP_AT);
 
-        profile.withdraw(LATER);
+        profile.withdraw(LATER, null);
 
         assertThat(profile.marketingConsent()).contains(new MarketingConsent(false, LATER));
         assertThat(profile.agreements()).contains(new TermsAgreement(TermsType.MARKETING, "m1", SIGNUP_AT));
+    }
+
+    @Test
+    @DisplayName("탈퇴 사유를 적었으면 함께 남긴다")
+    void keepsWithdrawalReason() {
+        Profile profile = newProfile();
+        WithdrawalReason reason = WithdrawalReason.from("더 이상 쓰지 않아요").orElseThrow();
+
+        profile.withdraw(LATER, reason);
+
+        assertThat(profile.withdrawalReason()).contains(reason);
+        assertThat(Profile.withdrawnWithoutProfile(ACCOUNT, LATER, reason).withdrawalReason())
+                .contains(reason);
     }
 
     @Test
@@ -174,7 +187,7 @@ class ProfileTest {
     void withdrawsPendingProfile() {
         Profile profile = newProfile();
 
-        profile.withdraw(LATER);
+        profile.withdraw(LATER, null);
 
         assertThat(profile.status()).isEqualTo(SignupStatus.WITHDRAWN);
         assertThat(profile.signedUpAt()).isEmpty();
@@ -184,7 +197,7 @@ class ProfileTest {
     @Test
     @DisplayName("프로필을 입력하기 전에 탈퇴하면 탈퇴 표시만 남는다")
     void marksWithdrawalWithoutProfile() {
-        Profile profile = Profile.withdrawnWithoutProfile(ACCOUNT, LATER);
+        Profile profile = Profile.withdrawnWithoutProfile(ACCOUNT, LATER, null);
 
         assertThat(profile.accountId()).isEqualTo(ACCOUNT);
         assertThat(profile.status()).isEqualTo(SignupStatus.WITHDRAWN);
@@ -200,9 +213,9 @@ class ProfileTest {
     void rejectsChangesAfterWithdrawal() {
         Profile profile = newProfile();
         profile.agreeToTerms(V1, SIGNUP_AT);
-        profile.withdraw(LATER);
+        profile.withdraw(LATER, null);
 
-        assertThatThrownBy(() -> profile.withdraw(LATER))
+        assertThatThrownBy(() -> profile.withdraw(LATER, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("profile already withdrawn");
         assertThatThrownBy(() -> profile.changeBasics(new PersonName("김철수"), new PhoneNumber("01087654321")))
@@ -221,8 +234,8 @@ class ProfileTest {
     @Test
     @DisplayName("탈퇴 상태와 탈퇴 시각·이름·연락처가 서로 맞지 않으면 재구성하지 않는다")
     void rejectsInconsistentWithdrawalState() {
-        assertThatThrownBy(() ->
-                        Profile.reconstitute(ACCOUNT, null, null, SignupStatus.WITHDRAWN, null, null, List.of(), null))
+        assertThatThrownBy(() -> Profile.reconstitute(
+                        ACCOUNT, null, null, SignupStatus.WITHDRAWN, null, null, null, List.of(), null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("only withdrawn profiles have withdrawnAt");
         assertThatThrownBy(() -> Profile.reconstitute(
@@ -232,12 +245,13 @@ class ProfileTest {
                         SignupStatus.WITHDRAWN,
                         null,
                         LATER,
+                        null,
                         List.of(),
                         null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("withdrawn profiles must not keep name or phoneNumber");
         assertThatThrownBy(() -> Profile.reconstitute(
-                        ACCOUNT, null, null, SignupStatus.PENDING_SIGNUP, null, null, List.of(), null))
+                        ACCOUNT, null, null, SignupStatus.PENDING_SIGNUP, null, null, null, List.of(), null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("name must not be null");
     }

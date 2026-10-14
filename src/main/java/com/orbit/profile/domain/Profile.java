@@ -19,6 +19,7 @@ public final class Profile {
     private SignupStatus status;
     private Instant signedUpAt;
     private Instant withdrawnAt;
+    private WithdrawalReason withdrawalReason;
     private final List<TermsAgreement> agreements;
     private MarketingConsent marketingConsent;
 
@@ -29,6 +30,7 @@ public final class Profile {
             SignupStatus status,
             Instant signedUpAt,
             Instant withdrawnAt,
+            WithdrawalReason withdrawalReason,
             List<TermsAgreement> agreements,
             MarketingConsent marketingConsent) {
         this.accountId = accountId;
@@ -37,6 +39,7 @@ public final class Profile {
         this.status = status;
         this.signedUpAt = signedUpAt;
         this.withdrawnAt = withdrawnAt;
+        this.withdrawalReason = withdrawalReason;
         this.agreements = new ArrayList<>(agreements);
         this.marketingConsent = marketingConsent;
     }
@@ -50,12 +53,13 @@ public final class Profile {
                 SignupStatus.PENDING_SIGNUP,
                 null,
                 null,
+                null,
                 List.of(),
                 null);
     }
 
-    /** 프로필을 입력하기 전에 탈퇴한 계정의 탈퇴 표시. 이름·연락처·약관 동의 없이 탈퇴 상태와 시각만 남긴다. */
-    public static Profile withdrawnWithoutProfile(AccountId accountId, Instant withdrawnAt) {
+    /** 프로필을 입력하기 전에 탈퇴한 계정의 탈퇴 표시. 이름·연락처·약관 동의 없이 탈퇴 상태와 시각, 사유(비웠으면 null)만 남긴다. */
+    public static Profile withdrawnWithoutProfile(AccountId accountId, Instant withdrawnAt, WithdrawalReason reason) {
         return new Profile(
                 Objects.requireNonNull(accountId, "accountId must not be null"),
                 null,
@@ -63,6 +67,7 @@ public final class Profile {
                 SignupStatus.WITHDRAWN,
                 null,
                 Objects.requireNonNull(withdrawnAt, "withdrawnAt must not be null"),
+                reason,
                 List.of(),
                 null);
     }
@@ -75,6 +80,7 @@ public final class Profile {
             SignupStatus status,
             Instant signedUpAt,
             Instant withdrawnAt,
+            WithdrawalReason withdrawalReason,
             List<TermsAgreement> agreements,
             MarketingConsent marketingConsent) {
         Objects.requireNonNull(status, "status must not be null");
@@ -87,6 +93,9 @@ public final class Profile {
                 throw new IllegalArgumentException("withdrawn profiles must not keep name or phoneNumber");
             }
         } else {
+            if (withdrawalReason != null) {
+                throw new IllegalArgumentException("only withdrawn profiles have withdrawalReason");
+            }
             Objects.requireNonNull(name, "name must not be null");
             Objects.requireNonNull(phoneNumber, "phoneNumber must not be null");
             if ((status == SignupStatus.ACTIVE) != (signedUpAt != null)) {
@@ -100,17 +109,19 @@ public final class Profile {
                 status,
                 signedUpAt,
                 withdrawnAt,
+                withdrawalReason,
                 agreements,
                 marketingConsent);
     }
 
     /**
      * 탈퇴한다. 이름·연락처를 지우고 탈퇴 시각을 남긴다. 마케팅 수신에 동의한 상태였으면 현재 동의를 탈퇴 시각으로 해제해 탈퇴한 계정이 수신 대상에 남지 않게 하고,
-     * 약관 동의 이력은 그대로 둔다. 가입 미완료 프로필도 탈퇴할 수 있다.
+     * 약관 동의 이력은 그대로 둔다. 사유는 비웠으면 null이다. 가입 미완료 프로필도 탈퇴할 수 있다.
      */
-    public void withdraw(Instant withdrawnAt) {
+    public void withdraw(Instant withdrawnAt, WithdrawalReason reason) {
         requireNotWithdrawn();
         this.withdrawnAt = Objects.requireNonNull(withdrawnAt, "withdrawnAt must not be null");
+        this.withdrawalReason = reason;
         this.status = SignupStatus.WITHDRAWN;
         this.name = null;
         this.phoneNumber = null;
@@ -223,6 +234,10 @@ public final class Profile {
 
     public Optional<Instant> withdrawnAt() {
         return Optional.ofNullable(withdrawnAt);
+    }
+
+    public Optional<WithdrawalReason> withdrawalReason() {
+        return Optional.ofNullable(withdrawalReason);
     }
 
     public List<TermsAgreement> agreements() {

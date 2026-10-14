@@ -116,8 +116,12 @@ class ProfileController implements ProfileControllerDocs {
     @Override
     @PostMapping("/{accountId}/withdrawals")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void withdraw(@AuthenticationPrincipal AccountPrincipal requester, @PathVariable Long accountId) {
-        withdrawUseCase.withdraw(new WithdrawCommand(requester.accountId(), accountId));
+    public void withdraw(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long accountId,
+            @RequestBody(required = false) WithdrawRequest request) {
+        withdrawUseCase.withdraw(
+                new WithdrawCommand(requester.accountId(), accountId, request == null ? null : request.reason()));
     }
 
     private ProfileResponse read(AccountPrincipal requester, Long accountId) {

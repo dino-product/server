@@ -108,7 +108,8 @@ class GetProfileServiceTest {
     @Test
     @DisplayName("탈퇴한 계정은 없는 프로필과 같은 PROFILE-002다")
     void hidesWithdrawnProfile() {
-        Profile withdrawn = Profile.withdrawnWithoutProfile(new AccountId(1L), Instant.parse("2026-11-01T00:00:00Z"));
+        Profile withdrawn =
+                Profile.withdrawnWithoutProfile(new AccountId(1L), Instant.parse("2026-11-01T00:00:00Z"), null);
         when(profiles.findByAccountId(new AccountId(1L))).thenReturn(Optional.of(withdrawn));
 
         assertThatThrownBy(() -> service.getProfile(new GetProfileQuery(1L, 1L)))

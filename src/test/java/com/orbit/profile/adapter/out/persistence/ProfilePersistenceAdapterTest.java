@@ -30,6 +30,7 @@ import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.TermsAgreement;
 import com.orbit.profile.domain.TermsType;
 import com.orbit.profile.domain.TermsVersions;
+import com.orbit.profile.domain.WithdrawalReason;
 import com.orbit.support.PersistenceTestConfiguration;
 
 @DataJpaTest
@@ -79,7 +80,7 @@ class ProfilePersistenceAdapterTest {
         adapter.save(profile);
         Profile loaded = adapter.findByAccountId(accountId).orElseThrow();
 
-        loaded.withdraw(LATER);
+        loaded.withdraw(LATER, null);
         adapter.save(loaded);
         flushAndClear();
 
@@ -94,11 +95,25 @@ class ProfilePersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("탈퇴 사유를 함께 저장하고 다시 읽는다")
+    void savesWithdrawalReason() {
+        AccountId accountId = newAccountId();
+        WithdrawalReason reason = WithdrawalReason.from("😀 더 이상 쓰지 않아요").orElseThrow();
+
+        adapter.save(Profile.withdrawnWithoutProfile(accountId, LATER, reason));
+        flushAndClear();
+
+        assertThat(adapter.findByAccountId(accountId))
+                .flatMap(Profile::withdrawalReason)
+                .contains(reason);
+    }
+
+    @Test
     @DisplayName("프로필 없이 탈퇴한 계정은 탈퇴 표시만 저장한다")
     void savesWithdrawalWithoutProfile() {
         AccountId accountId = newAccountId();
 
-        adapter.save(Profile.withdrawnWithoutProfile(accountId, LATER));
+        adapter.save(Profile.withdrawnWithoutProfile(accountId, LATER, null));
         flushAndClear();
 
         assertThat(adapter.findByAccountId(accountId)).hasValueSatisfying(found -> {

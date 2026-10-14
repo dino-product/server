@@ -109,8 +109,8 @@ class SaveProfileServiceTest {
     @DisplayName("탈퇴한 계정은 프로필을 다시 입력할 수 없고 없는 프로필과 같은 PROFILE-002다")
     void rejectsWithdrawnProfile() {
         when(profiles.findByAccountId(new AccountId(1L)))
-                .thenReturn(Optional.of(
-                        Profile.withdrawnWithoutProfile(new AccountId(1L), Instant.parse("2026-11-01T00:00:00Z"))));
+                .thenReturn(Optional.of(Profile.withdrawnWithoutProfile(
+                        new AccountId(1L), Instant.parse("2026-11-01T00:00:00Z"), null)));
 
         assertThatThrownBy(() -> service.save(new SaveProfileCommand(1L, 1L, "홍길동", "01012345678")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())

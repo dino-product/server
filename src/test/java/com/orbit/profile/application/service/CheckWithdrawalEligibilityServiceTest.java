@@ -61,8 +61,8 @@ class CheckWithdrawalEligibilityServiceTest {
     @DisplayName("다른 계정이나 이미 탈퇴한 계정은 PROFILE-002다")
     void hidesOtherOrWithdrawnAccount() {
         when(profiles.findByAccountId(new AccountId(7L)))
-                .thenReturn(Optional.of(
-                        Profile.withdrawnWithoutProfile(new AccountId(7L), Instant.parse("2026-10-12T00:00:00Z"))));
+                .thenReturn(Optional.of(Profile.withdrawnWithoutProfile(
+                        new AccountId(7L), Instant.parse("2026-10-12T00:00:00Z"), null)));
         CheckWithdrawalEligibilityService service = new CheckWithdrawalEligibilityService(profiles, List.of());
 
         assertThatThrownBy(() -> service.check(new CheckWithdrawalEligibilityQuery(7L, 8L)))
