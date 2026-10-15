@@ -1,6 +1,7 @@
 package com.orbit.schedule;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -41,12 +42,14 @@ import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.MembershipId;
@@ -60,6 +63,7 @@ import com.orbit.support.TestcontainersConfiguration;
 
 /**
  * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. 계정별 요청자를 간단히 정하려고 행위자 포트만 테스트 구현(@Primary)으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
+ * 배정할 기사의 계약 확인은 임시 어댑터가 모두 거부하므로 대체하고, 흐름에서 배정하는 기사만 테스트마다 그 조직의 활성 기사 계약으로 넣는다.
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
@@ -70,6 +74,10 @@ class ScheduleUseCaseFlowTest {
     // 요청자는 계정별로 정한 LoadActorPort(@Primary)가 정하므로, organization 계약은 실제 어댑터의 의존성만 채운다.
     @MockitoBean
     private OrganizationMemberLookup memberLookup;
+
+    // 배정할 기사의 계약 확인. 넣지 않은 조합은 활성 기사 계약이 아니다.
+    @MockitoBean
+    private TechnicianContractPort technicianContractPort;
 
     private static final long ACCOUNT_ID = 1L;
     // 테스트들이 같은 DB를 쓰므로 테스트마다 다른 조직을 써서, 앞선 테스트가 남긴 작업이 조회·겹침 판정에 섞이지 않게 한다.
@@ -121,6 +129,10 @@ class ScheduleUseCaseFlowTest {
     @BeforeEach
     void useNewOrganization() {
         organizationId = new OrganizationId(NEXT_ORGANIZATION_ID.getAndIncrement());
+        for (long technician : new long[] {TECHNICIAN, OTHER_TECHNICIAN, ACCEPTING_TECHNICIAN}) {
+            given(technicianContractPort.isActive(organizationId, new TechnicianId(technician)))
+                    .willReturn(true);
+        }
     }
 
     @Test
@@ -215,7 +227,8 @@ class ScheduleUseCaseFlowTest {
         assignWorkUseCase.assign(
                 new AssignWorkCommand(ACCOUNT_ID, organizationId.value(), workId, TECHNICIAN, TEN, TWO_HOURS, false));
 
-        cancelWorkUseCase.cancel(new CancelWorkCommand(ACCOUNT_ID, organizationId.value(), workId, "고객 요청"));
+        cancelWorkUseCase.cancel(new CancelWorkCommand(
+                ACCOUNT_ID, organizationId.value(), workId, CancellationReason.CUSTOMER_REQUEST, null));
 
         Work stored = workRepository
                 .findInOrganization(organizationId, new WorkId(workId))
@@ -223,7 +236,7 @@ class ScheduleUseCaseFlowTest {
         assertThat(stored.status()).isEqualTo(WorkStatus.CANCELLED);
         assertThat(stored.cancellation()).hasValueSatisfying(cancellation -> {
             assertThat(cancellation.cancelledBy()).isEqualTo(MANAGER);
-            assertThat(cancellation.reason()).isEqualTo("고객 요청");
+            assertThat(cancellation.reason()).isEqualTo(CancellationReason.CUSTOMER_REQUEST);
         });
         assertThat(stored.assignmentHistory().getLast().ending())
                 .map(AssignmentEnding::reason)
@@ -233,7 +246,19 @@ class ScheduleUseCaseFlowTest {
     private long create(String name) {
         return createWorkUseCase
                 .create(new CreateWorkCommand(
-                        ACCOUNT_ID, organizationId.value(), name, null, null, null, null, null, null))
+                        ACCOUNT_ID,
+                        organizationId.value(),
+                        name,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false))
                 .workId();
     }
 

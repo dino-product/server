@@ -10,6 +10,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECH
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -30,17 +31,23 @@ import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.shared.error.BusinessException;
 
 @DisplayName("작업 배정")
 class AssignWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final AssignWorkService service =
-            new AssignWorkService(fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.clock);
+    private final AssignWorkService service = new AssignWorkService(
+            fixture.actorPort,
+            fixture.workRepository,
+            fixture.technicianContracts,
+            fixture.scheduleLock,
+            fixture.clock);
 
     @Test
     @DisplayName("겹치는 일정이 없으면 기사·일정을 배정해 수락대기로 만들고, 기사를 잠근 뒤 판정하며 배정 시각을 기록한다")
@@ -225,6 +232,54 @@ class AssignWorkServiceTest {
                     () -> service.assign(command(id.value(), TECHNICIAN_ID.value(), TEN, duration, false)),
                     ScheduleErrorCode.INVALID_WORK_INPUT);
         }
+    }
+
+    @Test
+    @DisplayName("고른 기사가 요청 조직의 활성 기사 계약이 아니면 그 기사를 잠근 뒤 일정을 읽거나 저장하지 않고 배정할 수 없는 기사 오류다")
+    void rejectsTechnicianWithoutActiveContract() {
+        fixture.givenManager();
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+        TechnicianId otherOrganizationTechnician = new TechnicianId(5L);
+        fixture.technicianContracts.givenActive(OTHER_ORGANIZATION_ID, otherOrganizationTechnician);
+        fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
+
+        for (TechnicianId technicianId : new TechnicianId[] {TECHNICIAN_ID, otherOrganizationTechnician}) {
+            assertThatThrownBy(() -> service.assign(command(id.value(), technicianId.value(), TEN, TWO_HOURS, true)))
+                    .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                            .isEqualTo(ScheduleErrorCode.TECHNICIAN_NOT_ASSIGNABLE));
+        }
+        assertThat(fixture.scheduleLock.locks())
+                .containsExactly(
+                        new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0),
+                        new Lock(ORGANIZATION_ID, otherOrganizationTechnician, 0));
+        assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.REGISTERED);
+    }
+
+    @Test
+    @DisplayName("기사 계약은 입력·상태·이력 시각 확인을 통과하고 기사를 잠근 요청만 확인한다")
+    void checksTechnicianContractAfterInputStateAndLock() {
+        fixture.givenManager();
+        fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
+        WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
+        WorkId alreadyAssigned = activeWork("이미 배정된 작업", TEN.plus(Duration.ofDays(3)));
+
+        fixture.assertRejected(
+                () -> service.assign(command(registered.value(), TECHNICIAN_ID.value(), TEN, Duration.ZERO, false)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.assign(command(alreadyAssigned.value(), TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
+        WorkId rejectedLater = rejectedWork(NOW.plus(Duration.ofHours(1)));
+        fixture.assertRejected(
+                () -> service.assign(command(rejectedLater.value(), TECHNICIAN_ID.value(), TEN, TWO_HOURS, true)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
+        fixture.assertRejected(
+                () -> service.assign(command(registered.value(), TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
+                ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY);
+        assertThat(fixture.technicianContracts.checks()).isZero();
     }
 
     private WorkId activeWork(String name, Instant start) {

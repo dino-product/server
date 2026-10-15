@@ -6,6 +6,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
@@ -23,6 +24,7 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
 import com.orbit.schedule.application.port.in.query.dto.TimetableInfo;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -142,8 +144,26 @@ class GetTimetableServiceTest {
 
         assertThat(service.get(query(FROM, TO)).backlog())
                 .containsExactly(
-                        new TimetableInfo.BacklogWork(fresh.value(), "대상 작업", 2L, false),
-                        new TimetableInfo.BacklogWork(rejectedId.value(), "대상 작업", 2L, true));
+                        new TimetableInfo.BacklogWork(fresh.value(), "대상 작업", 2L, false, null, null, null),
+                        new TimetableInfo.BacklogWork(rejectedId.value(), "대상 작업", 2L, true, null, null, null));
+    }
+
+    @Test
+    @DisplayName("등록 때 일부만 입력한 담당기사·시간을 대기함 작업에 담는다")
+    void listsPlannedScheduleOfBacklog() {
+        fixture.givenManager();
+        WorkId planned = fixture.workRepository.store(Work.register(
+                ORGANIZATION_ID,
+                "기사만 정한 작업",
+                REGISTRAR_ID,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN_ID, null, null)));
+
+        assertThat(service.get(query(FROM, TO)).backlog())
+                .containsExactly(new TimetableInfo.BacklogWork(
+                        planned.value(), "기사만 정한 작업", null, false, TECHNICIAN_ID.value(), null, null));
     }
 
     @Test

@@ -21,6 +21,10 @@ import com.orbit.schedule.domain.Work;
  *   <li>결과는 완전한 {@link Work} 애그리게잇이라 배정 이력·정정 기록·완료보고를 함께 읽는다. 목록마다 연관을 따로 읽는 N+1이 생기지 않게 일괄
  *       조회(fetch join·batch)로 읽거나, 목록 화면이 커지면 조회 전용 모델로 바꾼다. 쪽을 나누는 검색은 컬렉션을 fetch join한 채 쪽을 자르면
  *       전체를 읽은 뒤 메모리에서 자르므로, 식별자로 쪽을 먼저 고른 뒤 그 작업들을 일괄 조회한다.
+ *   <li>등록(대기함) 상태 행도 일정 컬럼({@code technician_id}·{@code scheduled_start_at}·{@code expected_duration})에 등록 때 미리
+ *       입력한 값을 가질 수 있다. 칸·기사별 구간·검색의 담당 기사·시작 구간처럼 일정으로 거르는 필터에는 상태 조건(등록 제외)을 함께 건다. 일정
+ *       정렬은 대기함 작업을 빼지 않고 등록 상태 행의 일정 값을 없는 것으로 보아 맨 뒤에 둔다(예: {@code CASE WHEN status <> 'REGISTERED' THEN
+ *       scheduled_start_at END NULLS LAST}). 이를 확인하는 어댑터 테스트를 둔다.
  *   <li>검색의 목록과 전체 수는 같은 시점 기준이어야 한다(서비스가 한 스냅샷 트랜잭션에서 부르거나, 한 쿼리로 함께 센다).
  *   <li>경계(끝이 from과 같거나 시작이 to와 같으면 제외), 검색 조건 해석, 한 작업에 겹치는 배정 이력이 여럿일 때의 중복 제거를 실제 데이터로 확인하는
  *       어댑터 테스트를 둔다.
@@ -49,7 +53,7 @@ public interface WorkQueryPort {
     List<Work> listAssignedToTechnician(
             OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to);
 
-    /** 대기함 작업(등록 상태). */
+    /** 대기함 작업(등록 상태). 등록 때 미리 입력한 담당기사·시간이 있어도 대기함이므로 일정 컬럼으로 거르지 않는다. */
     List<Work> listBacklog(OrganizationId organizationId);
 
     /**

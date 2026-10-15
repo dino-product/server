@@ -12,7 +12,9 @@ import org.springframework.context.annotation.FilterType;
 
 import com.orbit.schedule.application.port.out.LoadTechnicianNamePort;
 import com.orbit.schedule.application.port.out.PhotoUrlPort;
+import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
+import com.orbit.schedule.application.port.out.WorkTypePort;
 
 @DisplayName("임시 출력 어댑터 등록 프로필")
 class TemporaryAdapterProfileTest {
@@ -28,6 +30,8 @@ class TemporaryAdapterProfileTest {
             assertThat(context).hasSingleBean(WorkQueryPort.class);
             assertThat(context).hasSingleBean(LoadTechnicianNamePort.class);
             assertThat(context).hasSingleBean(PhotoUrlPort.class);
+            assertThat(context).hasSingleBean(TechnicianContractPort.class);
+            assertThat(context).hasSingleBean(WorkTypePort.class);
         });
     }
 
@@ -39,6 +43,8 @@ class TemporaryAdapterProfileTest {
             assertThat(context).doesNotHaveBean(WorkQueryPort.class);
             assertThat(context).doesNotHaveBean(LoadTechnicianNamePort.class);
             assertThat(context).doesNotHaveBean(PhotoUrlPort.class);
+            assertThat(context).doesNotHaveBean(TechnicianContractPort.class);
+            assertThat(context).doesNotHaveBean(WorkTypePort.class);
         });
     }
 
