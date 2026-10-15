@@ -22,6 +22,10 @@ public final class Work {
     /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
     public static final int MAX_NAME_LENGTH = 100;
 
+    /** 현재 배정이 없는 작업(등록·취소)의 마지막 배정이 관리자 조치나 탈퇴로 끝났을 때 허용하는 방식. 재배정·일정 변경 뒤에는 새 배정이 남는다. */
+    private static final Set<AssignmentEndReason> BACKLOG_ENDINGS = Set.of(
+            AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED, AssignmentEndReason.ACCOUNT_WITHDRAWN);
+
     private final WorkId id;
     private final OrganizationId organizationId;
     private String name;
@@ -344,15 +348,17 @@ public final class Work {
 
     /** 배정을 풀어 대기함으로 돌린다. 수락된 배정도 결과는 그대로 두고 해제 시각·처리자를 종료로 남긴다. */
     public void unassign(Instant unassignedAt, MembershipId unassignedBy) {
-        if (status != WorkStatus.PENDING_ACCEPTANCE && status != WorkStatus.ACCEPTED) {
-            throw new IllegalStateException("Cannot unassign when status is " + status);
-        }
-        WorkStatus nextStatus = status.transitionTo(WorkStatus.REGISTERED);
-        AssignmentEnding ending = new AssignmentEnding(unassignedAt, unassignedBy, AssignmentEndReason.UNASSIGNED);
-        requireNotBeforeLatestCorrection(ending.endedAt(), "endedAt");
-        latestAssignment().end(ending);
-        schedule = null;
-        status = nextStatus;
+        requireChangeableAssignment("unassign");
+        returnToBacklog(new AssignmentEnding(unassignedAt, unassignedBy, AssignmentEndReason.UNASSIGNED));
+    }
+
+    /**
+     * 담당 기사의 탈퇴로 배정을 풀어 대기함으로 돌린다. 처리한 관리자가 없어 종료 기록에 처리자를 남기지 않는 것 말고는 배정 해제와 같다(응답 전이면 회수, 수락됐으면
+     * 결과를 둔 채 종료만).
+     */
+    public void releaseForWithdrawal(Instant releasedAt) {
+        requireChangeableAssignment("release for withdrawal");
+        returnToBacklog(new AssignmentEnding(releasedAt, null, AssignmentEndReason.ACCOUNT_WITHDRAWN));
     }
 
     /**
@@ -519,6 +525,15 @@ public final class Work {
         }
     }
 
+    /** 현재 배정을 주어진 종료로 끝내고 일정을 비워 대기함으로 돌린다. 상태 확인은 호출자가 먼저 한다. */
+    private void returnToBacklog(AssignmentEnding ending) {
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.REGISTERED);
+        requireNotBeforeLatestCorrection(ending.endedAt(), "endedAt");
+        latestAssignment().end(ending);
+        schedule = null;
+        status = nextStatus;
+    }
+
     /** 현재 배정을 끝내고(응답 전이면 회수, 수락됐으면 결과를 둔 채 종료만) 새 배정을 추가해 다시 수락받는다. */
     private void changeAssignment(
             WorkSchedule newSchedule, Instant changedAt, MembershipId changedBy, AssignmentEndReason reason) {
@@ -585,9 +600,9 @@ public final class Work {
             if (currentCancelledAssignment().isPresent()) {
                 throw new IllegalArgumentException("REGISTERED work must not have an assignment ended by CANCELLED");
             }
-            requireOverAssignment(latest, AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED);
+            requireOverAssignment(latest, BACKLOG_ENDINGS);
         } else if (status == WorkStatus.CANCELLED) {
-            requireOverAssignment(latest, AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED);
+            requireOverAssignment(latest, BACKLOG_ENDINGS);
             requireScheduleOfCancelledAssignment(latest);
         } else if (status == WorkStatus.PENDING_ACCEPTANCE) {
             requireAssignedSchedule(latest, AssignmentResult.PENDING);
@@ -786,7 +801,7 @@ public final class Work {
     }
 
     /** 현재 배정이 없는 상태면 최신 이력도 끝나 있어야 하고(거절 또는 허용된 방식의 종료), 대기 중일 수 없다. */
-    private void requireOverAssignment(AssignmentHistory latest, AssignmentEndReason... allowedReasons) {
+    private void requireOverAssignment(AssignmentHistory latest, Set<AssignmentEndReason> allowedReasons) {
         if (latest == null) {
             return;
         }
@@ -797,7 +812,7 @@ public final class Work {
             throw new IllegalArgumentException(status + " work must not have a current assignment");
         }
         latest.ending().ifPresent(ending -> {
-            if (!List.of(allowedReasons).contains(ending.reason())) {
+            if (!allowedReasons.contains(ending.reason())) {
                 throw new IllegalArgumentException(
                         status + " work must not have an assignment ended by " + ending.reason());
             }

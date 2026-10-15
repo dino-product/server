@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.given;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -27,6 +28,7 @@ import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
+import com.orbit.schedule.application.port.in.command.ReleaseWithdrawnTechnicianWorksUseCase;
 import com.orbit.schedule.application.port.in.command.RescheduleWorkUseCase;
 import com.orbit.schedule.application.port.in.command.StartWorkUseCase;
 import com.orbit.schedule.application.port.in.command.SubmitCompletionReportUseCase;
@@ -36,11 +38,17 @@ import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.ReleaseWithdrawnTechnicianWorksCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
+import com.orbit.schedule.application.port.in.query.GetWithdrawalBlockingWorksUseCase;
+import com.orbit.schedule.application.port.in.query.dto.GetWithdrawalBlockingWorksQuery;
+import com.orbit.schedule.application.port.in.query.dto.WithdrawalBlockingWorksInfo;
+import com.orbit.schedule.application.port.out.AccountTechnicianContract;
+import com.orbit.schedule.application.port.out.AccountTechnicianContractsPort;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
@@ -78,6 +86,10 @@ class ScheduleUseCaseFlowTest {
     // 배정할 기사의 계약 확인. 넣지 않은 조합은 활성 기사 계약이 아니다.
     @MockitoBean
     private TechnicianContractPort technicianContractPort;
+
+    // 탈퇴하는 기사 계정의 기사 계약 조회. 임시 어댑터가 모두 거부하므로 대체한다.
+    @MockitoBean
+    private AccountTechnicianContractsPort accountTechnicianContractsPort;
 
     private static final long ACCOUNT_ID = 1L;
     // 테스트들이 같은 DB를 쓰므로 테스트마다 다른 조직을 써서, 앞선 테스트가 남긴 작업이 조회·겹침 판정에 섞이지 않게 한다.
@@ -121,6 +133,12 @@ class ScheduleUseCaseFlowTest {
 
     @Autowired
     private SubmitCompletionReportUseCase submitCompletionReportUseCase;
+
+    @Autowired
+    private GetWithdrawalBlockingWorksUseCase getWithdrawalBlockingWorksUseCase;
+
+    @Autowired
+    private ReleaseWithdrawnTechnicianWorksUseCase releaseWithdrawnTechnicianWorksUseCase;
 
     @Autowired
     private WorkRepository workRepository;
@@ -241,6 +259,69 @@ class ScheduleUseCaseFlowTest {
         assertThat(stored.assignmentHistory().getLast().ending())
                 .map(AssignmentEnding::reason)
                 .contains(AssignmentEndReason.CANCELLED);
+    }
+
+    @Test
+    void assembledWithdrawalCountsBlockingWorksAndReleasesOnlyScheduledWorksOnce() {
+        long pending = create("응답 전 작업");
+        assignWorkUseCase.assign(new AssignWorkCommand(
+                ACCOUNT_ID, organizationId.value(), pending, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
+        long accepted = create("작업전 작업");
+        assignWorkUseCase.assign(new AssignWorkCommand(
+                ACCOUNT_ID,
+                organizationId.value(),
+                accepted,
+                ACCEPTING_TECHNICIAN,
+                TEN.plus(Duration.ofHours(3)),
+                TWO_HOURS,
+                false));
+        acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), accepted, 1));
+        long inProgress = create("작업중 작업");
+        assignWorkUseCase.assign(new AssignWorkCommand(
+                ACCOUNT_ID,
+                organizationId.value(),
+                inProgress,
+                ACCEPTING_TECHNICIAN,
+                TEN.plus(Duration.ofHours(6)),
+                TWO_HOURS,
+                false));
+        acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), inProgress, 1));
+        startWorkUseCase.start(new StartWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), inProgress, 1));
+        AccountTechnicianContract contract =
+                new AccountTechnicianContract(new TechnicianId(ACCEPTING_TECHNICIAN), organizationId, true);
+        given(accountTechnicianContractsPort.listByAccount(TECHNICIAN_ACCOUNT_ID))
+                .willReturn(List.of(contract));
+
+        assertThat(getWithdrawalBlockingWorksUseCase.get(new GetWithdrawalBlockingWorksQuery(TECHNICIAN_ACCOUNT_ID)))
+                .isEqualTo(new WithdrawalBlockingWorksInfo(1, 1));
+
+        // 탈퇴가 커밋되면 organization이 계약을 먼저 비활성화했을 수 있다. 같은 탈퇴가 다시 와도 결과가 같다.
+        given(accountTechnicianContractsPort.listByAccount(TECHNICIAN_ACCOUNT_ID))
+                .willReturn(List.of(new AccountTechnicianContract(contract.technicianId(), organizationId, false)));
+        releaseWithdrawnTechnicianWorksUseCase.release(
+                new ReleaseWithdrawnTechnicianWorksCommand(TECHNICIAN_ACCOUNT_ID));
+        releaseWithdrawnTechnicianWorksUseCase.release(
+                new ReleaseWithdrawnTechnicianWorksCommand(TECHNICIAN_ACCOUNT_ID));
+
+        for (long workId : new long[] {pending, accepted}) {
+            Work stored = workRepository
+                    .findInOrganization(organizationId, new WorkId(workId))
+                    .orElseThrow();
+            assertThat(stored.status()).isEqualTo(WorkStatus.REGISTERED);
+            assertThat(stored.schedule()).isEmpty();
+            assertThat(stored.assignmentHistory()).singleElement().satisfies(history -> assertThat(history.ending())
+                    .hasValueSatisfying(ending -> {
+                        assertThat(ending.reason()).isEqualTo(AssignmentEndReason.ACCOUNT_WITHDRAWN);
+                        assertThat(ending.endedBy()).isNull();
+                    }));
+        }
+        Work stillInProgress = workRepository
+                .findInOrganization(organizationId, new WorkId(inProgress))
+                .orElseThrow();
+        assertThat(stillInProgress.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        assertThat(stillInProgress.assignmentHistory())
+                .singleElement()
+                .satisfies(history -> assertThat(history.ending()).isEmpty());
     }
 
     private long create(String name) {
