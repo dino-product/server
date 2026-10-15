@@ -23,11 +23,12 @@ import com.orbit.profile.domain.PhoneNumber;
 import com.orbit.profile.domain.Profile;
 import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.TermsAgreement;
+import com.orbit.shared.persistence.BaseTimeEntity;
 
 /** 계정 식별자를 기본 키로 쓴다. auth의 계정 테이블과는 모듈 경계를 넘는 외래 키를 두지 않는다. 연락처는 계정 사이에 중복을 허용해 유일 제약이 없다. */
 @Entity
 @Table(name = "profiles")
-class ProfileJpaEntity {
+class ProfileJpaEntity extends BaseTimeEntity {
 
     @Id
     @Column(name = "account_id")

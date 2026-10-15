@@ -59,6 +59,7 @@ Authorization: Bearer {accessToken} → /api/** (허용 목록 제외)
 
 - `profiles`: 기본 키 `account_id`(auth가 발급한 계정 식별자), 이름, 연락처(숫자만), 가입 상태, 가입일, 마케팅 동의 여부·변경 시각, 낙관적 잠금용 `version`. 연락처는 계정 사이에 중복을 허용하므로 유일 제약이 없다.
 - `profile_terms_agreements`: 계정별 약관 종류·버전·동의 시각. 추가만 한다.
+- 두 테이블 모두 `BaseTimeEntity`의 `created_at`·`updated_at` 감사 컬럼을 가진다. 가입일·동의 시각 같은 업무 시각은 이 컬럼과 별개다.
 - auth의 `accounts`로 가는 외래 키는 두지 않는다(모듈 경계). 두 테이블의 스키마 마이그레이션은 auth와 마찬가지로 아직 없다([실행 프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)).
 
 ## 설정

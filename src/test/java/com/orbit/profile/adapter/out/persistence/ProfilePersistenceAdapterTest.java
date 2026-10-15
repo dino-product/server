@@ -28,12 +28,12 @@ import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.TermsAgreement;
 import com.orbit.profile.domain.TermsType;
 import com.orbit.profile.domain.TermsVersions;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceTestConfiguration;
 
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({TestcontainersConfiguration.class, ProfilePersistenceAdapter.class})
+@Import({PersistenceTestConfiguration.class, ProfilePersistenceAdapter.class})
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("프로필 저장소")
 class ProfilePersistenceAdapterTest {

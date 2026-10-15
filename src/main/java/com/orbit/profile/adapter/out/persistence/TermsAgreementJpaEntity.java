@@ -17,13 +17,14 @@ import jakarta.persistence.Table;
 
 import com.orbit.profile.domain.TermsAgreement;
 import com.orbit.profile.domain.TermsType;
+import com.orbit.shared.persistence.BaseTimeEntity;
 
 /** 약관 동의 이력 한 줄. 추가만 하고 고치거나 지우지 않는다. 가입 공통 검사가 요청마다 계정별로 읽으므로 계정 식별자에 인덱스를 둔다. */
 @Entity
 @Table(
         name = "profile_terms_agreements",
         indexes = @Index(name = "idx_profile_terms_agreements_account_id", columnList = "account_id"))
-class TermsAgreementJpaEntity {
+class TermsAgreementJpaEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
