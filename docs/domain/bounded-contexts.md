@@ -1,13 +1,13 @@
 <a id="bounded-contexts"></a>
 # 바운디드 컨텍스트 지도 (P1~P4)
 
-- 상태: 설계 초안 — P1은 모듈 골격 생성, `schedule`의 도메인·일부 Application·Adapter 구현, `auth` 카카오 로그인 구현, P2~P4는 코드 없음
-- 기준일: 2026-10-04
+- 상태: 설계 초안 — P1은 모듈 골격 생성, `schedule`의 도메인·일부 Application·Adapter 구현, `auth` 카카오 로그인 구현, `profile` 가입 프로필·약관 동의 구현, P2~P4는 코드 없음
+- 기준일: 2026-10-10
 - 기획 원본: [기획 원본 색인](../planning/README.md#planning)의 Notion 정책서 (기준 버전은 색인이 소유, 결정 배경은 [ADR-003](../adr/003-planning-source-of-truth.md))
 
-이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter와 `auth`의 카카오 로그인·계정·토큰(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없다.
+이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter와 `auth`의 카카오 로그인·계정·토큰, `profile`의 가입 프로필·약관 동의·가입 공통 검사(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈의 허용 의존성은 현재 없다.
 
-제품 규칙(누가·무엇을·언제, 사용자가 체감하는 제한)은 이 문서에 다시 적지 않는다. 구현이 시작된 BC는 모듈별 문서(현재 [schedule](schedule.md#schedule)·[auth](auth.md))로 분리하고, 이 문서에는 관계·로드맵만 남긴다. 각 BC는 **기획 원본**(기준 정책서) · **제품 규칙 참조**(Notion 절 번호) · **구현 결정**(BC 문서가 원본) · **차이·공백**(Notion과 구현의 차이, 제품 결정 필요 항목)으로 나눠 적는다. 차이·공백 항목은 [대역별 구현 규칙](../planning/README.md#gap-actions)대로 다루며, 운영 절차는 [동기화 규칙](../planning/README.md#sync)을 따른다.
+제품 규칙(누가·무엇을·언제, 사용자가 체감하는 제한)은 이 문서에 다시 적지 않는다. 구현이 시작된 BC는 모듈별 문서(현재 [schedule](schedule.md#schedule)·[auth](auth.md)·[profile](profile.md#profile))로 분리하고, 이 문서에는 관계·로드맵만 남긴다. 각 BC는 **기획 원본**(기준 정책서) · **제품 규칙 참조**(Notion 절 번호) · **구현 결정**(BC 문서가 원본) · **차이·공백**(Notion과 구현의 차이, 제품 결정 필요 항목)으로 나눠 적는다. 차이·공백 항목은 [대역별 구현 규칙](../planning/README.md#gap-actions)대로 다루며, 운영 절차는 [동기화 규칙](../planning/README.md#sync)을 따른다.
 
 ## 범례
 
@@ -30,9 +30,9 @@
 | 상태 | 구현 — 앱의 id_token 제출 로그인·Bearer 인증·로그아웃. 웹 Authorization Code 흐름·Refresh 회전은 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
 | 기획 원본 | [조직·계정] §1·§5 (카카오 로그인만 지원, ORG-001), §13 (ID/PW·구글 로그인 MVP 제외) |
 | 소유 애그리게잇 | **Account**(Root) — 제공자별 외부 식별(`ExternalIdentity`: 카카오 `sub`)과 등록 시각. 프로필·역할 없음. `AuthSubject`는 예제로만 남음 |
-| 관계 | 다른 모듈의 웹 어댑터가 루트 계약 `AccountPrincipal`로 인증된 계정 식별자를 받음(organization 발주사 생성, notification 알림센터, schedule 작업 API) — 이 모듈들이 auth에 의존하므로 auth는 이들을 조회·구독하지 않음 · `organization`이 이 모듈의 공개 계약을 참조(ID)해 accountId 유효성을 확인 (Conformist, 계약은 organization 구현 시 추가) |
+| 관계 | 다른 모듈의 웹 어댑터가 루트 계약 `AccountPrincipal`로 인증된 계정 식별자를 받음(현재 profile 프로필·약관 API와 가입 공통 검사, 계획: organization 발주사 생성, notification 알림센터, schedule 작업 API) — 이 모듈들이 auth에 의존하므로 auth는 이들을 조회·구독하지 않음 · `organization`이 이 모듈의 공개 계약을 참조(ID)해 accountId 유효성을 확인 (Conformist, 계약은 organization 구현 시 추가) |
 
-> **"계정"이라는 이름을 조직 컨텍스트에서 뺀 이유**: "계정"은 마이페이지·내 정보 수정·회원탈퇴처럼 개인정보 관리 뉘앙스가 강해서, 조직 소속을 다루는 컨텍스트와 이름이 섞이면 안 된다고 판단했다. 개인 계정·프로필 관리 자체를 어느 컨텍스트가 가질지(이 `auth`인지, 별도 컨텍스트인지)는 아직 미정 — §미해결 설계 이슈 참고.
+> **"계정"이라는 이름을 조직 컨텍스트에서 뺀 이유**: "계정"은 마이페이지·내 정보 수정·회원탈퇴처럼 개인정보 관리 뉘앙스가 강해서, 조직 소속을 다루는 컨텍스트와 이름이 섞이면 안 된다고 판단했다. 개인 계정·프로필 관리는 `auth`가 아닌 별도 컨텍스트 [`profile`](#profile)이 가진다(구 BC-001, [미해결 설계 이슈](#미해결-설계-이슈) 아래 해소 기록).
 
 <a id="organization"></a>
 ### 2. 조직 컨텍스트 (`organization`) — Supporting Subdomain
@@ -51,8 +51,8 @@
 | 주제 | Notion 원본 | 차이 |
 | --- | --- | --- |
 | 사용자 계층·총관리자 | [조직·계정] §4·§4.1·§11 (ORG-010) | O-01 |
-| 가입·프로필·소속 없는 계정 | [조직·계정] §5 (ORG-013) | 미구현 |
-| 마이페이지·다중 소속·탈퇴 | [조직·계정] §5.1 (ORG-012, ORG-009) | 미구현 |
+| 가입·프로필·소속 없는 계정 | [조직·계정] §5 (ORG-013) | 가입 완료(프로필·약관)는 [profile](profile.md#profile) 구현, 소속 없는 계정 안내·회사 확인은 미구현 |
+| 마이페이지·다중 소속·탈퇴 | [조직·계정] §5.1 (ORG-012, ORG-009) | 계정 정보 수정·약관 재동의는 [profile](profile.md#profile) 구현, 나머지 미구현 |
 | 회사 코드·참여 요청·승인·거절·취소 | [조직·계정] §6 (ORG-017, ORG-018) | 미구현 |
 | 유형 관리 (소프트 삭제·작업유형 상태별 삭제 처리) | [조직·계정] §7·§11 (ORG-020) | 미구현, O-33 |
 | 역할 변경과 예정 작업 반환 | [조직·계정] §4.1·§11·§12 (ORG-015) | 미구현, schedule 쪽 S-21 |
@@ -108,6 +108,17 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 
 구현 결정·차이는 알림 구현을 시작할 때 이 절에 추가한다. 발행 쪽 이벤트가 [알림] §4의 트리거를 모두 표현할 수 있는지(예: 거절 사유, 역할 변경 때 풀린 예정 작업)를 그때 대조한다.
 
+<a id="profile"></a>
+### 5. 프로필 컨텍스트 (`profile`) — Generic Subdomain
+
+| 항목 | 내용 |
+| --- | --- |
+| 책임 | 계정의 가입 프로필(이름·연락처)·가입 상태·약관 동의 이력. 가입 미완료·필수 약관 재동의 전 계정의 API 이용 제한 |
+| 상태 | 구현 — 프로필 입력·수정, 약관 동의·재동의, 가입 공통 검사. 탈퇴·프로필 사진은 미착수. 작업 지침은 [profile 지침](../../src/main/java/com/orbit/profile/AGENTS.md), 구현 결정·차이는 [Profile](profile.md#profile) |
+| 기획 원본 | [조직·계정] §5·§5.1·§9 |
+| 소유 애그리게잇 | **Profile**(Root) — auth가 발급한 계정 식별자(값으로만 보관)·이름·연락처·가입 상태·가입일·마케팅 동의, 약관 동의 이력(종류·버전·시각, 추가만) |
+| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 계획: 다른 모듈 ← 이름 조회 계약 제공(HM-305), 탈퇴 때 auth 공개 계약 직접 호출, organization·schedule이 profile의 탈퇴 차단 판정 인터페이스 구현(HM-254 합의 필요) |
+
 ---
 
 ## P2 — 다음 확장 (미착수, 코드 없음)
@@ -142,10 +153,9 @@ P2~P4의 포함 여부·시점은 제품 결정이며 각 정책서의 MVP 제�
 
 | # | 이슈 | 비고 |
 | --- | --- | --- |
-| BC-001 | 개인 계정·프로필 관리(마이페이지, 탈퇴)를 어느 컨텍스트가 가질지 | `auth`가 가질지, 별도 "계정" 성격 컨텍스트를 새로 둘지 미정. "계정"이라는 이름을 `organization`에서 뺀 것과 직접 연결된 이슈 |
 | BC-002 | 참여 요청(MembershipRequest)을 `organization`에서 분리할 시점 | 현재는 승인·소속 생성의 원자성 때문에 `organization`에 둠 — 요청 생명주기가 복잡해지면 분리 검토 |
 
-정산 포함 여부(구 BC-004)는 [작업] §13에서 MVP 제외로 정해졌고 탈퇴 차단 조건([조직·계정] §5.1)에도 정산이 없어 닫았다. 조직 간 일정 충돌(구 BC-005)은 제품 결정이라 [schedule 차이·공백](schedule.md#schedule-gaps)의 S-31로 옮겼다.
+개인 계정·프로필 관리(마이페이지, 탈퇴)의 소유 컨텍스트(구 BC-001)는 2026-10-07 `auth`가 아닌 새 모듈로 정하고 2026-10-10 이름을 `profile`로 확정해 닫았다. `member`는 schedule의 조직 구성원 용어·organization의 `Membership`과, `account`는 auth의 `Account`와 겹쳐 쓰지 않았다. 결정 배경은 [ADR-001 인증과 계정](../adr/001-backend-architecture.md#인증과-계정), 모듈 내용은 [Profile](profile.md#profile)에 있다. 정산 포함 여부(구 BC-004)는 [작업] §13에서 MVP 제외로 정해졌고 탈퇴 차단 조건([조직·계정] §5.1)에도 정산이 없어 닫았다. 조직 간 일정 충돌(구 BC-005)은 제품 결정이라 [schedule 차이·공백](schedule.md#schedule-gaps)의 S-31로 옮겼다.
 
 ---
 
