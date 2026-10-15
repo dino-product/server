@@ -49,7 +49,7 @@ Authorization: Bearer {accessToken} → /api/** (허용 목록 제외)
   → CheckServiceAccessUseCase → 이용 불가면 PROFILE-005(403)
 ```
 
-- **등록과 허용 목록**: `ProfileWebConfig`(`WebMvcConfigurer`)가 인터셉터를 `/api/**`에 걸고 `/api/v1/profiles/**`, `/api/v1/auth/**`를 뺀다. 인증되지 않은 요청은 인가 단계가 이미 걸렀거나 공개 경로이므로 넘긴다. 공개 API도 토큰을 붙여 부르면 인증된 요청이라 검사한다(2026-10-10 결정). 가입 전에 써야 하는 API(링크·QR 회사 확인 HM-289, 탈퇴)는 공개 여부와 관계없이 허용 목록에 더한다.
+- **등록과 허용 목록**: `ProfileWebConfig`(`WebMvcConfigurer`)가 인터셉터를 `/api/**`에 걸고 `/api/v1/profiles/**`, `/api/v1/auth/**`, organization의 회사 확인 `/api/v1/organizations/lookup`을 뺀다. 인증되지 않은 요청은 인가 단계가 이미 걸렀거나 공개 경로이므로 넘긴다. 공개 API도 토큰을 붙여 부르면 인증된 요청이라 검사한다(2026-10-10 결정). 가입 전에 써야 하는 API(탈퇴 등)는 공개 여부와 관계없이 허용 목록에 더한다.
 - **보안 필터가 아니라 인터셉터인 이유**: 보안 필터로 두면 없는 경로도 403이 되어 auth의 "폐기·만료·위조 토큰의 404는 실제로 없는 자원의 404와 같다" 계약([Auth 인증 흐름](auth.md#인증과-로그아웃-흐름))이 깨진다. 인터셉터는 컨트롤러 메서드로 연결된 요청만 보므로 없는 경로는 그대로 404가 된다.
 - **다른 모듈 영향**: 다른 모듈은 검사를 직접 넣지 않으며 허용 목록 밖의 새 API는 자동으로 검사 대상이 된다. 허용 목록은 다른 모듈의 URL 문자열이라 모듈 의존이 아니고 `ModularityTest`가 보지 못하므로, auth API를 `/api/v1/auth/**` 밖에 두거나 가입 전 API를 더할 때 허용 목록을 직접 고친다.
 - **테스트 영향**: 다른 모듈의 `@ApplicationModuleTest`에는 profile이 올라오지 않아 이 검사가 빠진다. 전체 컨텍스트 API 통합 테스트에서 실제 Access Token으로 인증 요청을 보내려면 계정이 가입을 마쳐야 하며, `src/test/java/com/orbit/support/SignupTestSupport`가 실제 API로 로그인·프로필 입력·필수 약관 동의를 마친다.
@@ -74,7 +74,6 @@ Authorization: Bearer {accessToken} → /api/** (허용 목록 제외)
 - **계획된 관계** (현재 허용 의존성이 아님):
   - 다른 모듈(예: schedule의 기사 이름 표시)이 계정 식별자로 이름을 조회하는 계약 — HM-305에서 추가한다.
   - 탈퇴 때 토큰 폐기·외부 식별 해제는 profile이 auth 공개 계약을 직접 호출한다(auth가 profile 이벤트를 구독하면 순환). 탈퇴 차단 판정은 profile이 판정 인터페이스를 두고 organization·schedule이 구현하는 방향이며 HM-254에서 합의한다.
-  - organization의 링크·QR 회사 확인 API(HM-289)는 경로가 정해지면 허용 목록에 더한다.
 
 ## 공개 계약
 
@@ -103,5 +102,4 @@ ID 대역·추적 칸의 뜻과 [대역별 구현 규칙](../planning/README.md#
 - **탈퇴** ([조직·계정] 정책 §5.1): `WITHDRAWN` 상태와 개인정보 삭제, auth 토큰 폐기·외부 식별 해제(재가입은 새 계정), 탈퇴 차단 판정(HM-254), 탈퇴 경로의 허용 목록 추가. 법적 적정성은 organization 쪽 O-32(ORG-009).
 - **프로필 사진** ([조직·계정] 정책 §5·§5.1): 파일 저장 방식이 정해진 뒤 추가한다.
 - **마케팅 수신 동의 단독 변경** ([조직·계정] 정책 §5.1): 지금은 약관 동의 요청의 마케팅 값으로만 바뀐다.
-- **회사 확인 허용** ([조직·계정] 정책 §5): HM-289의 링크·QR 회사 확인 경로를 허용 목록에 더한다.
 - **운영 전**: `profiles`·`profile_terms_agreements` 스키마 마이그레이션.

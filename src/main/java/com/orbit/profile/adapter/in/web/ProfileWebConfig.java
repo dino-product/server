@@ -7,13 +7,15 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.orbit.profile.application.port.in.query.CheckServiceAccessUseCase;
 
 /**
- * 가입 완료 공통 검사를 모든 {@code /api/**}에 건다. 허용 목록은 프로필 입력·약관 동의·내 정보(profile)와 로그인·로그아웃·내 계정(auth)이다. 링크·QR로
- * 들어온 계정의 회사 확인 API(HM-289)와 탈퇴 API가 생기면 그 경로를 여기에 더한다.
+ * 가입 완료 공통 검사를 모든 {@code /api/**}에 건다. 허용 목록은 프로필 입력·약관 동의·내 정보(profile), 로그인·로그아웃·내 계정(auth), 링크·QR로
+ * 들어온 계정의 회사 확인(organization)이다. 탈퇴 API가 생기면 그 경로를 여기에 더한다.
  */
 @Configuration
 class ProfileWebConfig implements WebMvcConfigurer {
 
-    static final String[] ALLOWED_BEFORE_SIGNUP = {"/api/v1/profiles/**", "/api/v1/auth/**"};
+    static final String[] ALLOWED_BEFORE_SIGNUP = {
+        "/api/v1/profiles/**", "/api/v1/auth/**", "/api/v1/organizations/lookup"
+    };
 
     private final CheckServiceAccessUseCase checkServiceAccessUseCase;
 

@@ -167,6 +167,16 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("가입 미완료 계정도 회사 확인 API는 공통 검사에 막히지 않는다")
+    void allowsCompanyCheckBeforeSignup() throws Exception {
+        TestAccount account = loginAsNewAccount();
+
+        mockMvc.perform(get("/api/v1/organizations/lookup").header(HttpHeaders.AUTHORIZATION, account.bearer()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+    }
+
+    @Test
     @DisplayName("다른 모듈 테스트가 쓰는 가입 완료 지원으로 만든 계정은 공통 검사를 통과한다")
     void signupSupportProducesUsableAccount() throws Exception {
         TestAccount account = SignupTestSupport.signUpNewAccount(mockMvc, objectMapper, KAKAO);
