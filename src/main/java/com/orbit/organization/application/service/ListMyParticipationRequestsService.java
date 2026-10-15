@@ -12,7 +12,7 @@ import com.orbit.organization.application.port.in.query.dto.MyParticipationReque
 import com.orbit.organization.application.port.out.ParticipationRequestQueryPort;
 import com.orbit.organization.domain.AccountId;
 
-/** 신청 현황은 요청자가 보낸 모든 참여 요청(승인 대기·승인·거절·취소)을 요청 일시순으로 보인다(O-16). */
+/** 신청 현황은 요청자가 보낸 모든 참여 요청(승인 대기·승인·거절·취소)을 요청 일시순으로 보인다([조직·계정] §6). */
 @Service
 public class ListMyParticipationRequestsService implements ListMyParticipationRequestsUseCase {
 

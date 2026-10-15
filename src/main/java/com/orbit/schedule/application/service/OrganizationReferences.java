@@ -18,7 +18,7 @@ final class OrganizationReferences {
 
     /**
      * 배정·재배정한 일정의 담당기사가 작업 조직의 활성 기사 계약이 아니면 400(SCHEDULE-013). 그 기사를 잠근 뒤 부른다. 기사 비활성화·역할 변경의 대기함
-     * 반환(HM-252)도 같은 기사를 잠그고 배정을 풀어야, 반환과 동시에 실행된 배정이 비활성 기사에게 남지 않는다.
+     * 반환({@link ReleaseTechnicianWorksService})도 같은 기사를 잠그고 배정을 풀므로, 반환과 동시에 실행된 배정이 비활성 기사에게 남지 않는다.
      */
     static void requireActiveTechnician(TechnicianContractPort port, Work work, WorkSchedule schedule) {
         if (!port.isActive(work.organizationId(), schedule.technicianId())) {
