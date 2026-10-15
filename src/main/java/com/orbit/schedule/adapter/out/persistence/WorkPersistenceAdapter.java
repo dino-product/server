@@ -80,4 +80,18 @@ class WorkPersistenceAdapter implements WorkRepository {
                 .map(WorkMapper::toDomain)
                 .toList();
     }
+
+    /** 대기함 작업은 미리 입력한 담당기사를 일정과 같은 {@code technician_id} 컬럼에 둔다({@link WorkMapper}). */
+    @Override
+    @Transactional(readOnly = true)
+    public List<Work> listBacklogPlannedForTechnician(OrganizationId organizationId, TechnicianId technicianId) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        return repository
+                .findByCompanyIdAndTechnicianIdAndStatusIn(
+                        organizationId.value(), technicianId.value(), EnumSet.of(WorkStatus.REGISTERED))
+                .stream()
+                .map(WorkMapper::toDomain)
+                .toList();
+    }
 }

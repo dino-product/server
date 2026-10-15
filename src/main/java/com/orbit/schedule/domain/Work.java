@@ -362,6 +362,20 @@ public final class Work {
     }
 
     /**
+     * 대기함 작업이 미리 입력한 담당기사를 비운다. 그 기사 계약이 끝나 더는 배정할 수 없을 때 쓴다(S-17). 시작시각·예상소요시간은 남기고, 남은 값이 없으면 미리
+     * 입력한 일정도 없앤다. 미리 입력한 담당기사가 없으면 거부한다.
+     */
+    public void clearPlannedTechnician() {
+        requireStatus(WorkStatus.REGISTERED, "clear planned technician");
+        if (plannedSchedule == null || plannedSchedule.technicianId() == null) {
+            throw new IllegalStateException("work has no planned technician");
+        }
+        plannedSchedule = plannedSchedule.startTime() == null && plannedSchedule.expectedDuration() == null
+                ? null
+                : new PlannedSchedule(null, plannedSchedule.startTime(), plannedSchedule.expectedDuration());
+    }
+
+    /**
      * 작업명·작업 유형·고객정보·결제정보 네 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된 작업은 바꿀 수
      * 없고, 상태·배정은 그대로 둔다. 서비스의 공통 오류 순서(입력 → 상태)에 맞춰 작업명을 상태보다 먼저 검증한다.
      */

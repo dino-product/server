@@ -5,6 +5,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +25,7 @@ import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -96,11 +98,54 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
     }
 
     @Test
-    @DisplayName("같은 탈퇴를 다시 처리하면 이미 대기함인 작업은 건너뛰고 성공한다")
+    @DisplayName("기사 계약마다 그 기사를 미리 입력한 대기함 작업의 담당기사만 비우고, 다른 기사를 미리 입력한 작업은 그대로 둔다")
+    void clearsPlannedTechnicianOfEveryContract() {
+        contracts.givenInactive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
+        contracts.givenActive(ACCOUNT_ID, OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
+        WorkId withTime = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, TEN, null));
+        WorkId otherOrganization =
+                givenPlanned(OTHER_ORGANIZATION_ID, new PlannedSchedule(OTHER_TECHNICIAN_ID, null, null));
+        WorkId otherTechnician = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(THIRD_TECHNICIAN_ID, null, null));
+
+        service.release(command());
+
+        assertThat(fixture.stored(withTime).plannedSchedule()).contains(new PlannedSchedule(null, TEN, null));
+        assertThat(fixture.workRepository
+                        .findInOrganization(OTHER_ORGANIZATION_ID, otherOrganization)
+                        .orElseThrow()
+                        .plannedSchedule())
+                .isEmpty();
+        assertThat(fixture.stored(otherTechnician).plannedSchedule())
+                .contains(new PlannedSchedule(THIRD_TECHNICIAN_ID, null, null));
+        assertThat(fixture.workRepository.saved())
+                .extracting(work -> work.id().orElseThrow())
+                .containsExactly(withTime, otherOrganization);
+    }
+
+    @Test
+    @DisplayName("한 기사 계약의 미리 입력한 대기함 작업은 식별자 순으로 처리한다")
+    void clearsPlannedTechnicianInIdOrder() {
+        contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
+        WorkId first = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
+        WorkId second = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, TEN, null));
+
+        service.release(command());
+
+        assertThat(fixture.workRepository.saved())
+                .extracting(work -> work.id().orElseThrow())
+                .containsExactly(first, second);
+    }
+
+    @Test
+    @DisplayName("같은 탈퇴를 다시 처리하면 이미 대기함인 작업과 담당기사를 비운 작업은 건너뛰고 성공한다")
     void isIdempotentOnRedelivery() {
         contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
         WorkId accepted = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.ACCEPTED, 0);
+        WorkId planned = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
         service.release(command());
+        assertThat(fixture.workRepository.saved())
+                .extracting(work -> work.id().orElseThrow())
+                .containsExactly(accepted, planned);
         int savedAfterFirst = fixture.workRepository.saved().size();
 
         service.release(command());
@@ -110,13 +155,20 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
     }
 
     @Test
-    @DisplayName("기사 계약마다 활성 작업을 읽기 전에 조직·기사 계약 순으로 잠근다")
+    @DisplayName("기사 계약마다 작업을 읽기 전에 조직·기사 계약 순으로 잠가, 잠금을 기다리는 동안 미리 입력한 등록까지 비운다")
     void locksEachContractInOrderBeforeReading() {
         contracts.givenActive(ACCOUNT_ID, OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
         contracts.givenInactive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
+        WorkId[] plannedWhileWaiting = new WorkId[1];
+        fixture.scheduleLock.whileWaiting(() -> {
+            if (plannedWhileWaiting[0] == null) {
+                plannedWhileWaiting[0] = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
+            }
+        });
 
         service.release(command());
 
+        assertThat(fixture.stored(plannedWhileWaiting[0]).plannedSchedule()).isEmpty();
         assertThat(fixture.scheduleLock.locks())
                 .containsExactly(
                         new FakeLockTechnicianSchedulePort.Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0),
@@ -145,6 +197,11 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
     private WorkId givenWork(
             OrganizationId organizationId, TechnicianId technicianId, WorkStatus status, int hoursAfterTen) {
         return fixture.givenWork(organizationId, "작업", status, technicianId, TEN.plus(Duration.ofHours(hoursAfterTen)));
+    }
+
+    private WorkId givenPlanned(OrganizationId organizationId, PlannedSchedule plannedSchedule) {
+        return fixture.workRepository.store(
+                Work.register(organizationId, "미리 입력한 작업", REGISTRAR_ID, null, null, null, plannedSchedule));
     }
 
     private static ReleaseWithdrawnTechnicianWorksCommand command() {

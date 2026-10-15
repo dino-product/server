@@ -22,8 +22,8 @@ import com.orbit.schedule.domain.WorkStatus;
 /**
  * 서비스 단위 테스트용 WorkRepository. 스캔되지 않도록 애너테이션을 붙이지 않는다. 실제 저장소처럼 저장·조회 때 복사본을 주고받아 save 없는 변경이나 save 뒤 변경이
  * 저장값에 섞이지 않게 하고, 식별자가 있는데 없는 작업의 저장은 거부한다. 서비스가 저장할 때마다 그 시점의 복사본을 기록한다. 기사 활성 작업 목록은 포트 계약대로
- * 순서를 보장하지 않으므로, 서비스가 순서를 정하는지 드러나도록 저장한 순서의 역순으로 돌려준다. 조회용 목록({@link WorkQueryPort})도 같은 저장소에서
- * 같은 역순으로 돌려준다.
+ * 순서를 보장하지 않으므로, 서비스가 순서를 정하는지 드러나도록 저장한 순서의 역순으로 돌려준다. 미리 입력한 담당기사로 찾는 대기함 작업과 조회용
+ * 목록({@link WorkQueryPort})도 같은 저장소에서 같은 역순으로 돌려준다.
  */
 public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
 
@@ -69,6 +69,16 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 .map(work -> copyOf(work, work.id().orElseThrow()))
                 .toList()
                 .reversed();
+    }
+
+    @Override
+    public List<Work> listBacklogPlannedForTechnician(OrganizationId organizationId, TechnicianId technicianId) {
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        return listBacklog(organizationId).stream()
+                .filter(work -> work.plannedSchedule()
+                        .map(planned -> technicianId.equals(planned.technicianId()))
+                        .orElse(false))
+                .toList();
     }
 
     @Override
