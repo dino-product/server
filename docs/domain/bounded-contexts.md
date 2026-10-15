@@ -126,10 +126,10 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 계정의 가입 프로필(이름·연락처)·가입 상태·약관 동의 이력. 가입 미완료·필수 약관 재동의 전 계정의 API 이용 제한 |
-| 상태 | 구현 — 프로필 입력·수정, 약관 동의·재동의, 가입 공통 검사. 탈퇴·프로필 사진은 미착수. 작업 지침은 [profile 지침](../../src/main/java/com/orbit/profile/AGENTS.md), 구현 결정·차이는 [Profile](profile.md#profile) |
+| 상태 | 구현 — 프로필 입력·수정, 약관 동의·재동의, 마케팅 수신 동의 변경, 가입 공통 검사, 이름 조회 계약. 탈퇴·프로필 사진은 미착수. 작업 지침은 [profile 지침](../../src/main/java/com/orbit/profile/AGENTS.md), 구현 결정·차이는 [Profile](profile.md#profile) |
 | 기획 원본 | [조직·계정] §5·§5.1·§9 |
 | 소유 애그리게잇 | **Profile**(Root) — auth가 발급한 계정 식별자(값으로만 보관)·이름·연락처·가입 상태·가입일·마케팅 동의, 약관 동의 이력(종류·버전·시각, 추가만) |
-| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 계획: 다른 모듈 ← 이름 조회 계약 제공(HM-305), 탈퇴 때 auth 공개 계약 직접 호출, organization·schedule이 profile의 탈퇴 차단 판정 인터페이스 구현(HM-254 합의 필요) |
+| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 다른 모듈 ← 이름 조회 계약 `ProfileLookup` 제공(소비자는 계획: schedule 기사 이름, HM-288) · 계획: 탈퇴 때 auth 공개 계약 직접 호출, organization·schedule이 profile의 탈퇴 차단 판정 인터페이스 구현(HM-254 합의 필요) |
 
 ---
 
