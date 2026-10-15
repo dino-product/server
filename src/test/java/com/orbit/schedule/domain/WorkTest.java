@@ -807,6 +807,63 @@ class WorkTest {
     }
 
     @Nested
+    @DisplayName("미리 입력한 담당기사 비우기")
+    class ClearPlannedTechnician {
+
+        private static final TechnicianId TECHNICIAN = FIRST_SCHEDULE.technicianId();
+
+        @Test
+        @DisplayName("담당기사만 비우고 시작시각·예상소요시간은 남긴다")
+        void keepsPlannedTime() {
+            Work work = plannedWork(new PlannedSchedule(TECHNICIAN, NOW, null));
+
+            work.clearPlannedTechnician();
+
+            assertThat(work.plannedSchedule()).contains(new PlannedSchedule(null, NOW, null));
+            assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
+        }
+
+        @Test
+        @DisplayName("담당기사만 있었으면 미리 입력한 일정을 없앤다")
+        void removesPlannedScheduleWithTechnicianOnly() {
+            Work work = plannedWork(new PlannedSchedule(TECHNICIAN, null, null));
+
+            work.clearPlannedTechnician();
+
+            assertThat(work.plannedSchedule()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("미리 입력한 담당기사가 없으면 거부한다")
+        void rejectsWithoutPlannedTechnician() {
+            Work timeOnly = plannedWork(new PlannedSchedule(null, NOW, Duration.ofHours(1)));
+            Work noPlan = workIn(WorkStatus.REGISTERED);
+
+            assertThatThrownBy(timeOnly::clearPlannedTechnician)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("work has no planned technician");
+            assertThatThrownBy(noPlan::clearPlannedTechnician)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("work has no planned technician");
+            assertThat(timeOnly.plannedSchedule()).contains(new PlannedSchedule(null, NOW, Duration.ofHours(1)));
+        }
+
+        @Test
+        @DisplayName("대기함 작업이 아니면 거부한다")
+        void rejectsAssignedWork() {
+            Work work = pendingWork();
+
+            assertThatThrownBy(work::clearPlannedTechnician)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Cannot clear planned technician when status is PENDING_ACCEPTANCE");
+        }
+
+        private static Work plannedWork(PlannedSchedule plannedSchedule) {
+            return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, null, null, null, plannedSchedule);
+        }
+    }
+
+    @Nested
     @DisplayName("작업 시작")
     class Start {
 

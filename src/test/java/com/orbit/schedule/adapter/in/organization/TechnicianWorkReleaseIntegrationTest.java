@@ -42,6 +42,7 @@ import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -112,12 +113,23 @@ class TechnicianWorkReleaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("비활성화와 함께 커밋되면 배정됨·작업전 작업은 대기함으로, 작업중 작업과 다른 기사의 작업은 그대로 남는다")
+    @DisplayName("비활성화와 함께 커밋되면 배정됨·작업전 작업은 대기함으로 가고 미리 입력한 담당기사는 비며, 작업중 작업과 다른 기사의 작업은 그대로 남는다")
     void commitsReleaseWithCallerTransaction() {
         WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
         WorkId accepted = store(WorkStatus.ACCEPTED, TECHNICIAN_ID, 3);
         WorkId inProgress = store(WorkStatus.IN_PROGRESS, TECHNICIAN_ID, 6);
         WorkId otherTechnician = store(WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, 0);
+        WorkId planned = new TransactionTemplate(transactionManager)
+                .execute(tx -> workRepository.save(Work.register(
+                        organizationId,
+                        "미리 입력한 작업",
+                        REGISTRAR_ID,
+                        null,
+                        null,
+                        null,
+                        new PlannedSchedule(TECHNICIAN_ID, TEN, null))))
+                .id()
+                .orElseThrow();
 
         inCallerTransaction(() -> technicianWorkRelease.releaseForDeactivation(
                 organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY));
@@ -126,6 +138,7 @@ class TechnicianWorkReleaseIntegrationTest {
         assertReleased(accepted);
         assertThat(load(inProgress).status()).isEqualTo(WorkStatus.IN_PROGRESS);
         assertThat(load(otherTechnician).status()).isEqualTo(WorkStatus.ACCEPTED);
+        assertThat(load(planned).plannedSchedule()).contains(new PlannedSchedule(null, TEN, null));
     }
 
     @Test

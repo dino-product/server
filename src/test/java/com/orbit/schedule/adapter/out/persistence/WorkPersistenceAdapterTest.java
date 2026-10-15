@@ -251,6 +251,56 @@ class WorkPersistenceAdapterTest {
                 .containsExactly(id);
     }
 
+    @Test
+    @DisplayName("미리 입력한 담당기사로 같은 조직의 대기함 작업만 찾고, 담당기사를 비운 작업은 더 찾지 않는다")
+    void listsBacklogPlannedForTechnician() {
+        OrganizationId organization = organization();
+        WorkId planned = inTx(() -> adapter()
+                        .save(Work.register(
+                                organization,
+                                "기사만",
+                                REGISTRAR,
+                                null,
+                                null,
+                                null,
+                                new PlannedSchedule(TECHNICIAN, NOW, null))))
+                .id()
+                .orElseThrow();
+        inTx(() -> adapter()
+                .save(Work.register(
+                        organization,
+                        "다른 기사",
+                        REGISTRAR,
+                        null,
+                        null,
+                        null,
+                        new PlannedSchedule(OTHER_TECHNICIAN, null, null))));
+        inTx(() -> adapter()
+                .save(Work.register(
+                        organization(),
+                        "다른 조직",
+                        REGISTRAR,
+                        null,
+                        null,
+                        null,
+                        new PlannedSchedule(TECHNICIAN, null, null))));
+        Work assigned = registered(organization, "배정됨");
+        assigned.assign(SCHEDULE, NOW, MANAGER);
+        inTx(() -> adapter().save(assigned));
+
+        assertThat(inTx(() -> adapter().listBacklogPlannedForTechnician(organization, TECHNICIAN)))
+                .extracting(work -> work.id().orElseThrow())
+                .containsExactly(planned);
+
+        Work stored = find(organization, planned);
+        stored.clearPlannedTechnician();
+        inTx(() -> adapter().save(stored));
+
+        assertThat(find(organization, planned).plannedSchedule()).contains(new PlannedSchedule(null, NOW, null));
+        assertThat(inTx(() -> adapter().listBacklogPlannedForTechnician(organization, TECHNICIAN)))
+                .isEmpty();
+    }
+
     private static void completeWithHistory(Work work) {
         work.assign(SCHEDULE, NOW, MANAGER);
         work.reject(new Rejection(RejectionReason.OTHER, "거리 멀어요"), NOW.plusSeconds(10));

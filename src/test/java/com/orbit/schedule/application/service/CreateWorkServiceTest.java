@@ -26,6 +26,7 @@ import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.CustomerInfo;
@@ -279,7 +280,7 @@ class CreateWorkServiceTest {
     }
 
     @Test
-    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고 기사를 잠그지 않는다")
+    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고, 미리 입력한 담당기사만 잠근다")
     void keepsPartialScheduleInBacklog() {
         fixture.givenManager();
 
@@ -293,19 +294,35 @@ class CreateWorkServiceTest {
                         Tuple.tuple(WorkStatus.REGISTERED, new PlannedSchedule(TECHNICIAN_ID, null, null)),
                         Tuple.tuple(WorkStatus.REGISTERED, new PlannedSchedule(null, TEN, TWO_HOURS)));
         assertThat(timeOnly.workId()).isNotNull();
-        assertThat(fixture.scheduleLock.locks()).isEmpty();
+        assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("일부만 준 담당기사가 활성 기사 계약이 아니면 저장하지 않고 배정할 수 없는 기사 오류다")
+    @DisplayName("일부만 준 담당기사는 잠근 뒤 확인해, 잠금을 기다리는 동안 끝난 기사 계약이면 저장하지 않고 배정할 수 없는 기사 오류다")
     void rejectsInactiveTechnicianOfPartialSchedule() {
         fixture.givenManager();
+        fixture.scheduleLock.whileWaiting(
+                () -> fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID));
+
+        assertThatThrownBy(() -> service.create(scheduled(TECHNICIAN_ID.value(), TEN, null, false)))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.TECHNICIAN_NOT_ASSIGNABLE));
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
+    }
+
+    @Test
+    @DisplayName("일부만 준 담당기사를 잠그다 대기 한도를 넘기면 기사 계약을 확인하지도 저장하지도 않고 변경 중 오류다")
+    void reportsBusyPlannedTechnician() {
+        fixture.givenManager();
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
+        fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
 
         fixture.assertRejected(
                 () -> service.create(scheduled(TECHNICIAN_ID.value(), TEN, null, false)),
-                ScheduleErrorCode.TECHNICIAN_NOT_ASSIGNABLE);
+                ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY);
+        assertThat(fixture.technicianContracts.checks()).isZero();
     }
 
     @Test

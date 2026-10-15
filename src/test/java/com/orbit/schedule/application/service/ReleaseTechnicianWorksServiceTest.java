@@ -35,6 +35,8 @@ import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.MembershipId;
+import com.orbit.schedule.domain.OrganizationId;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -127,7 +129,7 @@ class ReleaseTechnicianWorksServiceTest {
     }
 
     @Test
-    @DisplayName("다른 기사와 다른 조직의 작업, 대기함 작업은 건드리지 않는다")
+    @DisplayName("다른 기사와 다른 조직의 작업, 미리 입력한 담당기사가 없는 대기함 작업은 건드리지 않는다")
     void leavesOtherWorksUntouched() {
         WorkId otherTechnician =
                 fixture.givenWork(ORGANIZATION_ID, "다른 기사 작업", WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, TEN);
@@ -150,15 +152,59 @@ class ReleaseTechnicianWorksServiceTest {
 
     @ParameterizedTest
     @EnumSource(Cause.class)
-    @DisplayName("기사의 작업을 읽기 전에 그 기사를 잠가, 잠금을 기다리는 동안 커밋된 배정까지 돌린다")
+    @DisplayName("대기함 작업이 미리 입력한 담당기사가 이 기사이면 담당기사만 비우고, 반환한 작업 목록에는 넣지 않는다")
+    void clearsPlannedTechnicianOfBacklogWorks(Cause cause) {
+        WorkId technicianOnly = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
+        WorkId withTime = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, TEN, null));
+        WorkId otherTechnician = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(OTHER_TECHNICIAN_ID, TEN, null));
+        WorkId otherOrganization = givenPlanned(OTHER_ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
+        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+
+        TechnicianWorkReleaseInfo result = service.release(command(cause));
+
+        assertThat(result).isEqualTo(TechnicianWorkReleaseInfo.released(List.of(pending.value())));
+        assertThat(fixture.workRepository.saved())
+                .extracting(work -> work.id().orElseThrow())
+                .containsExactly(pending, technicianOnly, withTime);
+        assertThat(fixture.stored(technicianOnly).plannedSchedule()).isEmpty();
+        assertThat(fixture.stored(withTime).plannedSchedule()).contains(new PlannedSchedule(null, TEN, null));
+        assertThat(fixture.stored(otherTechnician).plannedSchedule())
+                .contains(new PlannedSchedule(OTHER_TECHNICIAN_ID, TEN, null));
+        assertThat(fixture.workRepository
+                        .findInOrganization(OTHER_ORGANIZATION_ID, otherOrganization)
+                        .orElseThrow()
+                        .plannedSchedule())
+                .contains(new PlannedSchedule(TECHNICIAN_ID, null, null));
+    }
+
+    @Test
+    @DisplayName("역할 변경이 작업중 작업으로 막히면 미리 입력한 담당기사도 그대로 둔다")
+    void roleChangeBlockedKeepsPlannedTechnician() {
+        WorkId planned = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
+        givenWork(WorkStatus.IN_PROGRESS, 0);
+
+        service.release(command(Cause.ROLE_CHANGE));
+
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.stored(planned).plannedSchedule()).contains(new PlannedSchedule(TECHNICIAN_ID, null, null));
+    }
+
+    @ParameterizedTest
+    @EnumSource(Cause.class)
+    @DisplayName("기사의 작업을 읽기 전에 그 기사를 잠가, 잠금을 기다리는 동안 커밋된 배정과 미리 입력한 등록까지 처리한다")
     void locksTechnicianBeforeReadingWorks(Cause cause) {
         WorkId[] assignedWhileWaiting = new WorkId[1];
-        fixture.scheduleLock.whileWaiting(() -> assignedWhileWaiting[0] = givenWork(WorkStatus.PENDING_ACCEPTANCE, 0));
+        WorkId[] plannedWhileWaiting = new WorkId[1];
+        fixture.scheduleLock.whileWaiting(() -> {
+            assignedWhileWaiting[0] = givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+            plannedWhileWaiting[0] = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
+        });
 
         TechnicianWorkReleaseInfo result = service.release(command(cause));
 
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(result).isEqualTo(TechnicianWorkReleaseInfo.released(List.of(assignedWhileWaiting[0].value())));
+        assertThat(fixture.stored(plannedWhileWaiting[0]).plannedSchedule()).isEmpty();
     }
 
     @Test
@@ -218,6 +264,11 @@ class ReleaseTechnicianWorksServiceTest {
     private WorkId givenWork(WorkStatus status, int hoursAfterTen) {
         Instant start = TEN.plus(Duration.ofHours(hoursAfterTen));
         return fixture.givenWork(ORGANIZATION_ID, "기사 작업", status, TECHNICIAN_ID, start);
+    }
+
+    private WorkId givenPlanned(OrganizationId organizationId, PlannedSchedule plannedSchedule) {
+        return fixture.workRepository.store(
+                Work.register(organizationId, "미리 입력한 작업", REGISTRAR_ID, null, null, null, plannedSchedule));
     }
 
     private static ReleaseTechnicianWorksCommand command(Cause cause) {
