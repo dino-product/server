@@ -33,7 +33,7 @@
 | `GET /api/v1/profiles/{accountId}` | 내 정보와 가입 단계. 프로필이 없으면 `PENDING_SIGNUP`·`PROFILE` | [조직·계정] 정책 §5·§5.1, 기능명세 §7 |
 | `PUT /api/v1/profiles/{accountId}` | 프로필 입력(없으면 가입 미완료 프로필 생성)·수정 | [조직·계정] 정책 §5(입력값·이름 공통 입력 규칙)·§5.1·§11, 기능명세 §5·§9 |
 | `POST /api/v1/profiles/{accountId}/terms-agreements` | 필수 약관 동의(가입 완료)·재동의, 마케팅 값을 보내면 함께 반영 | [조직·계정] 정책 §5(약관 동의)·§5.1, 기능명세 §5 |
-| `POST /api/v1/profiles/{accountId}/marketing-consents` | 마이페이지 마케팅 수신 동의 켜고 끄기. 경로는 허용 목록 안이지만 가입을 마치기 전·재동의 전이면 서비스가 `PROFILE-005`로 거부 | [조직·계정] 정책 §5.1 |
+| `POST /api/v1/profiles/{accountId}/marketing-consents` | 마이페이지 마케팅 수신 동의 켜고 끄기. 경로는 허용 목록 안이지만 가입을 마치기 전이면 서비스가 `PROFILE-005`로 거부한다. 필수 약관 재동의 전인 활성 계정은 바꿀 수 있다 | [조직·계정] 정책 §5.1 |
 
 - 오류: `PROFILE-001`(입력 규칙 위반, 400), `PROFILE-002`(다른 계정, 404), `PROFILE-003`(프로필 입력 전 약관 동의, 409), `PROFILE-004`(필수 약관 미동의, 400), `PROFILE-005`(가입 미완료·재동의 전 이용, 403, [공통 검사](#profile-signup-gate)), 동시 저장 충돌 `COMMON-409`.
 - 이름·연락처 규칙은 Domain 값객체가 한 번만 검사하고 서비스가 `PROFILE-001`로 바꾼다. 요청 본문에 같은 제약을 두지 않는다.
