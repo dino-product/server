@@ -14,7 +14,8 @@ class StatusCorrectionTest {
     private static final Instant AT = Instant.parse("2026-09-21T01:00:00Z");
     private static final MembershipId OWNER_ID = new MembershipId(98L);
     private static final CompletionReport REPORT = new CompletionReport(null, null, null, "완료", null, null);
-    private static final Cancellation CANCELLATION = new Cancellation(AT, new MembershipId(99L), "고객 요청");
+    private static final Cancellation CANCELLATION =
+            new Cancellation(AT, new MembershipId(99L), CancellationReason.CUSTOMER_REQUEST, null);
 
     @Test
     @DisplayName("정정 시각과 보관한 시각은 마이크로초로 자른다")

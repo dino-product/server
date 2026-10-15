@@ -1,5 +1,6 @@
 package com.orbit.schedule.application.port.in.query.dto;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -39,6 +40,16 @@ public record TimetableInfo(List<ScheduledWork> scheduledWorks, List<BacklogWork
      *
      * @param workTypeId 작업 유형. 없으면 null
      * @param returnedByRejection 기사가 거절해 대기함으로 돌아온 작업인지(최신 배정이 거절됨)
+     * @param plannedTechnicianId 등록 때 미리 입력한 담당기사. 없으면 null(대기함 카드의 기사 미정)
+     * @param plannedStartTime 등록 때 미리 입력한 시작시각. 없으면 null
+     * @param plannedExpectedDuration 등록 때 미리 입력한 예상소요시간. 없으면 null
      */
-    public record BacklogWork(Long workId, String name, Long workTypeId, boolean returnedByRejection) {}
+    public record BacklogWork(
+            Long workId,
+            String name,
+            Long workTypeId,
+            boolean returnedByRejection,
+            Long plannedTechnicianId,
+            Instant plannedStartTime,
+            Duration plannedExpectedDuration) {}
 }

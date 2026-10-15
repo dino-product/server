@@ -69,6 +69,7 @@ import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.application.port.out.WorkTypePort;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
@@ -202,7 +203,19 @@ class ScheduleModuleTest {
     @Test
     void assembledCreateWorkUseCaseDeniesAccountWithoutActiveOrganizationMember() {
         assertThatThrownBy(() -> createWorkUseCase.create(new CreateWorkCommand(
-                        1L, ORGANIZATION_ID.value(), "모듈 작업", null, null, null, null, null, null)))
+                        1L,
+                        ORGANIZATION_ID.value(),
+                        "모듈 작업",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
     }
@@ -237,7 +250,8 @@ class ScheduleModuleTest {
         assertDenied(() -> rescheduleWorkUseCase.reschedule(
                 new RescheduleWorkCommand(1L, ORGANIZATION_ID.value(), 1L, startTime, Duration.ofHours(2), false)));
         assertDenied(() -> unassignWorkUseCase.unassign(new UnassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L)));
-        assertDenied(() -> cancelWorkUseCase.cancel(new CancelWorkCommand(1L, ORGANIZATION_ID.value(), 1L, "고객 요청")));
+        assertDenied(() -> cancelWorkUseCase.cancel(
+                new CancelWorkCommand(1L, ORGANIZATION_ID.value(), 1L, CancellationReason.CUSTOMER_REQUEST, null)));
         assertDenied(() -> correctWorkStatusUseCase.correct(
                 new CorrectWorkStatusCommand(1L, ORGANIZATION_ID.value(), 1L, WorkStatus.IN_PROGRESS, "잘못 완료")));
     }

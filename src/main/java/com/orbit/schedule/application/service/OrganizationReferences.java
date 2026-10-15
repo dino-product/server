@@ -3,6 +3,7 @@ package com.orbit.schedule.application.service;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkTypePort;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.shared.error.BusinessException;
@@ -23,6 +24,18 @@ final class OrganizationReferences {
         if (!port.isActive(work.organizationId(), schedule.technicianId())) {
             throw new BusinessException(ScheduleErrorCode.TECHNICIAN_NOT_ASSIGNABLE);
         }
+    }
+
+    /**
+     * 대기함 작업이 미리 입력한 담당기사가 작업 조직의 활성 기사 계약이 아니면 400(SCHEDULE-013). 미리 입력한 담당기사가 없으면 확인하지 않는다. 기사 일정을 차지하지
+     * 않으므로 잠그지 않는다.
+     */
+    static void requireActivePlannedTechnician(TechnicianContractPort port, Work work) {
+        work.plannedSchedule().map(PlannedSchedule::technicianId).ifPresent(technicianId -> {
+            if (!port.isActive(work.organizationId(), technicianId)) {
+                throw new BusinessException(ScheduleErrorCode.TECHNICIAN_NOT_ASSIGNABLE);
+            }
+        });
     }
 
     /** 작업에 지정한 작업 유형이 작업 조직에서 선택할 수 없는 유형이면 400(SCHEDULE-014). 유형을 비웠으면 확인하지 않는다. */

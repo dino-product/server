@@ -190,6 +190,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 work.registrarId(),
                 work.workType().orElse(null),
                 work.schedule().orElse(null),
+                work.plannedSchedule().orElse(null),
                 work.customerInfo(),
                 work.paymentInfo(),
                 work.status(),

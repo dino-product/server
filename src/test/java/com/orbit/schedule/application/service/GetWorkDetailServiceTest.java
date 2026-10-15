@@ -26,8 +26,10 @@ import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.MembershipId;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -93,7 +95,7 @@ class GetWorkDetailServiceTest {
         Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
         work.reject(new Rejection(RejectionReason.OTHER, "장비 없음"), ACCEPTED_AT);
         work.assign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), ACCEPTED_AT, SETUP_MANAGER_ID);
-        work.cancel(NOW.minusSeconds(60), SETUP_MANAGER_ID, "고객 요청");
+        work.cancel(NOW.minusSeconds(60), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         work.correctStatus(WorkStatus.REGISTERED, NOW, OWNER_ID, "잘못 취소");
         WorkId id = fixture.workRepository.store(work);
 
@@ -123,10 +125,29 @@ class GetWorkDetailServiceTest {
                                 SETUP_MANAGER_ID.value()));
         assertThat(detail.statusCorrections()).singleElement().satisfies(correction -> {
             assertThat(correction.retiredCancellation())
-                    .isEqualTo(
-                            new WorkDetailInfo.Cancellation(NOW.minusSeconds(60), SETUP_MANAGER_ID.value(), "고객 요청"));
+                    .isEqualTo(new WorkDetailInfo.Cancellation(
+                            NOW.minusSeconds(60), SETUP_MANAGER_ID.value(), CancellationReason.CUSTOMER_REQUEST, null));
             assertThat(correction.restoredAssignmentNumber()).isEqualTo(2);
         });
+    }
+
+    @Test
+    @DisplayName("관리자는 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간을 본다")
+    void showsPlannedScheduleOfBacklogWork() {
+        fixture.givenManager();
+        WorkId id = fixture.workRepository.store(Work.register(
+                ORGANIZATION_ID,
+                "시간만 정한 작업",
+                SETUP_MANAGER_ID,
+                null,
+                null,
+                null,
+                new PlannedSchedule(null, TEN, TWO_HOURS)));
+
+        WorkDetailInfo detail = service.get(query(id.value()));
+
+        assertThat(detail.schedule()).isNull();
+        assertThat(detail.plannedSchedule()).isEqualTo(new WorkDetailInfo.PlannedSchedule(null, TEN, TWO_HOURS));
     }
 
     @Test
@@ -169,7 +190,8 @@ class GetWorkDetailServiceTest {
         WorkId id = fixture.givenWork(WorkStatus.CANCELLED);
 
         assertThat(service.get(query(id.value())).cancellation())
-                .isEqualTo(new WorkDetailInfo.Cancellation(ACCEPTED_AT, SETUP_MANAGER_ID.value(), "고객 요청"));
+                .isEqualTo(new WorkDetailInfo.Cancellation(
+                        ACCEPTED_AT, SETUP_MANAGER_ID.value(), CancellationReason.CUSTOMER_REQUEST, null));
     }
 
     @Test

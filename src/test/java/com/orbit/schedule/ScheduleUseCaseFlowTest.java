@@ -49,6 +49,7 @@ import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.MembershipId;
@@ -226,7 +227,8 @@ class ScheduleUseCaseFlowTest {
         assignWorkUseCase.assign(
                 new AssignWorkCommand(ACCOUNT_ID, organizationId.value(), workId, TECHNICIAN, TEN, TWO_HOURS, false));
 
-        cancelWorkUseCase.cancel(new CancelWorkCommand(ACCOUNT_ID, organizationId.value(), workId, "고객 요청"));
+        cancelWorkUseCase.cancel(new CancelWorkCommand(
+                ACCOUNT_ID, organizationId.value(), workId, CancellationReason.CUSTOMER_REQUEST, null));
 
         Work stored = workRepository
                 .findInOrganization(organizationId, new WorkId(workId))
@@ -234,7 +236,7 @@ class ScheduleUseCaseFlowTest {
         assertThat(stored.status()).isEqualTo(WorkStatus.CANCELLED);
         assertThat(stored.cancellation()).hasValueSatisfying(cancellation -> {
             assertThat(cancellation.cancelledBy()).isEqualTo(MANAGER);
-            assertThat(cancellation.reason()).isEqualTo("고객 요청");
+            assertThat(cancellation.reason()).isEqualTo(CancellationReason.CUSTOMER_REQUEST);
         });
         assertThat(stored.assignmentHistory().getLast().ending())
                 .map(AssignmentEnding::reason)
@@ -244,7 +246,19 @@ class ScheduleUseCaseFlowTest {
     private long create(String name) {
         return createWorkUseCase
                 .create(new CreateWorkCommand(
-                        ACCOUNT_ID, organizationId.value(), name, null, null, null, null, null, null))
+                        ACCOUNT_ID,
+                        organizationId.value(),
+                        name,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false))
                 .workId();
     }
 

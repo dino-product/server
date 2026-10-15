@@ -157,7 +157,7 @@ class WorkTest {
                     null,
                     null,
                     null,
-                    new Cancellation(NOW, REGISTRAR_ID, "고객 요청"),
+                    new Cancellation(NOW, REGISTRAR_ID, CancellationReason.CUSTOMER_REQUEST, null),
                     null));
 
             assertThat(work.id()).contains(id);
@@ -933,10 +933,11 @@ class WorkTest {
         void cancelsAllowedStatus(WorkStatus status) {
             Work work = workIn(status);
 
-            work.cancel(NOW, MANAGER_ID, "고객 요청");
+            work.cancel(NOW, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
-            assertThat(work.cancellation()).contains(new Cancellation(NOW, MANAGER_ID, "고객 요청"));
+            assertThat(work.cancellation())
+                    .contains(new Cancellation(NOW, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null));
         }
 
         @Test
@@ -944,9 +945,10 @@ class WorkTest {
         void recordsCancellationOfBacklogWork() {
             Work work = registeredWork();
 
-            work.cancel(LATER, MANAGER_ID, "고객 요청");
+            work.cancel(LATER, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
-            assertThat(work.cancellation()).contains(new Cancellation(LATER, MANAGER_ID, "고객 요청"));
+            assertThat(work.cancellation())
+                    .contains(new Cancellation(LATER, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null));
             assertThat(work.assignmentHistory()).isEmpty();
         }
 
@@ -954,17 +956,20 @@ class WorkTest {
         @EnumSource(
                 value = WorkStatus.class,
                 names = {"REGISTERED", "COMPLETED", "CANCELLED"})
-        @DisplayName("사유가 비었거나 255자를 넘으면 상태와 관계없이 입력 오류이고 작업을 바꾸지 않는다")
+        @DisplayName("사유가 없거나 기타 메모가 비었거나 255자를 넘으면 상태와 관계없이 입력 오류이고 작업을 바꾸지 않는다")
         void rejectsInvalidReasonBeforeState(WorkStatus status) {
             Work work = workIn(status);
             Optional<Cancellation> before = work.cancellation();
 
-            assertThatThrownBy(() -> work.cancel(LATER, MANAGER_ID, " "))
+            assertThatThrownBy(() -> work.cancel(LATER, MANAGER_ID, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("reason must not be blank");
-            assertThatThrownBy(() -> work.cancel(LATER, MANAGER_ID, "가".repeat(256)))
+                    .hasMessage("cancellation reason must not be null");
+            assertThatThrownBy(() -> work.cancel(LATER, MANAGER_ID, CancellationReason.OTHER, " "))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("reason must be at most 255 characters");
+                    .hasMessage("cancellation note is required for OTHER");
+            assertThatThrownBy(() -> work.cancel(LATER, MANAGER_ID, CancellationReason.OTHER, "가".repeat(256)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("cancellation note must be at most 255 characters");
             assertThat(work.status()).isEqualTo(status);
             assertThat(work.cancellation()).isEqualTo(before);
         }
@@ -975,7 +980,8 @@ class WorkTest {
             Work work = pendingWork();
             work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), LATER);
 
-            assertThatThrownBy(() -> work.cancel(LATER.minusSeconds(1), MANAGER_ID, "고객 요청"))
+            assertThatThrownBy(() ->
+                            work.cancel(LATER.minusSeconds(1), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("cancelledAt must not be before the latest assignment");
             assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
@@ -988,7 +994,7 @@ class WorkTest {
             Work work = pendingWork();
             Instant cancelledAt = NOW.plusSeconds(60);
 
-            work.cancel(cancelledAt, MANAGER_ID, "고객 요청");
+            work.cancel(cancelledAt, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
             AssignmentHistory history = work.assignmentHistory().getLast();
             assertThat(history.result()).isEqualTo(AssignmentResult.WITHDRAWN);
@@ -1000,7 +1006,7 @@ class WorkTest {
         void keepsAcceptedResult() {
             Work work = acceptedWork();
 
-            work.cancel(NOW.plusSeconds(60), MANAGER_ID, "고객 요청");
+            work.cancel(NOW.plusSeconds(60), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
             AssignmentHistory history = work.assignmentHistory().getLast();
             assertThat(history.result()).isEqualTo(AssignmentResult.ACCEPTED);
@@ -1014,7 +1020,8 @@ class WorkTest {
         void rejectsCancellingPendingWorkBeforeAssignment() {
             Work work = pendingWork();
 
-            assertThatThrownBy(() -> work.cancel(NOW.minusSeconds(1), MANAGER_ID, "고객 요청"))
+            assertThatThrownBy(() ->
+                            work.cancel(NOW.minusSeconds(1), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("cancelledAt must not be before the latest assignment");
             assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
@@ -1027,7 +1034,8 @@ class WorkTest {
         void rejectsCancellingBeforeAcceptance() {
             Work work = acceptedWork();
 
-            assertThatThrownBy(() -> work.cancel(NOW.minusSeconds(1), MANAGER_ID, "고객 요청"))
+            assertThatThrownBy(() ->
+                            work.cancel(NOW.minusSeconds(1), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("cancelledAt must not be before the latest assignment");
             assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
@@ -1040,7 +1048,8 @@ class WorkTest {
             Work work = acceptedWork();
             work.start(LATER);
 
-            assertThatThrownBy(() -> work.cancel(LATER.minusSeconds(1), MANAGER_ID, "고객 요청"))
+            assertThatThrownBy(() ->
+                            work.cancel(LATER.minusSeconds(1), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("cancelledAt must not be before startedAt");
             assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
@@ -1053,7 +1062,7 @@ class WorkTest {
             Work work = acceptedWork();
             work.start(LATER);
 
-            work.cancel(LATER.plusSeconds(60), MANAGER_ID, "고객 요청");
+            work.cancel(LATER.plusSeconds(60), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
             assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
             assertThat(work.startedAt()).contains(LATER);
@@ -1065,7 +1074,7 @@ class WorkTest {
         void requiresCancellationTimeEvenInBacklog() {
             Work work = registeredWork();
 
-            assertThatThrownBy(() -> work.cancel(null, MANAGER_ID, "고객 요청"))
+            assertThatThrownBy(() -> work.cancel(null, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("cancelledAt must not be null");
             assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
@@ -1077,7 +1086,7 @@ class WorkTest {
         void rejectsTerminalStatus(WorkStatus status) {
             Work work = workIn(status);
 
-            assertThatThrownBy(() -> work.cancel(NOW, MANAGER_ID, "고객 요청"))
+            assertThatThrownBy(() -> work.cancel(NOW, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot transition from %s to CANCELLED", status);
         }
@@ -1153,7 +1162,7 @@ class WorkTest {
         void recordsCancellationOfCurrentAssignment(WorkStatus status) {
             Work work = workIn(status);
 
-            work.cancel(LATER, OTHER_MANAGER_ID, "고객 요청");
+            work.cancel(LATER, OTHER_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
             assertThat(work.assignmentHistory().getLast().ending())
                     .contains(new AssignmentEnding(LATER, OTHER_MANAGER_ID, AssignmentEndReason.CANCELLED));
@@ -1165,7 +1174,7 @@ class WorkTest {
             Work work = acceptedWork();
             work.unassign(LATER, OTHER_MANAGER_ID);
 
-            work.cancel(LATER.plusSeconds(60), MANAGER_ID, "고객 요청");
+            work.cancel(LATER.plusSeconds(60), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
             assertThat(work.assignmentHistory().getLast().ending())
                     .contains(new AssignmentEnding(LATER, OTHER_MANAGER_ID, AssignmentEndReason.UNASSIGNED));
@@ -1202,7 +1211,9 @@ class WorkTest {
                             LATER,
                             null));
             assertPendingWorkRequiresActor("endedBy must not be null", work -> work.unassign(LATER, null));
-            assertPendingWorkRequiresActor("cancelledBy must not be null", work -> work.cancel(LATER, null, "고객 요청"));
+            assertPendingWorkRequiresActor(
+                    "cancelledBy must not be null",
+                    work -> work.cancel(LATER, null, CancellationReason.CUSTOMER_REQUEST, null));
         }
 
         private static void assertPendingWorkRequiresActor(String message, Consumer<Work> call) {
@@ -1269,7 +1280,7 @@ class WorkTest {
 
     private static Work cancelledWork() {
         Work work = registeredWork();
-        work.cancel(NOW, MANAGER_ID, "고객 요청");
+        work.cancel(NOW, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         return work;
     }
 
@@ -1316,13 +1327,15 @@ class WorkTest {
 
     private static Cancellation cancellationFor(List<AssignmentHistory> histories) {
         if (histories.isEmpty()) {
-            return new Cancellation(NOW, MANAGER_ID, "고객 요청");
+            return new Cancellation(NOW, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         }
         AssignmentHistory latest = histories.getLast();
         return latest.ending()
                 .filter(ending -> ending.reason() == AssignmentEndReason.CANCELLED)
-                .map(ending -> new Cancellation(ending.endedAt(), ending.endedBy(), "고객 요청"))
-                .orElseGet(() -> new Cancellation(latest.lastMoment(), MANAGER_ID, "고객 요청"));
+                .map(ending ->
+                        new Cancellation(ending.endedAt(), ending.endedBy(), CancellationReason.CUSTOMER_REQUEST, null))
+                .orElseGet(() ->
+                        new Cancellation(latest.lastMoment(), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null));
     }
 
     private static Work reconstitute(
@@ -1463,25 +1476,25 @@ class WorkTest {
                         WorkStatus.REGISTERED,
                         null,
                         List.of(),
-                        new Cancellation(NOW, MANAGER_ID, "고객 요청"),
+                        new Cancellation(NOW, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null),
                         "REGISTERED work must not have a cancellation"),
                 Arguments.of(
                         WorkStatus.CANCELLED,
                         FIRST_SCHEDULE,
                         cancelledWhileAssigned,
-                        new Cancellation(NOW.plusSeconds(1), MANAGER_ID, "고객 요청"),
+                        new Cancellation(NOW.plusSeconds(1), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null),
                         "cancellation must match the ending of the cancelled assignment"),
                 Arguments.of(
                         WorkStatus.CANCELLED,
                         FIRST_SCHEDULE,
                         cancelledWhileAssigned,
-                        new Cancellation(NOW, new MembershipId(98L), "고객 요청"),
+                        new Cancellation(NOW, new MembershipId(98L), CancellationReason.CUSTOMER_REQUEST, null),
                         "cancellation must match the ending of the cancelled assignment"),
                 Arguments.of(
                         WorkStatus.CANCELLED,
                         null,
                         rejected,
-                        new Cancellation(NOW.minusSeconds(1), MANAGER_ID, "고객 요청"),
+                        new Cancellation(NOW.minusSeconds(1), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null),
                         "cancelledAt must not be before the latest assignment"));
     }
 
