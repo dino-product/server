@@ -73,6 +73,21 @@ class SignupGateOpenApiCustomizerTest {
         assertThat(publicOperation.getResponses()).doesNotContainKey("403");
     }
 
+    @Test
+    @DisplayName("organization API 중 가입 전에 허용하는 회사 확인에만 덧붙이지 않는다")
+    void skipsOnlyCompanyCheckAmongOrganizationOperations() {
+        Operation companyCheck = bearerOperation();
+        Operation organization = bearerOperation();
+        OpenAPI openApi = openApi(Map.of(
+                "/api/v1/organizations/lookup", new PathItem().get(companyCheck),
+                "/api/v1/organizations/{organizationId}", new PathItem().get(organization)));
+
+        new SignupGateOpenApiCustomizer().customise(openApi);
+
+        assertThat(companyCheck.getResponses()).doesNotContainKey("403");
+        assertThat(organization.getResponses()).containsKey("403");
+    }
+
     private static Operation bearerOperation() {
         return new Operation()
                 .responses(new ApiResponses())

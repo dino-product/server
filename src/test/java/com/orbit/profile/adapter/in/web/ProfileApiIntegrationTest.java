@@ -167,13 +167,21 @@ class ProfileApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("가입 미완료 계정도 회사 확인 API는 공통 검사에 막히지 않는다")
+    @DisplayName("가입 미완료 계정은 organization API 중 회사 확인만 쓰고, 참여 요청은 PROFILE-005로 막힌다")
     void allowsCompanyCheckBeforeSignup() throws Exception {
         TestAccount account = loginAsNewAccount();
 
-        mockMvc.perform(get("/api/v1/organizations/lookup").header(HttpHeaders.AUTHORIZATION, account.bearer()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(get("/api/v1/organizations/lookup")
+                        .param("companyCode", "UUUUUU")
+                        .header(HttpHeaders.AUTHORIZATION, account.bearer()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-011"));
+        mockMvc.perform(post("/api/v1/participation-requests")
+                        .header(HttpHeaders.AUTHORIZATION, account.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PROFILE-005"));
     }
 
     @Test
