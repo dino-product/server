@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.orbit.profile.WithdrawalBlock;
+import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.profile.WithdrawalBlocker;
 import com.orbit.profile.application.error.ProfileErrorCode;
 import com.orbit.profile.application.port.in.query.dto.CheckWithdrawalEligibilityQuery;
@@ -46,15 +47,18 @@ class CheckWithdrawalEligibilityServiceTest {
     @DisplayName("모든 차단 판정 구현의 사유를 모아 돌려주고 탈퇴할 수 없다고 알린다")
     void collectsBlocksFromEveryBlocker() {
         when(profiles.findByAccountId(new AccountId(7L))).thenReturn(Optional.empty());
-        WithdrawalBlocker organization = accountId -> List.of(new WithdrawalBlock("SOLE_OWNER", 1));
-        WithdrawalBlocker schedule = accountId -> List.of(new WithdrawalBlock("WORK_IN_PROGRESS", 2));
+        WithdrawalBlocker organization = accountId -> List.of(new WithdrawalBlock(WithdrawalBlockReason.SOLE_OWNER, 1));
+        WithdrawalBlocker schedule =
+                accountId -> List.of(new WithdrawalBlock(WithdrawalBlockReason.WORK_IN_PROGRESS, 2));
         CheckWithdrawalEligibilityService service =
                 new CheckWithdrawalEligibilityService(profiles, List.of(organization, schedule));
 
         assertThat(service.check(new CheckWithdrawalEligibilityQuery(7L, 7L)))
                 .isEqualTo(new WithdrawalEligibilityInfo(
                         false,
-                        List.of(new WithdrawalBlock("SOLE_OWNER", 1), new WithdrawalBlock("WORK_IN_PROGRESS", 2))));
+                        List.of(
+                                new WithdrawalBlock(WithdrawalBlockReason.SOLE_OWNER, 1),
+                                new WithdrawalBlock(WithdrawalBlockReason.WORK_IN_PROGRESS, 2))));
     }
 
     @Test

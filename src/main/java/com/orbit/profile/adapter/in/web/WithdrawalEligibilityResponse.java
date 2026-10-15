@@ -16,16 +16,18 @@ public record WithdrawalEligibilityResponse(
         return new WithdrawalEligibilityResponse(
                 info.withdrawable(),
                 info.blocks().stream()
-                        .map(block -> new Block(block.reason(), block.count()))
+                        .map(block -> new Block(block.reason().name(), block.count()))
                         .toList());
     }
 
     public record Block(
             @Schema(
-                    description = "사유 코드. 유일한 총관리자(SOLE_OWNER), 기사 소속의 작업중·배정됨 작업 등 탈퇴를 막는 상태를 소유한 기능이 정한다",
-                    example = "SOLE_OWNER")
+                    description = "사유. SOLE_OWNER(어느 발주사에서든 유일한 총관리자), WORK_IN_PROGRESS(기사 소속에 작업중 작업 있음), "
+                            + "WORK_PENDING_ACCEPTANCE(기사 소속에 응답 전 배정됨 작업 있음)",
+                    example = "SOLE_OWNER",
+                    allowableValues = {"SOLE_OWNER", "WORK_IN_PROGRESS", "WORK_PENDING_ACCEPTANCE"})
             String reason,
 
-            @Schema(description = "탈퇴하려면 먼저 정리해야 할 대상(발주사·작업)의 수", example = "1")
+            @Schema(description = "탈퇴하려면 먼저 정리해야 할 대상의 수. SOLE_OWNER는 발주사 수, 나머지는 작업 수", example = "1")
             int count) {}
 }

@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.orbit.auth.AccountClosure;
 import com.orbit.profile.AccountWithdrawn;
 import com.orbit.profile.WithdrawalBlock;
+import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.profile.WithdrawalBlocker;
 import com.orbit.support.IntegrationTestSupport;
 import com.orbit.support.KakaoJwksStub;
@@ -233,7 +234,7 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
         checkEligibility(account, account.accountId())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.withdrawable").value(false))
-                .andExpect(jsonPath("$.result.blocks[0].reason").value("TEST_BLOCK"))
+                .andExpect(jsonPath("$.result.blocks[0].reason").value("WORK_PENDING_ACCEPTANCE"))
                 .andExpect(jsonPath("$.result.blocks[0].count").value(2));
         withdraw(account, account.accountId())
                 .andExpect(status().isConflict())
@@ -329,8 +330,9 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
 
         @Bean
         WithdrawalBlocker testWithdrawalBlocker() {
-            return accountId ->
-                    BLOCKED_ACCOUNTS.contains(accountId) ? List.of(new WithdrawalBlock("TEST_BLOCK", 2)) : List.of();
+            return accountId -> BLOCKED_ACCOUNTS.contains(accountId)
+                    ? List.of(new WithdrawalBlock(WithdrawalBlockReason.WORK_PENDING_ACCEPTANCE, 2))
+                    : List.of();
         }
 
         @Bean

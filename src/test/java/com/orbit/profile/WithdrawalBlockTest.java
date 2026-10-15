@@ -9,12 +9,12 @@ import org.junit.jupiter.api.Test;
 class WithdrawalBlockTest {
 
     @Test
-    @DisplayName("사유 코드가 비었거나 해결할 대상 수가 1보다 작으면 거부한다")
+    @DisplayName("사유가 없거나 해결할 대상 수가 1보다 작으면 거부한다")
     void rejectsIncompleteBlock() {
-        assertThatThrownBy(() -> new WithdrawalBlock(" ", 1))
+        assertThatThrownBy(() -> new WithdrawalBlock(null, 1))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("reason must not be blank");
-        assertThatThrownBy(() -> new WithdrawalBlock("SOLE_OWNER", 0))
+                .hasMessage("reason must not be null");
+        assertThatThrownBy(() -> new WithdrawalBlock(WithdrawalBlockReason.SOLE_OWNER, 0))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("count must be positive");
     }

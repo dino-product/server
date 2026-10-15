@@ -30,6 +30,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import com.orbit.auth.AccountClosure;
 import com.orbit.profile.AccountWithdrawn;
 import com.orbit.profile.WithdrawalBlock;
+import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.profile.WithdrawalBlocker;
 import com.orbit.profile.application.error.ProfileErrorCode;
 import com.orbit.profile.application.port.in.command.dto.WithdrawCommand;
@@ -121,7 +122,7 @@ class WithdrawServiceTest {
     @DisplayName("차단 판정 구현이 사유를 돌려주면 PROFILE-006으로 거부하고 아무것도 바꾸지 않는다")
     void rejectsBlockedWithdrawal() {
         when(profiles.findByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
-        blocks.add(new WithdrawalBlock("SOLE_OWNER", 1));
+        blocks.add(new WithdrawalBlock(WithdrawalBlockReason.SOLE_OWNER, 1));
 
         assertThatThrownBy(() -> service.withdraw(new WithdrawCommand(7L, 7L, null)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())

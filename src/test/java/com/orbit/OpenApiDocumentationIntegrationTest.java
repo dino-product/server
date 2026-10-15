@@ -1,5 +1,6 @@
 package com.orbit;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -447,5 +448,18 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/marketing-consents'].post.responses['403']"
                                 + ".content['application/json'].examples['PROFILE-005'].value.code")
                         .value("PROFILE-005"));
+    }
+
+    @Test
+    void documentsWithdrawalBlockReasons() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/withdrawals'].post.responses['409']"
+                                + ".content['application/json'].examples['PROFILE-006'].value.code")
+                        .value("PROFILE-006"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.profile.adapter.in.web.WithdrawalEligibilityResponse.Block']"
+                                + ".properties.reason.enum")
+                        .value(containsInAnyOrder("SOLE_OWNER", "WORK_IN_PROGRESS", "WORK_PENDING_ACCEPTANCE")));
     }
 }
