@@ -35,4 +35,9 @@ public interface WorkRepository {
      * 아니다.
      */
     List<Work> listActiveByTechnician(OrganizationId organizationId, TechnicianId technicianId);
+
+    /**
+     * 조직 안에서 미리 입력한 담당기사가 이 기사인 대기함 작업. 순서는 보장하지 않으므로 처리 순서는 호출자가 정한다. 인자는 null이 아니다.
+     */
+    List<Work> listBacklogPlannedForTechnician(OrganizationId organizationId, TechnicianId technicianId);
 }

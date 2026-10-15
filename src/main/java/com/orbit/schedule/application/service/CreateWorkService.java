@@ -30,8 +30,8 @@ import com.orbit.schedule.domain.WorkTypeId;
 /**
  * 작업 등록. 요청한 조직의 총관리자·직원이 작업을 만든다. 작업명만 필수이고 작업 유형·고객·결제 정보는 비워도 된다. 담당기사·시작시각·예상소요시간을 모두
  * 주면 등록과 함께 배정하고(배정과 같은 규칙), 모두 비우면 대기함에 둔다. 일부만 주면 입력한 값을 미리 입력한 일정으로 남겨 대기함에 두며, 그중 담당기사가
- * 있으면 같은 조직의 활성 기사 계약이어야 한다(기사 일정을 차지하지 않으므로 잠그지 않는다). 함께
- * 배정하려던 일정이 겹치는데 확인하지 않았으면 작업을 만들지 않는다. 확인 뒤 다시 보낸 요청이 작업을 한 번만 만들게 하기 위해서다. 오류 확인 순서는 schedule
+ * 있으면 같은 조직의 활성 기사 계약이어야 한다. 그 담당기사를 잠근 뒤 확인해, 같은 기사를 잠그고 미리 입력한 담당기사를 비우는 대기함 반환과 한 줄로
+ * 선다([스케줄·배정] §9). 함께 배정하려던 일정이 겹치는데 확인하지 않았으면 작업을 만들지 않는다. 확인 뒤 다시 보낸 요청이 작업을 한 번만 만들게 하기 위해서다. 오류 확인 순서는 schedule
  * 지침의 공통 순서를 따른다. 작업 유형을 지정하면 같은 조직에서 선택할 수 있는 유형이어야 한다.
  */
 @Service
@@ -81,6 +81,10 @@ public class CreateWorkService implements CreateWorkUseCase {
                 complete ? null : plannedSchedule(command)));
 
         OrganizationReferences.requireSelectableWorkType(workTypePort, work);
+        work.plannedSchedule()
+                .map(PlannedSchedule::technicianId)
+                .ifPresent(technicianId ->
+                        TechnicianScheduleLocks.lock(lockTechnicianSchedulePort, actor.organizationId(), technicianId));
         OrganizationReferences.requireActivePlannedTechnician(technicianContractPort, work);
 
         if (schedule == null) {
