@@ -6,7 +6,7 @@ public enum ParticipationAvailability {
     AVAILABLE,
     /** 활성 직원 소속이나 기사 계약이 있다. */
     ALREADY_MEMBER,
-    /** 비활성 직원 소속·기사 계약만 있다. 기획 결정 전까지 요청을 막는다(O-15). */
+    /** 비활성 직원 소속·기사 계약만 있다. 승인의 재활성화(HM-290) 전까지 요청을 막는다(O-03). */
     DEACTIVATED_MEMBER,
     /** 승인 대기 중인 요청이 있다. */
     PENDING_REQUEST
