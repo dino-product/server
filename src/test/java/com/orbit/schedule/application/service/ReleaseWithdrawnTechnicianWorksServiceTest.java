@@ -1,6 +1,7 @@
 package com.orbit.schedule.application.service;
 
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
@@ -8,7 +9,9 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHE
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Duration;
@@ -29,7 +32,9 @@ import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
+import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.shared.error.BusinessException;
 
 @DisplayName("탈퇴한 기사의 예정 작업 대기함 반환")
 class ReleaseWithdrawnTechnicianWorksServiceTest {
@@ -95,6 +100,20 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
 
         assertThat(fixture.stored(other).status()).isEqualTo(WorkStatus.ACCEPTED);
         assertThat(fixture.workRepository.saved()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("작업을 돌릴 수 없으면 요청자의 입력 오류로 바꾸지 않고 도메인 예외로 실패한다")
+    void failsWithDomainExceptionWhenWorkCannotBeReleased() {
+        contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
+        Work assignedLater = Work.register(ORGANIZATION_ID, "나중에 배정된 작업", REGISTRAR_ID, null, null, null);
+        assignedLater.assign(
+                new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW.plus(Duration.ofHours(1)), MANAGER_ID);
+        fixture.workRepository.store(assignedLater);
+
+        assertThatThrownBy(() -> service.release(command()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .isNotInstanceOf(BusinessException.class);
     }
 
     @Test

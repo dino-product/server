@@ -21,7 +21,8 @@ import com.orbit.schedule.domain.WorkSchedule;
  * 같은 담당기사의 일정 변경. 시간만 바꾸고, 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. 작업 자신의 기존 일정은 겹침에서 빼며, 같은 시간으로의
  * 변경은 SCHEDULE_UNCHANGED(409)다. 담당기사는 작업에서 가져오므로 시간 입력을 먼저 따로 검증해 공통 오류 순서(입력 400 → 상태 409)를 지킨다.
  * 현재 담당기사는 다시 확인하지 않는다. 기사 비활성화·역할 변경은 대기함 반환({@link ReleaseTechnicianWorksService})이 같은 기사 잠금으로 배정을 풀기
- * 때문이다. 탈퇴한 기사의 반환은 아직 없다(S-21).
+ * 때문이다. 탈퇴는 탈퇴 반환({@link ReleaseWithdrawnTechnicianWorksService})이 배정됨·작업전 작업을 돌리고, 남는 작업중 작업의 일정 변경은 담당기사를
+ * 다시 확인하지 않는다(S-21).
  */
 @Service
 public class RescheduleWorkService implements RescheduleWorkUseCase {

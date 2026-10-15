@@ -30,7 +30,8 @@ import com.orbit.schedule.domain.WorkStatus;
  * 한도를 넘기면 409(SCHEDULE-006)로 실패하고 전체가 롤백돼 다음 재전송을 기다린다.
  *
  * <p>남는 위험: organization의 계약 비활성화는 같은 탈퇴 이벤트의 별도 리스너라 순서가 없다. 이 반환이 비활성화보다 먼저 끝나면 그 사이 탈퇴한 기사에게 생긴 배정과
- * 일부만 입력한 등록의 미리 입력한 담당기사가 남고, 반환은 이미 성공했으므로 재전송으로도 처리되지 않는다. 해소 방향(계정 기사 계약 계약 HM-321의 형태, 비활성화와의 순서 보장 등)은 정하지 않았다.
+ * 일부만 입력한 등록의 미리 입력한 담당기사가 남고, 반환은 이미 성공했으므로 재전송으로도 처리되지 않는다. 해소 방향(계정의 기사 계약 조회 계약(HM-321)의
+ * 형태, 비활성화와의 순서 보장 등)은 정하지 않았다.
  */
 @Service
 public class ReleaseWithdrawnTechnicianWorksService implements ReleaseWithdrawnTechnicianWorksUseCase {
