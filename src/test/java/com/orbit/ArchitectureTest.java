@@ -4,9 +4,11 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.MappedSuperclass;
 
 import org.junit.jupiter.api.Test;
 
+import com.orbit.shared.persistence.BaseTimeEntity;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -109,6 +111,32 @@ class ArchitectureTest {
                 .should()
                 .resideInAPackage("..adapter.out.persistence..")
                 .because("JPA Entity는 Domain 모델 및 Web 응답과 분리한다")
+                .check(APPLICATION_CLASSES);
+    }
+
+    @Test
+    void jpaEntitiesInheritBaseTimeEntity() {
+        classes()
+                .that()
+                .areAnnotatedWith(Entity.class)
+                // user·auth의 Entity는 감사 컬럼 규약 전에 만들어졌다. 해당 모듈을 바꿀 때 상속으로 옮기고 이 예외를 지운다.
+                .and()
+                .resideOutsideOfPackages(ROOT_PACKAGE + ".user..", ROOT_PACKAGE + ".auth..")
+                .should()
+                .beAssignableTo(BaseTimeEntity.class)
+                .because("모든 JPA Entity는 created_at·updated_at 감사 컬럼을 shared::persistence의 BaseTimeEntity 상속으로 가진다")
+                .allowEmptyShould(true)
+                .check(APPLICATION_CLASSES);
+    }
+
+    @Test
+    void jpaMappedSuperclassesStayInSharedPersistenceOrPersistenceAdapters() {
+        classes()
+                .that()
+                .areAnnotatedWith(MappedSuperclass.class)
+                .should()
+                .resideInAnyPackage(ROOT_PACKAGE + ".shared.persistence..", "..adapter.out.persistence..")
+                .because("Entity 공통 부모는 shared::persistence 공개 계약이거나 해당 모듈의 영속성 Adapter 안에만 둔다")
                 .check(APPLICATION_CLASSES);
     }
 

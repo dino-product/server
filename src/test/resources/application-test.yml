@@ -25,6 +25,23 @@ app:
   auth:
     kakao:
       allowed-audiences: test-kakao-app-key
+    apple:
+      allowed-audiences: test-apple-bundle-id,test-apple-services-id
+      client-secret:
+        team-id: TESTTEAM01
+        key-id: TESTKEY001
+        # 실제 키가 아닌 자리표시자. client_secret을 만드는 테스트는 실행 중 생성한 키를 넣는다.
+        private-key: test-placeholder-not-a-key
+        ttl: PT10M
+      refresh-token:
+        # 테스트 전용 키(base64 32바이트)
+        encryption-key: dGVzdC1vbmx5LWFwcGxlLXJlZnJlc2gta2V5LTMyYnk=
+      web:
+        services-id: test-apple-services-id
+        redirect-uri: http://localhost/api/v1/auth/apple/callback
+        return-uris:
+          web: http://localhost:3000/login/apple
+          android: orbit-test://auth/apple
     jwt:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test
