@@ -25,7 +25,7 @@
 | --- | --- | --- | --- | --- |
 | [[조직·계정] 정책](https://app.notion.com/p/3cdf190e116681ffb967c10178f30374) | v1.5 | 2026-10-09 18:15 | `organization`, `auth`, `user` | §10 시스템 전체 권한 매트릭스, §9 참여 요청·소속·계정 상태 코드 |
 | [[작업] 정책](https://app.notion.com/p/3cef190e116681ffb614e9fa12cd3ae3) | v1.3 | 2026-10-14 17:37 | `schedule` | §9 작업 상태 코드·표시값 |
-| [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v1.1 | 2026-10-01 00:40 | `schedule` | — |
+| [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v1.2 | 2026-10-16 00:08 | `schedule` | — |
 | [[현장 수행] 정책](https://app.notion.com/p/3d0f190e11668133ba17c64b6d33ba5b) | v1.1 | 2026-10-01 00:40 | `schedule` | — |
 | [[현황 파악] 정책](https://app.notion.com/p/3d0f190e11668148aaf1cbfd9685ef05) | v1.0 | 2026-10-01 00:40 | `schedule` (조회) | — |
 | [[알림] 정책](https://app.notion.com/p/3d0f190e116681aab442e9e8f237c63e) | v1.2 | 2026-10-01 00:40 | `notification` | §4 알림 트리거 |
