@@ -71,7 +71,7 @@ POST /api/v1/auth/kakao/login {idToken}
 - 콜백의 그 밖의 실패는 복귀 주소에 `error`만 싣습니다(id_token AUTH-002, nonce AUTH-003, code AUTH-005, Apple 장애·Apple이 보낸 취소 외 오류 AUTH-006, 사용자 취소 AUTH-008, 예상하지 못한 내부 오류 COMMON-500). 성공하면 Access Token 대신 60초짜리 일회성 교환 코드를 싣고, 클라이언트가 `/exchange`에 code_verifier와 함께 보내 토큰을 받습니다. 토큰이 URL·브라우저 기록·Referer에 남지 않고, 복귀 주소(특히 Android 앱 스킴)를 가로채도 code_verifier 없이 쓸 수 없게 하려는 방식입니다. 교환 코드가 없거나 재사용되거나 verifier가 틀리면 AUTH-007이며 그 코드는 다시 쓸 수 없습니다.
 - 교환 코드를 쓰지 않으면 계정은 만들어진 채로 남아 다음 로그인은 `registered: false`입니다.
 - 복귀 주소는 `client` 이름(`web`, `android`)별로 설정에 등록한 값만 씁니다. 그 밖의 값은 COMMON-400입니다.
-- Apple이 첫 승인 때만 주는 이름·이메일(`user`, id_token의 `email`)은 저장하지 않습니다([BC-001](bounded-contexts.md#미해결-설계-이슈)).
+- Apple이 첫 승인 때만 주는 이름·이메일(`user`, id_token의 `email`)은 저장하지 않습니다. 이름은 가입 때 [profile](profile.md#profile)이 따로 받습니다.
 - Apple 로그인 유즈케이스(iOS 로그인·콜백)는 Apple 토큰 API를 기다리는 동안 DB 커넥션을 잡지 않도록 메서드 트랜잭션을 두지 않습니다. 계정 등록은 저장소가 별도 트랜잭션으로 확정하고 refresh token은 계정 확정 뒤 upsert하므로, 보관이 실패해도 다음 로그인에서 다시 저장됩니다.
 
 ## 인증과 로그아웃 흐름

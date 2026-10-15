@@ -52,7 +52,7 @@ Authorization: Bearer {accessToken} → /api/** (허용 목록 제외)
 - **등록과 허용 목록**: `ProfileWebConfig`(`WebMvcConfigurer`)가 인터셉터를 `/api/**`에 걸고 `/api/v1/profiles/**`, `/api/v1/auth/**`, organization의 회사 확인 `/api/v1/organizations/lookup`을 뺀다. 인증되지 않은 요청은 인가 단계가 이미 걸렀거나 공개 경로이므로 넘긴다. 공개 API도 토큰을 붙여 부르면 인증된 요청이라 검사한다(2026-10-10 결정). 가입 전에 써야 하는 API(탈퇴 등)는 공개 여부와 관계없이 허용 목록에 더한다.
 - **보안 필터가 아니라 인터셉터인 이유**: 보안 필터로 두면 없는 경로도 403이 되어 auth의 "폐기·만료·위조 토큰의 404는 실제로 없는 자원의 404와 같다" 계약([Auth 인증 흐름](auth.md#인증과-로그아웃-흐름))이 깨진다. 인터셉터는 컨트롤러 메서드로 연결된 요청만 보므로 없는 경로는 그대로 404가 된다.
 - **다른 모듈 영향**: 다른 모듈은 검사를 직접 넣지 않으며 허용 목록 밖의 새 API는 자동으로 검사 대상이 된다. 허용 목록은 다른 모듈의 URL 문자열이라 모듈 의존이 아니고 `ModularityTest`가 보지 못하므로, auth API를 `/api/v1/auth/**` 밖에 두거나 가입 전 API를 더할 때 허용 목록을 직접 고친다.
-- **테스트 영향**: 다른 모듈의 `@ApplicationModuleTest`에는 profile이 올라오지 않아 이 검사가 빠진다. 전체 컨텍스트 API 통합 테스트에서 실제 Access Token으로 인증 요청을 보내려면 계정이 가입을 마쳐야 하며, `src/test/java/com/orbit/support/SignupTestSupport`가 실제 API로 로그인·프로필 입력·필수 약관 동의를 마친다.
+- **테스트 영향**: 다른 모듈의 `@ApplicationModuleTest`에는 profile이 올라오지 않아 이 검사가 빠진다. 전체 컨텍스트 API 통합 테스트에서 실제 Access Token으로 인증 요청을 보내려면 계정이 가입을 마쳐야 하며, `src/test/java/com/orbit/support/SignupTestSupport`가 실제 API로 로그인·프로필 입력·필수 약관 동의를 마친다. 토큰을 직접 서명하는 테스트는 `SignupTestSupport.SignupOnce`가 계정마다 한 번 가입을 마친다.
 - **OpenAPI**: 다른 모듈의 ControllerDocs는 profile 오류 타입을 선언할 수 없으므로 `SignupGateOpenApiCustomizer`가 허용 목록 밖의 Bearer 인증 연산마다 403 `PROFILE-005` 응답과 예시를 덧붙인다. 각 ControllerDocs에는 선언하지 않는다.
 
 ## 저장 모델
