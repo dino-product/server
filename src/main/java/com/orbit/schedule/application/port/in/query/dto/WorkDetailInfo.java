@@ -65,6 +65,7 @@ public record WorkDetailInfo(
      * 배정 한 건. 응답·거절·종료가 없으면 해당 항목이 null이다.
      *
      * @param assignmentNumber 배정 이력의 1부터 시작하는 순번. 기사의 수락·거절·시작·완료보고 요청에 쓴다
+     * @param endedBy 배정을 끝낸 관리자(조직 소속). 기사의 탈퇴로 끝났으면({@code ACCOUNT_WITHDRAWN}) 처리한 관리자가 없어 종료 기록이 있어도 null이다
      */
     public record Assignment(
             int assignmentNumber,

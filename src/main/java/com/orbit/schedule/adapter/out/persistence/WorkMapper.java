@@ -34,6 +34,7 @@ import com.orbit.schedule.domain.WorkTypeId;
  *       선택 입력이라 보고 컬럼이 전부 비어 있어도 빈 보고를 만든다.
  *   <li>배정 이력의 순번은 부모 컬렉션의 {@code id} 순서다(ERD에 순번 컬럼이 없음). 기존 저장은 i번째 행을 i번째 이력으로 갱신하고 새 이력만 추가한다
  *       (이력은 추가 전용).
+ *   <li>배정 종료의 처리자({@code ended_by})는 기사의 탈퇴로 끝난 배정이면 비어 있다. 처리자와 종료 방식의 짝은 Domain이 복원할 때 검증한다.
  *   <li>상태 정정 기록({@code StatusCorrection})은 ERD에 자리가 없어 저장하지 않으며 복원 시 빈 목록이다. 정정 기록이 있는 작업은 어댑터가 저장을
  *       거부한다(S-11).
  *   <li>복원({@link #toDomain})은 {@link Work#reconstitute}를 거치므로 저장값의 정합성 검증은 Domain이 한다. 검증 실패는 그대로 전파한다.
@@ -165,7 +166,9 @@ final class WorkMapper {
             AssignmentEnding ending = history.ending().orElse(null);
             row.updateEnding(
                     ending == null ? null : ending.endedAt(),
-                    ending == null ? null : ending.endedBy().value(),
+                    ending == null || ending.endedBy() == null
+                            ? null
+                            : ending.endedBy().value(),
                     ending == null ? null : ending.reason());
         }
     }
@@ -242,7 +245,8 @@ final class WorkMapper {
                 row.rejectionReason() == null ? null : new Rejection(row.rejectionReason(), row.rejectionNote());
         AssignmentEnding ending = row.endedAt() == null
                 ? null
-                : new AssignmentEnding(row.endedAt(), new MembershipId(row.endedBy()), row.endReason());
+                : new AssignmentEnding(
+                        row.endedAt(), row.endedBy() == null ? null : new MembershipId(row.endedBy()), row.endReason());
         return AssignmentHistory.restore(
                 new WorkSchedule(new TechnicianId(row.technicianId()), row.scheduledStartAt(), row.expectedDuration()),
                 row.assignedAt(),

@@ -132,6 +132,26 @@ class GetWorkDetailServiceTest {
     }
 
     @Test
+    @DisplayName("기사의 탈퇴로 끝난 배정은 종료 방식·시각을 보이고 처리자는 비운다")
+    void showsWithdrawalEndingWithoutProcessor() {
+        fixture.givenManager();
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        work.releaseForWithdrawal(NOW);
+        WorkId id = fixture.workRepository.store(work);
+
+        WorkDetailInfo detail = service.get(query(id.value()));
+
+        assertThat(detail.status()).isEqualTo(WorkStatus.REGISTERED);
+        assertThat(detail.assignments())
+                .extracting(
+                        WorkDetailInfo.Assignment::result,
+                        WorkDetailInfo.Assignment::endReason,
+                        WorkDetailInfo.Assignment::endedAt,
+                        WorkDetailInfo.Assignment::endedBy)
+                .containsExactly(tuple(AssignmentResult.ACCEPTED, AssignmentEndReason.ACCOUNT_WITHDRAWN, NOW, null));
+    }
+
+    @Test
     @DisplayName("관리자는 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간을 본다")
     void showsPlannedScheduleOfBacklogWork() {
         fixture.givenManager();

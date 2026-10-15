@@ -46,4 +46,21 @@ class AssignmentEndingTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("reason must not be null");
     }
+
+    @Test
+    @DisplayName("탈퇴 반환은 처리한 관리자가 없어 처리자를 비운다")
+    void leavesProcessorEmptyForAccountWithdrawal() {
+        AssignmentEnding ending = new AssignmentEnding(ENDED_AT, null, AssignmentEndReason.ACCOUNT_WITHDRAWN);
+
+        assertThat(ending.endedBy()).isNull();
+        assertThat(ending.reason()).isEqualTo(AssignmentEndReason.ACCOUNT_WITHDRAWN);
+    }
+
+    @Test
+    @DisplayName("탈퇴 반환에 처리자를 주면 거부한다")
+    void rejectsProcessorForAccountWithdrawal() {
+        assertThatThrownBy(() -> new AssignmentEnding(ENDED_AT, MANAGER_ID, AssignmentEndReason.ACCOUNT_WITHDRAWN))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("endedBy must be null for ACCOUNT_WITHDRAWN");
+    }
 }

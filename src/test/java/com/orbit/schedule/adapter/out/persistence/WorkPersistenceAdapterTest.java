@@ -156,6 +156,22 @@ class WorkPersistenceAdapterTest {
                         },
                         WorkStatus.COMPLETED),
                 Arguments.of(
+                        "대기함(탈퇴 반환 — 처리자 없는 종료)",
+                        (Consumer<Work>) work -> {
+                            work.assign(SCHEDULE, NOW, MANAGER);
+                            work.accept(NOW.plusSeconds(10));
+                            work.releaseForWithdrawal(NOW.plusSeconds(20));
+                        },
+                        WorkStatus.REGISTERED),
+                Arguments.of(
+                        "배정됨(탈퇴 반환 뒤 다시 배정)",
+                        (Consumer<Work>) work -> {
+                            work.assign(SCHEDULE, NOW, MANAGER);
+                            work.releaseForWithdrawal(NOW.plusSeconds(10));
+                            work.assign(SCHEDULE, NOW.plusSeconds(20), MANAGER);
+                        },
+                        WorkStatus.PENDING_ACCEPTANCE),
+                Arguments.of(
                         "취소(대기함에서)",
                         (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.CUSTOMER_REQUEST, null),
                         WorkStatus.CANCELLED),

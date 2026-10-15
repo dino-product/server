@@ -807,6 +807,75 @@ class WorkTest {
     }
 
     @Nested
+    @DisplayName("탈퇴 반환")
+    class ReleaseForWithdrawal {
+
+        @Test
+        @DisplayName("수락 대기 배정을 처리자 없이 회수하고 등록 상태로 돌린다")
+        void releasesPendingWorkWithoutProcessor() {
+            Work work = pendingWork();
+
+            work.releaseForWithdrawal(NOW);
+
+            AssignmentHistory history = work.assignmentHistory().getLast();
+            assertThat(history.result()).isEqualTo(AssignmentResult.WITHDRAWN);
+            assertThat(history.ending())
+                    .contains(new AssignmentEnding(NOW, null, AssignmentEndReason.ACCOUNT_WITHDRAWN));
+            assertThat(work.schedule()).isEmpty();
+            assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
+        }
+
+        @Test
+        @DisplayName("수락 결과는 그대로 두고 처리자 없는 탈퇴 반환을 종료로 남긴다")
+        void releasesAcceptedWorkKeepingResult() {
+            Work work = acceptedWork();
+
+            work.releaseForWithdrawal(LATER);
+
+            AssignmentHistory history = work.assignmentHistory().getLast();
+            assertThat(history.result()).isEqualTo(AssignmentResult.ACCEPTED);
+            assertThat(history.ending())
+                    .contains(new AssignmentEnding(LATER, null, AssignmentEndReason.ACCOUNT_WITHDRAWN));
+            assertThat(work.schedule()).isEmpty();
+            assertThat(work.status()).isEqualTo(WorkStatus.REGISTERED);
+        }
+
+        @Test
+        @DisplayName("탈퇴 반환한 작업은 대기함에서 다시 배정할 수 있다")
+        void allowsAssigningAgainAfterRelease() {
+            Work work = acceptedWork();
+            work.releaseForWithdrawal(NOW);
+
+            work.assign(SECOND_SCHEDULE, LATER, MANAGER_ID);
+
+            assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(work.assignmentHistory()).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("수락 시각보다 앞선 시각으로는 반환하지 않고 작업을 전혀 바꾸지 않는다")
+        void rejectsReleasingBeforeAcceptance() {
+            Work work = acceptedWork();
+
+            assertThatThrownBy(() -> work.releaseForWithdrawal(NOW.minusSeconds(1)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("endedAt must not be before the assignment was assigned or decided");
+            assertUnchangedAcceptedWork(work);
+        }
+
+        @ParameterizedTest
+        @MethodSource("com.orbit.schedule.domain.WorkTest#statusesThatCannotBeUnassigned")
+        @DisplayName("배정됨·작업전이 아닌 작업은 거부한다")
+        void rejectsDisallowedStatus(WorkStatus status) {
+            Work work = workIn(status);
+
+            assertThatThrownBy(() -> work.releaseForWithdrawal(NOW))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Cannot release for withdrawal when status is " + status);
+        }
+    }
+
+    @Nested
     @DisplayName("작업 시작")
     class Start {
 
@@ -1399,6 +1468,30 @@ class WorkTest {
                 new AssignmentEnding(NOW, MANAGER_ID, reason));
     }
 
+    /** 응답 전에 기사의 탈퇴로 처리자 없이 끝난 배정. */
+    private static AssignmentHistory withdrawnByAccountHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(
+                schedule,
+                NOW,
+                MANAGER_ID,
+                AssignmentResult.WITHDRAWN,
+                null,
+                NOW,
+                new AssignmentEnding(NOW, null, AssignmentEndReason.ACCOUNT_WITHDRAWN));
+    }
+
+    /** 수락된 뒤 기사의 탈퇴로 처리자 없이 끝난 배정. */
+    private static AssignmentHistory acceptedThenWithdrawnByAccountHistory(WorkSchedule schedule) {
+        return AssignmentHistory.restore(
+                schedule,
+                NOW,
+                MANAGER_ID,
+                AssignmentResult.ACCEPTED,
+                null,
+                NOW,
+                new AssignmentEnding(NOW, null, AssignmentEndReason.ACCOUNT_WITHDRAWN));
+    }
+
     /** 수락된 뒤 관리자 조치로 끝난 배정. */
     private static AssignmentHistory endedAcceptedHistory(WorkSchedule schedule, AssignmentEndReason reason) {
         return endedAcceptedHistory(schedule, reason, NOW);
@@ -1433,6 +1526,18 @@ class WorkTest {
                         WorkStatus.REGISTERED,
                         null,
                         List.of(closedHistory(FIRST_SCHEDULE, AssignmentEndReason.UNASSIGNED)),
+                        null),
+                Arguments.of(WorkStatus.REGISTERED, null, List.of(withdrawnByAccountHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(
+                        WorkStatus.REGISTERED,
+                        null,
+                        List.of(acceptedThenWithdrawnByAccountHistory(FIRST_SCHEDULE)),
+                        null),
+                Arguments.of(WorkStatus.CANCELLED, null, List.of(withdrawnByAccountHistory(FIRST_SCHEDULE)), null),
+                Arguments.of(
+                        WorkStatus.PENDING_ACCEPTANCE,
+                        SECOND_SCHEDULE,
+                        List.of(withdrawnByAccountHistory(FIRST_SCHEDULE), pendingHistory(SECOND_SCHEDULE)),
                         null),
                 Arguments.of(
                         WorkStatus.PENDING_ACCEPTANCE,
