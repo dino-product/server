@@ -31,9 +31,21 @@ class WithdrawalReasonTest {
         String emoji = "😀";
 
         assertThat(WithdrawalReason.from("가".repeat(200))).isPresent();
+        assertThat(WithdrawalReason.from(" " + "가".repeat(200) + " ")).isPresent();
         assertThat(WithdrawalReason.from(emoji.repeat(200))).isPresent();
         assertThatThrownBy(() -> WithdrawalReason.from("가".repeat(201)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("withdrawal reason must be at most 200 characters");
+        assertThatThrownBy(() -> WithdrawalReason.from(emoji.repeat(201)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("withdrawal reason must be at most 200 characters");
+    }
+
+    @Test
+    @DisplayName("DB 문자열에 담을 수 없는 NUL 문자가 있으면 거부한다")
+    void rejectsNulCharacter() {
+        assertThatThrownBy(() -> WithdrawalReason.from("더 이상\u0000 쓰지 않아요"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("withdrawal reason must not contain NUL");
     }
 }

@@ -135,10 +135,13 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("탈퇴 사유를 적으면 함께 남기고, 200자를 넘으면 PROFILE-007로 거부해 아무것도 바꾸지 않는다")
+    @DisplayName("탈퇴 사유를 적으면 함께 남기고, 200자를 넘거나 NUL 문자가 있으면 PROFILE-007로 거부해 아무것도 바꾸지 않는다")
     void storesOrRejectsWithdrawalReason() throws Exception {
         TestAccount rejected = login(kakaoSubject());
         withdraw(rejected, rejected.accountId(), "가".repeat(201))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PROFILE-007"));
+        withdraw(rejected, rejected.accountId(), "a\u0000b")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PROFILE-007"));
         getProfile(rejected).andExpect(status().isOk());
