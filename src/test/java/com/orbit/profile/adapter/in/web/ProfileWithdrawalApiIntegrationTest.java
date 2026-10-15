@@ -328,11 +328,15 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
     @TestConfiguration(proxyBeanMethods = false)
     static class TestWithdrawalBlockers {
 
+        /** 실제 구현(HM-319 유일한 총관리자)처럼 판정 전에 행 잠금을 잡는다. 사전 확인과 탈퇴 직전 판정 모두 이 잠금을 견뎌야 한다. */
         @Bean
-        WithdrawalBlocker testWithdrawalBlocker() {
-            return accountId -> BLOCKED_ACCOUNTS.contains(accountId)
-                    ? List.of(new WithdrawalBlock(WithdrawalBlockReason.WORK_PENDING_ACCEPT, 2))
-                    : List.of();
+        WithdrawalBlocker testWithdrawalBlocker(JdbcTemplate jdbcTemplate) {
+            return accountId -> {
+                jdbcTemplate.queryForList("select id from accounts where id = ? for update", Long.class, accountId);
+                return BLOCKED_ACCOUNTS.contains(accountId)
+                        ? List.of(new WithdrawalBlock(WithdrawalBlockReason.WORK_PENDING_ACCEPT, 2))
+                        : List.of();
+            };
         }
 
         @Bean
