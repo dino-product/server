@@ -52,7 +52,7 @@
 | QA·시나리오 | 기준 버전 | 확인 시각 |
 | --- | --- | --- |
 | [[조직·계정] QA·시나리오](https://app.notion.com/p/3cdf190e116681629defc22d31844161) | v1.3 | 2026-10-15 16:10 |
-| [[작업] QA·시나리오](https://app.notion.com/p/3cef190e116681489bdbedaebd761fc6) | v1.1 | 2026-10-01 00:40 |
+| [[작업] QA·시나리오](https://app.notion.com/p/3cef190e116681489bdbedaebd761fc6) | v1.2 | 2026-10-16 02:44 |
 | [[스케줄·배정] QA·시나리오](https://app.notion.com/p/3cef190e1166819a940cf56335612e09) | v1.1 | 2026-10-01 00:40 |
 | [[현장 수행] QA·시나리오](https://app.notion.com/p/3d0f190e1166818a8c39c1e7262677d2) | v1.1 | 2026-10-01 00:40 |
 | [[현황 파악] QA·시나리오](https://app.notion.com/p/3d0f190e11668195a69eea532e8ca8db) | v1.0 | 2026-10-01 00:40 |
