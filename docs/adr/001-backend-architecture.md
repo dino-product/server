@@ -1,8 +1,8 @@
 # ADR-001: 백엔드 아키텍처
 
 - 상태: Accepted
-- 기준일: 2026-10-07
-- 범위: 초기 백엔드의 구조·기술 선택·카카오 OIDC 인증과 계정·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
+- 기준일: 2026-10-10
+- 범위: 초기 백엔드의 구조·기술 선택·카카오 OIDC 인증과 계정·가입 프로필과 가입 공통 검사·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
 
 ## 배경과 목적
 
@@ -22,19 +22,23 @@
 - 조직·소속·초대, 작업 생애주기, 알림을 각각의 책임으로 계획합니다. 각 모듈의 현재 구현 범위와 허용 의존성은 [도메인 지도](../domain/README.md#모듈별-책임과-공개-계약)가 원본이며 이 결정 기록에 복제하지 않습니다.
 - 실제 사용 전 의존성을 열어 두지 않도록 골격 모듈(`package-info.java`만 있는 모듈)의 `allowedDependencies`는 빈 배열로 명시합니다. 구현이 공개 계약을 사용할 때 필요한 항목만 추가하고 도메인 지도를 함께 갱신합니다.
 - [도메인 지도](../domain/README.md#모듈별-책임과-공개-계약)는 골격을 포함한 현재 모듈 구성의 원본입니다. [BC 설계 초안](../domain/bounded-contexts.md#bounded-contexts)의 애그리게잇·컨텍스트 관계·향후 확장은 현재 구현 계약과 구분합니다.
-- `ModularityTest`는 6개 모듈 구성과 경계를 검사합니다. 골격 등록만으로 제품 기능이나 계획된 모듈 간 연동이 구현되었다고 보지 않습니다.
+- `ModularityTest`는 7개 모듈 구성과 경계를 검사합니다. 골격 등록만으로 제품 기능이나 계획된 모듈 간 연동이 구현되었다고 보지 않습니다.
 
 ## 인증과 계정
 
 - 소셜 로그인은 카카오 OIDC로 통일하고, 클라이언트별로 카카오 증명을 얻는 경로만 다르게 둡니다. 앱은 카카오 네이티브 SDK가 돌려준 id_token을 제출하고, 웹은 서버가 Authorization Code를 교환해 id_token을 얻습니다(웹 흐름은 후속 구현). 두 경로 모두 서버의 단일 id_token 검증기(JWKS 서명·발급자·허용 앱 키·만료·nonce)로 합류하며 카카오 토큰을 API 인증에 쓰지 않습니다.
 - nonce는 서버가 발급하고 한 번만 소비하므로 이미 쓴 id_token은 다시 제출할 수 없습니다. 앱 흐름은 브라우저 세션이 없어 nonce를 발급 주체와 따로 묶지 않으며 그 이유는 [Auth 로그인 흐름](../domain/auth.md#카카오-로그인-흐름)에 둡니다. 웹 흐름은 state/nonce를 시작 브라우저와 연결합니다.
-- 계정 원본은 `auth`가 소유합니다. `Account`는 제공자별 외부 식별(`ExternalIdentity`)과 등록 시각만 가지며 `accounts`·`oauth_credentials` 테이블에 저장합니다. 첫 로그인에 계정을 만들고 이후 같은 카카오 `sub`는 같은 계정입니다. 이름·연락처 같은 프로필과 조직 역할은 auth에 두지 않으며 소유 컨텍스트는 [BC-001](../domain/bounded-contexts.md#미해결-설계-이슈)에서 결정합니다. `user` 예제는 그대로 둡니다.
+- 계정 원본은 `auth`가 소유합니다. `Account`는 제공자별 외부 식별(`ExternalIdentity`)과 등록 시각만 가지며 `accounts`·`oauth_credentials` 테이블에 저장합니다. 첫 로그인에 계정을 만들고 이후 같은 카카오 `sub`는 같은 계정입니다. 이름·연락처 같은 가입 프로필은 아래 `profile` 모듈이, 조직 역할은 organization이 소유하며 auth에 두지 않습니다. `user` 예제는 그대로 둡니다.
 - 자체 자격증명은 HS256 Access JWT(`iss`, `sub`=accountId, `jti`, `exp`, `token_use=access`)입니다. 로그아웃은 토큰의 `jti`를 남은 유효 시간 동안 Redis에 기억해 폐기하며, Refresh 회전은 후속 결정입니다.
 - 인증 실패 응답 정책: 토큰이 없으면 401, 토큰이 있는데 폐기·만료·위조됐으면 카카오 로그인 경로를 뺀 어느 경로든 실제 존재하지 않는 자원과 같은 404 본문으로 응답해 보호 자원의 존재와 실패 이유를 드러내지 않습니다.
 - 인증 필터와 공개 경로는 `shared::security`의 `SecurityFilterChainCustomizer`로 공통 SecurityFilterChain에 덧붙입니다. shared는 비즈니스 모듈에 의존하지 않고 모듈은 별도 SecurityFilterChain을 만들지 않습니다.
 - 다른 모듈은 인증된 계정을 auth 모듈 루트의 공개 계약 `AccountPrincipal`(계정 식별자만)로 받습니다. 계정 식별자의 의미와 발급은 auth가 소유하고 `shared`는 기술 확장점만 공개하므로 `shared::security`로 옮기는 안은 택하지 않았습니다. 계약을 제공 모듈 루트에 두는 [모듈 간 통신](#모듈-간-통신) 원칙과도 맞습니다. 이 계약을 쓰는 모듈은 auth에 의존하므로 auth는 그 모듈을 조회하거나 그 모듈의 이벤트를 구독할 수 없습니다. 그래서 조직 역할 인가는 auth가 organization을 조회해 채우지 않으며, auth가 이미 의존하는 예제 `user`는 이 계약을 쓰지 않습니다.
+- 가입 프로필(이름·연락처)·가입 상태·약관 동의 이력은 비즈니스 모듈 `profile`이 소유합니다. 인증(외부 식별·토큰)과 개인정보(이름·연락처·약관 이력)는 바뀌는 이유가 달라 auth에 넣지 않았고, auth가 이미 의존하는 예제 `user`를 넓히면 `AccountPrincipal`을 쓰는 순간 순환이 생겨 택하지 않았습니다. 이름은 schedule의 조직 구성원 용어·organization `Membership`과 겹치는 `member`, auth `Account`와 겹치는 `account`를 피해 `profile`로 정했습니다(구 BC-001, 2026-10-07 새 모듈 결정, 2026-10-10 이름 확정).
+- profile은 웹 어댑터에서 `AccountPrincipal`을 써 auth에 의존하므로 auth는 profile을 조회·구독하지 않습니다. 로그인 응답에는 가입 단계를 담지 않고 클라이언트가 로그인 뒤 profile API로 확인합니다. 탈퇴를 구현할 때 토큰 폐기·외부 식별 해제는 profile이 auth 공개 계약을 직접 호출하고(auth가 profile 이벤트를 구독하면 순환), 탈퇴 차단 판정은 profile이 판정 인터페이스를 두고 organization·schedule이 구현하는 방향으로 둡니다(HM-254에서 합의).
+- 가입 미완료·필수 약관 재동의 전 계정의 이용 제한은 profile 웹 어댑터의 Spring MVC 인터셉터가 허용 목록(profile·auth 경로) 밖 모든 `/api/**` 컨트롤러 요청에 공통으로 적용합니다(403 `PROFILE-005`). 같은 규칙이 모든 API에 걸리므로 다른 모듈은 각자 검사를 넣지 않습니다. 보안 필터(`SecurityFilterChainCustomizer`)로 두면 없는 경로도 403이 되어 위의 "무효 토큰 404 = 실제로 없는 자원 404" 정책이 깨지므로, 컨트롤러 메서드로 연결된 요청만 보는 인터셉터를 택했습니다. 공개 API도 토큰을 붙이면 검사하고, 가입 전에 써야 하는 API(회사 확인·탈퇴)는 허용 목록에 더합니다.
+- 비즈니스 모듈이 다른 모듈 API 전체에 웹 공통 검사를 거는 첫 사례이며 다음 제약을 감수합니다. 허용 목록은 다른 모듈의 URL 문자열(`/api/v1/auth/**`, 이후 회사 확인·탈퇴 경로)에 묶여 모듈 의존이 아니므로 `ModularityTest`가 감지하지 못합니다. 경로를 옮기거나 가입 전 API를 더할 때 허용 목록을 직접 고치고 전체 컨텍스트 통합 테스트로 확인합니다. 다른 모듈의 `@ApplicationModuleTest`에는 profile이 올라오지 않아 이 검사가 빠지므로 모듈 테스트 통과가 가입 검사 통과를 뜻하지 않으며, 전체 컨텍스트 API 테스트는 가입을 마친 계정으로 요청합니다. 다른 모듈의 ControllerDocs는 profile 오류를 선언할 수 없어 OpenAPI의 403 응답은 profile이 덧붙입니다.
 
-상세 흐름·설정·오류 코드는 [Auth](../domain/auth.md)가 소유합니다.
+상세 흐름·설정·오류 코드는 [Auth](../domain/auth.md)와 [Profile](../domain/profile.md#profile)(허용 목록·테스트 지원은 [가입 공통 검사](../domain/profile.md#profile-signup-gate))이 소유합니다.
 
 ## Application과 모델 분리
 

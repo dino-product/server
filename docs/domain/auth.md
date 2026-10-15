@@ -2,9 +2,9 @@
 
 ## 책임과 범위
 
-카카오 OIDC로 사용자를 인증하고, 카카오 `sub`에 연결된 계정(`Account`)을 발급·조회하며, 자체 Access Token을 발급·검증·폐기합니다. 계정의 식별자 발급까지가 책임이며 이름·연락처 같은 프로필과 조직 역할은 소유하지 않습니다([BC-001](bounded-contexts.md#미해결-설계-이슈)).
+카카오 OIDC로 사용자를 인증하고, 카카오 `sub`에 연결된 계정(`Account`)을 발급·조회하며, 자체 Access Token을 발급·검증·폐기합니다. 계정의 식별자 발급까지가 책임이며 이름·연락처 같은 가입 프로필·가입 상태·약관 동의는 [profile](profile.md#profile), 조직 역할은 organization이 소유합니다.
 
-현재 구현 범위는 앱(카카오 네이티브 SDK)의 id_token 제출 로그인, Access Token 발급, Bearer 인증, 로그아웃입니다. 웹의 Authorization Code(authorize·callback) 흐름, Refresh Token 회전, 프로필·역할, organization 공개 계약은 아직 없습니다. 예제 subject 조회와 등록 이벤트 후속 처리는 user와의 ACL 관계를 보여주는 구조 예제로 남아 있으며 인증 의미가 없습니다. 예제 subject는 인증 증명이 아니며 접근 권한을 부여하지 않습니다.
+현재 구현 범위는 앱(카카오 네이티브 SDK)의 id_token 제출 로그인, Access Token 발급, Bearer 인증, 로그아웃입니다. 웹의 Authorization Code(authorize·callback) 흐름, Refresh Token 회전, 조직 역할, organization 공개 계약은 아직 없습니다. 예제 subject 조회와 등록 이벤트 후속 처리는 user와의 ACL 관계를 보여주는 구조 예제로 남아 있으며 인증 의미가 없습니다. 예제 subject는 인증 증명이 아니며 접근 권한을 부여하지 않습니다.
 
 ## 카카오 로그인 흐름
 
@@ -48,6 +48,7 @@ POST /api/v1/auth/logout  → LogoutCommand → LogoutUseCase → LogoutService
 - Access Token은 HS256 JWT이며 `iss`, `sub`(accountId), `jti`, `iat`, `exp`, `token_use=access`를 담습니다. 만료는 시계 오차 없이 정각부터 거부합니다.
 - 토큰이 없으면 익명으로 넘겨 인증이 필요한 자원은 `COMMON-401`을 받습니다. 토큰이 있는데 폐기·만료·위조됐으면 실제 존재하지 않는 자원과 같은 `COMMON-404` 응답으로 요청을 끝내 자원 존재를 드러내지 않습니다. 실패 이유는 응답으로 구분하지 않습니다. 카카오 로그인 경로(`/api/v1/auth/kakao/**`)만 예외로 토큰을 검사하지 않아 만료·로그아웃된 토큰을 아직 들고 있는 클라이언트도 다시 로그인할 수 있습니다.
 - 이 정책의 알려진 한계: 경로는 존재하지만 대상 레코드가 없을 때의 모듈 오류(`AUTH-001`, `AUTH-004`)는 `COMMON-404`와 본문이 다르므로, 유효한 토큰으로 접근한 결과와 무효 토큰의 404는 구분됩니다. 무효 토큰 응답끼리는 구분되지 않습니다.
+- `/api/v1/auth/**` 전체는 profile [가입 공통 검사](profile.md#profile-signup-gate)의 허용 목록이라 가입 미완료·필수 약관 재동의 전 계정도 로그인·로그아웃·`/me`를 쓸 수 있습니다. 가입 전에 써야 하는 auth API를 이 접두사 밖에 두면 profile의 허용 목록도 함께 고칩니다.
 - `GET /api/v1/auth/me`는 토큰 클레임만 믿지 않고 계정을 저장소에서 확인합니다. 계정이 삭제됐으면 `AUTH-004`(HTTP 404)입니다.
 - 로그아웃은 해당 토큰만 폐기하며 같은 계정의 다른 토큰은 유지합니다. 만료 뒤에는 검증기가 먼저 거부하므로 폐기 기록은 남은 유효 시간만 보관합니다.
 - 권한(authorities)은 비어 있습니다. 다른 모듈이 `AccountPrincipal`로 auth에 의존하게 되므로 auth는 조직 역할을 조회하지 않습니다. 역할에 따른 인가를 소비 모듈의 Application이 organization 계약으로 확인할지, organization이 보안 확장점으로 채울지는 organization 공개 계약을 연결할 때 정합니다.
@@ -106,6 +107,6 @@ user.UserRegistered
 - HTTP: `adapter/in/web`의 `KakaoLoginController`, `AuthSessionController`, 예제 `AuthExampleController`. 인증 필터·principal·공개 경로 확장점은 `adapter/in/web/security`입니다.
 - 오류: `AuthErrorCode`의 `AUTH-001`(예제 사용자 없음, 404), `AUTH-002`(id_token 무효, 401), `AUTH-003`(nonce 무효, 401), `AUTH-004`(계정 없음, 404). 폐기·만료·위조 토큰의 404는 `CommonErrorCode.NOT_FOUND`와 같은 본문입니다.
 - 미구현·운영 전 과제: nonce 발급 경로의 호출 제한, `accounts`·`oauth_credentials` 스키마 마이그레이션(현재 마이그레이션 도구 없음, [프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)), Refresh 회전, 웹 authorize·callback.
-- 모듈 루트 공개 계약은 `AccountPrincipal`입니다. 인증된 요청의 계정 식별자만 담고, 다른 모듈의 웹 어댑터가 `@AuthenticationPrincipal`로 받습니다. 내부 principal `AuthenticatedAccount`가 구현하며 토큰 식별자·만료 시각은 auth 안에서만 쓰고 문자열 표현에도 토큰 식별자를 남기지 않습니다. organization이 참조할 계정 존재 확인 계약은 그 모듈을 구현할 때 모듈 루트에 추가합니다. 허용 의존성은 [도메인 지도](README.md)가 관리합니다.
+- 모듈 루트 공개 계약은 `AccountPrincipal`입니다. 인증된 요청의 계정 식별자만 담고, 다른 모듈의 웹 어댑터가 `@AuthenticationPrincipal`로 받습니다. 현재 소비 모듈은 profile(프로필·약관 API와 가입 공통 검사)입니다. 내부 principal `AuthenticatedAccount`가 구현하며 토큰 식별자·만료 시각은 auth 안에서만 쓰고 문자열 표현에도 토큰 식별자를 남기지 않습니다. organization이 참조할 계정 존재 확인 계약은 그 모듈을 구현할 때 모듈 루트에 추가합니다. 허용 의존성은 [도메인 지도](README.md)가 관리합니다.
 
 예제의 선택 배경은 [ADR-001 예제 모듈](../adr/001-backend-architecture.md#예제-모듈), 인증 결정의 배경은 [ADR-001 인증과 계정](../adr/001-backend-architecture.md#인증과-계정)을 따릅니다.
