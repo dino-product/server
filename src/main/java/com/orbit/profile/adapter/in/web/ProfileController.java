@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.profile.adapter.in.web.docs.ProfileControllerDocs;
 import com.orbit.profile.application.port.in.command.AgreeToTermsUseCase;
+import com.orbit.profile.application.port.in.command.ChangeMarketingConsentUseCase;
 import com.orbit.profile.application.port.in.command.SaveProfileUseCase;
 import com.orbit.profile.application.port.in.command.dto.AgreeToTermsCommand;
+import com.orbit.profile.application.port.in.command.dto.ChangeMarketingConsentCommand;
 import com.orbit.profile.application.port.in.command.dto.SaveProfileCommand;
 import com.orbit.profile.application.port.in.query.GetProfileUseCase;
 import com.orbit.profile.application.port.in.query.dto.GetProfileQuery;
@@ -23,7 +25,8 @@ import com.orbit.profile.application.port.in.query.dto.GetProfileQuery;
  * 변경 API도 저장 뒤의 가입 단계를 같은 모양으로 돌려줘 클라이언트가 다음 화면을 바로 고르게 한다.
  *
  * <p>경로 변수 제약 때문에 {@code @Validated}로 메서드 검증을 켜므로, 구현 메서드에만 {@code @Valid}를 붙이면 Docs 인터페이스의 매개변수 제약을 다시
- * 정의한 것이 되어 Bean Validation이 모든 호출을 거부한다(HV000151). 요청 본문 규칙은 도메인이 검사하므로 본문에는 {@code @Valid}를 두지 않는다.
+ * 정의한 것이 되어 Bean Validation이 모든 호출을 거부한다(HV000151). 요청 본문 규칙은 도메인(이름·연락처)과 서비스(약관·마케팅 값의 누락)가 검사하므로
+ * 본문에는 {@code @Valid}를 두지 않는다.
  */
 @Validated
 @RestController
@@ -33,14 +36,17 @@ class ProfileController implements ProfileControllerDocs {
     private final GetProfileUseCase getProfileUseCase;
     private final SaveProfileUseCase saveProfileUseCase;
     private final AgreeToTermsUseCase agreeToTermsUseCase;
+    private final ChangeMarketingConsentUseCase changeMarketingConsentUseCase;
 
     ProfileController(
             GetProfileUseCase getProfileUseCase,
             SaveProfileUseCase saveProfileUseCase,
-            AgreeToTermsUseCase agreeToTermsUseCase) {
+            AgreeToTermsUseCase agreeToTermsUseCase,
+            ChangeMarketingConsentUseCase changeMarketingConsentUseCase) {
         this.getProfileUseCase = getProfileUseCase;
         this.saveProfileUseCase = saveProfileUseCase;
         this.agreeToTermsUseCase = agreeToTermsUseCase;
+        this.changeMarketingConsentUseCase = changeMarketingConsentUseCase;
     }
 
     @Override
@@ -73,6 +79,17 @@ class ProfileController implements ProfileControllerDocs {
                 Boolean.TRUE.equals(request.serviceTerms()),
                 Boolean.TRUE.equals(request.privacyPolicy()),
                 request.marketing()));
+        return read(requester, accountId);
+    }
+
+    @Override
+    @PostMapping("/{accountId}/marketing-consents")
+    public ProfileResponse changeMarketingConsent(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long accountId,
+            @RequestBody ChangeMarketingConsentRequest request) {
+        changeMarketingConsentUseCase.change(
+                new ChangeMarketingConsentCommand(requester.accountId(), accountId, request.agreed()));
         return read(requester, accountId);
     }
 
