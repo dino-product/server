@@ -5,11 +5,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Arrays;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.support.IntegrationTestSupport;
 
 @AutoConfigureMockMvc
@@ -451,7 +454,7 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    void documentsWithdrawalBlockReasons() throws Exception {
+    void documentsWithdrawalApis() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/withdrawals'].post.responses['409']"
@@ -460,6 +463,8 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas"
                                 + "['com.orbit.profile.adapter.in.web.WithdrawalEligibilityResponse.Block']"
                                 + ".properties.reason.enum")
-                        .value(containsInAnyOrder("SOLE_OWNER", "WORK_IN_PROGRESS", "WORK_PENDING_ACCEPTANCE")));
+                        .value(containsInAnyOrder(Arrays.stream(WithdrawalBlockReason.values())
+                                .map(Enum::name)
+                                .toArray())));
     }
 }

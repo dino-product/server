@@ -12,6 +12,6 @@ public enum WithdrawalBlockReason {
     /** 기사로 소속된 발주사에 작업중 작업이 있다. 건수는 그 작업의 수다. */
     WORK_IN_PROGRESS,
 
-    /** 기사로 소속된 발주사에 응답 전(배정됨) 작업이 있다. 건수는 그 작업의 수다. */
-    WORK_PENDING_ACCEPTANCE
+    /** 기사로 소속된 발주사에 응답 전(배정됨) 작업이 있다. 건수는 그 작업의 수다. 이름은 [작업] 정책 §9의 배정됨 코드 {@code PENDING_ACCEPT}를 따른다. */
+    WORK_PENDING_ACCEPT
 }

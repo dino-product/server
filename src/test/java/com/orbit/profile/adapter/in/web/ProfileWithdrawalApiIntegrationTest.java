@@ -234,7 +234,7 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
         checkEligibility(account, account.accountId())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.withdrawable").value(false))
-                .andExpect(jsonPath("$.result.blocks[0].reason").value("WORK_PENDING_ACCEPTANCE"))
+                .andExpect(jsonPath("$.result.blocks[0].reason").value("WORK_PENDING_ACCEPT"))
                 .andExpect(jsonPath("$.result.blocks[0].count").value(2));
         withdraw(account, account.accountId())
                 .andExpect(status().isConflict())
@@ -331,7 +331,7 @@ class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {
         @Bean
         WithdrawalBlocker testWithdrawalBlocker() {
             return accountId -> BLOCKED_ACCOUNTS.contains(accountId)
-                    ? List.of(new WithdrawalBlock(WithdrawalBlockReason.WORK_PENDING_ACCEPTANCE, 2))
+                    ? List.of(new WithdrawalBlock(WithdrawalBlockReason.WORK_PENDING_ACCEPT, 2))
                     : List.of();
         }
 

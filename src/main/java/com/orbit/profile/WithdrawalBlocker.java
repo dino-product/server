@@ -10,6 +10,6 @@ import java.util.List;
  */
 public interface WithdrawalBlocker {
 
-    /** 계정의 탈퇴를 막는 사유. 막을 것이 없으면 빈 목록이다. */
+    /** 계정의 탈퇴를 막는 사유. 막을 것이 없으면 빈 목록이다. 같은 사유를 여러 번(예: 발주사별로) 돌려줘도 되며 profile이 사유마다 건수를 합친다. */
     List<WithdrawalBlock> blocksFor(Long accountId);
 }

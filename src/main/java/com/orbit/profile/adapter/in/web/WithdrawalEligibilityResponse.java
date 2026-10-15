@@ -23,11 +23,11 @@ public record WithdrawalEligibilityResponse(
     public record Block(
             @Schema(
                     description = "사유. SOLE_OWNER(어느 발주사에서든 유일한 총관리자), WORK_IN_PROGRESS(기사 소속에 작업중 작업 있음), "
-                            + "WORK_PENDING_ACCEPTANCE(기사 소속에 응답 전 배정됨 작업 있음)",
+                            + "WORK_PENDING_ACCEPT(기사 소속에 응답 전 배정됨 작업 있음). 사유마다 한 번만 온다",
                     example = "SOLE_OWNER",
-                    allowableValues = {"SOLE_OWNER", "WORK_IN_PROGRESS", "WORK_PENDING_ACCEPTANCE"})
+                    allowableValues = {"SOLE_OWNER", "WORK_IN_PROGRESS", "WORK_PENDING_ACCEPT"})
             String reason,
 
-            @Schema(description = "탈퇴하려면 먼저 정리해야 할 대상의 수. SOLE_OWNER는 발주사 수, 나머지는 작업 수", example = "1")
+            @Schema(description = "탈퇴하려면 먼저 정리해야 할 대상의 수. SOLE_OWNER는 발주사 수, 나머지는 모든 소속을 합친 작업 수", example = "1")
             int count) {}
 }

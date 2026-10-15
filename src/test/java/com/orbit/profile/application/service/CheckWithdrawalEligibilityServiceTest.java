@@ -62,6 +62,27 @@ class CheckWithdrawalEligibilityServiceTest {
     }
 
     @Test
+    @DisplayName("같은 사유가 여러 번 오면 건수를 합쳐 사유마다 하나로 사유 순서대로 돌려준다")
+    void mergesBlocksWithSameReason() {
+        when(profiles.findByAccountId(new AccountId(7L))).thenReturn(Optional.empty());
+        WithdrawalBlocker byOrganization = accountId -> List.of(
+                new WithdrawalBlock(WithdrawalBlockReason.WORK_IN_PROGRESS, 1),
+                new WithdrawalBlock(WithdrawalBlockReason.WORK_PENDING_ACCEPT, 1),
+                new WithdrawalBlock(WithdrawalBlockReason.WORK_IN_PROGRESS, 2));
+        WithdrawalBlocker another = accountId -> List.of(new WithdrawalBlock(WithdrawalBlockReason.SOLE_OWNER, 1));
+        CheckWithdrawalEligibilityService service =
+                new CheckWithdrawalEligibilityService(profiles, List.of(byOrganization, another));
+
+        assertThat(service.check(new CheckWithdrawalEligibilityQuery(7L, 7L)))
+                .isEqualTo(new WithdrawalEligibilityInfo(
+                        false,
+                        List.of(
+                                new WithdrawalBlock(WithdrawalBlockReason.SOLE_OWNER, 1),
+                                new WithdrawalBlock(WithdrawalBlockReason.WORK_IN_PROGRESS, 3),
+                                new WithdrawalBlock(WithdrawalBlockReason.WORK_PENDING_ACCEPT, 1))));
+    }
+
+    @Test
     @DisplayName("다른 계정이나 이미 탈퇴한 계정은 PROFILE-002다")
     void hidesOtherOrWithdrawnAccount() {
         when(profiles.findByAccountId(new AccountId(7L)))
