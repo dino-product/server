@@ -22,6 +22,10 @@ public final class Work {
     /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
     public static final int MAX_NAME_LENGTH = 100;
 
+    /** 현재 배정이 없는 작업(등록·취소)의 마지막 배정이 관리자 조치나 탈퇴로 끝났을 때 허용하는 방식. 재배정·일정 변경 뒤에는 새 배정이 남는다. */
+    private static final Set<AssignmentEndReason> BACKLOG_ENDINGS = Set.of(
+            AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED, AssignmentEndReason.ACCOUNT_WITHDRAWN);
+
     private final WorkId id;
     private final OrganizationId organizationId;
     private String name;
@@ -37,6 +41,7 @@ public final class Work {
     private Instant completedAt;
     private Cancellation cancellation;
     private final List<StatusCorrection> statusCorrections;
+    private PlannedSchedule plannedSchedule;
 
     private Work(
             WorkId id,
@@ -106,6 +111,20 @@ public final class Work {
                 List.of());
     }
 
+    /** 등록 때 담당기사·시간을 일부만 입력했으면 그 값을 미리 입력한 일정으로 남겨 대기함에 둔다. 없으면 {@code null}이다. */
+    public static Work register(
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            WorkTypeId workType,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            PlannedSchedule plannedSchedule) {
+        Work work = register(organizationId, name, registrarId, workType, customerInfo, paymentInfo);
+        work.plannedSchedule = plannedSchedule;
+        return work;
+    }
+
     public static Work reconstitute(
             WorkId id,
             OrganizationId organizationId,
@@ -142,6 +161,47 @@ public final class Work {
         return work;
     }
 
+    /** 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간까지 복원한다. 미리 입력한 일정은 대기함(등록) 작업에만 있다. */
+    public static Work reconstitute(
+            WorkId id,
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            WorkTypeId workType,
+            WorkSchedule schedule,
+            PlannedSchedule plannedSchedule,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            WorkStatus status,
+            List<AssignmentHistory> assignmentHistory,
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt,
+            Cancellation cancellation,
+            List<StatusCorrection> statusCorrections) {
+        Work work = reconstitute(
+                id,
+                organizationId,
+                name,
+                registrarId,
+                workType,
+                schedule,
+                customerInfo,
+                paymentInfo,
+                status,
+                assignmentHistory,
+                completionReport,
+                startedAt,
+                completedAt,
+                cancellation,
+                statusCorrections);
+        if (plannedSchedule != null && status != WorkStatus.REGISTERED) {
+            throw new IllegalArgumentException("Only a REGISTERED work can have a planned schedule");
+        }
+        work.plannedSchedule = plannedSchedule;
+        return work;
+    }
+
     public Optional<WorkId> id() {
         return Optional.ofNullable(id);
     }
@@ -164,6 +224,10 @@ public final class Work {
 
     public Optional<WorkSchedule> schedule() {
         return Optional.ofNullable(schedule);
+    }
+
+    public Optional<PlannedSchedule> plannedSchedule() {
+        return Optional.ofNullable(plannedSchedule);
     }
 
     public CustomerInfo customerInfo() {
@@ -237,6 +301,7 @@ public final class Work {
         requireNotBeforeLatestCorrection(assignedAt, "assignedAt");
         WorkStatus nextStatus = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
         schedule = newSchedule;
+        plannedSchedule = null;
         assignmentHistory.add(newAssignment);
         status = nextStatus;
     }
@@ -283,15 +348,31 @@ public final class Work {
 
     /** 배정을 풀어 대기함으로 돌린다. 수락된 배정도 결과는 그대로 두고 해제 시각·처리자를 종료로 남긴다. */
     public void unassign(Instant unassignedAt, MembershipId unassignedBy) {
-        if (status != WorkStatus.PENDING_ACCEPTANCE && status != WorkStatus.ACCEPTED) {
-            throw new IllegalStateException("Cannot unassign when status is " + status);
+        requireChangeableAssignment("unassign");
+        returnToBacklog(new AssignmentEnding(unassignedAt, unassignedBy, AssignmentEndReason.UNASSIGNED));
+    }
+
+    /**
+     * 담당 기사의 탈퇴로 배정을 풀어 대기함으로 돌린다. 처리한 관리자가 없어 종료 기록에 처리자를 남기지 않는 것 말고는 배정 해제와 같다(응답 전이면 회수, 수락됐으면
+     * 결과를 둔 채 종료만).
+     */
+    public void releaseForWithdrawal(Instant releasedAt) {
+        requireChangeableAssignment("release for withdrawal");
+        returnToBacklog(new AssignmentEnding(releasedAt, null, AssignmentEndReason.ACCOUNT_WITHDRAWN));
+    }
+
+    /**
+     * 대기함 작업이 미리 입력한 담당기사를 비운다. 그 기사 계약이 끝나 더는 배정할 수 없을 때 쓴다([스케줄·배정] §9). 시작시각·예상소요시간은 남기고, 남은 값이 없으면 미리
+     * 입력한 일정도 없앤다. 미리 입력한 담당기사가 없으면 거부한다.
+     */
+    public void clearPlannedTechnician() {
+        requireStatus(WorkStatus.REGISTERED, "clear planned technician");
+        if (plannedSchedule == null || plannedSchedule.technicianId() == null) {
+            throw new IllegalStateException("work has no planned technician");
         }
-        WorkStatus nextStatus = status.transitionTo(WorkStatus.REGISTERED);
-        AssignmentEnding ending = new AssignmentEnding(unassignedAt, unassignedBy, AssignmentEndReason.UNASSIGNED);
-        requireNotBeforeLatestCorrection(ending.endedAt(), "endedAt");
-        latestAssignment().end(ending);
-        schedule = null;
-        status = nextStatus;
+        plannedSchedule = plannedSchedule.startTime() == null && plannedSchedule.expectedDuration() == null
+                ? null
+                : new PlannedSchedule(null, plannedSchedule.startTime(), plannedSchedule.expectedDuration());
     }
 
     /**
@@ -347,12 +428,12 @@ public final class Work {
     }
 
     /**
-     * 완료 전 작업을 취소하고 취소 시각·처리자·사유를 작업에 남긴다. 현재 배정이 있으면(수락대기·수락됨·작업중) 같은 시각·처리자를 그 배정의 종료로도 남겨,
+     * 완료 전 작업을 취소하고 취소 시각·처리자·사유(기타면 메모)를 작업에 남긴다. 현재 배정이 있으면(수락대기·수락됨·작업중) 같은 시각·처리자를 그 배정의 종료로도 남겨,
      * 배정이 왜 끝났는지 이력에서 알 수 있게 한다. 작업중이던 작업은 시작 시각을 그대로 둔다. 취소 시각은 배정 이력의 마지막 시각, 시작 시각과 마지막
      * 상태 정정 시각보다 앞설 수 없다. 입력(사유 등)을 상태보다 먼저 검증한다.
      */
-    public void cancel(Instant cancelledAt, MembershipId cancelledBy, String reason) {
-        Cancellation newCancellation = new Cancellation(cancelledAt, cancelledBy, reason);
+    public void cancel(Instant cancelledAt, MembershipId cancelledBy, CancellationReason reason, String note) {
+        Cancellation newCancellation = new Cancellation(cancelledAt, cancelledBy, reason, note);
         WorkStatus cancelled = status.transitionTo(WorkStatus.CANCELLED);
         requireNotBeforeStart(newCancellation.cancelledAt(), "cancelledAt");
         // 현재 배정이 있어도 없어도 같은 이름(cancelledAt)으로 알리도록, 배정 종료의 하한보다 먼저 확인한다.
@@ -366,6 +447,7 @@ public final class Work {
                             AssignmentEndReason.CANCELLED));
         }
         cancellation = newCancellation;
+        plannedSchedule = null;
         status = cancelled;
     }
 
@@ -443,6 +525,15 @@ public final class Work {
         }
     }
 
+    /** 현재 배정을 주어진 종료로 끝내고 일정을 비워 대기함으로 돌린다. 상태 확인은 호출자가 먼저 한다. */
+    private void returnToBacklog(AssignmentEnding ending) {
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.REGISTERED);
+        requireNotBeforeLatestCorrection(ending.endedAt(), "endedAt");
+        latestAssignment().end(ending);
+        schedule = null;
+        status = nextStatus;
+    }
+
     /** 현재 배정을 끝내고(응답 전이면 회수, 수락됐으면 결과를 둔 채 종료만) 새 배정을 추가해 다시 수락받는다. */
     private void changeAssignment(
             WorkSchedule newSchedule, Instant changedAt, MembershipId changedBy, AssignmentEndReason reason) {
@@ -509,9 +600,9 @@ public final class Work {
             if (currentCancelledAssignment().isPresent()) {
                 throw new IllegalArgumentException("REGISTERED work must not have an assignment ended by CANCELLED");
             }
-            requireOverAssignment(latest, AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED);
+            requireOverAssignment(latest, BACKLOG_ENDINGS);
         } else if (status == WorkStatus.CANCELLED) {
-            requireOverAssignment(latest, AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED);
+            requireOverAssignment(latest, BACKLOG_ENDINGS);
             requireScheduleOfCancelledAssignment(latest);
         } else if (status == WorkStatus.PENDING_ACCEPTANCE) {
             requireAssignedSchedule(latest, AssignmentResult.PENDING);
@@ -710,7 +801,7 @@ public final class Work {
     }
 
     /** 현재 배정이 없는 상태면 최신 이력도 끝나 있어야 하고(거절 또는 허용된 방식의 종료), 대기 중일 수 없다. */
-    private void requireOverAssignment(AssignmentHistory latest, AssignmentEndReason... allowedReasons) {
+    private void requireOverAssignment(AssignmentHistory latest, Set<AssignmentEndReason> allowedReasons) {
         if (latest == null) {
             return;
         }
@@ -721,7 +812,7 @@ public final class Work {
             throw new IllegalArgumentException(status + " work must not have a current assignment");
         }
         latest.ending().ifPresent(ending -> {
-            if (!List.of(allowedReasons).contains(ending.reason())) {
+            if (!allowedReasons.contains(ending.reason())) {
                 throw new IllegalArgumentException(
                         status + " work must not have an assignment ended by " + ending.reason());
             }

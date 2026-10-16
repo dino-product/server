@@ -17,6 +17,7 @@ import com.orbit.schedule.application.port.in.query.dto.TimetableInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.domain.ManagerActor;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -93,10 +94,16 @@ public class GetTimetableService implements GetTimetableUseCase {
     }
 
     private static TimetableInfo.BacklogWork backlogWork(Work work) {
+        PlannedSchedule planned = work.plannedSchedule().orElse(null);
         return new TimetableInfo.BacklogWork(
                 work.id().orElseThrow().value(),
                 work.name(),
                 work.workType().map(WorkTypeId::value).orElse(null),
-                work.isReturnedByRejection());
+                work.isReturnedByRejection(),
+                planned == null || planned.technicianId() == null
+                        ? null
+                        : planned.technicianId().value(),
+                planned == null ? null : planned.startTime(),
+                planned == null ? null : planned.expectedDuration());
     }
 }
