@@ -217,6 +217,7 @@ class ScheduleModuleTest {
                         null,
                         null,
                         null,
+                        null,
                         false)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));

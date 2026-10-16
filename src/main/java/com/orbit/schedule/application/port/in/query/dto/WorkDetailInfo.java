@@ -28,6 +28,7 @@ import com.orbit.schedule.domain.WorkStatus;
  * @param completedAt 완료 시각. 없거나 기사가 지금 담당이 아니면 null
  * @param cancellation 취소 기록. 없거나 기사가 지금 담당이 아니면 null
  * @param completionReport 완료보고. 없거나 기사가 지금 담당이 아니면 null
+ * @param sitePhotos 등록 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록
  * @param statusCorrections 관리자 강제 변경 기록. 기사에게는 빈 목록
  */
 public record WorkDetailInfo(
@@ -47,10 +48,12 @@ public record WorkDetailInfo(
         Instant completedAt,
         Cancellation cancellation,
         CompletionReportInfo completionReport,
+        List<PhotoInfo> sitePhotos,
         List<StatusCorrection> statusCorrections) {
 
     public WorkDetailInfo {
         assignments = List.copyOf(assignments);
+        sitePhotos = List.copyOf(sitePhotos);
         statusCorrections = List.copyOf(statusCorrections);
     }
 

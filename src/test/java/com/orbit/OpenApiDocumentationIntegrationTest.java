@@ -283,6 +283,9 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("SCHEDULE-013"))
                 .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.CreateWorkRequest']"
                                 + ".properties.schedule")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.CreateWorkRequest']"
+                                + ".properties.sitePhotoIds")
                         .exists());
     }
 
@@ -413,6 +416,7 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + ".examples['SCHEDULE-001'].value.code")
                         .value("SCHEDULE-001"))
                 .andExpect(jsonPath(schema + ".properties.registeredAt").exists())
+                .andExpect(jsonPath(schema + ".properties.sitePhotos").exists())
                 .andExpect(jsonPath(schema + ".properties.statusCorrections").doesNotExist());
     }
 

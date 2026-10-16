@@ -275,6 +275,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 work.startedAt().orElse(null),
                 work.completedAt().orElse(null),
                 work.cancellation().orElse(null),
-                work.statusCorrections());
+                work.statusCorrections(),
+                work.sitePhotos());
     }
 }

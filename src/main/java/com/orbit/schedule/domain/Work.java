@@ -22,6 +22,12 @@ public final class Work {
     /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
     public static final int MAX_NAME_LENGTH = 100;
 
+    /** 등록 때 붙일 수 있는 현장 사진 수. */
+    public static final int MAX_SITE_PHOTO_COUNT = 6;
+
+    /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한, HM-238). */
+    public static final int MAX_SITE_PHOTO_ID_LENGTH = 500;
+
     /** 대기함에 들어온 뒤 이만큼 지나면 방치된 작업으로 보고 강조한다. 화면 시간대와 관계없이 경과 시간(72시간)으로 판정한다(S-18). */
     public static final Duration BACKLOG_STALE_AFTER = Duration.ofDays(3);
 
@@ -46,6 +52,7 @@ public final class Work {
     private Cancellation cancellation;
     private final List<StatusCorrection> statusCorrections;
     private PlannedSchedule plannedSchedule;
+    private List<String> sitePhotos = List.of();
 
     private Work(
             WorkId id,
@@ -219,6 +226,48 @@ public final class Work {
         return work;
     }
 
+    /** 등록 때 붙인 현장 사진까지 복원한다. */
+    public static Work reconstitute(
+            WorkId id,
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            Instant registeredAt,
+            WorkTypeId workType,
+            WorkSchedule schedule,
+            PlannedSchedule plannedSchedule,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            WorkStatus status,
+            List<AssignmentHistory> assignmentHistory,
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt,
+            Cancellation cancellation,
+            List<StatusCorrection> statusCorrections,
+            List<String> sitePhotos) {
+        Work work = reconstitute(
+                id,
+                organizationId,
+                name,
+                registrarId,
+                registeredAt,
+                workType,
+                schedule,
+                plannedSchedule,
+                customerInfo,
+                paymentInfo,
+                status,
+                assignmentHistory,
+                completionReport,
+                startedAt,
+                completedAt,
+                cancellation,
+                statusCorrections);
+        work.sitePhotos = requireSitePhotos(sitePhotos);
+        return work;
+    }
+
     public Optional<WorkId> id() {
         return Optional.ofNullable(id);
     }
@@ -249,6 +298,11 @@ public final class Work {
 
     public Optional<PlannedSchedule> plannedSchedule() {
         return Optional.ofNullable(plannedSchedule);
+    }
+
+    /** 등록 때 붙인 현장 사진 식별자. 붙인 순서다. */
+    public List<String> sitePhotos() {
+        return sitePhotos;
     }
 
     public CustomerInfo customerInfo() {
@@ -410,6 +464,17 @@ public final class Work {
         plannedSchedule = plannedSchedule.startTime() == null && plannedSchedule.expectedDuration() == null
                 ? null
                 : new PlannedSchedule(null, plannedSchedule.startTime(), plannedSchedule.expectedDuration());
+    }
+
+    /**
+     * 현장 사진을 주어진 식별자로 교체한다. 업로드를 마친 파일의 식별자를 받으며, null이면 비운다. 완료·취소된 작업은 바꿀 수 없다. 입력을 상태보다 먼저 검증한다.
+     */
+    public void replaceSitePhotos(List<String> photoIds) {
+        List<String> photos = requireSitePhotos(photoIds);
+        if (status.isTerminal()) {
+            throw new IllegalStateException("Cannot change site photos when status is " + status);
+        }
+        sitePhotos = photos;
     }
 
     /**
@@ -880,6 +945,22 @@ public final class Work {
         if (status != requiredStatus) {
             throw new IllegalStateException("Cannot " + action + " when status is " + status);
         }
+    }
+
+    private static List<String> requireSitePhotos(List<String> photoIds) {
+        if (photoIds == null) {
+            return List.of();
+        }
+        if (photoIds.size() > MAX_SITE_PHOTO_COUNT) {
+            throw new IllegalArgumentException("sitePhotos must be at most " + MAX_SITE_PHOTO_COUNT);
+        }
+        for (String photoId : photoIds) {
+            if (photoId == null || photoId.isBlank() || photoId.length() > MAX_SITE_PHOTO_ID_LENGTH) {
+                throw new IllegalArgumentException(
+                        "sitePhotos must be non-blank ids of at most " + MAX_SITE_PHOTO_ID_LENGTH + " characters");
+            }
+        }
+        return List.copyOf(photoIds);
     }
 
     private static void requireName(String name) {

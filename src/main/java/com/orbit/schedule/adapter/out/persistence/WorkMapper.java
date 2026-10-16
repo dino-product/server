@@ -30,6 +30,9 @@ import com.orbit.schedule.domain.WorkTypeId;
  *       하기 위한 것이며 저장할 때마다 Domain의 현재 일정으로 덮어쓴다. 등록(대기함) 상태면 같은 컬럼에 등록 때 일부만 입력한 미리 입력한
  *       일정({@code PlannedSchedule})을 담고, 읽을 때도 상태가 등록이면 미리 입력한 일정으로 해석한다. 일정을 기준으로 거르는 조회는 상태 조건을
  *       함께 걸어야 한다.
+ *   <li>등록 때 붙인 현장 사진은 {@code work_site_images}에 붙인 순서(id 순)로 둔다. 바뀌었을 때만 모두 지우고 다시 넣는다. Domain이 완전한
+ *       애그리게잇이라 모든 복원에서 현장 사진 컬렉션을 일괄 조회({@code @BatchSize})로 함께 읽으며, 목록·출력 조회에서 50건마다 조회가 하나 느는 비용을
+ *       감수한다.
  *   <li>완료보고는 ERD대로 {@code work} 컬럼에 인라인이고 사진만 {@code work_execution_images}로 나뉜다. 작업 상태가 완료일 때만 복원하며, 항목이 모두
  *       선택 입력이라 보고 컬럼이 전부 비어 있어도 빈 보고를 만든다.
  *   <li>배정 이력의 순번은 부모 컬렉션의 {@code id} 순서다(ERD에 순번 컬럼이 없음). 기존 저장은 i번째 행을 i번째 이력으로 갱신하고 새 이력만 추가한다
@@ -94,6 +97,21 @@ final class WorkMapper {
                 cancellation == null ? null : cancellation.note());
         applyAssignments(entity, work.assignmentHistory());
         applyCompletionReport(entity, previousStatus, work.completionReport().orElse(null));
+        applySitePhotos(entity, work.sitePhotos());
+    }
+
+    /** 현장 사진은 바뀌었을 때만 모두 지우고 다시 넣는다(순서가 id 순이므로). */
+    private static void applySitePhotos(WorkJpaEntity entity, List<String> sitePhotos) {
+        List<WorkSiteImageJpaEntity> images = entity.siteImages();
+        List<String> stored =
+                images.stream().map(WorkSiteImageJpaEntity::imageUrl).toList();
+        if (stored.equals(sitePhotos)) {
+            return;
+        }
+        images.clear();
+        for (String photo : sitePhotos) {
+            images.add(new WorkSiteImageJpaEntity(entity, photo));
+        }
     }
 
     static Work toDomain(WorkJpaEntity entity) {
@@ -137,7 +155,10 @@ final class WorkMapper {
                 entity.startedAt(),
                 entity.completedAt(),
                 cancellation,
-                List.of());
+                List.of(),
+                entity.siteImages().stream()
+                        .map(WorkSiteImageJpaEntity::imageUrl)
+                        .toList());
     }
 
     private static void applyAssignments(WorkJpaEntity entity, List<AssignmentHistory> histories) {

@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
@@ -58,6 +60,34 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
             Work saved = stored(organization, workId);
             assertThat(saved.status()).isEqualTo(WorkStatus.REGISTERED);
             assertThat(saved.registrarId()).isEqualTo(new MembershipId(organization.ownerMembership()));
+        }
+
+        @Test
+        @DisplayName("현장 사진 식별자를 함께 주면 붙인 순서대로 남긴다")
+        void registersWithSitePhotos() throws Exception {
+            Organization organization = organization();
+
+            long workId = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "sitePhotoIds", List.of("photo-1", "photo-2")))
+                    .andExpect(status().isOk()));
+
+            assertThat(stored(organization, workId).sitePhotos()).containsExactly("photo-1", "photo-2");
+        }
+
+        @Test
+        @DisplayName("현장 사진이 6장을 넘으면 400 SCHEDULE-003이고 만들지 않는다")
+        void rejectsTooManySitePhotos() throws Exception {
+            Organization organization = organization();
+
+            create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "sitePhotoIds", Collections.nCopies(7, "photo")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            assertThat(worksIn(organization)).isZero();
         }
 
         @Test

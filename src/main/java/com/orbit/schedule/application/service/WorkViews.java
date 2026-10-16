@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
+import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
 import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.domain.AssignmentEnding;
@@ -92,9 +93,10 @@ final class WorkViews {
                 .toList();
     }
 
-    private static List<CompletionReportInfo.Photo> photos(List<String> photoIds, PhotoUrlPort photoUrlPort) {
+    /** 사진 식별자마다 내려받을 주소를 붙인다. */
+    static List<PhotoInfo> photos(List<String> photoIds, PhotoUrlPort photoUrlPort) {
         return photoIds.stream()
-                .map(photoId -> new CompletionReportInfo.Photo(photoId, photoUrlPort.urlOf(photoId)))
+                .map(photoId -> new PhotoInfo(photoId, photoUrlPort.urlOf(photoId)))
                 .toList();
     }
 

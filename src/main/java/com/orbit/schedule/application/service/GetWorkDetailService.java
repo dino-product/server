@@ -24,9 +24,10 @@ import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.Work;
 
 /**
- * 작업 상세 조회. 관리자(총관리자·직원)는 조직의 모든 작업을 모든 항목과 함께 본다. 기사는 한 번이라도 배정받은 작업만 보고(아니면 다른 조직 작업처럼 404), 자기 배정 이력만 받는다. 작업유형·등록
- * 시각·지연·고객·결제·일정·진행 기록·완료보고는 지금 담당일 때만 받고, 등록자와 관리자 강제 변경 기록은 받지 않는다. 지연 여부는 지금 시각으로 계산하고, 완료보고 사진(강제 변경으로 치운 보고 포함)은
- * 내려받을 주소와 함께 담는다. 오류 확인 순서는 schedule 지침의 조회 순서를 따른다.
+ * 작업 상세 조회. 관리자(총관리자·직원)는 조직의 모든 작업을 모든 항목과 함께 본다. 기사는 한 번이라도 배정받은 작업만 보고(아니면 다른 조직 작업처럼
+ * 404), 자기 배정 이력만 받는다. 작업유형·등록 시각·지연·고객·결제·일정·진행 기록·완료보고·현장 사진은 지금 담당일 때만 받고, 등록자와 관리자 강제 변경
+ * 기록은 받지 않는다. 지연 여부는 지금 시각으로 계산하고, 완료보고 사진(강제 변경으로 치운 보고 포함)과 현장 사진은 내려받을 주소와 함께 담는다. 오류 확인
+ * 순서는 schedule 지침의 조회 순서를 따른다.
  */
 @Service
 public class GetWorkDetailService implements GetWorkDetailUseCase {
@@ -116,6 +117,7 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                 null,
                 null,
                 null,
+                List.of(),
                 List.of());
     }
 
@@ -154,6 +156,7 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                 work.completionReport()
                         .map(report -> WorkViews.completionReport(report, photoUrlPort))
                         .orElse(null),
+                WorkViews.photos(work.sitePhotos(), photoUrlPort),
                 statusCorrections);
     }
 }

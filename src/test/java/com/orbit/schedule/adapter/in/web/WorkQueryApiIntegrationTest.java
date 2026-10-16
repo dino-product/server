@@ -426,6 +426,21 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
+        @DisplayName("등록 때 붙인 현장 사진을 첨부 파일(식별자·주소)로 돌려준다")
+        void returnsSitePhotosAsAttachments() throws Exception {
+            Organization organization = organization();
+            Work work = registered(organization, "현장 사진 작업", Instant.now().minus(Duration.ofHours(1)));
+            work.replaceSitePhotos(List.of("site-1", "site-2"));
+            long workId = save(work);
+
+            detail(organization.owner(), organization.id(), workId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.sitePhotos.length()").value(2))
+                    .andExpect(jsonPath("$.result.sitePhotos[0].photoId").value("site-1"))
+                    .andExpect(jsonPath("$.result.sitePhotos[1].url").exists());
+        }
+
+        @Test
         @DisplayName("다른 조직의 작업은 SCHEDULE-001로 숨긴다")
         void hidesWorkOfOtherOrganization() throws Exception {
             Organization organization = organization();

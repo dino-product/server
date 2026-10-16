@@ -8,6 +8,7 @@ import com.orbit.schedule.adapter.in.web.LabelResponse;
 import com.orbit.schedule.adapter.in.web.StaffResponse;
 import com.orbit.schedule.adapter.in.web.TechnicianResponse;
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
+import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.AssignmentEndReason;
@@ -19,7 +20,7 @@ import com.orbit.schedule.domain.WorkStatus;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "작업 상세. 등록자는 관리자에게만 담는다. 기사가 지금 담당이 아니면 작업명·상태와 자기 배정 이력만 담고 나머지는 null(지연은 false)이다")
+@Schema(description = "작업 상세. 등록자는 관리자에게만 담는다. 기사가 지금 담당이 아니면 작업명·상태와 자기 배정 이력만 담고 나머지는 null(지연은 false, 현장 사진은 빈 목록)이다")
 public record WorkDetailResponse(
         @Schema(description = "작업 식별자", example = "10") Long workId,
 
@@ -58,7 +59,10 @@ public record WorkDetailResponse(
         Instant completedAt,
 
         @Schema(description = "취소 기록. 없으면 null") Cancellation cancellation,
-        @Schema(description = "완료보고. 없으면 null") CompletionReport completionReport) {
+        @Schema(description = "완료보고. 없으면 null") CompletionReport completionReport,
+
+        @Schema(description = "등록 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록")
+        List<Photo> sitePhotos) {
 
     static WorkDetailResponse from(WorkDetailInfo info) {
         return new WorkDetailResponse(
@@ -79,7 +83,8 @@ public record WorkDetailResponse(
                 info.startedAt(),
                 info.completedAt(),
                 info.cancellation() == null ? null : Cancellation.from(info.cancellation()),
-                info.completionReport() == null ? null : CompletionReport.from(info.completionReport()));
+                info.completionReport() == null ? null : CompletionReport.from(info.completionReport()),
+                info.sitePhotos().stream().map(Photo::from).toList());
     }
 
     private static Integer minutes(Duration duration) {
@@ -249,7 +254,7 @@ public record WorkDetailResponse(
             @Schema(description = "업로드한 사진 식별자") String photoId,
             @Schema(description = "내려받을 주소") String url) {
 
-        static Photo from(CompletionReportInfo.Photo info) {
+        static Photo from(PhotoInfo info) {
             return new Photo(info.photoId(), info.url());
         }
     }

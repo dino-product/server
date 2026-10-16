@@ -603,6 +603,27 @@ class WorkPersistenceAdapterTest {
         });
     }
 
+    @Test
+    @DisplayName("현장 사진을 붙인 순서대로 저장·복원하고, 바꾸면 새 목록으로 교체하며, 비우면 지운다")
+    void roundTripsSitePhotos() {
+        OrganizationId organization = organization();
+        Work work = registered(organization, "현장 사진 작업");
+        work.replaceSitePhotos(List.of("photo-2", "photo-1"));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+
+        Work found = find(organization, id);
+        assertThat(found.sitePhotos()).containsExactly("photo-2", "photo-1");
+
+        found.replaceSitePhotos(List.of("photo-3"));
+        inTx(() -> adapter().save(found));
+        Work replaced = find(organization, id);
+        assertThat(replaced.sitePhotos()).containsExactly("photo-3");
+
+        replaced.replaceSitePhotos(null);
+        inTx(() -> adapter().save(replaced));
+        assertThat(find(organization, id).sitePhotos()).isEmpty();
+    }
+
     private Work find(OrganizationId organization, WorkId id) {
         return inTx(() -> adapter().findInOrganization(organization, id).orElseThrow());
     }

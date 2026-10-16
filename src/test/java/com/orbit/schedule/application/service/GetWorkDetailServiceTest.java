@@ -24,9 +24,9 @@ import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.LabelInfo;
+import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.StaffInfo;
 import com.orbit.schedule.application.port.in.query.dto.TechnicianInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
@@ -107,7 +107,7 @@ class GetWorkDetailServiceTest {
             assertThat(correction.reason()).isEqualTo("사진 누락");
             assertThat(correction.retiredReport().workNote()).isEqualTo("첫 보고");
             assertThat(correction.retiredReport().beforePhotos())
-                    .containsExactly(new CompletionReportInfo.Photo("before-1", "url/before-1"));
+                    .containsExactly(new PhotoInfo("before-1", "url/before-1"));
             assertThat(correction.retiredCompletedAt()).isEqualTo(NOW);
             assertThat(correction.restoredAssignmentNumber()).isNull();
         });
@@ -198,11 +198,12 @@ class GetWorkDetailServiceTest {
     }
 
     @Test
-    @DisplayName("지금 담당인 기사는 고객·일정·진행 기록·완료보고를 보지만 강제 변경 기록은 받지 않는다")
+    @DisplayName("지금 담당인 기사는 고객·일정·진행 기록·완료보고·현장 사진을 보지만 등록자와 강제 변경 기록은 받지 않는다")
     void currentTechnicianSeesTheirWork() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Work work = fixture.stored(fixture.givenWork(WorkStatus.COMPLETED));
         work.correctStatus(WorkStatus.IN_PROGRESS, NOW, OWNER_ID, "사진 누락");
+        work.replaceSitePhotos(List.of("site-1"));
         work.submitCompletionReport(new CompletionReport(null, List.of("after-1"), null, "다시 보고", null, null), NOW);
         WorkId id = fixture.workRepository.store(work);
 
@@ -216,13 +217,13 @@ class GetWorkDetailServiceTest {
         assertThat(detail.startedAt()).isEqualTo(ACCEPTED_AT);
         assertThat(detail.completedAt()).isEqualTo(NOW);
         assertThat(detail.completionReport().workNote()).isEqualTo("다시 보고");
-        assertThat(detail.completionReport().afterPhotos())
-                .containsExactly(new CompletionReportInfo.Photo("after-1", "url/after-1"));
+        assertThat(detail.completionReport().afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/after-1"));
         assertThat(detail.statusCorrections()).isEmpty();
         assertThat(detail.registrar()).as("등록자는 관리자에게만 보인다").isNull();
         assertThat(fixture.staffProfiles.lookups())
                 .as("기사에게 보이지 않는 등록자는 찾지 않는다")
                 .isEmpty();
+        assertThat(detail.sitePhotos()).containsExactly(new PhotoInfo("site-1", "url/site-1"));
     }
 
     @Test
@@ -348,6 +349,7 @@ class GetWorkDetailServiceTest {
         assertThat(detail.cancellation()).isNull();
         assertThat(detail.completionReport()).isNull();
         assertThat(detail.statusCorrections()).isEmpty();
+        assertThat(detail.sitePhotos()).isEmpty();
     }
 
     private static GetWorkDetailQuery query(Long workId) {
