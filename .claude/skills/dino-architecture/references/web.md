@@ -10,7 +10,7 @@
 - 상위 자원마다 하나뿐인 하위 자원·화면(예: 발주사의 `company-code`, `timetable`, 작업의 `assignment`)은 단수형을 씁니다.
 - Request Body에는 `@Valid`, 경로·쿼리 제약에는 `@Validated`를 적용합니다.
 - Adapter에서 Request를 Command/Query로 변환합니다. Web DTO를 Domain/Application과 공유하거나 JPA Entity를 반환하지 않습니다. DTO 변경은 [구성 규칙](#dto)을 따릅니다.
-- 정상 응답은 `success`, `code`, `message`, `result`로 감쌉니다. Application의 비즈니스 오류는 모듈별 ErrorCode와 `BusinessException`으로 표현합니다. Domain 불변식 오류는 [오류 계약](architecture.md#errors)에 따라 변환합니다.
+- 정상 응답은 `success`, `code`, `message`, `result`로 감쌉니다. 예외: 파일 내려받기는 래퍼 없이 실제 미디어 타입과 `Content-Disposition`으로 응답하고(브라우저가 파일 이름을 읽도록 CORS 노출 헤더에 포함), 오류는 같은 JSON 구조로 응답합니다. Application의 비즈니스 오류는 모듈별 ErrorCode와 `BusinessException`으로 표현합니다. Domain 불변식 오류는 [오류 계약](architecture.md#errors)에 따라 변환합니다.
 - Controller는 `{module}.adapter.in.web.docs`의 `*ControllerDocs`를 구현합니다. [Controller 문서 계약](#controllers)에 따라 성공 결과 타입·실제 `BaseCode` enum 오류를 선언하고 공통 커스터마이저가 래퍼를 반영합니다.
 - 공개 HTTP 계약 변경 시 해당 [응답](#responses)·[파라미터와 보안](#parameters) 규칙을 적용하고 [생성 계약을 검증](#verification)합니다.
 
