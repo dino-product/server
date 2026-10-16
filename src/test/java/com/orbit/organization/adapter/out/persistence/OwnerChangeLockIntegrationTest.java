@@ -34,13 +34,15 @@ import com.orbit.support.IntegrationTestSupport;
 
 /**
  * 총관리자 해제가 발주사 잠금으로 한 줄로 서는지 두 트랜잭션으로 확인한다. 앞 트랜잭션이 커밋 전에 잠금을 쥔 동안 뒤 요청이 기다리고, 커밋 뒤에는 바뀐 총관리자 표시를
- * 보고 판단해야 한다. 잠금이 없으면 뒤 요청이 커밋 전 상태(총관리자 2명)를 읽고 바로 끝나 총관리자가 0명이 된다.
+ * 보고 판단해야 한다. 잠금이 없으면 뒤 요청이 커밋 전 상태(총관리자 2명)를 읽고 바로 끝나 총관리자가 0명이 된다. 그 발주사 소속이 아닌 요청은
+ * 잠금을 기다리지 않고 거부되어야 대기 한도 초과(409)로 발주사 존재가 드러나지 않는다.
  */
-@DisplayName("총관리자 해제 동시성")
+@DisplayName("총관리자 지정·해제 동시성")
 class OwnerChangeLockIntegrationTest extends IntegrationTestSupport {
 
     private static final long FIRST_OWNER = 90_001L;
     private static final long SECOND_OWNER = 90_002L;
+    private static final long OUTSIDER = 90_003L;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
@@ -99,6 +101,41 @@ class OwnerChangeLockIntegrationTest extends IntegrationTestSupport {
                         .isEqualTo(OrganizationErrorCode.OWNER_ONLY));
         assertThat(isOwner(first)).isTrue();
         assertThat(isOwner(second)).isFalse();
+    }
+
+    @Test
+    @DisplayName("다른 요청이 발주사를 잠근 동안에도 그 발주사 소속이 아닌 계정의 지정 요청은 기다리지 않고 403으로 거부된다")
+    void rejectsOutsiderWithoutWaitingForLock() throws Exception {
+        long organizationId = createOrganizationUseCase
+                .create(new CreateOrganizationCommand(FIRST_OWNER, "잠금 중 발주사", Industry.HVAC))
+                .organizationId();
+        long staff = staffMembership(organizationId, SECOND_OWNER);
+
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch commitFirst = new CountDownLatch(1);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CompletableFuture<Void> firstRequest = CompletableFuture.runAsync(
+                () -> transaction.executeWithoutResult(status -> {
+                    designateOwnerUseCase.designate(new DesignateOwnerCommand(FIRST_OWNER, organizationId, staff));
+                    locked.countDown();
+                    await(commitFirst);
+                }),
+                executor);
+        assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+
+        try {
+            CompletableFuture<Void> outsiderRequest = CompletableFuture.runAsync(
+                    () -> designateOwnerUseCase.designate(new DesignateOwnerCommand(OUTSIDER, organizationId, staff)),
+                    executor);
+            assertThatThrownBy(() -> outsiderRequest.get(1, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .cause()
+                    .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                            .isEqualTo(OrganizationErrorCode.NOT_ORGANIZATION_MEMBER));
+        } finally {
+            commitFirst.countDown();
+            firstRequest.get(10, TimeUnit.SECONDS);
+        }
     }
 
     private static void await(CountDownLatch latch) {

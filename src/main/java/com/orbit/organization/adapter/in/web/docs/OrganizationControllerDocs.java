@@ -68,7 +68,8 @@ public interface OrganizationControllerDocs {
             description = "발주사명·업종을 함께 바꿉니다. 그 발주사의 활성 총관리자만 수정할 수 있고 검증은 발주사 생성과 같습니다. "
                     + "다른 발주사와 같은 이름도 허용합니다. 활성 소속이 아니면(없는 발주사 포함) ORGANIZATION-002, "
                     + "총관리자가 아닌 직원이면 ORGANIZATION-003, 발주사명·업종 규칙 위반은 ORGANIZATION-001, "
-                    + "본문 형식 오류(목록에 없는 업종 값 등)는 COMMON-400입니다.",
+                    + "본문 형식 오류(목록에 없는 업종 값 등)는 COMMON-400입니다. "
+                    + "같은 발주사의 다른 변경이 끝나기를 기다리다 대기 한도를 넘기면 ORGANIZATION-010입니다(잠시 후 다시 시도).",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
@@ -82,7 +83,7 @@ public interface OrganizationControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"INVALID_ORGANIZATION_INPUT", "NOT_ORGANIZATION_MEMBER", "OWNER_ONLY"})
+            includes = {"INVALID_ORGANIZATION_INPUT", "NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "ORGANIZATION_BUSY"})
     OrganizationResponse update(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
