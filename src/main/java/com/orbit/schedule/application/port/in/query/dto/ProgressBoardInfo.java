@@ -48,7 +48,7 @@ public record ProgressBoardInfo(List<Column> columns, Summary summary) {
      * 보드의 작업 수 집계.
      *
      * @param total 보드의 모든 작업 수(네 열 카드 수의 합)
-     * @param inProgress 작업중인 작업 수(요약의 진행 중, S-10)
+     * @param inProgress 작업중인 작업 수(요약의 진행 중, [현황 파악] §4 MON-003)
      * @param delayed 지연된 작업 수(배정됨·작업전·작업중 중)
      * @param completed 완료된 작업 수
      */
