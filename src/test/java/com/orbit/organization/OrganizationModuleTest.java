@@ -27,6 +27,9 @@ class OrganizationModuleTest {
     @Autowired
     private OrganizationMemberLookup memberLookup;
 
+    @Autowired
+    private TechnicianContractLookup technicianContractLookup;
+
     @Test
     void createsOrganizationWithinStandaloneModule() {
         CreatedOrganizationInfo created =
@@ -47,5 +50,12 @@ class OrganizationModuleTest {
                     assertThat(staff.owner()).isTrue();
                 }));
         assertThat(memberLookup.findActiveMember(9L, created.organizationId())).isEmpty();
+    }
+
+    @Test
+    void publicTechnicianContractLookupFindsNoContractForStaffOnlyAccount() {
+        useCase.create(new CreateOrganizationCommand(10L, "기사 계약 조회 발주사", Industry.APPLIANCE_SERVICE));
+
+        assertThat(technicianContractLookup.listByAccount(10L)).isEmpty();
     }
 }

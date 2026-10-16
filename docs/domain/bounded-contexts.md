@@ -49,10 +49,10 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 회사 참여 요청, 직원 소속(Membership)·기사 계약(Technician) 관리 |
-| 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회(기사 계약은 조회와 유형 해제만), 직원·기사 유형 관리. 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
+| 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회·계정의 기사 계약 목록 조회(schedule 소비 전. 기사 계약은 조회와 유형 해제만), 직원·기사 유형 관리. 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
 | 기획 원본 | [조직·계정] 정책 |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
-| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
+| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 루트 계약 `TechnicianContractLookup`으로 계정의 모든 기사 계약(비활성 포함)을 제공해 schedule 탈퇴 차단 판정·뒤처리가 쓸 예정(schedule 어댑터 교체는 schedule 담당); 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
 
 <a id="organization-product"></a>
 #### 2.1 제품 규칙 참조
@@ -71,7 +71,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 <a id="organization-design"></a>
 #### 2.2 설계 결정 (부분 구현)
 
-발주사 생성, 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회(소속·기사 계약 활성·비활성 상태, 계정·발주사당 소속·계약 각 1행 제약), 내 소속 목록 조회(아래 역할 변경 행 규칙의 발주사당 한 줄), 직원·기사 유형 관리만 구현됐다. 아래는 구현할 때 따를 레포 쪽 설계이며, 구현하면서 이 절을 구현 결정으로 옮긴다. 구현된 부분(총관리자 표현, 회사 코드 발급·폐기, 참여 요청 잠금)의 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md)에 있다.
+발주사 생성, 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회(소속·기사 계약 활성·비활성 상태, 계정·발주사당 소속·계약 각 1행 제약)와 계정의 기사 계약 목록 조회, 내 소속 목록 조회(아래 역할 변경 행 규칙의 발주사당 한 줄), 직원·기사 유형 관리만 구현됐다. 아래는 구현할 때 따를 레포 쪽 설계이며, 구현하면서 이 절을 구현 결정으로 옮긴다. 구현된 부분(총관리자 표현, 회사 코드 발급·폐기, 참여 요청 잠금)의 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md)에 있다.
 
 - **참여 요청을 별도 모듈로 분리하지 않는다**: 회사 코드와 참여 요청은 소속 생성 규칙에 포함되고, 승인과 소속 생성이 하나의 유즈케이스에서 함께 성공·실패해야 하므로 `organization` 안의 애그리게잇으로 둔다. 요청 생명주기가 복잡해지거나 별도 팀 경계가 필요해지면 그때 모듈 분리를 검토한다(BC-002).
 - **계정과 소속 분리**: 계정은 조직을 모르고, 조직별 직원 소속·기사 계약이 역할·상태를 가진다. 요청에는 희망 유형, 승인 결과에는 확정 유형에 따라 직원 소속 또는 기사 계약을 만든다. 같은 조직 안에서만 중복 소속·대기 요청을 차단하는 규칙은 `organization`이 소유한다.
