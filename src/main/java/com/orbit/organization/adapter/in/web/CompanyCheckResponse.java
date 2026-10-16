@@ -11,8 +11,8 @@ public record CompanyCheckResponse(
         @Schema(description = "발주사명", example = "오르빗 설비") String organizationName,
 
         @Schema(
-                description = "참여 요청 가능 여부. AVAILABLE 요청 가능, ALREADY_MEMBER 이미 참여 중, "
-                        + "DEACTIVATED_MEMBER 비활성화된 소속이 있어 요청 불가, PENDING_REQUEST 승인 대기 중인 요청 있음",
+                description = "참여 요청 가능 여부. AVAILABLE 요청 가능(비활성 소속만 있어도 요청 가능, 승인되면 그 소속이 다시 활성), "
+                        + "ALREADY_MEMBER 이미 참여 중, PENDING_REQUEST 승인 대기 중인 요청 있음",
                 example = "AVAILABLE")
         ParticipationAvailability availability,
 

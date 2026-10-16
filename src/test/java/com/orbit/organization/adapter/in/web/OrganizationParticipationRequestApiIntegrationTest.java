@@ -162,7 +162,7 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
     }
 
     @Test
-    @DisplayName("비활성 소속이 있는 회원을 승인하면 같은 역할은 그 행을 되살리고, 다른 역할은 이전 참여일로 새 행을 만들어 소속 목록에 한 줄만 보인다")
+    @DisplayName("비활성 소속이 있는 회원이 다시 요청해 승인되면 같은 역할은 그 행을 되살리고, 다른 역할은 이전 참여일로 새 행을 만들어 소속 목록에 한 줄만 보인다")
     void reactivatesDeactivatedMembersOnApproval() throws Exception {
         long owner = ACCOUNT_IDS.incrementAndGet();
         Company company = createCompany(owner, "재참여 승인 발주사");
@@ -170,8 +170,8 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
         long staffToTechnician = ACCOUNT_IDS.incrementAndGet();
         insertDeactivatedStaff(company.organizationId(), returningStaff);
         insertDeactivatedStaff(company.organizationId(), staffToTechnician);
-        long first = insertPendingRequest(company.organizationId(), returningStaff);
-        long second = insertPendingRequest(company.organizationId(), staffToTechnician);
+        long first = requestParticipation(returningStaff, company.code(), "STAFF");
+        long second = requestParticipation(staffToTechnician, company.code(), "STAFF");
 
         approve(
                         owner,
@@ -494,16 +494,6 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
                 Timestamp.from(JOINED_AT.plusSeconds(3600)),
                 Timestamp.from(JOINED_AT),
                 Timestamp.from(JOINED_AT));
-    }
-
-    /** 비활성 소속이 있는 회원의 참여 요청은 요청 API가 막으므로 승인 대기 요청을 SQL로 넣는다. */
-    private long insertPendingRequest(long organizationId, long accountId) {
-        return jdbcTemplate.queryForObject("""
-                insert into participation_requests
-                    (company_id, member_id, desired_type, status, requested_at, created_at, updated_at)
-                values (?, ?, 'STAFF', 'PENDING', now(), now(), now())
-                returning id
-                """, Long.class, organizationId, accountId);
     }
 
     private void insertTechnician(long organizationId, long accountId) {

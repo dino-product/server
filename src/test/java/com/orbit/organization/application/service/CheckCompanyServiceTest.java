@@ -127,14 +127,15 @@ class CheckCompanyServiceTest {
     }
 
     @Test
-    @DisplayName("비활성 소속만 있으면 비활성 소속 상태로 알린다")
-    void reportsDeactivatedMemberWithOnlyInactiveRows() {
+    @DisplayName("비활성 소속만 있으면 다시 참여 요청을 보낼 수 있다")
+    void allowsRequestWithOnlyInactiveRows() {
         when(organizationRepository.findByCode(CODE)).thenReturn(Optional.of(organization()));
         when(membershipQueryPort.listMemberships(ACCOUNT_ID))
                 .thenReturn(List.of(membership(ORGANIZATION_ID, MemberRole.STAFF, false)));
+        when(requestRepository.findPending(ORGANIZATION_ID, ACCOUNT_ID)).thenReturn(Optional.empty());
 
         assertThat(service.check(new CheckCompanyQuery(7L, "7K2M9X")).availability())
-                .isEqualTo(ParticipationAvailability.DEACTIVATED_MEMBER);
+                .isEqualTo(ParticipationAvailability.AVAILABLE);
     }
 
     @Test

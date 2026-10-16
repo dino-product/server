@@ -77,7 +77,6 @@ public class RequestParticipationService implements RequestParticipationUseCase 
     private static OrganizationErrorCode rejection(ParticipationAvailability availability) {
         return switch (availability) {
             case ALREADY_MEMBER -> OrganizationErrorCode.ALREADY_MEMBER;
-            case DEACTIVATED_MEMBER -> OrganizationErrorCode.DEACTIVATED_MEMBER;
             case PENDING_REQUEST -> OrganizationErrorCode.PENDING_REQUEST_EXISTS;
             case AVAILABLE -> throw new IllegalArgumentException("available participation is not a rejection");
         };

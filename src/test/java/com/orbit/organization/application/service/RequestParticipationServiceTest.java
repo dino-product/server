@@ -179,14 +179,20 @@ class RequestParticipationServiceTest {
     }
 
     @Test
-    @DisplayName("같은 발주사에 비활성 소속만 있으면 기획 결정 전까지 요청을 막는다")
-    void rejectsDeactivatedMember() {
+    @DisplayName("같은 발주사에 비활성 소속만 있으면 다시 승인 대기 요청을 만든다")
+    void createsRequestForDeactivatedMember() {
         lockedOrganization();
         when(membershipQueryPort.listMemberships(ACCOUNT_ID))
                 .thenReturn(List.of(membership(MemberRole.TECHNICIAN, false)));
+        when(requestRepository.findPending(ORGANIZATION_ID, ACCOUNT_ID)).thenReturn(Optional.empty());
+        when(requestRepository.save(any(ParticipationRequest.class)))
+                .thenAnswer(invocation -> saved(invocation.getArgument(0)));
 
-        assertRejected("7K2M9X", OrganizationErrorCode.DEACTIVATED_MEMBER);
-        verify(requestRepository, never()).save(any());
+        ParticipationRequestInfo result =
+                service.request(new RequestParticipationCommand(7L, "7K2M9X", ParticipationType.STAFF));
+
+        assertThat(result.status()).isEqualTo(ParticipationRequestStatus.PENDING);
+        verify(requestRepository).save(any());
     }
 
     @Test
