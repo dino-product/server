@@ -397,6 +397,81 @@ class DecideParticipationRequestsServiceTest {
     }
 
     @Test
+    @DisplayName("두 행이 모두 비활성이고 마지막 역할이 직원이면, 기사로 확정할 때 기사 계약을 되살리며 세부 유형을 해제한다")
+    void unassignsTechnicianCategoryWhenLastRoleWasStaff() {
+        givenPending(31L, 7L, ParticipationType.TECHNICIAN);
+        membershipRepository.given(
+                ORGANIZATION_ID, new AccountId(7L), false, MembershipStatus.DEACTIVATED, REQUESTED_AT);
+        givenTechnician(7L, TechnicianStatus.DEACTIVATED, REQUESTED_AT.minusSeconds(60));
+
+        service.approve(approve(OWNER, new Approval(31L, ParticipationType.TECHNICIAN)));
+
+        verify(technicianRepository).reactivate(any(), org.mockito.ArgumentMatchers.eq(true));
+        assertThat(membershipRepository.reactivations()).isEmpty();
+        assertThat(membershipRepository.findActive(ORGANIZATION_ID, new AccountId(7L)))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("두 행이 모두 비활성이고 확정 유형이 마지막 역할과 같으면 그 행만 되살리며 세부 유형을 유지하고 다른 행은 비활성으로 둔다")
+    void keepsCategoryWhenConfirmedTypeMatchesLastRole() {
+        givenPending(31L, 7L, ParticipationType.TECHNICIAN);
+        membershipRepository.given(ORGANIZATION_ID, new AccountId(7L), false, MembershipStatus.DEACTIVATED);
+        givenTechnician(7L, TechnicianStatus.DEACTIVATED, REQUESTED_AT.plusSeconds(60));
+
+        service.approve(approve(OWNER, new Approval(31L, ParticipationType.TECHNICIAN)));
+
+        verify(technicianRepository).reactivate(any(), org.mockito.ArgumentMatchers.eq(false));
+        assertThat(membershipRepository.reactivations()).isEmpty();
+        assertThat(membershipRepository.findActive(ORGANIZATION_ID, new AccountId(7L)))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("두 행의 상태 변경 시각이 같으면 마지막 역할을 직원으로 본다")
+    void treatsStaffAsLastRoleOnTie() {
+        givenPending(31L, 7L, ParticipationType.TECHNICIAN);
+        membershipRepository.given(
+                ORGANIZATION_ID, new AccountId(7L), false, MembershipStatus.DEACTIVATED, REQUESTED_AT);
+        givenTechnician(7L, TechnicianStatus.DEACTIVATED, REQUESTED_AT);
+
+        service.approve(approve(OWNER, new Approval(31L, ParticipationType.TECHNICIAN)));
+
+        verify(technicianRepository).reactivate(any(), org.mockito.ArgumentMatchers.eq(true));
+    }
+
+    @Test
+    @DisplayName("비활성 기사 계약만 있는 회원을 직원으로 확정하면 기사 계약의 참여일을 이어받은 직원 소속을 만든다")
+    void createsMembershipKeepingTechnicianJoinDate() {
+        givenPending(31L, 7L, ParticipationType.TECHNICIAN);
+        Technician deactivated = givenTechnician(7L, TechnicianStatus.DEACTIVATED, REQUESTED_AT);
+
+        service.approve(approve(OWNER, new Approval(31L, ParticipationType.STAFF)));
+
+        assertThat(membershipRepository.findActive(ORGANIZATION_ID, new AccountId(7L)))
+                .hasValueSatisfying(membership -> {
+                    assertThat(membership.isOwner()).isFalse();
+                    assertThat(membership.joinedAt()).isEqualTo(deactivated.joinedAt());
+                    assertThat(membership.statusChangedAt()).isEqualTo(NOW);
+                });
+        verify(technicianRepository, never()).reactivate(any(), anyBoolean());
+        verify(technicianRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("한 행이라도 활성이면 다른 행이 비활성이어도 승인하지 않는다")
+    void treatsMixedRowsWithActiveOneAsMember() {
+        givenPending(31L, 7L, ParticipationType.TECHNICIAN);
+        membershipRepository.given(ORGANIZATION_ID, new AccountId(7L), false);
+        givenTechnician(7L, TechnicianStatus.DEACTIVATED, REQUESTED_AT);
+
+        assertThat(service.approve(approve(OWNER, new Approval(31L, ParticipationType.TECHNICIAN))))
+                .extracting(ParticipationRequestDecisionInfo::outcome)
+                .containsExactly(ParticipationRequestDecisionOutcome.ALREADY_MEMBER);
+        verify(technicianRepository, never()).reactivate(any(), anyBoolean());
+    }
+
+    @Test
     @DisplayName("승인은 요청 행보다 발주사를 먼저 잠그고, 잠금 대기 한도를 넘기면 어떤 요청도 잠그지 않고 409 ORGANIZATION-010으로 거부한다")
     void locksOrganizationBeforeRequests() {
         givenPending(31L, 7L, ParticipationType.STAFF);

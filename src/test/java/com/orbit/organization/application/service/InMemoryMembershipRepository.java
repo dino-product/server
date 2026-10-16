@@ -31,8 +31,17 @@ class InMemoryMembershipRepository implements MembershipRepository {
     }
 
     Membership given(OrganizationId organizationId, AccountId accountId, boolean owner, MembershipStatus status) {
+        return given(organizationId, accountId, owner, status, JOINED_AT);
+    }
+
+    Membership given(
+            OrganizationId organizationId,
+            AccountId accountId,
+            boolean owner,
+            MembershipStatus status,
+            Instant statusChangedAt) {
         Membership membership = Membership.reconstitute(
-                new MembershipId(nextId++), organizationId, accountId, owner, status, JOINED_AT, JOINED_AT);
+                new MembershipId(nextId++), organizationId, accountId, owner, status, JOINED_AT, statusChangedAt);
         memberships.put(membership.id().orElseThrow(), membership);
         return membership;
     }
