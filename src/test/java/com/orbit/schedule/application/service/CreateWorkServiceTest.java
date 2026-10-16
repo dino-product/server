@@ -59,7 +59,7 @@ class CreateWorkServiceTest {
     @EnumSource(
             value = ActorRole.class,
             names = {"OWNER", "STAFF"})
-    @DisplayName("총관리자·직원은 요청한 조직에 자신을 등록자로 작업을 등록한다")
+    @DisplayName("총관리자·직원은 요청한 조직에 자신을 등록자로, 지금을 등록 시각으로 작업을 등록한다")
     void registersWorkForManager(ActorRole role) {
         fixture.givenManager(role);
 
@@ -69,6 +69,7 @@ class CreateWorkServiceTest {
         assertThat(created.workId()).isEqualTo(saved.id().orElseThrow().value());
         assertThat(saved.organizationId()).isEqualTo(ORGANIZATION_ID);
         assertThat(saved.registrarId()).isEqualTo(new MembershipId(11L));
+        assertThat(saved.registeredAt()).isEqualTo(NOW);
         assertThat(saved.name()).isEqualTo("에어컨 수리");
         assertThat(saved.workType()).contains(new WorkTypeId(2L));
         assertThat(saved.customerInfo()).isEqualTo(new CustomerInfo("홍길동", "010-1234-5678", "서울시"));
@@ -257,6 +258,7 @@ class CreateWorkServiceTest {
         assertThat(created.scheduleChange().applied()).isTrue();
         assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
+        assertThat(saved.registeredAt()).isEqualTo(NOW);
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
             assertThat(history.assignedAt()).isEqualTo(NOW);
             assertThat(history.assignedBy()).isEqualTo(new MembershipId(11L));

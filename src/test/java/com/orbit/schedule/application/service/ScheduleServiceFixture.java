@@ -51,6 +51,12 @@ final class ScheduleServiceFixture {
     static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
 
     static final Instant NOW = Instant.parse("2026-09-24T01:00:00Z");
+    /**
+     * 서비스 테스트가 등록하는 작업의 기본 등록 시각. 테스트가 쓰는 배정·응답 시각(지금부터 몇 시간 전)보다 앞서고, 대기함 방치 기준보다는 가까워 기본으로는
+     * 방치가 아니다. 방치를 볼 때는 시각을 따로 정한다.
+     */
+    static final Instant REGISTERED_AT = NOW.minus(Duration.ofHours(6));
+
     static final Instant ASSIGNED_AT = NOW.minus(Duration.ofHours(2));
     static final Instant ACCEPTED_AT = ASSIGNED_AT.plus(Duration.ofMinutes(30));
     static final Instant TEN = Instant.parse("2026-09-25T01:00:00Z");
@@ -100,6 +106,7 @@ final class ScheduleServiceFixture {
                 organizationId,
                 name,
                 REGISTRAR_ID,
+                REGISTERED_AT,
                 WORK_TYPE_ID,
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));

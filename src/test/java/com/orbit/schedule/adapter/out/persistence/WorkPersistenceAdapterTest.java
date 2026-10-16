@@ -60,6 +60,8 @@ import com.orbit.support.PersistenceTestConfiguration;
 @DisplayName("작업 JPA 저장소")
 class WorkPersistenceAdapterTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final MembershipId REGISTRAR = new MembershipId(1L);
     private static final MembershipId MANAGER = new MembershipId(99L);
     private static final TechnicianId TECHNICIAN = new TechnicianId(3L);
@@ -195,7 +197,7 @@ class WorkPersistenceAdapterTest {
     @DisplayName("대기함 작업이 미리 입력한 일정은 일정 컬럼에 담아 저장했다가 그대로 복원한다")
     void roundTripsPlannedScheduleOfBacklogWork(String name, PlannedSchedule planned) {
         OrganizationId organization = organization();
-        Work work = Work.register(organization, name, REGISTRAR, null, null, null, planned);
+        Work work = Work.register(organization, name, REGISTRAR, REGISTERED_AT, null, null, null, planned);
 
         WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
         Work found = find(organization, id);
@@ -225,7 +227,14 @@ class WorkPersistenceAdapterTest {
         inTx(() -> adapter().save(storedUnassigned));
 
         Work planned = Work.register(
-                organization, "취소", REGISTRAR, null, null, null, new PlannedSchedule(TECHNICIAN, null, null));
+                organization,
+                "취소",
+                REGISTRAR,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN, null, null));
         WorkId plannedId = inTx(() -> adapter().save(planned)).id().orElseThrow();
         Work storedPlanned = find(organization, plannedId);
         storedPlanned.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
@@ -250,7 +259,14 @@ class WorkPersistenceAdapterTest {
     void storesAssignedScheduleAfterPlanned() {
         OrganizationId organization = organization();
         Work work = Work.register(
-                organization, "배정 전환", REGISTRAR, null, null, null, new PlannedSchedule(TECHNICIAN, null, null));
+                organization,
+                "배정 전환",
+                REGISTRAR,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN, null, null));
         WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
         assertThat(inTx(() -> adapter().listActiveByTechnician(organization, TECHNICIAN)))
                 .isEmpty();
@@ -276,6 +292,7 @@ class WorkPersistenceAdapterTest {
                                 organization,
                                 "기사만",
                                 REGISTRAR,
+                                REGISTERED_AT,
                                 null,
                                 null,
                                 null,
@@ -287,6 +304,7 @@ class WorkPersistenceAdapterTest {
                         organization,
                         "다른 기사",
                         REGISTRAR,
+                        REGISTERED_AT,
                         null,
                         null,
                         null,
@@ -296,6 +314,7 @@ class WorkPersistenceAdapterTest {
                         organization(),
                         "다른 조직",
                         REGISTRAR,
+                        REGISTERED_AT,
                         null,
                         null,
                         null,
@@ -416,6 +435,7 @@ class WorkPersistenceAdapterTest {
                 organization(),
                 "없는 작업",
                 REGISTRAR,
+                REGISTERED_AT,
                 null,
                 null,
                 null,
@@ -442,6 +462,7 @@ class WorkPersistenceAdapterTest {
                 organization(),
                 saved.name(),
                 REGISTRAR,
+                REGISTERED_AT,
                 null,
                 null,
                 null,
@@ -595,6 +616,7 @@ class WorkPersistenceAdapterTest {
                 organization,
                 name,
                 REGISTRAR,
+                REGISTERED_AT,
                 new WorkTypeId(2L),
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));

@@ -22,6 +22,9 @@ public final class Work {
     /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
     public static final int MAX_NAME_LENGTH = 100;
 
+    /** 대기함에 들어온 뒤 이만큼 지나면 방치된 작업으로 보고 강조한다. 화면 시간대와 관계없이 경과 시간(72시간)으로 판정한다(S-18). */
+    public static final Duration BACKLOG_STALE_AFTER = Duration.ofDays(3);
+
     /** 현재 배정이 없는 작업(등록·취소)의 마지막 배정이 관리자 조치나 탈퇴로 끝났을 때 허용하는 방식. 재배정·일정 변경 뒤에는 새 배정이 남는다. */
     private static final Set<AssignmentEndReason> BACKLOG_ENDINGS = Set.of(
             AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED, AssignmentEndReason.ACCOUNT_WITHDRAWN);
@@ -30,6 +33,7 @@ public final class Work {
     private final OrganizationId organizationId;
     private String name;
     private final MembershipId registrarId;
+    private final Instant registeredAt;
     private WorkTypeId workType;
     private WorkSchedule schedule;
     private CustomerInfo customerInfo;
@@ -48,6 +52,7 @@ public final class Work {
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             WorkSchedule schedule,
             CustomerInfo customerInfo,
@@ -66,6 +71,9 @@ public final class Work {
         if (registrarId == null) {
             throw new IllegalArgumentException("registrarId must not be null");
         }
+        if (registeredAt == null) {
+            throw new IllegalArgumentException("registeredAt must not be null");
+        }
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
         }
@@ -73,6 +81,7 @@ public final class Work {
         this.organizationId = organizationId;
         this.name = name;
         this.registrarId = registrarId;
+        this.registeredAt = truncateToMicros(registeredAt);
         this.workType = workType;
         this.schedule = schedule;
         this.customerInfo = orEmpty(customerInfo);
@@ -86,10 +95,12 @@ public final class Work {
         this.statusCorrections = statusCorrections == null ? new ArrayList<>() : new ArrayList<>(statusCorrections);
     }
 
+    /** 작업을 대기함에 등록한다. 등록 시각 뒤로만 배정·취소 같은 기록을 남길 수 있다. */
     public static Work register(
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             CustomerInfo customerInfo,
             PaymentInfo paymentInfo) {
@@ -98,6 +109,7 @@ public final class Work {
                 organizationId,
                 name,
                 registrarId,
+                registeredAt,
                 workType,
                 null,
                 customerInfo,
@@ -116,11 +128,12 @@ public final class Work {
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             CustomerInfo customerInfo,
             PaymentInfo paymentInfo,
             PlannedSchedule plannedSchedule) {
-        Work work = register(organizationId, name, registrarId, workType, customerInfo, paymentInfo);
+        Work work = register(organizationId, name, registrarId, registeredAt, workType, customerInfo, paymentInfo);
         work.plannedSchedule = plannedSchedule;
         return work;
     }
@@ -130,6 +143,7 @@ public final class Work {
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             WorkSchedule schedule,
             CustomerInfo customerInfo,
@@ -146,6 +160,7 @@ public final class Work {
                 organizationId,
                 name,
                 registrarId,
+                registeredAt,
                 workType,
                 schedule,
                 customerInfo,
@@ -167,6 +182,7 @@ public final class Work {
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             WorkSchedule schedule,
             PlannedSchedule plannedSchedule,
@@ -184,6 +200,7 @@ public final class Work {
                 organizationId,
                 name,
                 registrarId,
+                registeredAt,
                 workType,
                 schedule,
                 customerInfo,
@@ -216,6 +233,10 @@ public final class Work {
 
     public MembershipId registrarId() {
         return registrarId;
+    }
+
+    public Instant registeredAt() {
+        return registeredAt;
     }
 
     public Optional<WorkTypeId> workType() {
@@ -289,6 +310,22 @@ public final class Work {
         return status == WorkStatus.REGISTERED
                 && !assignmentHistory.isEmpty()
                 && assignmentHistory.getLast().result() == AssignmentResult.REJECTED;
+    }
+
+    /**
+     * 대기함에 들어온 시각. 등록한 뒤 한 번도 배정하지 않았으면 등록 시각이고, 거절·배정 해제·기사 반환으로 돌아왔으면 돌아온 시각(작업에 남은 가장 늦은 기록)이다.
+     * 대기함(등록) 작업이 아니면 비어 있다.
+     */
+    public Optional<Instant> backlogEnteredAt() {
+        return status == WorkStatus.REGISTERED ? Optional.of(latestRecordedMoment()) : Optional.empty();
+    }
+
+    /** 주어진 시각에 대기함에서 방치된 작업인지. 대기함에 들어온 지 {@link #BACKLOG_STALE_AFTER} 이상 지났으면 방치다. */
+    public boolean isStaleInBacklogAt(Instant now) {
+        Objects.requireNonNull(now, "now must not be null");
+        return backlogEnteredAt()
+                .map(enteredAt -> !now.isBefore(enteredAt.plus(BACKLOG_STALE_AFTER)))
+                .orElse(false);
     }
 
     /** 대기함 작업을 기사·일정에 배정하고 수락을 기다린다. 배정한 관리자(조직 소속)를 이력에 남긴다. */
@@ -494,9 +531,10 @@ public final class Work {
         status = target;
     }
 
-    /** 작업에 남은 가장 늦은 기록 시각(배정 이력의 마지막 시각, 시작·완료·취소·정정 시각). 없으면 {@link Instant#MIN}. */
+    /** 작업에 남은 가장 늦은 기록 시각(등록 시각, 배정 이력의 마지막 시각, 시작·완료·취소·정정 시각). */
     private Instant latestRecordedMoment() {
         return Stream.of(
+                        registeredAt,
                         assignmentHistory.isEmpty()
                                 ? null
                                 : assignmentHistory.getLast().lastMoment(),
@@ -508,7 +546,7 @@ public final class Work {
                         cancellation == null ? null : cancellation.cancelledAt())
                 .filter(Objects::nonNull)
                 .max(Comparator.naturalOrder())
-                .orElse(Instant.MIN);
+                .orElseThrow();
     }
 
     /** 정정 뒤에 기록하는 시각(배정·시작·완료·해제·취소)이 마지막 정정 시각보다 앞서지 않게 한다. field는 오류 메시지에 쓸 시각 이름이다. */
@@ -551,10 +589,13 @@ public final class Work {
     }
 
     /**
-     * 새 배정·취소 시각이 최신 배정 이력의 마지막 시각(종료·응답·배정 시각 중 가장 늦은 것)보다 이르지 않은지 확인해 이력의 시간 순서를 지킨다. field는
-     * 오류 메시지에 쓸 시각 이름이다.
+     * 새 배정·취소 시각이 최신 배정 이력의 마지막 시각(종료·응답·배정 시각 중 가장 늦은 것), 배정 이력이 없으면 등록 시각보다 이르지 않은지 확인해 기록의
+     * 시간 순서를 지킨다. field는 오류 메시지에 쓸 시각 이름이다.
      */
     private void requireNotBeforeLatestAssignment(Instant at, String field) {
+        if (assignmentHistory.isEmpty() && at.isBefore(registeredAt)) {
+            throw new IllegalArgumentException(field + " must not be before the registration");
+        }
         if (!assignmentHistory.isEmpty()
                 && at.isBefore(assignmentHistory.getLast().lastMoment())) {
             throw new IllegalArgumentException(field + " must not be before the latest assignment");
@@ -568,8 +609,9 @@ public final class Work {
         }
     }
 
-    /** 저장값 복원 시 상태와 일정·배정 이력·완료보고·시작·완료 시각·취소 기록·상태 정정 기록이 서로 맞는지 검증한다. */
+    /** 저장값 복원 시 등록 시각·상태와 일정·배정 이력·완료보고·시작·완료 시각·취소 기록·상태 정정 기록이 서로 맞는지 검증한다. */
     private void requireConsistentState() {
+        requireNotBeforeRegistration();
         for (int i = 0; i < assignmentHistory.size() - 1; i++) {
             AssignmentHistory previous = assignmentHistory.get(i);
             if (previous.result() == AssignmentResult.PENDING) {
@@ -618,6 +660,21 @@ public final class Work {
         requireConsistentProgressTimes(latest);
         requireConsistentCancellation(latest);
         requireConsistentCorrections();
+    }
+
+    /** 저장된 배정·취소·정정 기록은 등록 시각보다 앞서지 않는다. 그 뒤의 기록 순서는 각 기록의 검증이 맡는다. */
+    private void requireNotBeforeRegistration() {
+        if (!assignmentHistory.isEmpty()
+                && assignmentHistory.getFirst().assignedAt().isBefore(registeredAt)) {
+            throw new IllegalArgumentException("assignment histories must not precede the registration");
+        }
+        if (cancellation != null && cancellation.cancelledAt().isBefore(registeredAt)) {
+            throw new IllegalArgumentException("cancelledAt must not precede the registration");
+        }
+        if (!statusCorrections.isEmpty()
+                && statusCorrections.getFirst().correctedAt().isBefore(registeredAt)) {
+            throw new IllegalArgumentException("status corrections must not precede the registration");
+        }
     }
 
     /** 대기함으로 되돌린 정정이 가리키는 배정 순번들. */

@@ -88,6 +88,8 @@ import com.orbit.support.TestcontainersConfiguration;
 @Testcontainers(disabledWithoutDocker = true)
 class ScheduleModuleTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
 
     @Autowired
@@ -192,7 +194,7 @@ class ScheduleModuleTest {
     @Test
     void assembledWorkRepositoryStoresAndFindsWork() {
         WorkId id = workRepository
-                .save(Work.register(ORGANIZATION_ID, "모듈 작업", new MembershipId(1L), null, null, null))
+                .save(Work.register(ORGANIZATION_ID, "모듈 작업", new MembershipId(1L), REGISTERED_AT, null, null, null))
                 .id()
                 .orElseThrow();
 
@@ -288,8 +290,8 @@ class ScheduleModuleTest {
 
     @Test
     void assembledWorkQueryPortReadsSavedWorks() {
-        Work saved =
-                workRepository.save(Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), null, null, null));
+        Work saved = workRepository.save(
+                Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), REGISTERED_AT, null, null, null));
 
         assertThat(workQueryPort.listBacklog(ORGANIZATION_ID))
                 .extracting(work -> work.id().orElseThrow())

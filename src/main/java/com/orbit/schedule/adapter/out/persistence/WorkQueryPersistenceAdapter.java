@@ -206,7 +206,7 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
     private static OrderSpecifier<?>[] orderOf(WorkSearchCriteria.Sort sort) {
         OrderSpecifier<Long> tieBreaker = WORK.id.desc();
         return switch (sort) {
-            case REGISTERED_DESC -> new OrderSpecifier<?>[] {tieBreaker};
+            case REGISTERED_DESC -> new OrderSpecifier<?>[] {WORK.registeredAt.desc(), tieBreaker};
             case START_TIME_ASC ->
                 new OrderSpecifier<?>[] {scheduledStart().asc().nullsLast(), tieBreaker};
             case START_TIME_DESC ->

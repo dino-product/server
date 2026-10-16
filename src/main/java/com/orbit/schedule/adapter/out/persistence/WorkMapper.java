@@ -50,7 +50,11 @@ final class WorkMapper {
             throw new IllegalArgumentException("only new works can be converted to a new entity");
         }
         WorkJpaEntity entity = new WorkJpaEntity(
-                work.organizationId().value(), work.registrarId().value(), work.name(), work.status());
+                work.organizationId().value(),
+                work.registrarId().value(),
+                work.registeredAt(),
+                work.name(),
+                work.status());
         applyChanges(entity, work);
         return entity;
     }
@@ -119,6 +123,7 @@ final class WorkMapper {
                 new OrganizationId(entity.companyId()),
                 entity.name(),
                 new MembershipId(entity.createdBy()),
+                entity.registeredAt(),
                 entity.jobTypeId() == null ? null : new WorkTypeId(entity.jobTypeId()),
                 schedule,
                 planned,

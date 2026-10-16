@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 @DisplayName("작업의 미리 입력한 일정")
 class WorkPlannedScheduleTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final OrganizationId ORGANIZATION = new OrganizationId(100L);
     private static final MembershipId REGISTRAR = new MembershipId(1L);
     private static final TechnicianId TECHNICIAN = new TechnicianId(3L);
@@ -80,7 +82,7 @@ class WorkPlannedScheduleTest {
     }
 
     private static Work register(PlannedSchedule planned) {
-        return Work.register(ORGANIZATION, "에어컨 수리", REGISTRAR, null, null, null, planned);
+        return Work.register(ORGANIZATION, "에어컨 수리", REGISTRAR, REGISTERED_AT, null, null, null, planned);
     }
 
     private static Work restore(
@@ -90,6 +92,7 @@ class WorkPlannedScheduleTest {
                 ORGANIZATION,
                 "에어컨 수리",
                 REGISTRAR,
+                REGISTERED_AT,
                 null,
                 schedule,
                 planned,

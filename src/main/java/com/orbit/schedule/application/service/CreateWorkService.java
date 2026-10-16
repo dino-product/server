@@ -64,6 +64,8 @@ public class CreateWorkService implements CreateWorkUseCase {
     public CreatedWorkInfo create(CreateWorkCommand command) {
         ManagerActor actor =
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
+        // 일정을 함께 주면 등록과 배정을 같은 시각으로 남긴다.
+        Instant now = clock.instant();
 
         boolean complete =
                 command.technicianId() != null && command.startTime() != null && command.expectedDuration() != null;
@@ -75,6 +77,7 @@ public class CreateWorkService implements CreateWorkUseCase {
                 actor.organizationId(),
                 command.name(),
                 actor.membershipId(),
+                now,
                 command.workTypeId() == null ? null : new WorkTypeId(command.workTypeId()),
                 new CustomerInfo(command.customerName(), command.customerPhone(), command.customerAddress()),
                 new PaymentInfo(command.fee() == null ? null : new Money(command.fee()), command.paymentMethod()),
@@ -90,7 +93,6 @@ public class CreateWorkService implements CreateWorkUseCase {
         if (schedule == null) {
             return new CreatedWorkInfo(idOf(workRepository.save(work)), ScheduleChangeInfo.applied(List.of()));
         }
-        Instant now = clock.instant();
         DomainRuleViolations.run(() -> work.assign(schedule, now, actor.membershipId()));
         ScheduleChanges.Outcome outcome = ScheduleChanges.apply(
                 workRepository,

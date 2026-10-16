@@ -4,6 +4,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCO
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -166,7 +167,7 @@ class RescheduleWorkServiceTest {
     @DisplayName("변경 시각이 직전 이력의 응답 시각보다 앞서면 입력 오류다")
     void rejectsRescheduleBeforeLatestHistory() {
         fixture.givenManager();
-        Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, null, null, null);
+        Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
         work.accept(NOW.plus(Duration.ofHours(1)));
         WorkId id = fixture.workRepository.store(work);

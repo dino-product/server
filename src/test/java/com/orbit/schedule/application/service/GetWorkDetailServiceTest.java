@@ -6,6 +6,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ASSI
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETUP_MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -159,6 +160,7 @@ class GetWorkDetailServiceTest {
                 ORGANIZATION_ID,
                 "시간만 정한 작업",
                 SETUP_MANAGER_ID,
+                REGISTERED_AT,
                 null,
                 null,
                 null,

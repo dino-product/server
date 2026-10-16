@@ -53,6 +53,8 @@ import com.orbit.support.PersistenceTestConfiguration;
 @DisplayName("작업 조회 JPA 저장소")
 class WorkQueryPersistenceAdapterTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final AtomicLong NEXT_ORGANIZATION = new AtomicLong(900_000);
     private static final MembershipId REGISTRAR = new MembershipId(1L);
     private static final MembershipId MANAGER = new MembershipId(99L);
@@ -327,6 +329,18 @@ class WorkQueryPersistenceAdapterTest {
         }
 
         @Test
+        @DisplayName("등록 최신순은 저장 순서가 아니라 작업의 등록 시각으로 정렬한다")
+        void sortsByRegisteredAtRatherThanId() {
+            OrganizationId organization = organization();
+            WorkId registeredLater = save(
+                    Work.register(organization, "늦게 등록", REGISTRAR, REGISTERED_AT.plusSeconds(60), null, null, null));
+            WorkId registeredEarlier =
+                    save(Work.register(organization, "먼저 등록", REGISTRAR, REGISTERED_AT, null, null, null));
+
+            assertThat(searchIds(organization, criteria())).containsExactly(registeredLater, registeredEarlier);
+        }
+
+        @Test
         @DisplayName("요청한 쪽만 담고 전체 수는 쪽과 관계없으며 끝을 넘은 쪽은 비어 있다")
         void paginatesWithTotalCount() {
             OrganizationId organization = organization();
@@ -445,7 +459,7 @@ class WorkQueryPersistenceAdapterTest {
     }
 
     private static Work registered(OrganizationId organization, String name, CustomerInfo customer) {
-        return Work.register(organization, name, REGISTRAR, null, customer, null);
+        return Work.register(organization, name, REGISTRAR, REGISTERED_AT, null, customer, null);
     }
 
     private static Work planned(OrganizationId organization, String name, WorkSchedule schedule) {
@@ -453,6 +467,7 @@ class WorkQueryPersistenceAdapterTest {
                 organization,
                 name,
                 REGISTRAR,
+                REGISTERED_AT,
                 null,
                 null,
                 null,

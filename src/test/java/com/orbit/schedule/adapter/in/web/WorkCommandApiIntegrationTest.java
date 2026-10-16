@@ -65,6 +65,8 @@ import tools.jackson.databind.ObjectMapper;
 @DisplayName("작업 변경 API")
 class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final AtomicLong ACCOUNT_IDS = new AtomicLong(70_000);
     private static final Instant START = Instant.parse("2030-03-02T01:00:00Z");
 
@@ -791,6 +793,7 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 new OrganizationId(organization.id()),
                 "대기 작업",
                 new MembershipId(organization.ownerMembership()),
+                REGISTERED_AT,
                 null,
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));

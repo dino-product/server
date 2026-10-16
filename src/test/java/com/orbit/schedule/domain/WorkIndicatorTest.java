@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 @DisplayName("작업 조회 표시값(지연·거절 반환·지금 배정 순번)")
 class WorkIndicatorTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(1L);
     private static final MembershipId MANAGER_ID = new MembershipId(2L);
     private static final Instant START = Instant.parse("2026-09-22T01:00:00Z");
@@ -32,7 +34,7 @@ class WorkIndicatorTest {
     @Test
     @DisplayName("대기함·완료·취소된 작업은 지연이 아니다")
     void finishedOrBacklogWorkIsNotDelayed() {
-        Work backlog = Work.register(ORGANIZATION_ID, "대기 작업", MANAGER_ID, null, null, null);
+        Work backlog = Work.register(ORGANIZATION_ID, "대기 작업", MANAGER_ID, REGISTERED_AT, null, null, null);
         Work completed = assignedWork();
         completed.accept(START.minusSeconds(60));
         completed.start(START);
@@ -56,7 +58,7 @@ class WorkIndicatorTest {
                 new WorkSchedule(new TechnicianId(4L), START, TWO_HOURS), START.minusSeconds(30), MANAGER_ID);
         Work unassigned = assignedWork();
         unassigned.unassign(START.minusSeconds(60), MANAGER_ID);
-        Work fresh = Work.register(ORGANIZATION_ID, "대기 작업", MANAGER_ID, null, null, null);
+        Work fresh = Work.register(ORGANIZATION_ID, "대기 작업", MANAGER_ID, REGISTERED_AT, null, null, null);
 
         assertThat(rejected.isReturnedByRejection()).isTrue();
         assertThat(rejectedThenReassigned.isReturnedByRejection()).isFalse();
@@ -71,13 +73,13 @@ class WorkIndicatorTest {
         work.reassign(new WorkSchedule(new TechnicianId(4L), START, TWO_HOURS), START.minusSeconds(60), MANAGER_ID);
 
         assertThat(work.currentAssignmentNumber()).isEqualTo(2);
-        assertThat(Work.register(ORGANIZATION_ID, "대기 작업", MANAGER_ID, null, null, null)
+        assertThat(Work.register(ORGANIZATION_ID, "대기 작업", MANAGER_ID, REGISTERED_AT, null, null, null)
                         .currentAssignmentNumber())
                 .isZero();
     }
 
     private static Work assignedWork() {
-        Work work = Work.register(ORGANIZATION_ID, "작업", MANAGER_ID, null, null, null);
+        Work work = Work.register(ORGANIZATION_ID, "작업", MANAGER_ID, REGISTERED_AT, null, null, null);
         work.assign(new WorkSchedule(new TechnicianId(3L), START, TWO_HOURS), START.minusSeconds(120), MANAGER_ID);
         return work;
     }

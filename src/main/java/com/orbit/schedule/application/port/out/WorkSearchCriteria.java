@@ -62,7 +62,7 @@ public record WorkSearchCriteria(
      * 포함)은 오름·내림차순 모두 맨 뒤다(PostgreSQL 내림차순의 기본값은 NULLS FIRST이므로 NULLS LAST를 명시한다).
      */
     public enum Sort {
-        /** 최근 등록 먼저. 도메인에 등록 시각이 없으므로 작업 식별자 내림차순이다(감사 컬럼 생성 시각으로 정렬하지 않는다). */
+        /** 최근 등록 먼저(작업의 등록 시각 내림차순). */
         REGISTERED_DESC,
         /** 시작시각 이른 순. */
         START_TIME_ASC,

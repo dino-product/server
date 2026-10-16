@@ -33,7 +33,7 @@ public record SearchWorksQuery(
         Integer page,
         Integer size) {
 
-    /** 정렬 기준. 같은 값끼리는 작업 식별자 내림차순(최근 등록 먼저)이고, 일정 기준 정렬에서 일정이 없는 작업은 맨 뒤다. */
+    /** 정렬 기준. 같은 값끼리는 작업 식별자 내림차순이고, 일정 기준 정렬에서 일정이 없는 작업은 맨 뒤다. */
     public enum Sort {
         REGISTERED_DESC,
         START_TIME_ASC,
