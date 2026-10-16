@@ -78,6 +78,17 @@ final class DisplayInfos {
         return of(technicianProfiles, staffProfiles, workTypeLabels, organizationId, List.of(work), false, false);
     }
 
+    /** 작업들의 지금 일정 담당기사만 찾는다. 담당기사만 보여 주는 화면(진행 보드)이 쓴다. */
+    static DisplayInfos ofAssignees(
+            LoadTechnicianProfilesPort technicianProfiles, OrganizationId organizationId, Collection<Work> works) {
+        Set<TechnicianId> technicianIds = new HashSet<>();
+        works.forEach(work -> work.schedule().map(WorkSchedule::technicianId).ifPresent(technicianIds::add));
+        return new DisplayInfos(
+                findAll(technicianIds, ids -> technicianProfiles.findProfiles(organizationId, ids)),
+                Map.of(),
+                Map.of());
+    }
+
     /** 그 기사 한 명의 표시 정보만 찾는다. 지금 담당이 아닌 기사에게 자기 배정만 보여 줄 때 쓴다. */
     static DisplayInfos ofTechnician(
             LoadTechnicianProfilesPort technicianProfiles, OrganizationId organizationId, TechnicianId technicianId) {

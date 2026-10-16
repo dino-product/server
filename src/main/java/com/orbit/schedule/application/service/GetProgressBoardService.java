@@ -6,12 +6,14 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.schedule.application.port.in.query.GetProgressBoardUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
 import com.orbit.schedule.application.port.in.query.dto.ProgressBoardInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.LoadTechnicianProfilesPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.Work;
@@ -19,8 +21,9 @@ import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 관리자 진행 보드 조회. 구간과 일정이 겹치는 작업(수락대기·수락됨·작업중·완료)을 지금 상태 그대로 열로 나누고(별도의 '이동중' 상태는 두지 않는다) 전체·완료·작업중·
- * 지연 수를 센다. 지연은 지금 시각으로 판정한다. 기사는 요청할 수 없다(403 SCHEDULE-005). 오류 확인 순서는 요청자 → 구간 입력이다.
+ * 관리자 진행 보드 조회. 구간과 일정이 겹치는 작업(배정됨·작업전·작업중·완료)을 지금 상태 그대로 열로 나누고(별도의 '이동중' 상태는 두지 않는다) 전체·
+ * 작업중·지연·완료 수를 센다. 카드에 보일 담당 기사만 표시 정보를 찾는다. 지연은 지금 시각으로 판정한다. 기사는 요청할 수 없다(403 SCHEDULE-005). 오류 확인
+ * 순서는 요청자 → 구간 입력이다.
  */
 @Service
 public class GetProgressBoardService implements GetProgressBoardUseCase {
@@ -34,16 +37,22 @@ public class GetProgressBoardService implements GetProgressBoardUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkQueryPort workQueryPort;
+    private final LoadTechnicianProfilesPort loadTechnicianProfilesPort;
     private final Clock clock;
 
-    public GetProgressBoardService(LoadActorPort loadActorPort, WorkQueryPort workQueryPort, Clock clock) {
+    public GetProgressBoardService(
+            LoadActorPort loadActorPort,
+            WorkQueryPort workQueryPort,
+            LoadTechnicianProfilesPort loadTechnicianProfilesPort,
+            Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workQueryPort = workQueryPort;
+        this.loadTechnicianProfilesPort = loadTechnicianProfilesPort;
         this.clock = clock;
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ProgressBoardInfo get(GetProgressBoardQuery query) {
         ManagerActor manager =
                 OrganizationActors.requireManager(loadActorPort, query.accountId(), query.organizationId());
@@ -51,12 +60,14 @@ public class GetProgressBoardService implements GetProgressBoardUseCase {
         Instant now = clock.instant();
 
         List<Work> works = workQueryPort.listScheduledBetween(manager.organizationId(), period.from(), period.to());
+        DisplayInfos displayInfos =
+                DisplayInfos.ofAssignees(loadTechnicianProfilesPort, manager.organizationId(), works);
         List<ProgressBoardInfo.Column> columns = COLUMN_ORDER.stream()
                 .map(status -> new ProgressBoardInfo.Column(
                         status,
                         works.stream()
                                 .filter(work -> work.status() == status)
-                                .map(work -> card(work, now))
+                                .map(work -> card(work, now, displayInfos))
                                 .sorted(CARD_ORDER)
                                 .toList()))
                 .toList();
@@ -69,19 +80,20 @@ public class GetProgressBoardService implements GetProgressBoardUseCase {
                 columns.stream().flatMap(column -> column.cards().stream()).toList();
         return new ProgressBoardInfo.Summary(
                 cards.size(),
-                cardCount(columns, WorkStatus.COMPLETED),
                 cardCount(columns, WorkStatus.IN_PROGRESS),
-                (int) cards.stream().filter(ProgressBoardInfo.Card::delayed).count());
+                (int) cards.stream().filter(ProgressBoardInfo.Card::delayed).count(),
+                cardCount(columns, WorkStatus.COMPLETED));
     }
 
-    private static ProgressBoardInfo.Card card(Work work, Instant now) {
+    private static ProgressBoardInfo.Card card(Work work, Instant now, DisplayInfos displayInfos) {
         WorkSchedule schedule = work.schedule().orElseThrow();
         return new ProgressBoardInfo.Card(
                 work.id().orElseThrow().value(),
                 work.name(),
-                schedule.technicianId().value(),
+                displayInfos.assignee(schedule),
                 schedule.startTime(),
                 schedule.endTime(),
+                work.customerInfo().name().orElse(null),
                 work.isDelayedAt(now));
     }
 

@@ -30,6 +30,7 @@ import com.orbit.schedule.application.port.out.StaffProfile;
 import com.orbit.schedule.application.port.out.TechnicianProfile;
 import com.orbit.schedule.application.port.out.TypeLabel;
 import com.orbit.schedule.domain.CompletionReport;
+import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PlannedSchedule;
@@ -546,6 +547,65 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
 
         private ResultActions detail(long requester, long organizationId, long workId) throws Exception {
             return mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/{workId}", organizationId, workId)
+                    .header(HttpHeaders.AUTHORIZATION, bearer(requester)));
+        }
+    }
+
+    @Nested
+    @DisplayName("진행 보드")
+    class ProgressBoard {
+
+        @Test
+        @DisplayName("구간의 작업을 상태별 열로 나눠 담당 기사·고객 이름과 함께 돌려주고, 진행 중은 작업중만 센다")
+        void returnsBoard() throws Exception {
+            Organization organization = organization();
+            givenDisplayInfos(organization);
+            Work pending = registered(organization, "배정된 작업", Instant.now().minus(Duration.ofHours(2)));
+            pending.changeDetails("배정된 작업", new WorkTypeId(INSTALL.id()), new CustomerInfo("박서준", null, null), null);
+            pending.assign(
+                    new WorkSchedule(TECHNICIAN, DAY, Duration.ofHours(2)),
+                    Instant.now().minusSeconds(60),
+                    new MembershipId(organization.ownerMembership()));
+            long pendingId = save(pending);
+            save(registered(organization, "대기 작업", Instant.now().minus(Duration.ofHours(1))));
+
+            board(organization.owner(), organization.id(), "from=" + DAY + "&to=" + DAY.plus(Duration.ofDays(1)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.columns.length()").value(4))
+                    .andExpect(jsonPath("$.result.columns[0].status").value("PENDING_ACCEPTANCE"))
+                    .andExpect(jsonPath("$.result.columns[0].cards[0].workId").value(pendingId))
+                    .andExpect(jsonPath("$.result.columns[0].cards[0].technician.name")
+                            .value("김민수"))
+                    .andExpect(jsonPath("$.result.columns[0].cards[0].customerName")
+                            .value("박서준"))
+                    .andExpect(jsonPath("$.result.columns[0].cards[0].delayed").value(false))
+                    .andExpect(
+                            jsonPath("$.result.columns[0].cards[0].startTime").value(DAY.toString()))
+                    .andExpect(jsonPath("$.result.columns[0].cards[0].endTime")
+                            .value(DAY.plus(Duration.ofHours(2)).toString()))
+                    .andExpect(jsonPath("$.result.summary.total").value(1))
+                    .andExpect(jsonPath("$.result.summary.inProgress").value(0))
+                    .andExpect(jsonPath("$.result.summary.delayed").value(0))
+                    .andExpect(jsonPath("$.result.summary.completed").value(0));
+        }
+
+        @Test
+        @DisplayName("구간이 없으면 SCHEDULE-003, 기사는 SCHEDULE-005다")
+        void rejectsInvalidRequests() throws Exception {
+            Organization organization = organization();
+            long technician = account();
+            technicianContract(organization.id(), technician);
+
+            board(organization.owner(), organization.id(), "to=" + DAY)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            board(technician, organization.id(), "from=" + DAY + "&to=" + DAY.plus(Duration.ofDays(1)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+        }
+
+        private ResultActions board(long requester, long organizationId, String query) throws Exception {
+            return mockMvc.perform(get("/api/v1/organizations/{organizationId}/progress-board?" + query, organizationId)
                     .header(HttpHeaders.AUTHORIZATION, bearer(requester)));
         }
     }

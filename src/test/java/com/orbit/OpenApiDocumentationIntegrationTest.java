@@ -421,6 +421,26 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsProgressBoardWithCardsAndSummary() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/progress-board'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("진행 보드 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-003'].value.code")
+                        .value("SCHEDULE-003"))
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.board.ProgressBoardResponse.Card']"
+                                + ".properties.customerName")
+                        .exists());
+    }
+
+    @Test
     void documentsWorkUnassignment() throws Exception {
         String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/assignment'].delete";
         mockMvc.perform(get("/docs-json"))
