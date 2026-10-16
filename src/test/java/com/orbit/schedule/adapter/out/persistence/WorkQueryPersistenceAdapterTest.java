@@ -1,6 +1,7 @@
 package com.orbit.schedule.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -413,6 +415,43 @@ class WorkQueryPersistenceAdapterTest {
             assertThat(searchIds(organization, criteria().workType(new WorkTypeId(3L))))
                     .containsExactly(typed);
             assertThat(searchIds(organization, criteria().registrar(MANAGER))).containsExactly(byManager);
+        }
+
+        @Test
+        @DisplayName("한꺼번에 읽기는 쪽을 보지 않고 정렬 순서대로 상한까지, 묶음을 넘어도 빠짐·중복 없이 담는다")
+        void listsMatchingInOrderAcrossChunks() {
+            OrganizationId organization = organization();
+            List<WorkId> saved = inTx(() -> IntStream.range(0, 230)
+                    .mapToObj(i -> repository
+                            .save(Work.register(
+                                    organization, "작업 " + i, REGISTRAR, REGISTERED_AT.plusSeconds(i), null, null, null))
+                            .id()
+                            .orElseThrow())
+                    .toList());
+
+            List<WorkId> listed = adapter
+                    .listMatching(
+                            organization,
+                            criteria()
+                                    .sort(WorkSearchCriteria.Sort.REGISTERED_ASC)
+                                    .page(3, 5)
+                                    .build(),
+                            210)
+                    .stream()
+                    .map(searched -> searched.work().id().orElseThrow())
+                    .toList();
+
+            assertThat(listed).containsExactlyElementsOf(saved.subList(0, 210));
+        }
+
+        @Test
+        @DisplayName("한꺼번에 읽기는 영속성 컨텍스트를 비우므로 변경 트랜잭션 안에서는 거부한다")
+        void refusesListingInsideWritableTransaction() {
+            OrganizationId organization = organization();
+
+            assertThatThrownBy(() -> inTx(
+                            () -> adapter.listMatching(organization, criteria().build(), 10)))
+                    .isInstanceOf(IllegalStateException.class);
         }
 
         @Test

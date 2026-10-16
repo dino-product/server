@@ -63,6 +63,23 @@ public record WorkSearchCriteria(
         }
     }
 
+    /** 같은 조건의 다른 쪽. */
+    public WorkSearchCriteria withPage(int newPage, int newSize) {
+        return new WorkSearchCriteria(
+                keyword,
+                statuses,
+                technicianId,
+                workTypeId,
+                registrarId,
+                startFrom,
+                startTo,
+                returnedByRejectionOnly,
+                delayedAt,
+                sort,
+                newPage,
+                newSize);
+    }
+
     /**
      * 정렬 기준. 같은 값끼리는 작업 식별자 내림차순이고, 오래된 등록 먼저만 오름차순이다. 일정 기준 정렬에서 일정이 없는 작업(대기함 작업은 미리
      * 입력한 시작시각이 있어도 포함)은 맨 뒤다.

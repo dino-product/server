@@ -1,17 +1,23 @@
 package com.orbit.schedule.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import org.dhatim.fastexcel.reader.ReadableWorkbook;
+import org.dhatim.fastexcel.reader.Row;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -295,7 +301,7 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
-        @DisplayName("기사는 작업 목록과 대기함 요약을 볼 수 없다(SCHEDULE-005)")
+        @DisplayName("기사는 작업 목록·대기함 요약·작업내역 출력을 쓸 수 없다(SCHEDULE-005)")
         void rejectsTechnician() throws Exception {
             Organization organization = organization();
             long technician = account();
@@ -308,6 +314,72 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                             .header(HttpHeaders.AUTHORIZATION, bearer(technician)))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+            mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/export", organization.id())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(technician)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+        }
+
+        @Test
+        @DisplayName("작업내역 출력은 검색 조건의 결과를 xlsx 파일로 내려준다")
+        void exportsWorksAsXlsx() throws Exception {
+            Organization organization = organization();
+            givenDisplayInfos(organization);
+            Work assigned = registered(organization, "배정된 작업", Instant.now().minus(Duration.ofHours(1)));
+            assigned.assign(
+                    new WorkSchedule(TECHNICIAN, DAY, Duration.ofHours(2)),
+                    Instant.now().minusSeconds(60),
+                    new MembershipId(organization.ownerMembership()));
+            save(assigned);
+            save(registered(organization, "다른 상태 작업", Instant.now().minus(Duration.ofHours(2))));
+
+            byte[] file = mockMvc.perform(get(
+                                    "/api/v1/organizations/{organizationId}/works/export?statuses=PENDING_ACCEPTANCE"
+                                            + "&timeZone=Asia/Seoul",
+                                    organization.id())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string(
+                                    HttpHeaders.CONTENT_TYPE,
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("filename*=UTF-8''")))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsByteArray();
+
+            try (ReadableWorkbook workbook = new ReadableWorkbook(new ByteArrayInputStream(file))) {
+                List<Row> rows = workbook.getFirstSheet().read();
+                assertThat(rows).hasSize(2);
+                assertThat(rows.get(1).getCellText(0)).isEqualTo("배정된 작업");
+                assertThat(rows.get(1).getCellText(2)).isEqualTo("김민수");
+                assertThat(rows.get(1).getCellText(4)).isEqualTo("2030-03-02 09:00 ~ 11:00");
+            }
+        }
+
+        @Test
+        @DisplayName("작업내역 출력은 알 수 없는 시간대면 COMMON-400이다")
+        void rejectsUnknownTimeZone() throws Exception {
+            Organization organization = organization();
+
+            mockMvc.perform(get(
+                                    "/api/v1/organizations/{organizationId}/works/export?timeZone=Mars/Base",
+                                    organization.id())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("COMMON-400"));
+        }
+
+        @Test
+        @DisplayName("다른 출처의 화면도 내려받은 파일 이름을 읽도록 Content-Disposition을 노출한다")
+        void exposesFileNameHeaderToBrowsers() throws Exception {
+            Organization organization = organization();
+
+            mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/export", organization.id())
+                            .header(HttpHeaders.ORIGIN, "http://localhost:3000")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string(
+                                    HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, containsString("Content-Disposition")));
         }
 
         private ResultActions works(long requester, long organizationId, String query) throws Exception {

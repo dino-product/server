@@ -2,6 +2,7 @@ package com.orbit.schedule.adapter.out.persistence;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import jakarta.persistence.EntityManager;
 
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkSearchCriteria;
@@ -63,11 +65,15 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
     private static final QWorkJpaEntity WORK = QWorkJpaEntity.workJpaEntity;
     private static final QWorkAssignmentJpaEntity ASSIGNMENT = QWorkAssignmentJpaEntity.workAssignmentJpaEntity;
 
+    /** 한꺼번에 읽는 목록에서 작업을 나눠 읽는 묶음 크기. */
+    private static final int LOAD_CHUNK = 100;
+
+    private final EntityManager entityManager;
     private final JPAQueryFactory queryFactory;
 
     WorkQueryPersistenceAdapter(EntityManager entityManager) {
-        this.queryFactory =
-                new JPAQueryFactory(Objects.requireNonNull(entityManager, "entityManager must not be null"));
+        this.entityManager = Objects.requireNonNull(entityManager, "entityManager must not be null");
+        this.queryFactory = new JPAQueryFactory(entityManager);
     }
 
     @Override
@@ -128,6 +134,35 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
                 .limit(criteria.size())
                 .fetch();
         return new WorkSearchResult(loadInOrder(pageIds), countOf(condition));
+    }
+
+    /** 묶음마다 Domain으로 옮긴 뒤 영속성 컨텍스트를 비워, 많은 작업을 읽어도 Entity가 트랜잭션 끝까지 쌓이지 않게 한다. */
+    @Override
+    @Transactional(readOnly = true)
+    public List<WorkSearchResult.SearchedWork> listMatching(
+            OrganizationId organizationId, WorkSearchCriteria criteria, int limit) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(criteria, "criteria must not be null");
+        if (limit < 1) {
+            throw new IllegalArgumentException("limit must be positive");
+        }
+        // 비우기는 아직 저장하지 않은 변경을 버리므로, 바깥 변경 트랜잭션에 합류한 호출은 막는다.
+        if (!TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
+            throw new IllegalStateException("listMatching must run in a read-only transaction");
+        }
+        List<Long> ids = queryFactory
+                .select(WORK.id)
+                .from(WORK)
+                .where(conditionOf(organizationId, criteria))
+                .orderBy(orderOf(criteria.sort()))
+                .limit(limit)
+                .fetch();
+        List<WorkSearchResult.SearchedWork> works = new ArrayList<>(ids.size());
+        for (int from = 0; from < ids.size(); from += LOAD_CHUNK) {
+            works.addAll(loadInOrder(ids.subList(from, Math.min(from + LOAD_CHUNK, ids.size()))));
+            entityManager.clear();
+        }
+        return works;
     }
 
     @Override

@@ -35,6 +35,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private final List<WorkSearchCriteria> searches = new ArrayList<>();
     private WorkSearchResult searchResult;
     private final List<WorkSearchCriteria> counts = new ArrayList<>();
+    private final List<Listing> listings = new ArrayList<>();
     private final Map<Predicate<WorkSearchCriteria>, Long> givenCounts = new LinkedHashMap<>();
 
     @Override
@@ -178,6 +179,31 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 .findFirst()
                 .orElseGet(() -> (long) inOrganization(organizationId).size());
     }
+
+    /**
+     * 조건 해석 없이 기록만 하고, {@link #givenSearchResult}로 정한 작업이 있으면 그것을, 없으면 조직의 모든 작업을 저장 역순으로 앞에서부터 최대 limit건
+     * 돌려준다.
+     */
+    @Override
+    public List<WorkSearchResult.SearchedWork> listMatching(
+            OrganizationId organizationId, WorkSearchCriteria criteria, int limit) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(criteria, "criteria must not be null");
+        listings.add(new Listing(criteria, limit));
+        List<WorkSearchResult.SearchedWork> works = searchResult != null
+                ? searchResult.works()
+                : inOrganization(organizationId).stream()
+                        .map(work -> new WorkSearchResult.SearchedWork(work, work.registeredAt()))
+                        .toList();
+        return works.stream().limit(limit).toList();
+    }
+
+    /** 서비스가 한꺼번에 읽은 조건과 상한. */
+    public List<Listing> listings() {
+        return List.copyOf(listings);
+    }
+
+    public record Listing(WorkSearchCriteria criteria, int limit) {}
 
     /** 이 조건으로 셀 때 돌려줄 수를 정한다. */
     public void givenCount(Predicate<WorkSearchCriteria> matches, long count) {

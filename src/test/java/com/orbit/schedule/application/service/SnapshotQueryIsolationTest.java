@@ -23,6 +23,7 @@ class SnapshotQueryIsolationTest {
             classes = {
                 GetTimetableService.class,
                 SearchWorksService.class,
+                ExportWorksService.class,
                 GetBacklogSummaryService.class,
                 GetTeamScheduleService.class
             })

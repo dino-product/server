@@ -1,5 +1,6 @@
 package com.orbit;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -383,6 +384,22 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + "['com.orbit.schedule.adapter.in.web.search.BacklogSummaryResponse']"
                                 + ".properties.rejectedCount")
                         .exists());
+    }
+
+    @Test
+    void documentsWorkExportAsSpreadsheetWithRowLimit() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/export'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업내역 출력"))
+                .andExpect(jsonPath(operation + ".responses['200'].content"
+                                + "['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'timeZone')].schema.type")
+                        .value(contains("string")))
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-015'].value.code")
+                        .value("SCHEDULE-015"));
     }
 
     @Test

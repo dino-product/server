@@ -276,21 +276,8 @@ class ScheduleModuleTest {
         Instant from = Instant.parse("2026-09-25T00:00:00Z");
         assertDenied(() -> getTimetableUseCase.get(
                 new GetTimetableQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)), null, null)));
-        assertDenied(() -> searchWorksUseCase.search(new SearchWorksQuery(
-                1L,
-                ORGANIZATION_ID.value(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                false,
-                null,
-                null,
-                null)));
+        assertDenied(
+                () -> searchWorksUseCase.search(new SearchWorksQuery(1L, ORGANIZATION_ID.value(), null, null, null)));
         assertDenied(() -> getProgressBoardUseCase.get(
                 new GetProgressBoardQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
         assertDenied(() -> getMyScheduleUseCase.get(

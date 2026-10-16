@@ -27,6 +27,7 @@ import com.orbit.schedule.application.port.in.query.dto.LabelInfo;
 import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
 import com.orbit.schedule.application.port.in.query.dto.StaffInfo;
 import com.orbit.schedule.application.port.in.query.dto.TechnicianInfo;
+import com.orbit.schedule.application.port.in.query.dto.WorkSearchFilter;
 import com.orbit.schedule.application.port.in.query.dto.WorkSearchInfo;
 import com.orbit.schedule.application.port.out.StaffProfile;
 import com.orbit.schedule.application.port.out.TechnicianProfile;
@@ -91,14 +92,14 @@ class SearchWorksServiceTest {
                 .start(TEN, to)
                 .returnedByRejectionOnly()
                 .delayedOnly()
-                .sort(SearchWorksQuery.Sort.LAST_MODIFIED_DESC)
+                .sort(WorkSearchFilter.Sort.LAST_MODIFIED_DESC)
                 .page(2, 50)
                 .build());
         service.search(query().keyword("   ")
-                .sort(SearchWorksQuery.Sort.REGISTERED_ASC)
+                .sort(WorkSearchFilter.Sort.REGISTERED_ASC)
                 .page(0, 1)
                 .build());
-        service.search(query().sort(SearchWorksQuery.Sort.START_TIME_ASC).build());
+        service.search(query().sort(WorkSearchFilter.Sort.START_TIME_ASC).build());
 
         assertThat(fixture.workRepository.searches())
                 .containsExactly(
@@ -297,7 +298,7 @@ class SearchWorksServiceTest {
         private Instant startTo;
         private boolean returnedByRejectionOnly;
         private boolean delayedOnly;
-        private SearchWorksQuery.Sort sort;
+        private WorkSearchFilter.Sort sort;
         private Integer page;
         private Integer size;
 
@@ -352,7 +353,7 @@ class SearchWorksServiceTest {
             return this;
         }
 
-        QueryBuilder sort(SearchWorksQuery.Sort value) {
+        QueryBuilder sort(WorkSearchFilter.Sort value) {
             sort = value;
             return this;
         }
@@ -367,16 +368,17 @@ class SearchWorksServiceTest {
             return new SearchWorksQuery(
                     accountId,
                     organizationId,
-                    keyword,
-                    statuses,
-                    technicianId,
-                    workTypeId,
-                    registrarId,
-                    startFrom,
-                    startTo,
-                    returnedByRejectionOnly,
-                    delayedOnly,
-                    sort,
+                    new WorkSearchFilter(
+                            keyword,
+                            statuses,
+                            technicianId,
+                            workTypeId,
+                            registrarId,
+                            startFrom,
+                            startTo,
+                            returnedByRejectionOnly,
+                            delayedOnly,
+                            sort),
                     page,
                     size);
         }

@@ -2,8 +2,6 @@ package com.orbit.schedule.application.service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Objects;
-import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -21,11 +19,6 @@ import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkSearchCriteria;
 import com.orbit.schedule.application.port.out.WorkSearchResult;
 import com.orbit.schedule.domain.ManagerActor;
-import com.orbit.schedule.domain.MembershipId;
-import com.orbit.schedule.domain.TechnicianId;
-import com.orbit.schedule.domain.Work;
-import com.orbit.schedule.domain.WorkSchedule;
-import com.orbit.schedule.domain.WorkTypeId;
 import com.orbit.shared.error.BusinessException;
 
 /**
@@ -36,7 +29,6 @@ import com.orbit.shared.error.BusinessException;
 @Service
 public class SearchWorksService implements SearchWorksUseCase {
 
-    static final int MAX_KEYWORD_LENGTH = 100;
     static final int DEFAULT_PAGE_SIZE = 20;
 
     private final LoadActorPort loadActorPort;
@@ -78,7 +70,7 @@ public class SearchWorksService implements SearchWorksUseCase {
                 result.works().stream().map(WorkSearchResult.SearchedWork::work).toList());
         return new WorkSearchInfo(
                 result.works().stream()
-                        .map(searched -> summary(searched, now, displayInfos))
+                        .map(searched -> WorkSearchConditions.summary(searched, now, displayInfos))
                         .toList(),
                 result.totalCount(),
                 criteria.page(),
@@ -86,77 +78,16 @@ public class SearchWorksService implements SearchWorksUseCase {
     }
 
     private static WorkSearchCriteria criteria(SearchWorksQuery query, Instant now) {
-        String keyword = query.keyword() == null ? null : query.keyword().strip();
-        if (keyword != null && keyword.length() > MAX_KEYWORD_LENGTH) {
-            throw invalidInput();
-        }
-        TechnicianId technicianId = query.technicianId() == null
-                ? null
-                : DomainRuleViolations.call(() -> new TechnicianId(query.technicianId()));
-        WorkTypeId workTypeId =
-                query.workTypeId() == null ? null : DomainRuleViolations.call(() -> new WorkTypeId(query.workTypeId()));
-        MembershipId registrarId = query.registrarId() == null
-                ? null
-                : DomainRuleViolations.call(() -> new MembershipId(query.registrarId()));
-        QueryPeriod startPeriod = query.startFrom() == null && query.startTo() == null
-                ? null
-                : QueryPeriod.ofAnyLength(query.startFrom(), query.startTo());
-        if (query.statuses() != null && query.statuses().stream().anyMatch(Objects::isNull)) {
-            throw invalidInput();
-        }
         int page = query.page() == null ? 0 : query.page();
         int size = query.size() == null ? DEFAULT_PAGE_SIZE : query.size();
+        WorkSearchCriteria criteria = WorkSearchConditions.criteria(query.filter(), now);
         if (page < 0
                 || size < 1
                 || size > WorkSearchCriteria.MAX_SIZE
                 || (long) page * size > WorkSearchCriteria.MAX_OFFSET) {
             throw invalidInput();
         }
-        return new WorkSearchCriteria(
-                keyword == null || keyword.isEmpty() ? null : keyword,
-                query.statuses() == null ? Set.of() : query.statuses(),
-                technicianId,
-                workTypeId,
-                registrarId,
-                startPeriod == null ? null : startPeriod.from(),
-                startPeriod == null ? null : startPeriod.to(),
-                query.returnedByRejectionOnly(),
-                query.delayedOnly() ? now : null,
-                sort(query.sort()),
-                page,
-                size);
-    }
-
-    private static WorkSearchCriteria.Sort sort(SearchWorksQuery.Sort sort) {
-        if (sort == null) {
-            return WorkSearchCriteria.Sort.REGISTERED_DESC;
-        }
-        return switch (sort) {
-            case REGISTERED_DESC -> WorkSearchCriteria.Sort.REGISTERED_DESC;
-            case REGISTERED_ASC -> WorkSearchCriteria.Sort.REGISTERED_ASC;
-            case START_TIME_ASC -> WorkSearchCriteria.Sort.START_TIME_ASC;
-            case LAST_MODIFIED_DESC -> WorkSearchCriteria.Sort.LAST_MODIFIED_DESC;
-        };
-    }
-
-    private static WorkSearchInfo.WorkSummary summary(
-            WorkSearchResult.SearchedWork searched, Instant now, DisplayInfos displayInfos) {
-        Work work = searched.work();
-        WorkSchedule schedule = work.schedule().orElse(null);
-        return new WorkSearchInfo.WorkSummary(
-                work.id().orElseThrow().value(),
-                work.name(),
-                work.status(),
-                schedule == null ? null : displayInfos.assignee(schedule),
-                schedule == null ? null : schedule.startTime(),
-                schedule == null ? null : schedule.endTime(),
-                work.customerInfo().name().orElse(null),
-                displayInfos.workType(work),
-                displayInfos.registrar(work),
-                work.registeredAt(),
-                searched.lastModifiedAt(),
-                work.isDelayedAt(now),
-                work.isReturnedByRejection());
+        return criteria.withPage(page, size);
     }
 
     private static BusinessException invalidInput() {

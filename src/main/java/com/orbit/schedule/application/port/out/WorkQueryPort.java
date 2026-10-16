@@ -54,6 +54,14 @@ public interface WorkQueryPort {
      */
     WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria);
 
+    /**
+     * 조건과 정렬에 맞는 작업을 앞에서부터 최대 limit건 돌려준다. 조건의 쪽은 보지 않는다. 조건 해석은 {@link #search}와 같다. 한꺼번에 내려받는 출력이 쓰며,
+     * 구현은 쪽을 건너뛰지 않고 정렬된 식별자를 한 번에 고른 뒤 작업을 나눠 읽는다. 여러 번 읽으므로 스냅샷 트랜잭션에서 부르고, 많은 작업을 읽는 동안 호출
+     * 트랜잭션의 영속성 컨텍스트를 비울 수 있으므로 읽기 전용 트랜잭션에서만 부른다.
+     */
+    List<WorkSearchResult.SearchedWork> listMatching(
+            OrganizationId organizationId, WorkSearchCriteria criteria, int limit);
+
     /** 조건에 맞는 작업 수. 조건의 정렬·쪽은 보지 않는다. 조건 해석은 {@link #search}와 같다. */
     long count(OrganizationId organizationId, WorkSearchCriteria criteria);
 }
