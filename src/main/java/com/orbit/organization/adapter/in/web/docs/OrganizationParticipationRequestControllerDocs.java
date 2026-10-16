@@ -50,7 +50,9 @@ public interface OrganizationParticipationRequestControllerDocs {
     @Operation(
             summary = "참여 요청 승인",
             description = "고른 요청을 각각의 확정 유형으로 승인합니다(행별 승인은 한 건짜리 목록). 승인하면 확정 유형의 활성 직원 소속(총관리자 아님) "
-                    + "또는 기사 계약이 바로 생기며 세부 유형은 \"유형 없음\"입니다. " + DECISION + OWNER_ONLY,
+                    + "또는 기사 계약이 바로 생기며 세부 유형은 \"유형 없음\"입니다. 신청자에게 이 발주사의 비활성 소속이 있으면 새로 만들지 않고 "
+                    + "되살립니다(참여일 유지, 마지막 역할과 같은 유형이면 세부 유형 유지, 다르면 해제). 같은 발주사의 앞선 변경이 잠금 대기 "
+                    + "한도 안에 끝나지 않으면 ORGANIZATION-010입니다. " + DECISION + OWNER_ONLY,
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
@@ -64,7 +66,7 @@ public interface OrganizationParticipationRequestControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY"})
+            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "ORGANIZATION_BUSY"})
     ParticipationRequestDecisionsResponse approve(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,

@@ -539,6 +539,10 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(approve + ".responses['403'].content['application/json']"
                                 + ".examples['ORGANIZATION-003'].value.code")
                         .value("ORGANIZATION-003"))
+                .andExpect(jsonPath(approve + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-010'].value.code")
+                        .value("ORGANIZATION-010"))
+                .andExpect(jsonPath(reject + ".responses['409']").doesNotExist())
                 .andExpect(jsonPath(reject + ".summary").value("참여 요청 거절"))
                 .andExpect(jsonPath(reject + ".requestBody.content['application/json'].schema['$ref']")
                         .value(schemas + "RejectParticipationRequestsRequest"))

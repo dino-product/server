@@ -24,7 +24,7 @@ public record ParticipationRequestDecisionsResponse(
             @Schema(
                     description = "처리 결과. APPROVED 승인, REJECTED 거절, NOT_FOUND 없거나 다른 발주사의 요청, "
                             + "NOT_PENDING 이미 승인·거절·취소된 요청(status로 현재 상태 안내), "
-                            + "ALREADY_MEMBER 신청자가 이미 이 발주사의 소속·기사 계약을 가짐",
+                            + "ALREADY_MEMBER 신청자가 이미 이 발주사의 활성 소속·기사 계약을 가짐(요청은 승인 대기로 남음)",
                     example = "APPROVED")
             ParticipationRequestDecisionOutcome outcome,
 
