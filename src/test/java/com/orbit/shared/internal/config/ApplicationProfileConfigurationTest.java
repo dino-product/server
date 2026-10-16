@@ -89,10 +89,12 @@ class ApplicationProfileConfigurationTest {
     @Test
     void hidesPeriodicStalePublicationCheckInfoLogs() {
         try (ConfigurableApplicationContext context = runApplication()) {
-            assertThat(context.getEnvironment().getProperty(EVENT_REGISTRY_LOG_LEVEL)).isEqualTo("WARN");
+            assertThat(context.getEnvironment().getProperty(EVENT_REGISTRY_LOG_LEVEL))
+                    .isEqualTo("WARN");
         }
         try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=prod")) {
-            assertThat(context.getEnvironment().getProperty(EVENT_REGISTRY_LOG_LEVEL)).isEqualTo("WARN");
+            assertThat(context.getEnvironment().getProperty(EVENT_REGISTRY_LOG_LEVEL))
+                    .isEqualTo("WARN");
         }
     }
 
