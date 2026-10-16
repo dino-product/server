@@ -17,10 +17,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CustomerInfo;
@@ -43,10 +41,6 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
 
     private static final Instant START = Instant.parse("2030-03-02T01:00:00Z");
-
-    // 배정할 기사의 계약 확인. organization 계약 전이라 대체하며, 넣지 않으면 임시 어댑터처럼 거부한다.
-    @MockitoBean
-    private TechnicianContractPort technicianContractPort;
 
     @Nested
     @DisplayName("작업 등록")

@@ -19,6 +19,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.nimbusds.jose.JWSAlgorithm;
@@ -26,6 +27,10 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.orbit.schedule.application.port.out.LoadStaffProfilesPort;
+import com.orbit.schedule.application.port.out.LoadTechnicianProfilesPort;
+import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
+import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Work;
 import com.orbit.support.IntegrationTestSupport;
@@ -52,6 +57,20 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
 
     @Autowired
     protected WorkRepository workRepository;
+
+    // organization·profile 계약 전이라 대체하는 출력 포트. 넣지 않으면 임시 어댑터처럼 기사 계약을 거부하고 표시 정보를 찾지 못한다. 모든 API 테스트가
+    // 같은 대체 Bean을 두어 Spring 컨텍스트를 함께 쓴다.
+    @MockitoBean
+    protected TechnicianContractPort technicianContractPort;
+
+    @MockitoBean
+    protected LoadTechnicianProfilesPort technicianProfiles;
+
+    @MockitoBean
+    protected LoadStaffProfilesPort staffProfiles;
+
+    @MockitoBean
+    protected LoadWorkTypeLabelsPort workTypeLabels;
 
     @Value("${app.auth.jwt.secret}")
     private String jwtSecret;

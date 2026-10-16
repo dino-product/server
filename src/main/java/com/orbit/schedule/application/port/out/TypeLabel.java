@@ -6,8 +6,9 @@ package com.orbit.schedule.application.port.out;
  * @param id 유형 식별자(양수)
  * @param name 유형 이름
  * @param color 유형 색(조직이 정한 값). 없으면 null
+ * @param deleted 조직이 삭제한 유형인지. 작업유형만 쓴다(이미 작업에 붙어 있던 유형은 삭제된 뒤에도 표시 정보를 찾을 수 있음)
  */
-public record TypeLabel(Long id, String name, String color) {
+public record TypeLabel(Long id, String name, String color, boolean deleted) {
 
     public TypeLabel {
         if (id == null || id <= 0) {

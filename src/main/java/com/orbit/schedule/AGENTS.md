@@ -4,7 +4,7 @@
 
 - [차이·공백](../../../../../../docs/domain/schedule.md#schedule-gaps)의 항목은 [대역별 구현 규칙](../../../../../../docs/planning/README.md#gap-actions)대로 다룹니다. `S-0x`·`S-2x`는 요청받으면 Notion 기준으로 해소하고, `S-1x`·`S-3x`는 Notion 결정 전에 구현하지 않습니다. 구현 중 사용자가 체감하는 새 판단이 필요하면 `S-1x`로 적고 [기획 결정 요청](../../../../../../docs/planning/README.md#plan-request)을 합니다.
 - `domain`, `application`, `adapter/in/web`, `adapter/in/organization`, `adapter/out`이 있고 구현 범위는 [도메인 지도](../../../../../../docs/domain/README.md#모듈별-책임과-공개-계약)가 원본입니다. 모듈 루트 공개 계약은 없고, organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 `adapter/in/organization`이 구현해 입력 포트로 넘깁니다. `allowedDependencies`는 `shared::error`, `shared::openapi`, `shared::persistence`, `organization`, `auth`입니다.
-- 웹 어댑터는 요청자 계정을 auth의 루트 공개 계약 `AccountPrincipal`로 받아 계정 식별자만 Command에 넘깁니다. 식별자 형식·작업명 길이 같은 입력 규칙은 서비스·도메인이 한 번만 검사해 아래 오류 순서를 지키므로, Request·경로 값에 같은 Bean Validation 제약을 두지 않습니다. 웹 계층은 인증 실패(401)와 숫자가 아닌 경로 식별자·깨진 본문·목록에 없는 값(400 `COMMON-400`)만 서비스보다 먼저 거릅니다.
+- 웹 어댑터는 요청자 계정을 auth의 루트 공개 계약 `AccountPrincipal`로 받아 계정 식별자만 Command에 넘깁니다. 식별자 형식·작업명 길이 같은 입력 규칙은 서비스·도메인이 한 번만 검사해 아래 오류 순서를 지키므로, Request·경로 값에 같은 Bean Validation 제약을 두지 않습니다. 웹 계층은 인증 실패(401)와 숫자가 아닌 경로 식별자·깨진 본문·목록에 없는 값·형식이 틀린 쿼리 값(시각·숫자, 400 `COMMON-400`)만 서비스보다 먼저 거릅니다. 조회 구간처럼 서비스가 확인 순서를 지켜야 하는 쿼리 값은 필수로 두지 않고 서비스가 확인합니다.
 - 요청자는 `adapter/out/organization/OrganizationActorAdapter`가 organization의 `OrganizationMemberLookup`으로 찾아 `Actor`로 옮깁니다(ACL). 서비스는 organization 타입을 직접 주입하지 않고 ACL 출력 포트(`LoadActorPort`·`TechnicianContractPort`·`WorkTypePort`·`AccountTechnicianContractsPort`, 조회 화면의 표시 정보인 `LoadTechnicianProfilesPort`·`LoadStaffProfilesPort`·`LoadWorkTypeLabelsPort`)만 씁니다.
 - 작업이 참조하는 조직 자원은 서비스가 `OrganizationReferences`로 확인합니다. 배정·재배정의 담당기사는 `TechnicianContractPort`로 그 조직의 활성 기사 계약인지 봅니다. 담당기사는 `ScheduleChanges`에서 기사를 잠근 직후 확인해, 같은 기사를 잠그고 배정을 푸는 대기함 반환과 한 줄로 섭니다. 그래서 `TechnicianWorkRelease` 구현(`ReleaseTechnicianWorksService`)도 같은 기사 잠금을 거칩니다. 등록·기본정보 수정의 작업 유형은 `WorkTypePort`로 그 조직에서 선택할 수 있는 유형인지 봅니다(유형을 비우면 확인하지 않음). 일정 변경은 현재 담당기사를 다시 확인하지 않습니다. 기사 비활성화·역할 변경은 대기함 반환으로 배정을 풀기 때문입니다. 탈퇴는 이 계약 밖이며(S-21), profile 요구 인터페이스 `WithdrawalBlocker` 구현(차단 조건은 [조직·계정] §5.1)과 `AccountWithdrawn` 구독(배정됨·작업전 반환)으로 처리합니다(HM-320). 그래서 탈퇴한 기사에게 남는 작업은 주로 작업중 작업이고(반환 전 틈과 남는 위험은 [schedule 문서의 동시성](../../../../../../docs/domain/schedule.md#schedule-implementation)), 그 작업의 일정 변경은 담당기사를 다시 확인하지 않습니다. 지금은 schedule 쪽 유즈케이스(`GetWithdrawalBlockingWorksUseCase`·`ReleaseWithdrawnTechnicianWorksUseCase`)만 있고 profile 연결은 profile 계약이 병합된 뒤(HM-308) 붙입니다. 그때 리스너는 `@ApplicationModuleListener(propagation = NOT_SUPPORTED)`처럼 자체 트랜잭션 없이 두어, 기사를 잠그는 반환 유즈케이스가 READ COMMITTED 트랜잭션을 직접 시작하게 합니다.
 - 컨트롤러(`adapter/in/web`)는 임시 어댑터에 기대는 유즈케이스까지 만들 수 있습니다. 임시 어댑터가 `local`·`test`에서만 등록돼 그 밖의 프로필은 기동하지 않으므로, 실제 계약 연결 전까지 배포 환경에는 노출되지 않습니다([제공 기능이 아직 없을 때](../../../../../../.claude/skills/dino-architecture/references/communication.md#제공-기능이-아직-없을-때)). `local`에서는 임시 어댑터의 거부·빈 결과대로만 동작합니다.
@@ -20,7 +20,7 @@
 
 ## 오류 순서
 
-HTTP 요청은 웹 계층이 먼저 인증 실패(401)와 숫자가 아닌 경로 식별자·깨진 본문·목록에 없는 값(400 `COMMON-400`)을 거르고, 그 뒤 모든 변경 유즈케이스는 아래 순서로 확인해 먼저 걸린 오류 하나만 돌려줍니다. 서비스 javadoc은 이 순서를 복제하지 않고 자기 유즈케이스의 규칙만 적습니다.
+HTTP 요청은 웹 계층이 먼저 인증 실패(401)와 숫자가 아닌 경로 식별자·깨진 본문·목록에 없는 값·형식이 틀린 쿼리 값(400 `COMMON-400`)을 거르고, 그 뒤 모든 변경 유즈케이스는 아래 순서로 확인해 먼저 걸린 오류 하나만 돌려줍니다. 서비스 javadoc은 이 순서를 복제하지 않고 자기 유즈케이스의 규칙만 적습니다.
 
 1. 계정 식별자 누락 — 인증 계층의 프로그래밍 오류(500)
 2. 조직 식별자 형식 — 400 `SCHEDULE-003`

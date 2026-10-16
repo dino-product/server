@@ -13,8 +13,11 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.service.fake.FakeLoadActorPort;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort;
+import com.orbit.schedule.application.service.fake.FakeStaffProfilesPort;
 import com.orbit.schedule.application.service.fake.FakeTechnicianContractPort;
+import com.orbit.schedule.application.service.fake.FakeTechnicianProfilesPort;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
+import com.orbit.schedule.application.service.fake.FakeWorkTypeLabelsPort;
 import com.orbit.schedule.application.service.fake.FakeWorkTypePort;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.CancellationReason;
@@ -71,6 +74,10 @@ final class ScheduleServiceFixture {
     final FakeTechnicianContractPort technicianContracts = new FakeTechnicianContractPort();
     /** 요청 조직은 {@link #WORK_TYPE_ID}를 선택할 수 있다. */
     final FakeWorkTypePort workTypes = new FakeWorkTypePort();
+    // 조회 화면의 표시 정보(기사·등록자·작업유형). 테스트가 넣지 않으면 찾지 못한다.
+    final FakeTechnicianProfilesPort technicianProfiles = new FakeTechnicianProfilesPort();
+    final FakeStaffProfilesPort staffProfiles = new FakeStaffProfilesPort();
+    final FakeWorkTypeLabelsPort workTypeLabels = new FakeWorkTypeLabelsPort();
 
     ScheduleServiceFixture() {
         technicianContracts.givenActive(ORGANIZATION_ID, TECHNICIAN_ID);

@@ -12,6 +12,8 @@ import com.orbit.schedule.domain.WorkTypeId;
  */
 public interface LoadWorkTypeLabelsPort {
 
-    /** 지정한 작업유형의 표시 정보를 유형 식별자별로 돌려준다. 삭제된 유형도 담고, 다른 조직의 유형이거나 찾을 수 없으면 결과에서 빠진다. */
+    /**
+     * 지정한 작업유형의 표시 정보를 유형 식별자별로 돌려준다. 삭제된 유형도 삭제 표시와 함께 담고, 다른 조직의 유형이거나 찾을 수 없으면 결과에서 빠진다.
+     */
     Map<WorkTypeId, TypeLabel> findLabels(OrganizationId organizationId, Set<WorkTypeId> workTypeIds);
 }
