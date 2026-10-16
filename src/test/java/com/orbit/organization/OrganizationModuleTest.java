@@ -58,4 +58,13 @@ class OrganizationModuleTest {
 
         assertThat(technicianContractLookup.listByAccount(10L)).isEmpty();
     }
+
+    @Test
+    void publicTechnicianContractLookupDeniesUnknownTechnician() {
+        CreatedOrganizationInfo created =
+                useCase.create(new CreateOrganizationCommand(11L, "기사 계약 확인 발주사", Industry.APPLIANCE_SERVICE));
+
+        assertThat(technicianContractLookup.existsActive(created.organizationId(), 999_999L))
+                .isFalse();
+    }
 }

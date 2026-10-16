@@ -10,6 +10,8 @@ import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.application.port.out.AccountTechnicianContract;
 import com.orbit.organization.application.port.out.TechnicianContractQueryPort;
 import com.orbit.organization.domain.AccountId;
+import com.orbit.organization.domain.OrganizationId;
+import com.orbit.organization.domain.TechnicianId;
 
 @Service
 public class TechnicianContractLookupService implements TechnicianContractLookup {
@@ -26,6 +28,12 @@ public class TechnicianContractLookupService implements TechnicianContractLookup
         return queryPort.listByAccount(new AccountId(accountId)).stream()
                 .map(TechnicianContractLookupService::toTechnicianContract)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsActive(Long organizationId, Long technicianId) {
+        return queryPort.existsActive(new OrganizationId(organizationId), new TechnicianId(technicianId));
     }
 
     private static TechnicianContract toTechnicianContract(AccountTechnicianContract contract) {

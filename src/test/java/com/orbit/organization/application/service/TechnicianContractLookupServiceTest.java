@@ -62,4 +62,23 @@ class TechnicianContractLookupServiceTest {
         assertThatThrownBy(() -> service.listByAccount(0L)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.listByAccount(null)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    @DisplayName("그 발주사의 활성 기사 계약인지 저장소 판정을 그대로 돌려준다")
+    void returnsWhetherTechnicianContractIsActiveInOrganization() {
+        when(queryPort.existsActive(new OrganizationId(100L), new TechnicianId(21L)))
+                .thenReturn(true);
+        when(queryPort.existsActive(new OrganizationId(100L), new TechnicianId(22L)))
+                .thenReturn(false);
+
+        assertThat(service.existsActive(100L, 21L)).isTrue();
+        assertThat(service.existsActive(100L, 22L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("발주사·기사 계약 식별자가 양수가 아니면 호출자 오류다")
+    void rejectsNonPositiveIdentifiersForActiveCheck() {
+        assertThatThrownBy(() -> service.existsActive(0L, 21L)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.existsActive(100L, null)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

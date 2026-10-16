@@ -82,6 +82,41 @@ class TechnicianContractQueryAdapterTest {
                 .containsExactly(new AccountTechnicianContract(new TechnicianId(id), ORGANIZATION_ID, false));
     }
 
+    @Test
+    @DisplayName("같은 발주사의 활성 기사 계약이면 활성이다")
+    void confirmsActiveContractOfSameOrganization() {
+        long id = insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, "ACTIVE");
+
+        assertThat(adapter.existsActive(ORGANIZATION_ID, new TechnicianId(id))).isTrue();
+    }
+
+    @Test
+    @DisplayName("다른 발주사의 기사 계약, 비활성 계약, 없는 계약은 활성이 아니다")
+    void deniesContractOfOtherOrganizationInactiveOrMissing() {
+        long otherOrganization = insertTechnician(OTHER_ORGANIZATION_ID, ACCOUNT_ID, "ACTIVE");
+        long deactivated = insertTechnician(ORGANIZATION_ID, OTHER_ACCOUNT_ID, "DEACTIVATED");
+
+        assertThat(adapter.existsActive(ORGANIZATION_ID, new TechnicianId(otherOrganization)))
+                .isFalse();
+        assertThat(adapter.existsActive(ORGANIZATION_ID, new TechnicianId(deactivated)))
+                .isFalse();
+        assertThat(adapter.existsActive(ORGANIZATION_ID, new TechnicianId(deactivated + 1000)))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("이미 읽어 둔 기사 계약 엔티티가 있어도 활성 확인은 그 뒤 DB에 쓰인 상태를 본다")
+    void activeCheckReadsDatabaseStateInsteadOfLoadedEntity() {
+        long id = insertTechnician(ORGANIZATION_ID, ACCOUNT_ID, "ACTIVE");
+        entityManager.find(TechnicianJpaEntity.class, id);
+        entityManager
+                .createNativeQuery("update technician set status = 'DEACTIVATED' where id = ?")
+                .setParameter(1, id)
+                .executeUpdate();
+
+        assertThat(adapter.existsActive(ORGANIZATION_ID, new TechnicianId(id))).isFalse();
+    }
+
     private long insertTechnician(OrganizationId organizationId, AccountId accountId, String status) {
         entityManager
                 .createNativeQuery("""
