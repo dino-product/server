@@ -18,6 +18,8 @@ class ApplicationProfileConfigurationTest {
     private static final String EVENT_SCHEMA_INITIALIZATION =
             "spring.modulith.events.jdbc.schema-initialization.enabled";
     private static final String EVENT_RESUBMISSION = "app.events.resubmission.enabled";
+    private static final String EVENT_REGISTRY_LOG_LEVEL =
+            "logging.level.org.springframework.modulith.events.core.DefaultEventPublicationRegistry";
 
     @Test
     void doesNotActivateLocalProfileWhenNoProfileIsSpecified() {
@@ -81,6 +83,16 @@ class ApplicationProfileConfigurationTest {
         }
         try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=prod")) {
             assertThat(context.getEnvironment().getProperty(EVENT_RESUBMISSION)).isEqualTo("true");
+        }
+    }
+
+    @Test
+    void hidesPeriodicStalePublicationCheckInfoLogs() {
+        try (ConfigurableApplicationContext context = runApplication()) {
+            assertThat(context.getEnvironment().getProperty(EVENT_REGISTRY_LOG_LEVEL)).isEqualTo("WARN");
+        }
+        try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=prod")) {
+            assertThat(context.getEnvironment().getProperty(EVENT_REGISTRY_LOG_LEVEL)).isEqualTo("WARN");
         }
     }
 

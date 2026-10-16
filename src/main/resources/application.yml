@@ -92,6 +92,8 @@ logging:
     com.orbit: ${LOGGING_APP_LEVEL:INFO}
     org.hibernate.SQL: WARN
     org.hibernate.orm.jdbc.bind: WARN
+    # 멈춤 검사가 멈춘 발행이 없어도 1분마다 상태별 INFO를 남긴다. 리스너 실패는 비동기 실행기가 ERROR로 남기고, 재전송 중 오류는 실패 발행 지표로 본다.
+    org.springframework.modulith.events.core.DefaultEventPublicationRegistry: WARN
 
 app:
   cors:
