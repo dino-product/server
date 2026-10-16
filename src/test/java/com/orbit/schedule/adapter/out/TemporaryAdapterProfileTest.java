@@ -11,7 +11,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
 import com.orbit.schedule.application.port.out.AccountTechnicianContractsPort;
-import com.orbit.schedule.application.port.out.LoadTechnicianNamePort;
+import com.orbit.schedule.application.port.out.LoadStaffProfilesPort;
+import com.orbit.schedule.application.port.out.LoadTechnicianProfilesPort;
+import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
 import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkTypePort;
@@ -27,7 +29,9 @@ class TemporaryAdapterProfileTest {
     @DisplayName("로컬·테스트 프로필에서만 등록한다")
     void registersOnlyInLocalAndTest(String profile) {
         runner.withPropertyValues("spring.profiles.active=" + profile).run(context -> {
-            assertThat(context).hasSingleBean(LoadTechnicianNamePort.class);
+            assertThat(context).hasSingleBean(LoadTechnicianProfilesPort.class);
+            assertThat(context).hasSingleBean(LoadStaffProfilesPort.class);
+            assertThat(context).hasSingleBean(LoadWorkTypeLabelsPort.class);
             assertThat(context).hasSingleBean(PhotoUrlPort.class);
             assertThat(context).hasSingleBean(TechnicianContractPort.class);
             assertThat(context).hasSingleBean(WorkTypePort.class);
@@ -40,7 +44,9 @@ class TemporaryAdapterProfileTest {
     @DisplayName("운영과 이름 없는·그 밖의 환경에서는 등록하지 않는다")
     void doesNotRegisterElsewhere(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles).run(context -> {
-            assertThat(context).doesNotHaveBean(LoadTechnicianNamePort.class);
+            assertThat(context).doesNotHaveBean(LoadTechnicianProfilesPort.class);
+            assertThat(context).doesNotHaveBean(LoadStaffProfilesPort.class);
+            assertThat(context).doesNotHaveBean(LoadWorkTypeLabelsPort.class);
             assertThat(context).doesNotHaveBean(PhotoUrlPort.class);
             assertThat(context).doesNotHaveBean(TechnicianContractPort.class);
             assertThat(context).doesNotHaveBean(WorkTypePort.class);
