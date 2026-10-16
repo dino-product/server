@@ -272,6 +272,95 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsWorkRegistrationWithOptionalSchedule() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업 등록"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['200']").exists())
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-013'].value.code")
+                        .value("SCHEDULE-013"))
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.CreateWorkRequest']"
+                                + ".properties.schedule")
+                        .exists());
+    }
+
+    @Test
+    void documentsWorkDetailsUpdateWithScheduleErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업 기본정보 수정"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-014'].value.code")
+                        .value("SCHEDULE-014"))
+                .andExpect(jsonPath(operation + ".responses['404'].content['application/json']"
+                                + ".examples['SCHEDULE-001'].value.code")
+                        .value("SCHEDULE-001"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-002'].value.code")
+                        .value("SCHEDULE-002"));
+    }
+
+    @Test
+    void documentsWorkCancellationWithReasonList() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/cancellation'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업 취소"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.CancelWorkRequest']"
+                                + ".properties.reason.enum")
+                        .value(containsInAnyOrder(
+                                "CUSTOMER_REQUEST", "TECHNICIAN_ISSUE", "DUPLICATE_REGISTRATION", "OTHER")));
+    }
+
+    @Test
+    void documentsAssignmentChangeWithConflictResultAndErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/assignment'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("배정 변경"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['200']").exists())
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-013'].value.code")
+                        .value("SCHEDULE-013"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-008'].value.code")
+                        .value("SCHEDULE-008"))
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.ScheduleChangeResponse']"
+                                + ".properties.applied")
+                        .exists());
+    }
+
+    @Test
+    void documentsWorkUnassignment() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/assignment'].delete";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("배정 해제"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-002'].value.code")
+                        .value("SCHEDULE-002"));
+    }
+
+    @Test
     void documentsAppleLoginOperationsWithoutAuthentication() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
