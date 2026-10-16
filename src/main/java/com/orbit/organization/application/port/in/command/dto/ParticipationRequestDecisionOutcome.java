@@ -8,6 +8,6 @@ public enum ParticipationRequestDecisionOutcome {
     NOT_FOUND,
     /** 이미 승인·거절·취소된 요청. 현재 상태를 함께 준다. */
     NOT_PENDING,
-    /** 신청자에게 그 발주사의 직원 소속·기사 계약 행이 이미 있다. 재활성화는 O-15 결정 전까지 하지 않는다. */
+    /** 신청자에게 그 발주사의 직원 소속·기사 계약 행이 이미 있다. 재활성화는 아직 하지 않는다(O-03). */
     ALREADY_MEMBER
 }

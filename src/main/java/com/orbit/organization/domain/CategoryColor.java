@@ -3,7 +3,7 @@ package com.orbit.organization.domain;
 import java.util.List;
 import java.util.Locale;
 
-/** 유형 색상. 프리셋 팔레트 8색 중 하나를 대문자 {@code #RRGGBB}로 둔다. 팔레트 값은 기획·디자인 확정 전 잠정값이다(O-10). */
+/** 유형 색상. 프리셋 팔레트 8색 중 하나를 대문자 {@code #RRGGBB}로 둔다. 팔레트 값은 피그마 디자인 변수가 정해지기 전의 잠정값이다(ORG-022). */
 public record CategoryColor(String value) {
 
     /** 표시 순서대로의 프리셋 팔레트. */

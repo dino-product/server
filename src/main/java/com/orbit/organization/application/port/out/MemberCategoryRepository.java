@@ -21,6 +21,6 @@ public interface MemberCategoryRepository {
     Optional<MemberCategory> findUndeletedByName(
             OrganizationId organizationId, MemberCategoryKind kind, CategoryName name);
 
-    /** 같은 발주사·같은 종류의 삭제되지 않은 유형을 만든 순서대로 돌려준다(목록 순서는 잠정 — O-18). */
+    /** 같은 발주사·같은 종류의 삭제되지 않은 유형을 만든 순서대로 돌려준다([조직·계정] §7). */
     List<MemberCategory> listUndeleted(OrganizationId organizationId, MemberCategoryKind kind);
 }
