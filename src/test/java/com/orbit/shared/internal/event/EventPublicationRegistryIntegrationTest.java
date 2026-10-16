@@ -27,6 +27,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.orbit.support.IntegrationTestSupport;
 
+import io.micrometer.core.instrument.MeterRegistry;
+
 @Import(EventPublicationRegistryIntegrationTest.ProbeListeners.class)
 @TestPropertySource(
         properties = {
@@ -40,6 +42,8 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
 
     private static final String PUBLICATIONS = "event_publication";
     private static final String ARCHIVE = "event_publication_archive";
+    private static final String FAILED_METRIC = "event.publications.failed";
+    private static final String EXHAUSTED_METRIC = "event.publications.exhausted";
     private static final int ALWAYS_FAIL = Integer.MAX_VALUE;
     private static final Duration ASYNC_WAIT = Duration.ofSeconds(10);
 
@@ -60,6 +64,9 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private FailedEventPublicationResubmitter resubmitter;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     @Test
     void recordsPublicationInPublishingTransactionAndArchivesItAfterListenerCompletes() {
@@ -194,6 +201,34 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
         }
     }
 
+    @Test
+    void exposesFailedAndExhaustedPublicationCountsAsMetrics() {
+        String key = newKey();
+
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> events.publishEvent(new RegistryProbe(key, ALWAYS_FAIL)));
+        awaitFailedAfter(key, 1);
+
+        await().atMost(ASYNC_WAIT).untilAsserted(() -> {
+            assertThat(gauge(FAILED_METRIC)).as("실패로 남은 발행을 모두 센다").isEqualTo(countFailedWithAttempts(0));
+            assertThat(gauge(EXHAUSTED_METRIC))
+                    .as("시도가 남은 발행은 시도 소진으로 세지 않는다")
+                    .isEqualTo(countFailedWithAttempts(MAX_ATTEMPTS));
+        });
+
+        jdbcTemplate.update(
+                "update " + PUBLICATIONS + " set completion_attempts = ? where serialized_event like ?",
+                MAX_ATTEMPTS,
+                "%" + key + "%");
+
+        await().atMost(ASYNC_WAIT).untilAsserted(() -> {
+            assertThat(gauge(FAILED_METRIC)).isEqualTo(countFailedWithAttempts(0));
+            assertThat(gauge(EXHAUSTED_METRIC))
+                    .as("최대 처리 시도 횟수를 다 쓴 발행을 센다")
+                    .isEqualTo(countFailedWithAttempts(MAX_ATTEMPTS));
+        });
+    }
+
     private void awaitFailedAfter(String key, int attempts) {
         await().atMost(ASYNC_WAIT)
                 .until(() -> moduleListener.attempts(key) == attempts
@@ -217,6 +252,17 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
                 "select completion_attempts from " + table + " where serialized_event like ?",
                 Integer.class,
                 "%" + key + "%");
+    }
+
+    private double gauge(String name) {
+        return meterRegistry.get(name).gauge().value();
+    }
+
+    private double countFailedWithAttempts(int minimumAttempts) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from " + PUBLICATIONS + " where status = 'FAILED' and completion_attempts >= ?",
+                Double.class,
+                minimumAttempts);
     }
 
     private static String newKey() {
