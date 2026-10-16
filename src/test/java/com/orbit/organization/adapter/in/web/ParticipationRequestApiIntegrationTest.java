@@ -472,8 +472,9 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
     private void insertTechnician(long organizationId, long accountId, String status) {
         jdbcTemplate.update(
                 """
-                insert into technician (company_id, member_id, status, status_changed_at, created_at, updated_at)
-                values (?, ?, ?, ?, ?, ?)
+                insert into technician
+                    (company_id, member_id, status, status_changed_at, joined_at, updated_at, created_at)
+                values (?, ?, ?, ?, ?, ?, current_timestamp)
                 """,
                 organizationId,
                 accountId,

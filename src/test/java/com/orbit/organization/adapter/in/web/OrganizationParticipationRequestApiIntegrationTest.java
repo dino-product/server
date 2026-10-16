@@ -162,6 +162,47 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
     }
 
     @Test
+    @DisplayName("비활성 소속이 있는 회원을 승인하면 같은 역할은 그 행을 되살리고, 다른 역할은 이전 참여일로 새 행을 만들어 소속 목록에 한 줄만 보인다")
+    void reactivatesDeactivatedMembersOnApproval() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "재참여 승인 발주사");
+        long returningStaff = ACCOUNT_IDS.incrementAndGet();
+        long staffToTechnician = ACCOUNT_IDS.incrementAndGet();
+        insertDeactivatedStaff(company.organizationId(), returningStaff);
+        insertDeactivatedStaff(company.organizationId(), staffToTechnician);
+        long first = insertPendingRequest(company.organizationId(), returningStaff);
+        long second = insertPendingRequest(company.organizationId(), staffToTechnician);
+
+        approve(
+                        owner,
+                        company.organizationId(),
+                        Map.of("requestId", first, "confirmedType", "STAFF"),
+                        Map.of("requestId", second, "confirmedType", "TECHNICIAN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.results[0].outcome").value("APPROVED"))
+                .andExpect(jsonPath("$.result.results[1].outcome").value("APPROVED"));
+
+        assertThat(jdbcTemplate.queryForMap(
+                        "select count(*) as rows, min(status) as status, min(joined_at) as joined_at"
+                                + " from company_memberships where company_id = ? and member_id = ?",
+                        company.organizationId(),
+                        returningStaff))
+                .containsEntry("rows", 1L)
+                .containsEntry("status", "ACTIVE")
+                .containsEntry("joined_at", Timestamp.from(JOINED_AT));
+        assertThat(jdbcTemplate.queryForMap(
+                        "select status, joined_at from technician where company_id = ? and member_id = ?",
+                        company.organizationId(),
+                        staffToTechnician))
+                .containsEntry("status", "ACTIVE")
+                .containsEntry("joined_at", Timestamp.from(JOINED_AT));
+        memberships(staffToTechnician)
+                .andExpect(jsonPath("$.result.memberships.length()").value(1))
+                .andExpect(jsonPath("$.result.memberships[0].role").value("TECHNICIAN"))
+                .andExpect(jsonPath("$.result.memberships[0].status").value("ACTIVE"));
+    }
+
+    @Test
     @DisplayName("기사 희망 요청을 직원으로 바꿔 승인하면 요청은 기사·소속은 총관리자 아닌 직원으로 남는다")
     void approvesTechnicianRequestAsStaff() throws Exception {
         long owner = ACCOUNT_IDS.incrementAndGet();
@@ -440,11 +481,37 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
                 Timestamp.from(JOINED_AT));
     }
 
+    private void insertDeactivatedStaff(long organizationId, long accountId) {
+        jdbcTemplate.update(
+                """
+                insert into company_memberships
+                    (company_id, member_id, is_owner, status, joined_at, status_changed_at, created_at, updated_at)
+                values (?, ?, false, 'DEACTIVATED', ?, ?, ?, ?)
+                """,
+                organizationId,
+                accountId,
+                Timestamp.from(JOINED_AT),
+                Timestamp.from(JOINED_AT.plusSeconds(3600)),
+                Timestamp.from(JOINED_AT),
+                Timestamp.from(JOINED_AT));
+    }
+
+    /** 비활성 소속이 있는 회원의 참여 요청은 요청 API가 막으므로 승인 대기 요청을 SQL로 넣는다. */
+    private long insertPendingRequest(long organizationId, long accountId) {
+        return jdbcTemplate.queryForObject("""
+                insert into participation_requests
+                    (company_id, member_id, desired_type, status, requested_at, created_at, updated_at)
+                values (?, ?, 'STAFF', 'PENDING', now(), now(), now())
+                returning id
+                """, Long.class, organizationId, accountId);
+    }
+
     private void insertTechnician(long organizationId, long accountId) {
         jdbcTemplate.update(
                 """
-                insert into technician (company_id, member_id, status, status_changed_at, created_at, updated_at)
-                values (?, ?, 'ACTIVE', ?, ?, ?)
+                insert into technician
+                    (company_id, member_id, status, status_changed_at, joined_at, updated_at, created_at)
+                values (?, ?, 'ACTIVE', ?, ?, ?, current_timestamp)
                 """,
                 organizationId,
                 accountId,

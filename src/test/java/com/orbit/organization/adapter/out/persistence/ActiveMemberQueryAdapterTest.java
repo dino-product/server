@@ -132,8 +132,8 @@ class ActiveMemberQueryAdapterTest {
         entityManager
                 .createNativeQuery("""
                         insert into technician
-                            (company_id, member_id, status, status_changed_at, created_at, updated_at)
-                        values (?, ?, ?, ?, ?, ?)
+                            (company_id, member_id, status, status_changed_at, joined_at, updated_at, created_at)
+                        values (?, ?, ?, ?, ?, ?, current_timestamp)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())

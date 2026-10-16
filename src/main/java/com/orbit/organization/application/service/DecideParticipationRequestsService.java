@@ -25,12 +25,13 @@ import com.orbit.organization.application.port.in.command.dto.ApproveParticipati
 import com.orbit.organization.application.port.in.command.dto.ParticipationRequestDecisionInfo;
 import com.orbit.organization.application.port.in.command.dto.ParticipationRequestDecisionOutcome;
 import com.orbit.organization.application.port.in.command.dto.RejectParticipationRequestsCommand;
-import com.orbit.organization.application.port.out.AccountMembershipQueryPort;
 import com.orbit.organization.application.port.out.MembershipRepository;
+import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.application.port.out.ParticipationRequestRepository;
 import com.orbit.organization.application.port.out.TechnicianRepository;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.MembershipId;
+import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
@@ -38,6 +39,7 @@ import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
 import com.orbit.organization.domain.RejectReason;
 import com.orbit.organization.domain.Technician;
+import com.orbit.organization.domain.TechnicianStatus;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.error.CommonErrorCode;
 
@@ -46,11 +48,15 @@ import com.orbit.shared.error.CommonErrorCode;
  *
  * <ul>
  *   <li>목록 모양(빈 목록·한도 초과·중복·0 이하 식별자·확정 유형 누락)은 권한보다 먼저 400(COMMON-400)으로 거부한다. 그다음 활성 총관리자인지,
- *       거절 사유가 규칙에 맞는지(ORGANIZATION-019) 확인한 뒤에야 요청 행을 잠근다.
+ *       거절 사유가 규칙에 맞는지(ORGANIZATION-019) 확인한 뒤에야 요청 행을 잠근다. 승인은 요청 행보다 먼저 발주사를 잠근다(대기 한도를 넘기면
+ *       ORGANIZATION-010).
  *   <li>요청 행은 식별자 오름차순으로 잠가 읽는다. 겹치는 요청을 동시에 처리하는 총관리자들이 같은 순서로 기다려 교착이 생기지 않고, 늦은 쪽은 앞 처리가
  *       커밋한 상태를 보고 그 행을 실패로 돌려준다(먼저 처리된 결과만 반영). 요청자 취소도 같은 행 잠금으로 줄을 선다.
- *   <li>처리할 수 없는 행(없음·다른 발주사·이미 처리·취소·이미 소속 행이 있음)은 건너뛰고 결과에 실패로 남기며, 나머지 행은 같은 트랜잭션에서 처리한다.
- *   <li>승인하면 같은 트랜잭션에서 확정 유형의 활성 직원 소속 또는 기사 계약을 만든다. 신청자에게 그 발주사의 행이 이미 있으면 재활성화하지 않는다(O-03).
+ *   <li>처리할 수 없는 행(없음·다른 발주사·이미 처리·취소·이미 활성 소속이 있음)은 건너뛰고 결과에 실패로 남기며, 나머지 행은 같은 트랜잭션에서 처리한다.
+ *   <li>승인하면 같은 트랜잭션에서 확정 유형의 활성 직원 소속 또는 기사 계약을 둔다([조직·계정] §6). 그 발주사의 행이 없으면 새로 만들고, 비활성 행만
+ *       있으면 확정 유형 쪽 행을 다시 활성으로 바꾼다(없으면 이전 참여일로 만든다). 확정 유형이 마지막 역할(상태 변경 시각이 늦은 행)과 다르면 세부 유형을
+ *       해제한다. 유형 삭제도 발주사 잠금 아래에서 세부 유형을 해제하므로, 발주사를 잠근 뒤 두 행을 읽어 삭제된 유형을 되살리지 않는다. 역할 변경도 같은
+ *       잠금을 거치므로 두 행을 따로 읽어도 어긋나지 않는다.
  *   <li>처리한 행마다 {@link ParticipationRequestApproved}·{@link ParticipationRequestRejected}를 같은 트랜잭션에서 발행한다. 롤백되면 소비 모듈에
  *       전달되지 않는다.
  * </ul>
@@ -65,7 +71,7 @@ public class DecideParticipationRequestsService
     private final MembershipRepository membershipRepository;
     private final ParticipationRequestRepository requestRepository;
     private final TechnicianRepository technicianRepository;
-    private final AccountMembershipQueryPort membershipQueryPort;
+    private final OrganizationRepository organizationRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
@@ -73,13 +79,13 @@ public class DecideParticipationRequestsService
             MembershipRepository membershipRepository,
             ParticipationRequestRepository requestRepository,
             TechnicianRepository technicianRepository,
-            AccountMembershipQueryPort membershipQueryPort,
+            OrganizationRepository organizationRepository,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.membershipRepository = membershipRepository;
         this.requestRepository = requestRepository;
         this.technicianRepository = technicianRepository;
-        this.membershipQueryPort = membershipQueryPort;
+        this.organizationRepository = organizationRepository;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
@@ -99,6 +105,7 @@ public class DecideParticipationRequestsService
         }
         Membership decider =
                 OrganizationOwners.requireOwner(membershipRepository, command.accountId(), command.organizationId());
+        OrganizationLocks.lock(organizationRepository, decider.organizationId());
         Instant now = clock.instant();
         return decide(
                 ids,
@@ -187,18 +194,65 @@ public class DecideParticipationRequestsService
 
     private ParticipationRequestDecisionOutcome approve(
             ParticipationRequest request, ParticipationType confirmedType, Membership decider, Instant now) {
-        boolean hasRow = membershipQueryPort.listMemberships(request.accountId()).stream()
-                .anyMatch(membership -> membership.organizationId().equals(request.organizationId()));
-        if (hasRow) {
+        Optional<Membership> staff = membershipRepository.find(request.organizationId(), request.accountId());
+        Optional<Technician> technician = technicianRepository.find(request.organizationId(), request.accountId());
+        boolean activeMember =
+                staff.filter(row -> row.status() == MembershipStatus.ACTIVE).isPresent()
+                        || technician
+                                .filter(row -> row.status() == TechnicianStatus.ACTIVE)
+                                .isPresent();
+        if (activeMember) {
             return ParticipationRequestDecisionOutcome.ALREADY_MEMBER;
         }
         request.approve(confirmedType, deciderId(decider), now);
-        if (confirmedType == ParticipationType.STAFF) {
-            membershipRepository.save(Membership.join(request.organizationId(), request.accountId(), now));
+        if (staff.isEmpty() && technician.isEmpty()) {
+            join(request, confirmedType, now, now);
         } else {
-            technicianRepository.save(Technician.join(request.organizationId(), request.accountId(), now));
+            rejoin(request, confirmedType, staff, technician, now);
         }
         return ParticipationRequestDecisionOutcome.APPROVED;
+    }
+
+    private void join(ParticipationRequest request, ParticipationType type, Instant joinedAt, Instant now) {
+        if (type == ParticipationType.STAFF) {
+            membershipRepository.save(Membership.join(request.organizationId(), request.accountId(), joinedAt, now));
+        } else {
+            technicianRepository.save(Technician.join(request.organizationId(), request.accountId(), joinedAt, now));
+        }
+    }
+
+    /** 비활성 행만 있는 신청자. 확정 유형 쪽 행을 되살리고, 없으면 마지막 역할 행의 참여일로 만든다. */
+    private void rejoin(
+            ParticipationRequest request,
+            ParticipationType confirmedType,
+            Optional<Membership> staff,
+            Optional<Technician> technician,
+            Instant now) {
+        ParticipationType lastRole = lastRole(staff, technician);
+        boolean unassignCategory = confirmedType != lastRole;
+        if (confirmedType == ParticipationType.STAFF && staff.isPresent()) {
+            membershipRepository.reactivate(staff.get().rejoin(now), unassignCategory);
+        } else if (confirmedType == ParticipationType.TECHNICIAN && technician.isPresent()) {
+            technicianRepository.reactivate(technician.get().rejoin(now), unassignCategory);
+        } else {
+            Instant joinedAt = lastRole == ParticipationType.STAFF
+                    ? staff.orElseThrow().joinedAt()
+                    : technician.orElseThrow().joinedAt();
+            join(request, confirmedType, joinedAt, now);
+        }
+    }
+
+    /** 목록에 보이는 역할. 상태 변경 시각이 늦은 행이며, 같으면 직원 소속으로 본다. */
+    private static ParticipationType lastRole(Optional<Membership> staff, Optional<Technician> technician) {
+        if (staff.isEmpty()) {
+            return ParticipationType.TECHNICIAN;
+        }
+        if (technician.isEmpty()) {
+            return ParticipationType.STAFF;
+        }
+        return technician.get().statusChangedAt().isAfter(staff.get().statusChangedAt())
+                ? ParticipationType.TECHNICIAN
+                : ParticipationType.STAFF;
     }
 
     private static ParticipationRequestDecisionInfo result(

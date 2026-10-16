@@ -23,19 +23,24 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.ApproveParticipationRequestsUseCase;
 import com.orbit.organization.application.port.in.command.CancelParticipationRequestUseCase;
+import com.orbit.organization.application.port.in.command.CreateMemberCategoryUseCase;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
+import com.orbit.organization.application.port.in.command.DeleteMemberCategoryUseCase;
 import com.orbit.organization.application.port.in.command.RejectParticipationRequestsUseCase;
 import com.orbit.organization.application.port.in.command.RequestParticipationUseCase;
 import com.orbit.organization.application.port.in.command.dto.ApproveParticipationRequestsCommand;
 import com.orbit.organization.application.port.in.command.dto.ApproveParticipationRequestsCommand.Approval;
 import com.orbit.organization.application.port.in.command.dto.CancelParticipationRequestCommand;
+import com.orbit.organization.application.port.in.command.dto.CreateMemberCategoryCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
+import com.orbit.organization.application.port.in.command.dto.DeleteMemberCategoryCommand;
 import com.orbit.organization.application.port.in.command.dto.ParticipationRequestDecisionInfo;
 import com.orbit.organization.application.port.in.command.dto.ParticipationRequestDecisionOutcome;
 import com.orbit.organization.application.port.in.command.dto.ParticipationRequestInfo;
 import com.orbit.organization.application.port.in.command.dto.RejectParticipationRequestsCommand;
 import com.orbit.organization.application.port.in.command.dto.RequestParticipationCommand;
 import com.orbit.organization.domain.Industry;
+import com.orbit.organization.domain.MemberCategoryKind;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
 import com.orbit.shared.error.BusinessException;
@@ -43,7 +48,7 @@ import com.orbit.support.IntegrationTestSupport;
 
 /**
  * 참여 요청을 바꾸는 요청이 동시에 와도 먼저 커밋한 결과만 남는지 두 트랜잭션으로 확인한다. 요청 생성은 발주사 행 잠금으로, 승인·거절·취소는 요청 행 잠금으로 한 줄로
- * 선다. 잠금 없이 확인하면 두 요청 모두 앞 요청의 결과를 보지 못하고 같은 요청을 두 번 처리한다.
+ * 선다. 잠금 없이 확인하면 두 요청 모두 앞 요청의 결과를 보지 못하고 같은 요청을 두 번 처리한다. 승인은 요청 행보다 먼저 발주사 행도 잠가 유형 삭제와 한 줄로 선다.
  */
 @DisplayName("참여 요청 동시성")
 class ParticipationRequestLockIntegrationTest extends IntegrationTestSupport {
@@ -67,6 +72,12 @@ class ParticipationRequestLockIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private CancelParticipationRequestUseCase cancelUseCase;
+
+    @Autowired
+    private CreateMemberCategoryUseCase createCategoryUseCase;
+
+    @Autowired
+    private DeleteMemberCategoryUseCase deleteCategoryUseCase;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -209,6 +220,64 @@ class ParticipationRequestLockIntegrationTest extends IntegrationTestSupport {
                         pending.organizationId(),
                         pending.applicant()))
                 .isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("기사 유형 삭제가 커밋 전인 동안 그 유형을 가진 비활성 기사의 재참여 승인은 기다렸다가 계약을 되살리되 삭제된 유형은 되살리지 않는다")
+    void rejoinApprovalWaitsForCategoryDeletionAndKeepsItUnassigned() throws Exception {
+        long owner = 92_301L;
+        long applicant = 92_302L;
+        var created =
+                createOrganizationUseCase.create(new CreateOrganizationCommand(owner, "재참여 승인 발주사", Industry.HVAC));
+        long categoryId = createCategoryUseCase
+                .create(new CreateMemberCategoryCommand(
+                        owner, created.organizationId(), MemberCategoryKind.TECHNICIAN, "설치", "#EF4444"))
+                .categoryId();
+        jdbcTemplate.update("""
+                insert into technician (company_id, member_id, company_technician_category_id, status, joined_at,
+                    status_changed_at, created_at, updated_at)
+                values (?, ?, ?, 'DEACTIVATED', now(), now(), now(), now())
+                """, created.organizationId(), applicant, categoryId);
+        Long requestId = jdbcTemplate.queryForObject("""
+                insert into participation_requests
+                    (company_id, member_id, desired_type, status, requested_at, created_at, updated_at)
+                values (?, ?, 'TECHNICIAN', 'PENDING', now(), now(), now())
+                returning id
+                """, Long.class, created.organizationId(), applicant);
+
+        CountDownLatch deleted = new CountDownLatch(1);
+        CountDownLatch commitDeletion = new CountDownLatch(1);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CompletableFuture<Void> deletion = CompletableFuture.runAsync(
+                () -> transaction.executeWithoutResult(status -> {
+                    deleteCategoryUseCase.delete(new DeleteMemberCategoryCommand(
+                            owner, created.organizationId(), MemberCategoryKind.TECHNICIAN, categoryId));
+                    deleted.countDown();
+                    await(commitDeletion);
+                }),
+                executor);
+        assertThat(deleted.await(10, TimeUnit.SECONDS)).isTrue();
+
+        CompletableFuture<List<ParticipationRequestDecisionInfo>> approval = CompletableFuture.supplyAsync(
+                () -> approveUseCase.approve(new ApproveParticipationRequestsCommand(
+                        owner,
+                        created.organizationId(),
+                        List.of(new Approval(requestId, ParticipationType.TECHNICIAN)))),
+                executor);
+        assertThatThrownBy(() -> approval.get(500, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+
+        commitDeletion.countDown();
+        deletion.get(10, TimeUnit.SECONDS);
+        assertThat(approval.get(10, TimeUnit.SECONDS))
+                .extracting(ParticipationRequestDecisionInfo::outcome)
+                .containsExactly(ParticipationRequestDecisionOutcome.APPROVED);
+        assertThat(jdbcTemplate.queryForMap(
+                        "select status, company_technician_category_id from technician"
+                                + " where company_id = ? and member_id = ?",
+                        created.organizationId(),
+                        applicant))
+                .containsEntry("status", "ACTIVE")
+                .containsEntry("company_technician_category_id", null);
     }
 
     /** 총관리자 둘이 있는 발주사에 신청자의 승인 대기 요청을 하나 만든다. 둘째 총관리자는 지정 유즈케이스 대신 SQL로 넣는다. */

@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -39,20 +41,21 @@ import com.orbit.organization.application.port.in.command.dto.ApproveParticipati
 import com.orbit.organization.application.port.in.command.dto.ParticipationRequestDecisionInfo;
 import com.orbit.organization.application.port.in.command.dto.ParticipationRequestDecisionOutcome;
 import com.orbit.organization.application.port.in.command.dto.RejectParticipationRequestsCommand;
-import com.orbit.organization.application.port.out.AccountMembership;
-import com.orbit.organization.application.port.out.AccountMembershipQueryPort;
+import com.orbit.organization.application.port.out.OrganizationBusyException;
+import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.application.port.out.ParticipationRequestRepository;
 import com.orbit.organization.application.port.out.TechnicianRepository;
 import com.orbit.organization.domain.AccountId;
-import com.orbit.organization.domain.MemberRole;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.MembershipId;
+import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
 import com.orbit.organization.domain.Technician;
+import com.orbit.organization.domain.TechnicianId;
 import com.orbit.organization.domain.TechnicianStatus;
 import com.orbit.shared.error.BaseCode;
 import com.orbit.shared.error.BusinessException;
@@ -76,7 +79,7 @@ class DecideParticipationRequestsServiceTest {
     private TechnicianRepository technicianRepository;
 
     @Mock
-    private AccountMembershipQueryPort membershipQueryPort;
+    private OrganizationRepository organizationRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -95,7 +98,7 @@ class DecideParticipationRequestsServiceTest {
                 membershipRepository,
                 requestRepository,
                 technicianRepository,
-                membershipQueryPort,
+                organizationRepository,
                 eventPublisher,
                 Clock.fixed(NOW, ZoneOffset.UTC));
         lenient()
@@ -104,6 +107,10 @@ class DecideParticipationRequestsServiceTest {
                         invocation.<ParticipationRequestId>getArgument(0).value())));
         lenient().when(requestRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(technicianRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(technicianRepository.find(any(), any())).thenReturn(Optional.empty());
+        lenient()
+                .when(technicianRepository.reactivate(any(), anyBoolean()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -167,12 +174,10 @@ class DecideParticipationRequestsServiceTest {
     }
 
     @Test
-    @DisplayName("신청자에게 이미 소속 행이 있어 승인하지 못하면 이벤트를 발행하지 않는다")
+    @DisplayName("신청자에게 이미 활성 소속이 있어 승인하지 못하면 이벤트를 발행하지 않는다")
     void publishesNothingWhenApprovalIsSkipped() {
         givenPending(31L, 7L, ParticipationType.STAFF);
-        when(membershipQueryPort.listMemberships(new AccountId(7L)))
-                .thenReturn(List.of(new AccountMembership(
-                        ORGANIZATION_ID, "오르빗 설비", MemberRole.STAFF, false, REQUESTED_AT, REQUESTED_AT)));
+        givenTechnician(7L, TechnicianStatus.ACTIVE, REQUESTED_AT);
 
         service.approve(approve(OWNER, new Approval(31L, ParticipationType.STAFF)));
 
@@ -285,34 +290,130 @@ class DecideParticipationRequestsServiceTest {
     }
 
     @Test
-    @DisplayName("신청자에게 그 발주사의 직원 소속·기사 계약 행이 이미 있으면 재활성화하지 않고 그 행만 실패로 둔다")
-    void leavesRequestPendingWhenApplicantAlreadyHasRow() {
+    @DisplayName("신청자에게 그 발주사의 활성 직원 소속이나 기사 계약이 있으면 그 행만 실패로 두고 요청은 승인 대기로 남긴다")
+    void leavesRequestPendingWhenApplicantIsActiveMember() {
         givenPending(31L, 7L, ParticipationType.TECHNICIAN);
-        when(membershipQueryPort.listMemberships(new AccountId(7L)))
-                .thenReturn(List.of(new AccountMembership(
-                        ORGANIZATION_ID, "오르빗 설비", MemberRole.TECHNICIAN, false, REQUESTED_AT, REQUESTED_AT)));
+        givenPending(32L, 8L, ParticipationType.STAFF);
+        membershipRepository.given(ORGANIZATION_ID, new AccountId(7L), false);
+        givenTechnician(8L, TechnicianStatus.ACTIVE, REQUESTED_AT);
 
-        List<ParticipationRequestDecisionInfo> results =
-                service.approve(approve(OWNER, new Approval(31L, ParticipationType.TECHNICIAN)));
+        List<ParticipationRequestDecisionInfo> results = service.approve(approve(
+                OWNER, new Approval(31L, ParticipationType.TECHNICIAN), new Approval(32L, ParticipationType.STAFF)));
 
         assertThat(results)
-                .containsExactly(new ParticipationRequestDecisionInfo(
-                        31L, ParticipationRequestDecisionOutcome.ALREADY_MEMBER, ParticipationRequestStatus.PENDING));
+                .extracting(ParticipationRequestDecisionInfo::outcome, ParticipationRequestDecisionInfo::status)
+                .containsOnly(
+                        tuple(ParticipationRequestDecisionOutcome.ALREADY_MEMBER, ParticipationRequestStatus.PENDING));
         verify(requestRepository, never()).save(any());
         verify(technicianRepository, never()).save(any());
+        verify(technicianRepository, never()).reactivate(any(), anyBoolean());
+        assertThat(membershipRepository.saveCount()).isZero();
     }
 
     @Test
     @DisplayName("다른 발주사의 소속은 승인을 막지 않는다")
     void ignoresRowsOfOtherOrganizations() {
         givenPending(31L, 7L, ParticipationType.STAFF);
-        when(membershipQueryPort.listMemberships(new AccountId(7L)))
-                .thenReturn(List.of(new AccountMembership(
-                        OTHER_ORGANIZATION_ID, "다른 설비", MemberRole.STAFF, true, REQUESTED_AT, REQUESTED_AT)));
+        membershipRepository.given(OTHER_ORGANIZATION_ID, new AccountId(7L), true);
 
         assertThat(service.approve(approve(OWNER, new Approval(31L, ParticipationType.STAFF))))
                 .extracting(ParticipationRequestDecisionInfo::outcome)
                 .containsExactly(ParticipationRequestDecisionOutcome.APPROVED);
+    }
+
+    @Test
+    @DisplayName("비활성 직원 소속이 있는 회원을 직원으로 승인하면 새 소속 없이 그 소속을 활성으로 되돌리고 참여일·세부 유형을 유지하며 총관리자 표시는 끈다")
+    void reactivatesDeactivatedMembershipForSameRole() {
+        givenPending(31L, 7L, ParticipationType.STAFF);
+        Membership deactivated =
+                membershipRepository.given(ORGANIZATION_ID, new AccountId(7L), true, MembershipStatus.DEACTIVATED);
+
+        List<ParticipationRequestDecisionInfo> results =
+                service.approve(approve(OWNER, new Approval(31L, ParticipationType.STAFF)));
+
+        assertThat(results)
+                .extracting(ParticipationRequestDecisionInfo::outcome)
+                .containsExactly(ParticipationRequestDecisionOutcome.APPROVED);
+        Membership reactivated = membershipRepository.stored(deactivated.id().orElseThrow());
+        assertThat(reactivated.status()).isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(reactivated.isOwner()).isFalse();
+        assertThat(reactivated.joinedAt()).isEqualTo(deactivated.joinedAt());
+        assertThat(reactivated.statusChangedAt()).isEqualTo(NOW);
+        assertThat(membershipRepository.reactivations()).containsExactly(false);
+        assertThat(membershipRepository.saveCount()).isZero();
+        verify(technicianRepository, never()).save(any());
+        assertThat(savedRequest().status()).isEqualTo(ParticipationRequestStatus.APPROVED);
+    }
+
+    @Test
+    @DisplayName("비활성 기사 계약이 있는 회원을 기사로 승인하면 같은 계약을 활성으로 되돌리고 세부 유형을 유지한다")
+    void reactivatesDeactivatedTechnicianForSameRole() {
+        givenPending(31L, 7L, ParticipationType.TECHNICIAN);
+        Technician deactivated = givenTechnician(7L, TechnicianStatus.DEACTIVATED, REQUESTED_AT);
+
+        service.approve(approve(OWNER, new Approval(31L, ParticipationType.TECHNICIAN)));
+
+        ArgumentCaptor<Technician> reactivated = ArgumentCaptor.forClass(Technician.class);
+        verify(technicianRepository).reactivate(reactivated.capture(), org.mockito.ArgumentMatchers.eq(false));
+        assertThat(reactivated.getValue())
+                .extracting(Technician::id, Technician::status, Technician::joinedAt, Technician::statusChangedAt)
+                .containsExactly(deactivated.id(), TechnicianStatus.ACTIVE, deactivated.joinedAt(), NOW);
+        verify(technicianRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("비활성 직원 소속만 있는 회원을 기사로 확정하면 그 소속은 비활성으로 두고 이전 참여일을 이어받은 기사 계약을 만든다")
+    void createsTechnicianKeepingJoinDateWhenRoleDiffers() {
+        givenPending(31L, 7L, ParticipationType.STAFF);
+        Membership deactivated =
+                membershipRepository.given(ORGANIZATION_ID, new AccountId(7L), false, MembershipStatus.DEACTIVATED);
+
+        service.approve(approve(OWNER, new Approval(31L, ParticipationType.TECHNICIAN)));
+
+        ArgumentCaptor<Technician> created = ArgumentCaptor.forClass(Technician.class);
+        verify(technicianRepository).save(created.capture());
+        assertThat(created.getValue())
+                .extracting(Technician::status, Technician::joinedAt, Technician::statusChangedAt)
+                .containsExactly(TechnicianStatus.ACTIVE, deactivated.joinedAt(), NOW);
+        assertThat(membershipRepository.stored(deactivated.id().orElseThrow()).status())
+                .isEqualTo(MembershipStatus.DEACTIVATED);
+        assertThat(membershipRepository.reactivations()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("두 행이 모두 비활성이면 마지막 역할과 같은 확정 유형은 세부 유형을 유지하고, 다른 확정 유형은 그 행을 되돌리며 세부 유형을 해제한다")
+    void unassignsCategoryWhenConfirmedTypeDiffersFromLastRole() {
+        givenPending(31L, 7L, ParticipationType.STAFF);
+        membershipRepository.given(ORGANIZATION_ID, new AccountId(7L), false, MembershipStatus.DEACTIVATED);
+        givenTechnician(7L, TechnicianStatus.DEACTIVATED, REQUESTED_AT.plusSeconds(60));
+
+        service.approve(approve(OWNER, new Approval(31L, ParticipationType.STAFF)));
+
+        assertThat(membershipRepository.findActive(ORGANIZATION_ID, new AccountId(7L)))
+                .isPresent();
+        assertThat(membershipRepository.reactivations()).containsExactly(true);
+        verify(technicianRepository, never()).reactivate(any(), anyBoolean());
+        verify(technicianRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("승인은 요청 행보다 발주사를 먼저 잠그고, 잠금 대기 한도를 넘기면 어떤 요청도 잠그지 않고 409 ORGANIZATION-010으로 거부한다")
+    void locksOrganizationBeforeRequests() {
+        givenPending(31L, 7L, ParticipationType.STAFF);
+
+        service.approve(approve(OWNER, new Approval(31L, ParticipationType.STAFF)));
+
+        InOrder order = inOrder(organizationRepository, requestRepository);
+        order.verify(organizationRepository).lock(ORGANIZATION_ID);
+        order.verify(requestRepository).findByIdForUpdate(new ParticipationRequestId(31L));
+
+        org.mockito.Mockito.clearInvocations(requestRepository);
+        doThrow(new OrganizationBusyException(new IllegalStateException("lock timeout")))
+                .when(organizationRepository)
+                .lock(ORGANIZATION_ID);
+        assertRejected(
+                () -> service.approve(approve(OWNER, new Approval(31L, ParticipationType.STAFF))),
+                OrganizationErrorCode.ORGANIZATION_BUSY);
     }
 
     @Test
@@ -335,7 +436,7 @@ class DecideParticipationRequestsServiceTest {
             assertThat(request.decidedAt()).contains(NOW);
         });
         assertThat(membershipRepository.saveCount()).isZero();
-        verifyNoInteractions(technicianRepository, membershipQueryPort);
+        verifyNoInteractions(technicianRepository, organizationRepository);
     }
 
     @Test
@@ -438,6 +539,19 @@ class DecideParticipationRequestsServiceTest {
                         REQUESTED_AT,
                         decided ? NOW : null,
                         decided ? new MembershipId(99L) : null));
+    }
+
+    private Technician givenTechnician(long accountId, TechnicianStatus status, Instant statusChangedAt) {
+        Technician technician = Technician.reconstitute(
+                new TechnicianId(50L + accountId),
+                ORGANIZATION_ID,
+                new AccountId(accountId),
+                status,
+                REQUESTED_AT.minusSeconds(3600),
+                statusChangedAt);
+        when(technicianRepository.find(ORGANIZATION_ID, new AccountId(accountId)))
+                .thenReturn(Optional.of(technician));
+        return technician;
     }
 
     private static ApproveParticipationRequestsCommand approve(AccountId requester, Approval... approvals) {

@@ -42,7 +42,15 @@ public final class Membership {
 
     /** 참여 요청 승인으로 생기는 활성 직원 소속. 총관리자 표시가 없고 참여일은 승인 시각이다. */
     public static Membership join(OrganizationId organizationId, AccountId accountId, Instant joinedAt) {
-        return new Membership(null, organizationId, accountId, false, MembershipStatus.ACTIVE, joinedAt, joinedAt);
+        return join(organizationId, accountId, joinedAt, joinedAt);
+    }
+
+    /**
+     * 같은 발주사에 기사로 있던 회원을 직원으로 승인해 새로 만드는 활성 직원 소속. 참여일은 이전 역할의 참여일을 이어받고 상태 변경 시각은 승인 시각이다.
+     */
+    public static Membership join(
+            OrganizationId organizationId, AccountId accountId, Instant joinedAt, Instant activatedAt) {
+        return new Membership(null, organizationId, accountId, false, MembershipStatus.ACTIVE, joinedAt, activatedAt);
     }
 
     public static Membership reconstitute(
@@ -92,6 +100,18 @@ public final class Membership {
             throw new LastOwnerException();
         }
         return new Membership(id, organizationId, accountId, false, status, joinedAt, statusChangedAt);
+    }
+
+    /**
+     * 비활성 소속을 참여 요청 승인으로 다시 활성으로 바꾼다. 참여일은 유지하고, 승인으로 받는 역할은 직원이므로 총관리자 표시는 끈다([조직·계정] §6).
+     *
+     * @throws IllegalStateException 활성 소속일 때
+     */
+    public Membership rejoin(Instant rejoinedAt) {
+        if (status != MembershipStatus.DEACTIVATED) {
+            throw new IllegalStateException("only deactivated memberships can rejoin");
+        }
+        return new Membership(id, organizationId, accountId, false, MembershipStatus.ACTIVE, joinedAt, rejoinedAt);
     }
 
     public Optional<MembershipId> id() {

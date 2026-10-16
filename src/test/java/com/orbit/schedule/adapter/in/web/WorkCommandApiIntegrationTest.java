@@ -824,8 +824,9 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
     private void technicianContract(long organizationId, long accountId) {
         Timestamp now = Timestamp.from(Instant.now());
         jdbcTemplate.update(
-                "insert into technician (company_id, member_id, status, status_changed_at, created_at, updated_at)"
-                        + " values (?, ?, 'ACTIVE', ?, ?, ?)",
+                "insert into technician"
+                        + " (company_id, member_id, status, status_changed_at, joined_at, updated_at, created_at)"
+                        + " values (?, ?, 'ACTIVE', ?, ?, ?, current_timestamp)",
                 organizationId,
                 accountId,
                 now,

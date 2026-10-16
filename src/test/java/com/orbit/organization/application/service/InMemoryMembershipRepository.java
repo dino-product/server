@@ -1,7 +1,9 @@
 package com.orbit.organization.application.service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -19,6 +21,7 @@ class InMemoryMembershipRepository implements MembershipRepository {
     private static final Instant JOINED_AT = Instant.parse("2026-10-01T00:00:00Z");
 
     private final Map<MembershipId, Membership> memberships = new LinkedHashMap<>();
+    private final List<Boolean> reactivations = new ArrayList<>();
     private long nextId = 1;
     private int saveCount;
 
@@ -57,6 +60,11 @@ class InMemoryMembershipRepository implements MembershipRepository {
         return saveCount;
     }
 
+    /** {@link #reactivate}를 부른 순서대로 세부 유형 해제 여부. */
+    List<Boolean> reactivations() {
+        return List.copyOf(reactivations);
+    }
+
     @Override
     public Membership save(Membership membership) {
         saveCount++;
@@ -77,6 +85,26 @@ class InMemoryMembershipRepository implements MembershipRepository {
     @Override
     public Optional<Membership> findById(MembershipId id) {
         return Optional.ofNullable(memberships.get(id));
+    }
+
+    @Override
+    public Optional<Membership> find(OrganizationId organizationId, AccountId accountId) {
+        return memberships.values().stream()
+                .filter(membership -> membership.organizationId().equals(organizationId))
+                .filter(membership -> membership.accountId().equals(accountId))
+                .findFirst();
+    }
+
+    /** 세부 유형은 소속 도메인에 없어 해제 여부만 기록한다. 저장 횟수에 넣지 않는다. */
+    @Override
+    public Membership reactivate(Membership membership, boolean unassignCategory) {
+        MembershipId id = membership.id().orElseThrow();
+        if (!memberships.containsKey(id)) {
+            throw new IllegalArgumentException("membership must be stored");
+        }
+        reactivations.add(unassignCategory);
+        memberships.put(id, membership);
+        return membership;
     }
 
     @Override
