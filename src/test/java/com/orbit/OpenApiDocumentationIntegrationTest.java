@@ -403,6 +403,20 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsWorkDetailWithoutStatusCorrections() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}'].get";
+        String schema = "$.components.schemas['com.orbit.schedule.adapter.in.web.detail.WorkDetailResponse']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업 상세 조회"))
+                .andExpect(jsonPath(operation + ".responses['404'].content['application/json']"
+                                + ".examples['SCHEDULE-001'].value.code")
+                        .value("SCHEDULE-001"))
+                .andExpect(jsonPath(schema + ".properties.registeredAt").exists())
+                .andExpect(jsonPath(schema + ".properties.statusCorrections").doesNotExist());
+    }
+
+    @Test
     void documentsWorkUnassignment() throws Exception {
         String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/assignment'].delete";
         mockMvc.perform(get("/docs-json"))

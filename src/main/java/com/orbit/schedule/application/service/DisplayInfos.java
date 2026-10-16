@@ -3,6 +3,7 @@ package com.orbit.schedule.application.service;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -27,9 +28,8 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.schedule.domain.WorkTypeId;
 
 /**
- * 조회 응답에 담을 작업들의 표시 정보(담당기사·미리 입력한 담당기사, 등록자, 작업유형)를 포트마다 한 번에 찾아 두고 꺼내 쓴다. 찾을 대상이 없는 포트는 부르지
- * 않는다. 찾지 못한 대상은 식별자만 담는다. 삭제된 작업유형은 작업이 시작되기 전(등록·배정됨·작업전)이면 유형 없음으로 보이고, 작업중·완료·취소 작업에는
- * 삭제 전 이름·색 그대로 보인다([작업] §11).
+ * 조회 응답에 담을 작업들의 표시 정보(담당기사·미리 입력한 담당기사, 상세에서는 배정 이력의 기사, 등록자, 작업유형)를 포트마다 한 번에 찾아 두고 꺼내 쓴다. 찾을 대상이 없는 포트는 부르지 않는다. 찾지
+ * 못한 대상은 식별자만 담는다. 삭제된 작업유형은 작업이 시작되기 전(등록·배정됨·작업전)이면 유형 없음으로 보이고, 작업중·완료·취소 작업에는 삭제 전 이름·색 그대로 보인다([작업] §11).
  */
 final class DisplayInfos {
 
@@ -55,13 +55,57 @@ final class DisplayInfos {
             LoadWorkTypeLabelsPort workTypeLabels,
             OrganizationId organizationId,
             Collection<Work> works) {
+        return of(technicianProfiles, staffProfiles, workTypeLabels, organizationId, works, false, true);
+    }
+
+    /** 작업 상세용. 배정 이력의 기사까지 함께 찾는다. */
+    static DisplayInfos ofDetail(
+            LoadTechnicianProfilesPort technicianProfiles,
+            LoadStaffProfilesPort staffProfiles,
+            LoadWorkTypeLabelsPort workTypeLabels,
+            OrganizationId organizationId,
+            Work work) {
+        return of(technicianProfiles, staffProfiles, workTypeLabels, organizationId, List.of(work), true, true);
+    }
+
+    /** 지금 담당인 기사에게 보일 작업 상세용. 그 기사 자신과 작업유형만 찾고, 기사에게 보이지 않는 등록자·다른 기사는 찾지 않는다. */
+    static DisplayInfos ofCurrentTechnician(
+            LoadTechnicianProfilesPort technicianProfiles,
+            LoadStaffProfilesPort staffProfiles,
+            LoadWorkTypeLabelsPort workTypeLabels,
+            OrganizationId organizationId,
+            Work work) {
+        return of(technicianProfiles, staffProfiles, workTypeLabels, organizationId, List.of(work), false, false);
+    }
+
+    /** 그 기사 한 명의 표시 정보만 찾는다. 지금 담당이 아닌 기사에게 자기 배정만 보여 줄 때 쓴다. */
+    static DisplayInfos ofTechnician(
+            LoadTechnicianProfilesPort technicianProfiles, OrganizationId organizationId, TechnicianId technicianId) {
+        return new DisplayInfos(
+                technicianProfiles.findProfiles(organizationId, Set.of(technicianId)), Map.of(), Map.of());
+    }
+
+    private static DisplayInfos of(
+            LoadTechnicianProfilesPort technicianProfiles,
+            LoadStaffProfilesPort staffProfiles,
+            LoadWorkTypeLabelsPort workTypeLabels,
+            OrganizationId organizationId,
+            Collection<Work> works,
+            boolean withHistory,
+            boolean withRegistrars) {
         Set<TechnicianId> technicianIds = new HashSet<>();
         Set<MembershipId> registrarIds = new HashSet<>();
         Set<WorkTypeId> workTypeIds = new HashSet<>();
         for (Work work : works) {
             work.schedule().map(WorkSchedule::technicianId).ifPresent(technicianIds::add);
             work.plannedSchedule().map(PlannedSchedule::technicianId).ifPresent(technicianIds::add);
-            registrarIds.add(work.registrarId());
+            if (withHistory) {
+                work.assignmentHistory()
+                        .forEach(history -> technicianIds.add(history.schedule().technicianId()));
+            }
+            if (withRegistrars) {
+                registrarIds.add(work.registrarId());
+            }
             work.workType().ifPresent(workTypeIds::add);
         }
         return new DisplayInfos(

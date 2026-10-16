@@ -2,6 +2,7 @@ package com.orbit.schedule.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -13,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +29,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.orbit.schedule.application.port.out.StaffProfile;
 import com.orbit.schedule.application.port.out.TechnicianProfile;
 import com.orbit.schedule.application.port.out.TypeLabel;
+import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PlannedSchedule;
@@ -386,6 +389,158 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
             return mockMvc.perform(get("/api/v1/organizations/{organizationId}/works?" + query, organizationId)
                     .header(HttpHeaders.AUTHORIZATION, bearer(requester)));
         }
+    }
+
+    @Nested
+    @DisplayName("작업 상세")
+    class Detail {
+
+        @Test
+        @DisplayName("관리자는 작업유형·등록자·등록 시각·일정(기사 이름·유형)·배정 이력을 받는다")
+        void returnsDetailForManager() throws Exception {
+            Organization organization = organization();
+            givenDisplayInfos(organization);
+            Instant registeredAt = Instant.now().minus(Duration.ofHours(1)).truncatedTo(ChronoUnit.SECONDS);
+            Work work = registered(organization, "배관 누수 점검", registeredAt);
+            work.assign(
+                    new WorkSchedule(TECHNICIAN, DAY, Duration.ofHours(2)),
+                    Instant.now().minusSeconds(60),
+                    new MembershipId(organization.ownerMembership()));
+            long workId = save(work);
+
+            detail(organization.owner(), organization.id(), workId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.workId").value(workId))
+                    .andExpect(jsonPath("$.result.workType.name").value("설치"))
+                    .andExpect(jsonPath("$.result.registrar.name").value("박서준"))
+                    .andExpect(jsonPath("$.result.registeredAt").value(registeredAt.toString()))
+                    .andExpect(jsonPath("$.result.schedule.technician.name").value("김민수"))
+                    .andExpect(jsonPath("$.result.schedule.technician.technicianType.name")
+                            .value("일반 기사"))
+                    .andExpect(jsonPath("$.result.schedule.expectedDurationMinutes")
+                            .value(120))
+                    .andExpect(
+                            jsonPath("$.result.assignments[0].assignmentNumber").value(1))
+                    .andExpect(jsonPath("$.result.assignments[0].result").value("PENDING"))
+                    .andExpect(jsonPath("$.result.statusCorrections").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("다른 조직의 작업은 SCHEDULE-001로 숨긴다")
+        void hidesWorkOfOtherOrganization() throws Exception {
+            Organization organization = organization();
+            Organization other = organization();
+            long workId = save(registered(organization, "대기 작업", Instant.now().minus(Duration.ofHours(1))));
+
+            detail(other.owner(), other.id(), workId)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-001"));
+        }
+
+        @Test
+        @DisplayName("배정된 적 없는 기사의 요청은 SCHEDULE-001로 숨긴다")
+        void hidesWorkNeverAssignedToTechnician() throws Exception {
+            Organization organization = organization();
+            long workId = save(registered(organization, "대기 작업", Instant.now().minus(Duration.ofHours(1))));
+            long technician = account();
+            technicianContract(organization.id(), technician);
+
+            detail(technician, organization.id(), workId)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-001"));
+        }
+
+        @Test
+        @DisplayName("지금 담당인 기사는 일정·완료보고(사진 주소 포함)를 받고 등록자는 받지 않는다")
+        void returnsDetailForCurrentTechnician() throws Exception {
+            Organization organization = organization();
+            givenDisplayInfos(organization);
+            long technicianAccount = account();
+            technicianContract(organization.id(), technicianAccount);
+            TechnicianId technician = new TechnicianId(technicianIdOf(organization.id(), technicianAccount));
+            Work work = registered(organization, "완료된 작업", Instant.now().minus(Duration.ofHours(3)));
+            Instant started = Instant.now().minus(Duration.ofHours(2));
+            work.assign(
+                    new WorkSchedule(technician, started, Duration.ofHours(1)),
+                    started.minusSeconds(60),
+                    new MembershipId(organization.ownerMembership()));
+            work.accept(started.minusSeconds(30));
+            work.start(started);
+            work.submitCompletionReport(
+                    new CompletionReport(List.of("before-1"), List.of("after-1"), "배관 1개", "교체 완료", null, null),
+                    started.plus(Duration.ofHours(1)));
+            long workId = save(work);
+
+            detail(technicianAccount, organization.id(), workId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.status").value("COMPLETED"))
+                    .andExpect(jsonPath("$.result.registrar").value(nullValue()))
+                    .andExpect(jsonPath("$.result.schedule.startTime").exists())
+                    .andExpect(jsonPath("$.result.completionReport.workNote").value("교체 완료"))
+                    .andExpect(jsonPath("$.result.completionReport.usedParts").value("배관 1개"))
+                    .andExpect(jsonPath("$.result.completionReport.beforePhotos[0].photoId")
+                            .value("before-1"))
+                    .andExpect(jsonPath("$.result.completionReport.afterPhotos[0].url")
+                            .exists());
+        }
+
+        @Test
+        @DisplayName("지금 담당이 아닌 기사는 작업명·상태와 자기 배정만 받고 나머지는 비어 있다")
+        void returnsOwnAssignmentsForFormerTechnician() throws Exception {
+            Organization organization = organization();
+            long technicianAccount = account();
+            technicianContract(organization.id(), technicianAccount);
+            TechnicianId technician = new TechnicianId(technicianIdOf(organization.id(), technicianAccount));
+            Work work = registered(organization, "넘어간 작업", Instant.now().minus(Duration.ofHours(3)));
+            work.assign(
+                    new WorkSchedule(technician, DAY, Duration.ofHours(1)),
+                    Instant.now().minusSeconds(120),
+                    new MembershipId(organization.ownerMembership()));
+            work.reassign(
+                    new WorkSchedule(TECHNICIAN, DAY, Duration.ofHours(1)),
+                    Instant.now().minusSeconds(60),
+                    new MembershipId(organization.ownerMembership()));
+            long workId = save(work);
+
+            detail(technicianAccount, organization.id(), workId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.name").value("넘어간 작업"))
+                    .andExpect(jsonPath("$.result.delayed").value(false))
+                    .andExpect(jsonPath("$.result.customer").value(nullValue()))
+                    .andExpect(jsonPath("$.result.schedule").value(nullValue()))
+                    .andExpect(jsonPath("$.result.registeredAt").value(nullValue()))
+                    .andExpect(jsonPath("$.result.assignments.length()").value(1))
+                    .andExpect(
+                            jsonPath("$.result.assignments[0].assignmentNumber").value(1))
+                    .andExpect(jsonPath("$.result.assignments[0].endReason").value("REASSIGNED"));
+        }
+
+        @Test
+        @DisplayName("고정 경로인 대기함 요약은 작업 상세 경로와 겹치지 않는다")
+        void keepsBacklogPathApartFromDetail() throws Exception {
+            Organization organization = organization();
+
+            mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/backlog", organization.id())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.backlogCount").value(0));
+            detail(organization.owner(), organization.id(), 0)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+        }
+
+        private ResultActions detail(long requester, long organizationId, long workId) throws Exception {
+            return mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/{workId}", organizationId, workId)
+                    .header(HttpHeaders.AUTHORIZATION, bearer(requester)));
+        }
+    }
+
+    private long technicianIdOf(long organizationId, long accountId) {
+        return jdbcTemplate.queryForObject(
+                "select id from technician where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId,
+                accountId);
     }
 
     private void givenDisplayInfos(Organization organization) {

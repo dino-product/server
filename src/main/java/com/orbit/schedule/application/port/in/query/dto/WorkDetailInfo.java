@@ -16,7 +16,9 @@ import com.orbit.schedule.domain.WorkStatus;
  * 바뀌었거나 대기함으로 돌아갔으면) 작업명·상태와 자기 배정 이력만 받는다.
  *
  * @param delayed 조회 시각에 지연된 작업인지(아직 끝나지 않았는데 예정 종료시각과 같거나 지남). 기사가 지금 담당이 아니면 false
- * @param workTypeId 작업 유형. 없거나 기사가 지금 담당이 아니면 null
+ * @param workType 작업유형(시작 전 작업의 삭제된 유형은 없는 것으로 본다). 없거나 기사가 지금 담당이 아니면 null
+ * @param registrar 등록자. 관리자에게만 담고 기사에게는 null
+ * @param registeredAt 등록 시각(상태 변경 이력의 "작업 등록됨"). 기사가 지금 담당이 아니면 null
  * @param customer 고객 정보. 기사가 지금 담당이 아니면 null
  * @param payment 결제 정보. 기사가 지금 담당이 아니면 null
  * @param schedule 현재 일정. 대기함 작업이거나 기사가 지금 담당이 아니면 null
@@ -33,7 +35,9 @@ public record WorkDetailInfo(
         String name,
         WorkStatus status,
         boolean delayed,
-        Long workTypeId,
+        LabelInfo workType,
+        StaffInfo registrar,
+        Instant registeredAt,
         Customer customer,
         Payment payment,
         Schedule schedule,
@@ -57,9 +61,9 @@ public record WorkDetailInfo(
     public record Payment(Long fee, PaymentMethod method) {}
 
     /** 미리 입력한 일정. 셋 중 일부만 있다. */
-    public record PlannedSchedule(Long technicianId, Instant startTime, Duration expectedDuration) {}
+    public record PlannedSchedule(TechnicianInfo technician, Instant startTime, Duration expectedDuration) {}
 
-    public record Schedule(Long technicianId, Instant startTime, Duration expectedDuration, Instant endTime) {}
+    public record Schedule(TechnicianInfo technician, Instant startTime, Duration expectedDuration, Instant endTime) {}
 
     /**
      * 배정 한 건. 응답·거절·종료가 없으면 해당 항목이 null이다.
