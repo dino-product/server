@@ -37,6 +37,8 @@ import com.orbit.schedule.domain.WorkTypeId;
  *   <li>배정 종료의 처리자({@code ended_by})는 기사의 탈퇴로 끝난 배정이면 비어 있다. 처리자와 종료 방식의 짝은 Domain이 복원할 때 검증한다.
  *   <li>상태 정정 기록({@code StatusCorrection})은 ERD에 자리가 없어 저장하지 않으며 복원 시 빈 목록이다. 정정 기록이 있는 작업은 어댑터가 저장을
  *       거부한다(S-11).
+ *   <li>작업 목록의 최근 수정 시각은 감사 컬럼 {@code updated_at}이다. 루트 행이 바뀔 때만 갱신되므로, 모든 변경이 상태·일정 같은 루트 컬럼이나 자식
+ *       행의 추가·삭제를 함께 일으킨다는 전제에 기댄다. 기존 자식 행만 고치는 변경(거절 사유 정정 등)을 더하면 루트도 함께 갱신되게 한다.
  *   <li>복원({@link #toDomain})은 {@link Work#reconstitute}를 거치므로 저장값의 정합성 검증은 Domain이 한다. 검증 실패는 그대로 전파한다.
  * </ul>
  */

@@ -6,7 +6,8 @@ import java.time.Instant;
 import com.orbit.schedule.domain.RejectionReason;
 
 /**
- * 대기함 작업 카드 하나. 방치 여부는 등록 시각이 아니라 대기함에 들어온 시각을 기준으로 판정한다.
+ * 대기함 작업 카드 하나. 타임테이블의 대기함과 작업 목록의 대기함 요약이 함께 쓴다. 방치 여부는 등록 시각이 아니라 대기함에 들어온 시각을 기준으로
+ * 판정한다.
  *
  * @param workType 작업유형. 없으면 null
  * @param registrar 등록자

@@ -1,6 +1,8 @@
 package com.orbit.schedule.application.service.fake;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -15,6 +17,13 @@ public class FakeWorkTypeLabelsPort implements LoadWorkTypeLabelsPort {
 
     private final Map<OrganizationId, Map<WorkTypeId, TypeLabel>> labels = new HashMap<>();
 
+    private final List<Set<WorkTypeId>> lookups = new ArrayList<>();
+
+    /** 표시 정보를 찾은 요청의 식별자 집합. */
+    public List<Set<WorkTypeId>> lookups() {
+        return List.copyOf(lookups);
+    }
+
     public void given(OrganizationId organizationId, TypeLabel label) {
         labels.computeIfAbsent(organizationId, ignored -> new HashMap<>()).put(new WorkTypeId(label.id()), label);
     }
@@ -22,6 +31,7 @@ public class FakeWorkTypeLabelsPort implements LoadWorkTypeLabelsPort {
     @Override
     public Map<WorkTypeId, TypeLabel> findLabels(OrganizationId organizationId, Set<WorkTypeId> workTypeIds) {
         Objects.requireNonNull(organizationId, "fake port received null organizationId");
+        lookups.add(Set.copyOf(workTypeIds));
         Map<WorkTypeId, TypeLabel> ofOrganization = labels.getOrDefault(organizationId, Map.of());
         Map<WorkTypeId, TypeLabel> found = new HashMap<>();
         for (WorkTypeId workTypeId : workTypeIds) {

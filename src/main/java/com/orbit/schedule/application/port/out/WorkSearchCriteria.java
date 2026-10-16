@@ -4,8 +4,10 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Set;
 
+import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.schedule.domain.WorkTypeId;
 
 /**
  * 작업 목록 검색 조건. 서비스가 입력을 검증·정규화한 뒤 만든다. null(빈 상태 집합)인 조건은 거르지 않는다. 담당 기사·시작 구간은 작업에 남은 일정 기준이라 완료·배정 중
@@ -15,6 +17,8 @@ import com.orbit.schedule.domain.WorkStatus;
  *     이스케이프한다). 연락처는 입력한 원문 그대로 비교한다. 앞뒤 공백을 뺀, 비어 있지 않은 값이다
  * @param statuses 이 상태 중 하나인 작업. 비어 있으면 모든 상태. null이 아니다
  * @param technicianId 작업에 남은 일정의 담당 기사
+ * @param workTypeId 이 작업유형의 작업
+ * @param registrarId 이 소속이 등록한 작업
  * @param startFrom 작업에 남은 일정의 시작시각이 이 시각 이후(포함). startTo와 함께 있거나 함께 없다
  * @param startTo 작업에 남은 일정의 시작시각이 이 시각 이전(제외)
  * @param returnedByRejectionOnly 거절로 대기함에 돌아온 작업만({@link com.orbit.schedule.domain.Work#isReturnedByRejection})
@@ -28,6 +32,8 @@ public record WorkSearchCriteria(
         String keyword,
         Set<WorkStatus> statuses,
         TechnicianId technicianId,
+        WorkTypeId workTypeId,
+        MembershipId registrarId,
         Instant startFrom,
         Instant startTo,
         boolean returnedByRejectionOnly,
@@ -58,15 +64,17 @@ public record WorkSearchCriteria(
     }
 
     /**
-     * 정렬 기준. 같은 값끼리는 작업 식별자 내림차순이다. 일정 기준 정렬에서 일정이 없는 작업(대기함 작업은 미리 입력한 시작시각이 있어도
-     * 포함)은 오름·내림차순 모두 맨 뒤다(PostgreSQL 내림차순의 기본값은 NULLS FIRST이므로 NULLS LAST를 명시한다).
+     * 정렬 기준. 같은 값끼리는 작업 식별자 내림차순이고, 오래된 등록 먼저만 오름차순이다. 일정 기준 정렬에서 일정이 없는 작업(대기함 작업은 미리
+     * 입력한 시작시각이 있어도 포함)은 맨 뒤다.
      */
     public enum Sort {
         /** 최근 등록 먼저(작업의 등록 시각 내림차순). */
         REGISTERED_DESC,
-        /** 시작시각 이른 순. */
+        /** 오래된 등록 먼저(작업의 등록 시각 오름차순). */
+        REGISTERED_ASC,
+        /** 시작시각 이른 순(예정시간 임박순). */
         START_TIME_ASC,
-        /** 시작시각 늦은 순. */
-        START_TIME_DESC
+        /** 최근 수정 먼저(마지막 저장 시각 내림차순, {@link WorkSearchResult.SearchedWork#lastModifiedAt}). */
+        LAST_MODIFIED_DESC
     }
 }

@@ -38,6 +38,7 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.schedule.domain.WorkTypeId;
 import com.orbit.support.PersistenceTestConfiguration;
 
 /**
@@ -310,7 +311,7 @@ class WorkQueryPersistenceAdapterTest {
         }
 
         @Test
-        @DisplayName("시작시각 정렬은 일정이 없는 작업을 오름·내림차순 모두 맨 뒤에 두고 같은 값은 식별자 내림차순이다")
+        @DisplayName("시작시각 정렬은 일정이 없는 작업을 맨 뒤에 두고 같은 값은 식별자 내림차순이다")
         void sortsByStartTimeWithUnscheduledLast() {
             OrganizationId organization = organization();
             WorkId early = save(assigned(organization, "이른", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
@@ -322,8 +323,6 @@ class WorkQueryPersistenceAdapterTest {
 
             assertThat(searchIds(organization, criteria().sort(WorkSearchCriteria.Sort.START_TIME_ASC)))
                     .containsExactly(sameAsEarly, early, late, unscheduled, planned);
-            assertThat(searchIds(organization, criteria().sort(WorkSearchCriteria.Sort.START_TIME_DESC)))
-                    .containsExactly(late, sameAsEarly, early, unscheduled, planned);
             assertThat(searchIds(organization, criteria().sort(WorkSearchCriteria.Sort.REGISTERED_DESC)))
                     .containsExactly(unscheduled, planned, sameAsEarly, late, early);
         }
@@ -341,6 +340,82 @@ class WorkQueryPersistenceAdapterTest {
         }
 
         @Test
+        @DisplayName("등록 오래된순은 등록 시각·식별자 오름차순이다")
+        void sortsByRegisteredAtAscending() {
+            OrganizationId organization = organization();
+            WorkId registeredLater = save(
+                    Work.register(organization, "늦게 등록", REGISTRAR, REGISTERED_AT.plusSeconds(60), null, null, null));
+            WorkId first = save(Work.register(organization, "먼저 등록", REGISTRAR, REGISTERED_AT, null, null, null));
+            WorkId second = save(Work.register(organization, "같은 시각 등록", REGISTRAR, REGISTERED_AT, null, null, null));
+
+            assertThat(searchIds(organization, criteria().sort(WorkSearchCriteria.Sort.REGISTERED_ASC)))
+                    .containsExactly(first, second, registeredLater);
+        }
+
+        @Test
+        @DisplayName("최근 수정순은 마지막 저장 시각 내림차순이고 결과에 그 시각을 담는다")
+        void sortsByLastModifiedAndReturnsIt() {
+            OrganizationId organization = organization();
+            WorkId olderSave = save(registered(organization, "먼저 저장"));
+            WorkId newerSave = save(registered(organization, "나중 저장"));
+            Work changed = inTx(() -> repository.findInOrganization(organization, olderSave))
+                    .orElseThrow();
+            changed.changeDetails("다시 저장", null, null, null);
+            inTx(() -> repository.save(changed));
+
+            WorkSearchResult result = inTx(() -> adapter.search(
+                    organization,
+                    criteria().sort(WorkSearchCriteria.Sort.LAST_MODIFIED_DESC).build()));
+
+            assertThat(result.works())
+                    .extracting(searched -> searched.work().id().orElseThrow())
+                    .containsExactly(olderSave, newerSave);
+            assertThat(result.works().get(0).lastModifiedAt())
+                    .isAfter(result.works().get(1).lastModifiedAt());
+        }
+
+        @Test
+        @DisplayName("기사의 수락처럼 상태만 바뀌는 저장도 최근 수정 시각을 올린다")
+        void bumpsLastModifiedOnStateOnlySave() {
+            OrganizationId organization = organization();
+            WorkId id = save(assigned(organization, "배정됨", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
+            Instant before = lastModifiedAt(organization, id);
+            Work stored =
+                    inTx(() -> repository.findInOrganization(organization, id)).orElseThrow();
+            stored.accept(ASSIGNED_AT.plusSeconds(10));
+            inTx(() -> repository.save(stored));
+
+            assertThat(lastModifiedAt(organization, id)).isAfter(before);
+        }
+
+        @Test
+        @DisplayName("셈은 쪽과 정렬을 보지 않고 검색과 같은 조건으로 센다")
+        void countsWithSameCondition() {
+            OrganizationId organization = organization();
+            save(registered(organization, "보일러 1"));
+            save(registered(organization, "보일러 2"));
+            save(registered(organization, "에어컨"));
+
+            assertThat(inTx(() -> adapter.count(
+                            organization, criteria().keyword("보일러").page(1, 1).build())))
+                    .isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("작업유형·등록자 조건은 그 유형·등록자의 작업만 담는다")
+        void filtersByWorkTypeAndRegistrar() {
+            OrganizationId organization = organization();
+            WorkId typed =
+                    save(Work.register(organization, "설치", REGISTRAR, REGISTERED_AT, new WorkTypeId(3L), null, null));
+            save(Work.register(organization, "점검", REGISTRAR, REGISTERED_AT, new WorkTypeId(4L), null, null));
+            WorkId byManager = save(Work.register(organization, "관리자 등록", MANAGER, REGISTERED_AT, null, null, null));
+
+            assertThat(searchIds(organization, criteria().workType(new WorkTypeId(3L))))
+                    .containsExactly(typed);
+            assertThat(searchIds(organization, criteria().registrar(MANAGER))).containsExactly(byManager);
+        }
+
+        @Test
         @DisplayName("요청한 쪽만 담고 전체 수는 쪽과 관계없으며 끝을 넘은 쪽은 비어 있다")
         void paginatesWithTotalCount() {
             OrganizationId organization = organization();
@@ -355,16 +430,30 @@ class WorkQueryPersistenceAdapterTest {
             WorkSearchResult beyond = inTx(
                     () -> adapter.search(organization, criteria().page(5, 2).build()));
 
-            assertThat(ids(firstPage.works())).containsExactly(third, second);
-            assertThat(ids(secondPage.works())).containsExactly(first);
+            assertThat(firstPage.works())
+                    .extracting(searched -> searched.work().id().orElseThrow())
+                    .containsExactly(third, second);
+            assertThat(secondPage.works())
+                    .extracting(searched -> searched.work().id().orElseThrow())
+                    .containsExactly(first);
             assertThat(beyond.works()).isEmpty();
             assertThat(List.of(firstPage.totalCount(), secondPage.totalCount(), beyond.totalCount()))
                     .containsOnly(3L);
         }
     }
 
+    private Instant lastModifiedAt(OrganizationId organization, WorkId id) {
+        return inTx(() -> adapter.search(organization, criteria().build())).works().stream()
+                .filter(searched -> searched.work().id().orElseThrow().equals(id))
+                .findFirst()
+                .orElseThrow()
+                .lastModifiedAt();
+    }
+
     private List<WorkId> searchIds(OrganizationId organization, CriteriaBuilder builder) {
-        return ids(inTx(() -> adapter.search(organization, builder.build())).works());
+        return inTx(() -> adapter.search(organization, builder.build())).works().stream()
+                .map(searched -> searched.work().id().orElseThrow())
+                .toList();
     }
 
     private static CriteriaBuilder criteria() {
@@ -377,6 +466,8 @@ class WorkQueryPersistenceAdapterTest {
         private String keyword;
         private Set<WorkStatus> statuses = Set.of();
         private TechnicianId technicianId;
+        private WorkTypeId workTypeId;
+        private MembershipId registrarId;
         private Instant startFrom;
         private Instant startTo;
         private boolean returnedByRejectionOnly;
@@ -397,6 +488,16 @@ class WorkQueryPersistenceAdapterTest {
 
         CriteriaBuilder technician(TechnicianId value) {
             technicianId = value;
+            return this;
+        }
+
+        CriteriaBuilder workType(WorkTypeId value) {
+            workTypeId = value;
+            return this;
+        }
+
+        CriteriaBuilder registrar(MembershipId value) {
+            registrarId = value;
             return this;
         }
 
@@ -432,6 +533,8 @@ class WorkQueryPersistenceAdapterTest {
                     keyword,
                     statuses,
                     technicianId,
+                    workTypeId,
+                    registrarId,
                     startFrom,
                     startTo,
                     returnedByRejectionOnly,

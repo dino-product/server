@@ -8,7 +8,7 @@ import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.Work;
 
-/** 대기함 작업을 타임테이블의 대기함 카드로 옮기는 변환. */
+/** 대기함 작업을 카드로 옮기는 변환. 타임테이블의 대기함과 작업 목록의 대기함 요약이 같은 카드를 쓴다. */
 final class BacklogWorks {
 
     /** 대기함의 표시 순서: 오래 등록된 작업 먼저, 같으면 작업 식별자 순. */

@@ -1,6 +1,8 @@
 package com.orbit.schedule.application.service.fake;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -15,6 +17,13 @@ public class FakeStaffProfilesPort implements LoadStaffProfilesPort {
 
     private final Map<OrganizationId, Map<MembershipId, StaffProfile>> profiles = new HashMap<>();
 
+    private final List<Set<MembershipId>> lookups = new ArrayList<>();
+
+    /** 표시 정보를 찾은 요청의 식별자 집합. */
+    public List<Set<MembershipId>> lookups() {
+        return List.copyOf(lookups);
+    }
+
     public void given(OrganizationId organizationId, StaffProfile profile) {
         profiles.computeIfAbsent(organizationId, ignored -> new HashMap<>()).put(profile.membershipId(), profile);
     }
@@ -23,6 +32,7 @@ public class FakeStaffProfilesPort implements LoadStaffProfilesPort {
     public Map<MembershipId, StaffProfile> findProfiles(
             OrganizationId organizationId, Set<MembershipId> membershipIds) {
         Objects.requireNonNull(organizationId, "fake port received null organizationId");
+        lookups.add(Set.copyOf(membershipIds));
         Map<MembershipId, StaffProfile> ofOrganization = profiles.getOrDefault(organizationId, Map.of());
         Map<MembershipId, StaffProfile> found = new HashMap<>();
         for (MembershipId membershipId : membershipIds) {

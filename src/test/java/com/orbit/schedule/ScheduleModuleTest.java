@@ -277,7 +277,20 @@ class ScheduleModuleTest {
         assertDenied(() -> getTimetableUseCase.get(
                 new GetTimetableQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)), null, null)));
         assertDenied(() -> searchWorksUseCase.search(new SearchWorksQuery(
-                1L, ORGANIZATION_ID.value(), null, null, null, null, null, false, false, null, null, null)));
+                1L,
+                ORGANIZATION_ID.value(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                false,
+                null,
+                null,
+                null)));
         assertDenied(() -> getProgressBoardUseCase.get(
                 new GetProgressBoardQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
         assertDenied(() -> getMyScheduleUseCase.get(

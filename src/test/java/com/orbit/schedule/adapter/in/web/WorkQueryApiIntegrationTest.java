@@ -182,6 +182,140 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
         }
     }
 
+    @Nested
+    @DisplayName("작업 목록")
+    class WorkList {
+
+        @Test
+        @DisplayName("조건에 맞는 작업을 표시 정보·등록·수정 시각과 함께 정렬해 쪽으로 돌려준다")
+        void searchesWorks() throws Exception {
+            Organization organization = organization();
+            givenDisplayInfos(organization);
+            long older = save(registered(organization, "먼저 등록", Instant.now().minus(Duration.ofHours(2))));
+            Work assigned = registered(organization, "배정된 작업", Instant.now().minus(Duration.ofHours(1)));
+            assigned.assign(
+                    new WorkSchedule(TECHNICIAN, DAY, Duration.ofHours(2)),
+                    Instant.now().minusSeconds(60),
+                    new MembershipId(organization.ownerMembership()));
+            long newer = save(assigned);
+            save(Work.register(
+                    new OrganizationId(organization.id()),
+                    "유형 없는 작업",
+                    new MembershipId(organization.ownerMembership()),
+                    Instant.now().minus(Duration.ofHours(3)),
+                    null,
+                    null,
+                    null));
+
+            works(organization.owner(), organization.id(), "workTypeId=" + INSTALL.id() + "&sort=REGISTERED_ASC&size=1")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.totalCount").value(2))
+                    .andExpect(jsonPath("$.result.size").value(1))
+                    .andExpect(jsonPath("$.result.works.length()").value(1))
+                    .andExpect(jsonPath("$.result.works[0].workId").value(older))
+                    .andExpect(jsonPath("$.result.works[0].workType.name").value("설치"))
+                    .andExpect(jsonPath("$.result.works[0].registrar.name").value("박서준"))
+                    .andExpect(jsonPath("$.result.works[0].registeredAt").exists())
+                    .andExpect(jsonPath("$.result.works[0].lastModifiedAt").exists());
+            works(organization.owner(), organization.id(), "statuses=PENDING_ACCEPTANCE&statuses=ACCEPTED")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.totalCount").value(1));
+            works(
+                            organization.owner(),
+                            organization.id(),
+                            "statuses=PENDING_ACCEPTANCE,ACCEPTED&registrarId=" + organization.ownerMembership())
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.totalCount").value(1))
+                    .andExpect(jsonPath("$.result.works[0].workId").value(newer))
+                    .andExpect(jsonPath("$.result.works[0].technician.name").value("김민수"))
+                    .andExpect(jsonPath("$.result.works[0].startTime").value(DAY.toString()));
+        }
+
+        @Test
+        @DisplayName("목록에 없는 상태·정렬이나 숫자 형식 오류는 COMMON-400, 범위를 벗어난 조건은 SCHEDULE-003이다")
+        void rejectsInvalidCriteria() throws Exception {
+            Organization organization = organization();
+
+            works(organization.owner(), organization.id(), "statuses=WAITING")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("COMMON-400"));
+            works(organization.owner(), organization.id(), "sort=NAME")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("COMMON-400"));
+            works(organization.owner(), organization.id(), "workTypeId=abc")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("COMMON-400"));
+            works(organization.owner(), organization.id(), "registrarId=0")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            works(organization.owner(), organization.id(), "size=101")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/backlog?size=abc", organization.id())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("COMMON-400"));
+        }
+
+        @Test
+        @DisplayName("대기함 요약은 대기함·거절 건수와 오래된 순의 대기함 카드를 쪽으로 돌려준다")
+        void returnsBacklogSummary() throws Exception {
+            Organization organization = organization();
+            givenDisplayInfos(organization);
+            long oldest = save(registered(organization, "오래된 대기", Instant.now().minus(Duration.ofHours(3))));
+            Work rejected = registered(organization, "거절된 작업", Instant.now().minus(Duration.ofHours(2)));
+            rejected.assign(
+                    new WorkSchedule(TECHNICIAN, DAY, Duration.ofHours(1)),
+                    Instant.now().minusSeconds(120),
+                    new MembershipId(organization.ownerMembership()));
+            rejected.reject(
+                    new Rejection(RejectionReason.SCHEDULE_CONFLICT, null),
+                    Instant.now().minusSeconds(90));
+            long rejectedId = save(rejected);
+            Work assigned = registered(organization, "배정된 작업", Instant.now().minus(Duration.ofHours(1)));
+            assigned.assign(
+                    new WorkSchedule(TECHNICIAN, DAY.plus(Duration.ofHours(3)), Duration.ofHours(1)),
+                    Instant.now().minusSeconds(60),
+                    new MembershipId(organization.ownerMembership()));
+            save(assigned);
+
+            mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/backlog?size=1", organization.id())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.backlogCount").value(2))
+                    .andExpect(jsonPath("$.result.rejectedCount").value(1))
+                    .andExpect(jsonPath("$.result.works.length()").value(1))
+                    .andExpect(jsonPath("$.result.works[0].workId").value(oldest))
+                    .andExpect(jsonPath("$.result.works[0].technicianMissing").value(true));
+            mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/backlog?page=1&size=1", organization.id())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.works[0].workId").value(rejectedId))
+                    .andExpect(jsonPath("$.result.works[0].rejectionReason").value("SCHEDULE_CONFLICT"));
+        }
+
+        @Test
+        @DisplayName("기사는 작업 목록과 대기함 요약을 볼 수 없다(SCHEDULE-005)")
+        void rejectsTechnician() throws Exception {
+            Organization organization = organization();
+            long technician = account();
+            technicianContract(organization.id(), technician);
+
+            works(technician, organization.id(), "")
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+            mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/backlog", organization.id())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(technician)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+        }
+
+        private ResultActions works(long requester, long organizationId, String query) throws Exception {
+            return mockMvc.perform(get("/api/v1/organizations/{organizationId}/works?" + query, organizationId)
+                    .header(HttpHeaders.AUTHORIZATION, bearer(requester)));
+        }
+    }
+
     private void givenDisplayInfos(Organization organization) {
         OrganizationId organizationId = new OrganizationId(organization.id());
         TechnicianProfile kim = new TechnicianProfile(TECHNICIAN, "김민수", GENERAL);

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
@@ -33,6 +34,8 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private int activeByTechnicianQueryCount;
     private final List<WorkSearchCriteria> searches = new ArrayList<>();
     private WorkSearchResult searchResult;
+    private final List<WorkSearchCriteria> counts = new ArrayList<>();
+    private final Map<Predicate<WorkSearchCriteria>, Long> givenCounts = new LinkedHashMap<>();
 
     @Override
     public Work save(Work work) {
@@ -130,7 +133,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
 
     /**
      * 검색 조건은 해석하지 않고 기록만 한다(조건 해석은 실제 어댑터의 몫). {@link #givenSearchResult}로 정한 결과가 있으면 그것을, 없으면 조직의 모든 작업을 저장
-     * 역순으로 돌려준다.
+     * 역순으로 돌려준다. 저장 시각을 따로 두지 않으므로 정하지 않은 최근 수정 시각은 등록 시각으로 채운다.
      */
     @Override
     public WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria) {
@@ -141,13 +144,49 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
             return searchResult;
         }
         List<Work> works = inOrganization(organizationId);
-        return new WorkSearchResult(works, works.size());
+        return new WorkSearchResult(
+                works.stream()
+                        .map(work -> new WorkSearchResult.SearchedWork(work, work.registeredAt()))
+                        .toList(),
+                works.size());
     }
 
-    /** 검색이 돌려줄 작업(이 순서 그대로)과 전체 수를 정한다. */
-    public void givenSearchResult(List<WorkId> workIds, long totalCount) {
-        searchResult = new WorkSearchResult(
-                workIds.stream().map(id -> copyOf(store.get(id.value()), id)).toList(), totalCount);
+    /** 검색이 돌려줄 작업(이 순서 그대로)과 각 작업의 최근 수정 시각, 전체 수를 정한다. */
+    public void givenSearchResult(List<WorkId> workIds, List<Instant> lastModifiedAts, long totalCount) {
+        if (workIds.size() != lastModifiedAts.size()) {
+            throw new IllegalArgumentException("each work needs its last modified time");
+        }
+        List<WorkSearchResult.SearchedWork> works = new ArrayList<>();
+        for (int i = 0; i < workIds.size(); i++) {
+            WorkId id = workIds.get(i);
+            works.add(new WorkSearchResult.SearchedWork(copyOf(store.get(id.value()), id), lastModifiedAts.get(i)));
+        }
+        searchResult = new WorkSearchResult(works, totalCount);
+    }
+
+    /**
+     * 조건 해석 없이 기록만 하고, {@link #givenCount}로 정한 수 가운데 조건에 처음 맞는 것을, 없으면 조직의 모든 작업 수를 돌려준다.
+     */
+    @Override
+    public long count(OrganizationId organizationId, WorkSearchCriteria criteria) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(criteria, "criteria must not be null");
+        counts.add(criteria);
+        return givenCounts.entrySet().stream()
+                .filter(entry -> entry.getKey().test(criteria))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElseGet(() -> (long) inOrganization(organizationId).size());
+    }
+
+    /** 이 조건으로 셀 때 돌려줄 수를 정한다. */
+    public void givenCount(Predicate<WorkSearchCriteria> matches, long count) {
+        givenCounts.put(matches, count);
+    }
+
+    /** 서비스가 센 조건. */
+    public List<WorkSearchCriteria> counts() {
+        return List.copyOf(counts);
     }
 
     /** 서비스가 검색한 조건. */

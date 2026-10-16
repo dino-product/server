@@ -19,7 +19,13 @@ class SnapshotQueryIsolationTest {
 
     // WorkQueryPort를 두 번 이상 부르거나 다른 조회와 함께 한 화면을 만드는 서비스는 여기에 추가한다.
     @ParameterizedTest
-    @ValueSource(classes = {GetTimetableService.class, SearchWorksService.class, GetTeamScheduleService.class})
+    @ValueSource(
+            classes = {
+                GetTimetableService.class,
+                SearchWorksService.class,
+                GetBacklogSummaryService.class,
+                GetTeamScheduleService.class
+            })
     @DisplayName("한 스냅샷(REPEATABLE READ) 읽기 전용 트랜잭션에서 실행한다")
     void runsInRepeatableReadSnapshot(Class<?> service) {
         // 클래스 수준·합성 애너테이션까지 Spring이 실행 시 적용하는 규칙 그대로 판정한다.

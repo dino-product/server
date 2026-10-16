@@ -365,6 +365,27 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsWorkSearchAndBacklogSummary() throws Exception {
+        String search = "$.paths['/api/v1/organizations/{organizationId}/works'].get";
+        String backlog = "$.paths['/api/v1/organizations/{organizationId}/works/backlog'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(search + ".summary").value("작업 목록 검색"))
+                .andExpect(jsonPath(search + ".parameters[?(@.name == 'registrarId')]")
+                        .exists())
+                .andExpect(jsonPath(search + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-003'].value.code")
+                        .value("SCHEDULE-003"))
+                .andExpect(jsonPath(backlog + ".summary").value("대기함 요약 조회"))
+                .andExpect(jsonPath(backlog + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.search.BacklogSummaryResponse']"
+                                + ".properties.rejectedCount")
+                        .exists());
+    }
+
+    @Test
     void documentsWorkUnassignment() throws Exception {
         String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/assignment'].delete";
         mockMvc.perform(get("/docs-json"))

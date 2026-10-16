@@ -127,9 +127,21 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
                 .offset((long) criteria.page() * criteria.size())
                 .limit(criteria.size())
                 .fetch();
+        return new WorkSearchResult(loadInOrder(pageIds), countOf(condition));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long count(OrganizationId organizationId, WorkSearchCriteria criteria) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(criteria, "criteria must not be null");
+        return countOf(conditionOf(organizationId, criteria));
+    }
+
+    private long countOf(Predicate condition) {
         Long total =
                 queryFactory.select(WORK.count()).from(WORK).where(condition).fetchOne();
-        return new WorkSearchResult(loadInOrder(pageIds), total == null ? 0 : total);
+        return total == null ? 0 : total;
     }
 
     private List<Work> currentSchedulesBetween(BooleanExpression scope, Instant from, Instant to) {
@@ -165,6 +177,12 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
         }
         if (criteria.technicianId() != null) {
             condition.and(WORK.technicianId.eq(criteria.technicianId().value()));
+        }
+        if (criteria.workTypeId() != null) {
+            condition.and(WORK.jobTypeId.eq(criteria.workTypeId().value()));
+        }
+        if (criteria.registrarId() != null) {
+            condition.and(WORK.createdBy.eq(criteria.registrarId().value()));
         }
         if (criteria.startFrom() != null) {
             condition
@@ -207,10 +225,10 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
         OrderSpecifier<Long> tieBreaker = WORK.id.desc();
         return switch (sort) {
             case REGISTERED_DESC -> new OrderSpecifier<?>[] {WORK.registeredAt.desc(), tieBreaker};
+            case REGISTERED_ASC -> new OrderSpecifier<?>[] {WORK.registeredAt.asc(), WORK.id.asc()};
             case START_TIME_ASC ->
                 new OrderSpecifier<?>[] {scheduledStart().asc().nullsLast(), tieBreaker};
-            case START_TIME_DESC ->
-                new OrderSpecifier<?>[] {scheduledStart().desc().nullsLast(), tieBreaker};
+            case LAST_MODIFIED_DESC -> new OrderSpecifier<?>[] {WORK.updatedAt.desc(), tieBreaker};
         };
     }
 
@@ -222,7 +240,7 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
                 .otherwise(Expressions.nullExpression(Instant.class));
     }
 
-    private List<Work> loadInOrder(List<Long> ids) {
+    private List<WorkSearchResult.SearchedWork> loadInOrder(List<Long> ids) {
         if (ids.isEmpty()) {
             return List.of();
         }
@@ -236,7 +254,10 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
                         .fetch()
                         .stream()
                         .collect(Collectors.toMap(WorkJpaEntity::id, Function.identity()));
-        return ids.stream().map(byId::get).map(WorkMapper::toDomain).toList();
+        return ids.stream()
+                .map(byId::get)
+                .map(entity -> new WorkSearchResult.SearchedWork(WorkMapper.toDomain(entity), entity.updatedAt()))
+                .toList();
     }
 
     private static String escapeLike(String keyword) {

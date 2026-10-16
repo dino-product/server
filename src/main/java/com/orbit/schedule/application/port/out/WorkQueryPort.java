@@ -53,4 +53,7 @@ public interface WorkQueryPort {
      * {@link WorkSearchCriteria}를 따른다.
      */
     WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria);
+
+    /** 조건에 맞는 작업 수. 조건의 정렬·쪽은 보지 않는다. 조건 해석은 {@link #search}와 같다. */
+    long count(OrganizationId organizationId, WorkSearchCriteria criteria);
 }
