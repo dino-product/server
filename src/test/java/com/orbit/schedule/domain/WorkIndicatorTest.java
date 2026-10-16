@@ -38,7 +38,7 @@ class WorkIndicatorTest {
         completed.start(START);
         completed.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), START);
         Work cancelled = assignedWork();
-        cancelled.cancel(START, MANAGER_ID, "고객 요청");
+        cancelled.cancel(START, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
         assertThat(backlog.isDelayedAt(END)).isFalse();
         assertThat(completed.isDelayedAt(END)).isFalse();

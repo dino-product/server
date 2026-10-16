@@ -13,6 +13,7 @@ import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
@@ -26,11 +27,14 @@ import com.orbit.schedule.domain.WorkTypeId;
  *
  * <ul>
  *   <li>현재 일정(담당 기사·시작시각·예상소요시간)은 {@code work} 테이블에 둔 최신 배정 이력의 비정규화 사본이다. 겹침 후보 조회가 이력 테이블을 보지 않게
- *       하기 위한 것이며 저장할 때마다 Domain의 현재 일정으로 덮어쓴다.
+ *       하기 위한 것이며 저장할 때마다 Domain의 현재 일정으로 덮어쓴다. 등록(대기함) 상태면 같은 컬럼에 등록 때 일부만 입력한 미리 입력한
+ *       일정({@code PlannedSchedule})을 담고, 읽을 때도 상태가 등록이면 미리 입력한 일정으로 해석한다. 일정을 기준으로 거르는 조회는 상태 조건을
+ *       함께 걸어야 한다.
  *   <li>완료보고는 ERD대로 {@code work} 컬럼에 인라인이고 사진만 {@code work_execution_images}로 나뉜다. 작업 상태가 완료일 때만 복원하며, 항목이 모두
  *       선택 입력이라 보고 컬럼이 전부 비어 있어도 빈 보고를 만든다.
  *   <li>배정 이력의 순번은 부모 컬렉션의 {@code id} 순서다(ERD에 순번 컬럼이 없음). 기존 저장은 i번째 행을 i번째 이력으로 갱신하고 새 이력만 추가한다
  *       (이력은 추가 전용).
+ *   <li>배정 종료의 처리자({@code ended_by})는 기사의 탈퇴로 끝난 배정이면 비어 있다. 처리자와 종료 방식의 짝은 Domain이 복원할 때 검증한다.
  *   <li>상태 정정 기록({@code StatusCorrection})은 ERD에 자리가 없어 저장하지 않으며 복원 시 빈 목록이다. 정정 기록이 있는 작업은 어댑터가 저장을
  *       거부한다(S-11).
  *   <li>복원({@link #toDomain})은 {@link Work#reconstitute}를 거치므로 저장값의 정합성 검증은 Domain이 한다. 검증 실패는 그대로 전파한다.
@@ -64,19 +68,24 @@ final class WorkMapper {
                 customer.address().orElse(null),
                 payment.method().orElse(null),
                 payment.fee().map(Money::won).orElse(null));
+        // 대기함 작업은 일정 대신 등록 때 일부만 입력해 둔 값을 같은 컬럼에 담는다(둘은 동시에 있지 않다).
         WorkSchedule schedule = work.schedule().orElse(null);
+        PlannedSchedule planned = work.plannedSchedule().orElse(null);
+        TechnicianId technician =
+                schedule != null ? schedule.technicianId() : planned == null ? null : planned.technicianId();
         entity.updateStatusAndSchedule(
                 work.status(),
-                schedule == null ? null : schedule.technicianId().value(),
-                schedule == null ? null : schedule.startTime(),
-                schedule == null ? null : schedule.expectedDuration());
+                technician == null ? null : technician.value(),
+                schedule != null ? schedule.startTime() : planned == null ? null : planned.startTime(),
+                schedule != null ? schedule.expectedDuration() : planned == null ? null : planned.expectedDuration());
         Cancellation cancellation = work.cancellation().orElse(null);
         entity.updateProgress(
                 work.startedAt().orElse(null),
                 work.completedAt().orElse(null),
                 cancellation == null ? null : cancellation.cancelledAt(),
                 cancellation == null ? null : cancellation.cancelledBy().value(),
-                cancellation == null ? null : cancellation.reason());
+                cancellation == null ? null : cancellation.reason(),
+                cancellation == null ? null : cancellation.note());
         applyAssignments(entity, work.assignmentHistory());
         applyCompletionReport(entity, previousStatus, work.completionReport().orElse(null));
     }
@@ -84,13 +93,27 @@ final class WorkMapper {
     static Work toDomain(WorkJpaEntity entity) {
         List<AssignmentHistory> histories =
                 entity.assignments().stream().map(WorkMapper::toHistory).toList();
-        WorkSchedule schedule = entity.technicianId() == null
+        boolean backlog = entity.status() == WorkStatus.REGISTERED;
+        WorkSchedule schedule = backlog || entity.technicianId() == null
                 ? null
                 : new WorkSchedule(
                         new TechnicianId(entity.technicianId()), entity.scheduledStartAt(), entity.expectedDuration());
+        PlannedSchedule planned = !backlog
+                        || (entity.technicianId() == null
+                                && entity.scheduledStartAt() == null
+                                && entity.expectedDuration() == null)
+                ? null
+                : new PlannedSchedule(
+                        entity.technicianId() == null ? null : new TechnicianId(entity.technicianId()),
+                        entity.scheduledStartAt(),
+                        entity.expectedDuration());
         Cancellation cancellation = entity.cancelledAt() == null
                 ? null
-                : new Cancellation(entity.cancelledAt(), new MembershipId(entity.cancelledBy()), entity.cancelReason());
+                : new Cancellation(
+                        entity.cancelledAt(),
+                        new MembershipId(entity.cancelledBy()),
+                        entity.cancelReason(),
+                        entity.cancelNote());
         return Work.reconstitute(
                 new WorkId(entity.id()),
                 new OrganizationId(entity.companyId()),
@@ -98,6 +121,7 @@ final class WorkMapper {
                 new MembershipId(entity.createdBy()),
                 entity.jobTypeId() == null ? null : new WorkTypeId(entity.jobTypeId()),
                 schedule,
+                planned,
                 new CustomerInfo(entity.customerName(), entity.customerPhone(), entity.customerAddress()),
                 new PaymentInfo(entity.fee() == null ? null : new Money(entity.fee()), entity.paymentMethod()),
                 entity.status(),
@@ -142,7 +166,9 @@ final class WorkMapper {
             AssignmentEnding ending = history.ending().orElse(null);
             row.updateEnding(
                     ending == null ? null : ending.endedAt(),
-                    ending == null ? null : ending.endedBy().value(),
+                    ending == null || ending.endedBy() == null
+                            ? null
+                            : ending.endedBy().value(),
                     ending == null ? null : ending.reason());
         }
     }
@@ -219,7 +245,8 @@ final class WorkMapper {
                 row.rejectionReason() == null ? null : new Rejection(row.rejectionReason(), row.rejectionNote());
         AssignmentEnding ending = row.endedAt() == null
                 ? null
-                : new AssignmentEnding(row.endedAt(), new MembershipId(row.endedBy()), row.endReason());
+                : new AssignmentEnding(
+                        row.endedAt(), row.endedBy() == null ? null : new MembershipId(row.endedBy()), row.endReason());
         return AssignmentHistory.restore(
                 new WorkSchedule(new TechnicianId(row.technicianId()), row.scheduledStartAt(), row.expectedDuration()),
                 row.assignedAt(),

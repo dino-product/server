@@ -22,7 +22,9 @@ public enum ScheduleErrorCode implements BaseCode {
     NOT_ASSIGNED_TECHNICIAN(HttpStatus.FORBIDDEN, "SCHEDULE-009", "담당 기사가 아닙니다."),
     ASSIGNMENT_CHANGED(HttpStatus.CONFLICT, "SCHEDULE-010", "배정이 바뀌었습니다. 최신 배정을 확인해 주세요."),
     TECHNICIAN_ALREADY_WORKING(HttpStatus.CONFLICT, "SCHEDULE-011", "이미 작업중인 다른 작업이 있습니다. 그 작업을 마친 뒤 시작해 주세요."),
-    COMPLETION_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE-012", "완료보고가 없습니다.");
+    COMPLETION_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE-012", "완료보고가 없습니다."),
+    TECHNICIAN_NOT_ASSIGNABLE(HttpStatus.BAD_REQUEST, "SCHEDULE-013", "배정할 수 없는 기사입니다. 다른 기사를 선택해 주세요."),
+    WORK_TYPE_NOT_SELECTABLE(HttpStatus.BAD_REQUEST, "SCHEDULE-014", "선택할 수 없는 작업 유형입니다. 다른 유형을 선택해 주세요.");
 
     private final HttpStatus httpStatus;
     private final String code;

@@ -2,6 +2,7 @@ package com.orbit.schedule.application.service;
 
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,7 +28,11 @@ class UpdateWorkDetailsServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final UpdateWorkDetailsService service =
-            new UpdateWorkDetailsService(fixture.actorPort, fixture.workRepository);
+            new UpdateWorkDetailsService(fixture.actorPort, fixture.workRepository, fixture.workTypes);
+
+    UpdateWorkDetailsServiceTest() {
+        fixture.workTypes.givenSelectable(ORGANIZATION_ID, new WorkTypeId(9L));
+    }
 
     @ParameterizedTest
     @EnumSource(
@@ -140,6 +145,41 @@ class UpdateWorkDetailsServiceTest {
         fixture.assertRejected(
                 () -> service.update(customerCommand(id.value(), null, null, "가".repeat(201))),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("작업 유형이 요청 조직에서 선택할 수 없는 유형이면 저장하지 않고 선택할 수 없는 작업 유형 오류다")
+    void rejectsWorkTypeNotSelectable() {
+        fixture.givenManager();
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+        fixture.workTypes.givenSelectable(OTHER_ORGANIZATION_ID, new WorkTypeId(10L));
+
+        for (long workTypeId : new long[] {10L, 11L}) {
+            fixture.assertRejected(
+                    () -> service.update(command(id.value(), "보일러 점검", 80_000L, workTypeId)),
+                    ScheduleErrorCode.WORK_TYPE_NOT_SELECTABLE);
+        }
+        assertThat(fixture.stored(id).name()).isEqualTo("대상 작업");
+    }
+
+    @Test
+    @DisplayName("작업 유형은 입력·상태 확인을 통과했고 유형을 지정한 요청만 확인한다")
+    void checksWorkTypeOnlyAfterInputAndStateWhenGiven() {
+        fixture.givenManager();
+        fixture.workTypes.givenNotSelectable(ORGANIZATION_ID, new WorkTypeId(9L));
+        WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
+        WorkId completed = fixture.givenWork(WorkStatus.COMPLETED);
+
+        fixture.assertRejected(
+                () -> service.update(command(registered.value(), " ", 80_000L, 9L)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(command(completed.value(), "보일러 점검", 80_000L, 9L)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
+        service.update(command(registered.value(), "보일러 점검", 80_000L, null));
+
+        assertThat(fixture.singleSaved().workType()).isEmpty();
+        assertThat(fixture.workTypes.checks()).isZero();
     }
 
     private static UpdateWorkDetailsCommand customerCommand(long workId, String name, String phone, String address) {

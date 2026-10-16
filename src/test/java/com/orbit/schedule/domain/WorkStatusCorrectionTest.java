@@ -91,7 +91,7 @@ class WorkStatusCorrectionTest {
     void correctsCancelledInProgressToBacklog() {
         Work work = acceptedWork();
         work.start(T3);
-        work.cancel(T4, MANAGER_ID, "고객 부재");
+        work.cancel(T4, MANAGER_ID, CancellationReason.OTHER, "고객 부재");
         Cancellation cancelled = work.cancellation().orElseThrow();
 
         work.correctStatus(WorkStatus.REGISTERED, T5, OWNER_ID, "잘못 취소");
@@ -112,7 +112,7 @@ class WorkStatusCorrectionTest {
     @DisplayName("대기함으로 되돌린 작업은 다시 배정·수락·취소할 수 있고, 그 과정의 저장값도 복원된다")
     void restoredWorkFollowsNormalFlow() {
         Work work = acceptedWork();
-        work.cancel(T3, MANAGER_ID, "고객 요청");
+        work.cancel(T3, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         work.correctStatus(WorkStatus.REGISTERED, T4, OWNER_ID, "잘못 취소");
 
         work.assign(SCHEDULE, T5, MANAGER_ID);
@@ -120,7 +120,7 @@ class WorkStatusCorrectionTest {
         assertRestorable(work);
 
         work.unassign(T7, MANAGER_ID);
-        work.cancel(T7.plusSeconds(60), MANAGER_ID, "고객 재요청");
+        work.cancel(T7.plusSeconds(60), MANAGER_ID, CancellationReason.OTHER, "고객 재요청");
         assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         assertRestorable(work);
     }
@@ -129,13 +129,13 @@ class WorkStatusCorrectionTest {
     @DisplayName("대기함에서 취소된 작업도 대기함으로 되돌리고 다시 대기함에서 취소할 수 있다")
     void correctsBacklogCancellation() {
         Work work = registeredWork();
-        work.cancel(T1, MANAGER_ID, "중복 등록");
+        work.cancel(T1, MANAGER_ID, CancellationReason.DUPLICATE_REGISTRATION, null);
 
         work.correctStatus(WorkStatus.REGISTERED, T2, OWNER_ID, "중복 아님");
         assertThat(work.statusCorrections().getLast().retiredStartedAt()).isNull();
         assertRestorable(work);
 
-        work.cancel(T3, MANAGER_ID, "다시 취소");
+        work.cancel(T3, MANAGER_ID, CancellationReason.OTHER, "다시 취소");
         assertRestorable(work);
     }
 
@@ -192,7 +192,7 @@ class WorkStatusCorrectionTest {
     @DisplayName("되돌린 뒤의 새 배정은 정정 시각보다 앞설 수 없다")
     void rejectsAssignmentBeforeCorrection() {
         Work work = acceptedWork();
-        work.cancel(T3, MANAGER_ID, "고객 요청");
+        work.cancel(T3, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         work.correctStatus(WorkStatus.REGISTERED, T5, OWNER_ID, "잘못 취소");
 
         assertThatThrownBy(() -> work.assign(SCHEDULE, T4, MANAGER_ID))
@@ -204,11 +204,11 @@ class WorkStatusCorrectionTest {
     @DisplayName("대기함으로 되돌린 정정이 없는데 취소 종료 뒤에 배정이 이어지거나, 대기함 작업의 최신 배정이 취소로 끝난 저장값은 거부한다")
     void rejectsCancelledAssignmentWithoutRestoration() {
         Work reassignedAfterRestore = acceptedWork();
-        reassignedAfterRestore.cancel(T3, MANAGER_ID, "고객 요청");
+        reassignedAfterRestore.cancel(T3, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         reassignedAfterRestore.correctStatus(WorkStatus.REGISTERED, T4, OWNER_ID, "잘못 취소");
         reassignedAfterRestore.assign(SCHEDULE, T5, MANAGER_ID);
         Work restoredOnly = acceptedWork();
-        restoredOnly.cancel(T3, MANAGER_ID, "고객 요청");
+        restoredOnly.cancel(T3, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         restoredOnly.correctStatus(WorkStatus.REGISTERED, T4, OWNER_ID, "잘못 취소");
 
         assertThatThrownBy(() -> restore(reassignedAfterRestore, List.of()))
@@ -239,9 +239,9 @@ class WorkStatusCorrectionTest {
     @DisplayName("배정이 있던 채로 취소된 작업을 되돌리면 그 배정의 순번을, 대기함에서 취소된 작업이면 순번 없이 남긴다")
     void recordsRestoredAssignmentNumber() {
         Work assigned = acceptedWork();
-        assigned.cancel(T3, MANAGER_ID, "고객 요청");
+        assigned.cancel(T3, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         Work backlog = registeredWork();
-        backlog.cancel(T1, MANAGER_ID, "중복 등록");
+        backlog.cancel(T1, MANAGER_ID, CancellationReason.DUPLICATE_REGISTRATION, null);
 
         assigned.correctStatus(WorkStatus.REGISTERED, T4, OWNER_ID, "잘못 취소");
         backlog.correctStatus(WorkStatus.REGISTERED, T2, OWNER_ID, "중복 아님");
@@ -280,7 +280,7 @@ class WorkStatusCorrectionTest {
                         SCHEDULE.startTime().plusSeconds(3600), SCHEDULE.expectedDuration(), T4, MANAGER_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("assignedAt must not be before the latest status correction");
-        assertThatThrownBy(() -> restarted.cancel(T4, MANAGER_ID, "고객 요청"))
+        assertThatThrownBy(() -> restarted.cancel(T4, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("cancelledAt must not be before the latest status correction");
         assertThat(restarted.assignmentHistory()).hasSize(1);
@@ -294,11 +294,11 @@ class WorkStatusCorrectionTest {
         Work work = registeredWork();
         work.assign(SCHEDULE, T1, MANAGER_ID);
         work.accept(T1);
-        work.cancel(T1, MANAGER_ID, "고객 요청");
+        work.cancel(T1, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         work.correctStatus(WorkStatus.REGISTERED, T1, OWNER_ID, "잘못 취소");
         work.assign(SCHEDULE, T1, MANAGER_ID);
         work.accept(T1);
-        work.cancel(T1, MANAGER_ID, "고객 재요청");
+        work.cancel(T1, MANAGER_ID, CancellationReason.OTHER, "고객 재요청");
 
         assertRestorable(work);
     }
@@ -307,11 +307,11 @@ class WorkStatusCorrectionTest {
     @DisplayName("배정 중 취소를 두 번 되돌려 새로 배정한 작업은 되돌린 배정 순번을 모두 남기고 복원된다")
     void restoresTwiceRestoredWork() {
         Work work = acceptedWork();
-        work.cancel(T3, MANAGER_ID, "고객 요청");
+        work.cancel(T3, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         work.correctStatus(WorkStatus.REGISTERED, T4, OWNER_ID, "잘못 취소");
         work.assign(SCHEDULE, T4, MANAGER_ID);
         work.accept(T5);
-        work.cancel(T5, MANAGER_ID, "고객 재요청");
+        work.cancel(T5, MANAGER_ID, CancellationReason.OTHER, "고객 재요청");
         work.correctStatus(WorkStatus.REGISTERED, T6, OWNER_ID, "또 잘못 취소");
         work.assign(SCHEDULE, T7, MANAGER_ID);
 
@@ -326,7 +326,7 @@ class WorkStatusCorrectionTest {
     @DisplayName("대기함에서 취소한 작업을 되돌려 배정하면 복원된다")
     void restoresBacklogRestoredThenAssignedWork() {
         Work work = registeredWork();
-        work.cancel(T1, MANAGER_ID, "중복 등록");
+        work.cancel(T1, MANAGER_ID, CancellationReason.DUPLICATE_REGISTRATION, null);
         work.correctStatus(WorkStatus.REGISTERED, T2, OWNER_ID, "중복 아님");
         work.assign(SCHEDULE, T3, MANAGER_ID);
 
@@ -338,7 +338,7 @@ class WorkStatusCorrectionTest {
     @DisplayName("되돌린 정정이 취소한 배정과 시각·처리자가 다르거나, 같은 배정을 두 번 되돌리면 복원을 거부한다")
     void rejectsMismatchedRestoration() {
         Work work = acceptedWork();
-        work.cancel(T3, MANAGER_ID, "고객 요청");
+        work.cancel(T3, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         work.correctStatus(WorkStatus.REGISTERED, T4, OWNER_ID, "잘못 취소");
         StatusCorrection original = work.statusCorrections().getLast();
         StatusCorrection otherActor = new StatusCorrection(
@@ -350,7 +350,7 @@ class WorkStatusCorrectionTest {
                 null,
                 null,
                 null,
-                new Cancellation(T3, OWNER_ID, "고객 요청"),
+                new Cancellation(T3, OWNER_ID, CancellationReason.CUSTOMER_REQUEST, null),
                 original.restoredAssignmentNumber());
 
         assertThatThrownBy(() -> restore(work, List.of(otherActor)))
@@ -368,7 +368,7 @@ class WorkStatusCorrectionTest {
         StatusCorrection laterReopen = new StatusCorrection(
                 WorkStatus.COMPLETED, WorkStatus.IN_PROGRESS, T7, OWNER_ID, "정정", REPORT, T4, null, null, null);
         Work cancelledFromBacklog = registeredWork();
-        cancelledFromBacklog.cancel(T1, MANAGER_ID, "중복 등록");
+        cancelledFromBacklog.cancel(T1, MANAGER_ID, CancellationReason.DUPLICATE_REGISTRATION, null);
         StatusCorrection laterRestore = new StatusCorrection(
                 WorkStatus.CANCELLED,
                 WorkStatus.REGISTERED,
@@ -378,7 +378,7 @@ class WorkStatusCorrectionTest {
                 null,
                 null,
                 null,
-                new Cancellation(T1, MANAGER_ID, "이전 취소"),
+                new Cancellation(T1, MANAGER_ID, CancellationReason.OTHER, "이전 취소"),
                 null);
         Work started = acceptedWork();
         started.start(T3);
@@ -442,7 +442,7 @@ class WorkStatusCorrectionTest {
             case COMPLETED -> completedWork();
             case CANCELLED -> {
                 Work work = acceptedWork();
-                work.cancel(T3, MANAGER_ID, "고객 요청");
+                work.cancel(T3, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
                 yield work;
             }
         };

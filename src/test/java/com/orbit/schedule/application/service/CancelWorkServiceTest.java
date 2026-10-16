@@ -21,6 +21,7 @@ import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.Cancellation;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
@@ -45,11 +46,12 @@ class CancelWorkServiceTest {
         fixture.givenManager();
         WorkId id = fixture.givenWork(status);
 
-        service.cancel(command(id.value(), "고객 요청"));
+        service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, null));
 
         Work saved = fixture.singleSaved();
         assertThat(saved.status()).isEqualTo(WorkStatus.CANCELLED);
-        assertThat(saved.cancellation()).contains(new Cancellation(NOW, MANAGER_ID, "고객 요청"));
+        assertThat(saved.cancellation())
+                .contains(new Cancellation(NOW, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null));
         assertThat(saved.assignmentHistory().getLast().ending())
                 .contains(new AssignmentEnding(NOW, MANAGER_ID, AssignmentEndReason.CANCELLED));
         assertThat(fixture.scheduleLock.locks()).isEmpty();
@@ -61,11 +63,12 @@ class CancelWorkServiceTest {
         fixture.givenManager();
         WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
 
-        service.cancel(command(id.value(), "중복 등록"));
+        service.cancel(command(id.value(), CancellationReason.DUPLICATE_REGISTRATION, null));
 
         Work saved = fixture.singleSaved();
         assertThat(saved.status()).isEqualTo(WorkStatus.CANCELLED);
-        assertThat(saved.cancellation()).contains(new Cancellation(NOW, MANAGER_ID, "중복 등록"));
+        assertThat(saved.cancellation())
+                .contains(new Cancellation(NOW, MANAGER_ID, CancellationReason.DUPLICATE_REGISTRATION, null));
         assertThat(saved.assignmentHistory()).isEmpty();
     }
 
@@ -79,22 +82,41 @@ class CancelWorkServiceTest {
         WorkId id = fixture.givenWork(status);
 
         fixture.assertRejected(
-                () -> service.cancel(command(id.value(), "고객 요청")), ScheduleErrorCode.INVALID_WORK_STATE);
+                () -> service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, null)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
     }
 
     @Test
-    @DisplayName("사유가 없거나 비었거나 255자를 넘으면, 완료된 작업이라도 상태보다 먼저 입력 오류다")
+    @DisplayName("사유가 없거나, 기타인데 메모가 없거나 255자를 넘거나, 기타가 아닌데 메모가 있으면 완료된 작업이라도 상태보다 먼저 입력 오류다")
     void rejectsInvalidReasonBeforeState() {
         fixture.givenManager();
         WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
         WorkId completed = fixture.givenWork(WorkStatus.COMPLETED);
 
         for (WorkId id : new WorkId[] {registered, completed}) {
-            for (String reason : new String[] {null, " ", "가".repeat(256)}) {
+            fixture.assertRejected(
+                    () -> service.cancel(command(id.value(), null, null)), ScheduleErrorCode.INVALID_WORK_INPUT);
+            for (String note : new String[] {null, " ", "가".repeat(256)}) {
                 fixture.assertRejected(
-                        () -> service.cancel(command(id.value(), reason)), ScheduleErrorCode.INVALID_WORK_INPUT);
+                        () -> service.cancel(command(id.value(), CancellationReason.OTHER, note)),
+                        ScheduleErrorCode.INVALID_WORK_INPUT);
             }
+            fixture.assertRejected(
+                    () -> service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, "고객 부재")),
+                    ScheduleErrorCode.INVALID_WORK_INPUT);
         }
+    }
+
+    @Test
+    @DisplayName("기타 사유는 메모를 함께 남긴다")
+    void keepsNoteOfOtherReason() {
+        fixture.givenManager();
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+
+        service.cancel(command(id.value(), CancellationReason.OTHER, "고객 연락 두절"));
+
+        assertThat(fixture.singleSaved().cancellation())
+                .contains(new Cancellation(NOW, MANAGER_ID, CancellationReason.OTHER, "고객 연락 두절"));
     }
 
     @Test
@@ -118,10 +140,12 @@ class CancelWorkServiceTest {
 
         for (WorkId id : new WorkId[] {backlog, pending}) {
             fixture.assertRejected(
-                    () -> service.cancel(command(id.value(), "고객 요청")), ScheduleErrorCode.INVALID_WORK_INPUT);
+                    () -> service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, null)),
+                    ScheduleErrorCode.INVALID_WORK_INPUT);
         }
         fixture.assertRejected(
-                () -> service.cancel(command(completed.value(), "고객 요청")), ScheduleErrorCode.INVALID_WORK_STATE);
+                () -> service.cancel(command(completed.value(), CancellationReason.CUSTOMER_REQUEST, null)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
     }
 
     @Test
@@ -130,12 +154,12 @@ class CancelWorkServiceTest {
         fixture.givenManager();
         WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
 
-        service.cancel(command(id.value(), "고객 부재"));
+        service.cancel(command(id.value(), CancellationReason.OTHER, "고객 부재"));
 
         assertThat(fixture.singleSaved().startedAt()).contains(ACCEPTED_AT);
     }
 
-    private static CancelWorkCommand command(long workId, String reason) {
-        return new CancelWorkCommand(ACCOUNT_ID, ORGANIZATION_ID.value(), workId, reason);
+    private static CancelWorkCommand command(long workId, CancellationReason reason, String note) {
+        return new CancelWorkCommand(ACCOUNT_ID, ORGANIZATION_ID.value(), workId, reason, note);
     }
 }
