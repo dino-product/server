@@ -287,10 +287,13 @@ class ScheduleModuleTest {
     }
 
     @Test
-    void assembledWorkQueryPortIsEmptyUntilJpaAdapter() {
-        workRepository.save(Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), null, null, null));
+    void assembledWorkQueryPortReadsSavedWorks() {
+        Work saved =
+                workRepository.save(Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), null, null, null));
 
-        assertThat(workQueryPort.listBacklog(ORGANIZATION_ID)).isEmpty();
+        assertThat(workQueryPort.listBacklog(ORGANIZATION_ID))
+                .extracting(work -> work.id().orElseThrow())
+                .contains(saved.id().orElseThrow());
     }
 
     @Test
