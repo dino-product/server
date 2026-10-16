@@ -33,7 +33,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Orbit API")
-                        .description("Spring Modulith project settings template API")
+                        .description("Orbit — 기사·사무실이 함께 보는 작업 일정 API")
                         .version(version))
                 .servers(List.of(new Server().url("/").description("Current environment")))
                 .schemaRequirement(BEARER_AUTH, securityScheme);

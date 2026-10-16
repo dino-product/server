@@ -270,7 +270,7 @@ class WorkScheduleConflictPolicyTest {
 
     private static Work cancelledWork(WorkSchedule schedule) {
         Work work = pendingWork(schedule);
-        work.cancel(NOW, MANAGER_ID, "고객 요청");
+        work.cancel(NOW, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         return work;
     }
 

@@ -1,6 +1,6 @@
 package com.orbit.schedule.domain;
 
-/** 관리자의 조치로 배정이 현재 배정에서 물러난 방식. 기사의 거절은 응답이라 여기에 없다. */
+/** 관리자의 조치나 기사의 탈퇴로 배정이 현재 배정에서 물러난 방식. 기사의 거절은 응답이라 여기에 없다. */
 public enum AssignmentEndReason {
     /** 다른 기사에게 넘겼다. */
     REASSIGNED,
@@ -9,5 +9,7 @@ public enum AssignmentEndReason {
     /** 대기함으로 돌렸다. */
     UNASSIGNED,
     /** 작업을 취소했다. */
-    CANCELLED
+    CANCELLED,
+    /** 담당 기사가 탈퇴해 대기함으로 돌렸다. 처리한 관리자가 없다. */
+    ACCOUNT_WITHDRAWN
 }

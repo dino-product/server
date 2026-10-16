@@ -20,41 +20,56 @@ class CancellationTest {
     @Test
     @DisplayName("취소 시각·처리자·사유를 담고 시각은 마이크로초로 자른다")
     void holdsCancellation() {
-        Cancellation cancellation = new Cancellation(CANCELLED_AT.plusNanos(1_999), MANAGER_ID, "고객 요청");
+        Cancellation cancellation =
+                new Cancellation(CANCELLED_AT.plusNanos(1_999), MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
         assertThat(cancellation.cancelledAt()).isEqualTo(CANCELLED_AT.plusNanos(1_000));
         assertThat(cancellation.cancelledBy()).isEqualTo(MANAGER_ID);
-        assertThat(cancellation.reason()).isEqualTo("고객 요청");
+        assertThat(cancellation.reason()).isEqualTo(CancellationReason.CUSTOMER_REQUEST);
+        assertThat(cancellation.note()).isNull();
     }
 
     @Test
-    @DisplayName("취소 시각·처리자가 없으면 거부한다")
-    void requiresTimeAndActor() {
-        assertThatThrownBy(() -> new Cancellation(null, MANAGER_ID, "고객 요청"))
+    @DisplayName("취소 시각·처리자·사유가 없으면 거부한다")
+    void requiresTimeActorAndReason() {
+        assertThatThrownBy(() -> new Cancellation(null, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("cancelledAt must not be null");
-        assertThatThrownBy(() -> new Cancellation(CANCELLED_AT, null, "고객 요청"))
+        assertThatThrownBy(() -> new Cancellation(CANCELLED_AT, null, CancellationReason.CUSTOMER_REQUEST, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("cancelledBy must not be null");
+        assertThatThrownBy(() -> new Cancellation(CANCELLED_AT, MANAGER_ID, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("cancellation reason must not be null");
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {" ", "\t"})
-    @DisplayName("사유가 비어 있으면 거부한다")
-    void rejectsBlankReason(String reason) {
-        assertThatThrownBy(() -> new Cancellation(CANCELLED_AT, MANAGER_ID, reason))
+    @DisplayName("기타 사유인데 메모가 비어 있으면 거부한다")
+    void requiresNoteForOther(String note) {
+        assertThatThrownBy(() -> new Cancellation(CANCELLED_AT, MANAGER_ID, CancellationReason.OTHER, note))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("reason must not be blank");
+                .hasMessage("cancellation note is required for OTHER");
     }
 
     @Test
-    @DisplayName("사유는 255자까지 받고 넘으면 거부한다")
-    void limitsReasonLength() {
-        assertThat(new Cancellation(CANCELLED_AT, MANAGER_ID, "가".repeat(255)).reason())
-                .hasSize(255);
-        assertThatThrownBy(() -> new Cancellation(CANCELLED_AT, MANAGER_ID, "가".repeat(256)))
+    @DisplayName("기타가 아닌 사유는 메모를 받지 않고, 빈 메모는 미입력으로 본다")
+    void acceptsNoteOnlyForOther() {
+        assertThatThrownBy(() -> new Cancellation(CANCELLED_AT, MANAGER_ID, CancellationReason.TECHNICIAN_ISSUE, "사정"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("reason must be at most 255 characters");
+                .hasMessage("cancellation note is only for OTHER");
+        assertThat(new Cancellation(CANCELLED_AT, MANAGER_ID, CancellationReason.TECHNICIAN_ISSUE, " ").note())
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("기타 메모는 255자까지 받고 넘으면 거부한다")
+    void limitsNoteLength() {
+        assertThat(new Cancellation(CANCELLED_AT, MANAGER_ID, CancellationReason.OTHER, "가".repeat(255)).note())
+                .hasSize(255);
+        assertThatThrownBy(() -> new Cancellation(CANCELLED_AT, MANAGER_ID, CancellationReason.OTHER, "가".repeat(256)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("cancellation note must be at most 255 characters");
     }
 }
