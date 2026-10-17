@@ -55,8 +55,10 @@ public class RequestParticipationService implements RequestParticipationUseCase 
         if (command.desiredType() == null) {
             throw new BusinessException(CommonErrorCode.BAD_REQUEST);
         }
-        organizationRepository.lock(organizationIdOf(
-                CompanyCodes.resolve(organizationRepository, attemptLimiter, requester, command.companyCode())));
+        OrganizationLocks.lock(
+                organizationRepository,
+                organizationIdOf(CompanyCodes.resolve(
+                        organizationRepository, attemptLimiter, requester, command.companyCode())));
         Organization organization =
                 CompanyCodes.resolve(organizationRepository, attemptLimiter, requester, command.companyCode());
         OrganizationId organizationId = organizationIdOf(organization);
