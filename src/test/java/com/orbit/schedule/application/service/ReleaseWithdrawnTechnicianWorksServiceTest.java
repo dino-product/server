@@ -6,6 +6,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -106,7 +107,8 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
     @DisplayName("작업을 돌릴 수 없으면 요청자의 입력 오류로 바꾸지 않고 도메인 예외로 실패한다")
     void failsWithDomainExceptionWhenWorkCannotBeReleased() {
         contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
-        Work assignedLater = Work.register(ORGANIZATION_ID, "나중에 배정된 작업", REGISTRAR_ID, null, null, null);
+        Work assignedLater =
+                Work.register(ORGANIZATION_ID, "나중에 배정된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         assignedLater.assign(
                 new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW.plus(Duration.ofHours(1)), MANAGER_ID);
         fixture.workRepository.store(assignedLater);
@@ -219,8 +221,8 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
     }
 
     private WorkId givenPlanned(OrganizationId organizationId, PlannedSchedule plannedSchedule) {
-        return fixture.workRepository.store(
-                Work.register(organizationId, "미리 입력한 작업", REGISTRAR_ID, null, null, null, plannedSchedule));
+        return fixture.workRepository.store(Work.register(
+                organizationId, "미리 입력한 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null, plannedSchedule));
     }
 
     private static ReleaseWithdrawnTechnicianWorksCommand command() {

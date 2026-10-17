@@ -54,6 +54,7 @@ class FakeWorkRepositoryTest {
                 ORGANIZATION_ID,
                 "에어컨 수리",
                 new MembershipId(1L),
+                NOW,
                 new WorkTypeId(2L),
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));

@@ -7,9 +7,10 @@
 
 - URI는 `/api/v{version}/{resource}`로 시작하고 리소스명은 복수형을 사용합니다.
   - 예외: 인증 세션의 동작과 현재 인증 주체 조회는 `/api/v1/auth/` 아래에서 `login`·`logout`·`me`를 씁니다. 저장된 자원의 생성·삭제가 아니라 토큰 발급·폐기와 요청자 자신의 조회여서 OIDC·클라이언트 SDK의 관례 이름이 계약을 더 분명히 드러내기 때문입니다. OAuth 브라우저 흐름의 `authorize`·`callback`과 콜백 결과를 토큰으로 바꾸는 `exchange`도 같은 이유로 관례 이름을 쓰며, `authorize`·`callback`은 공통 응답 래퍼 없이 302로 응답합니다. 인증 아래라도 발급·보관되는 자원(예: `kakao/nonces`)은 복수형 리소스를 쓰며, 다른 모듈에는 이 예외를 적용하지 않습니다.
+- 상위 자원마다 하나뿐인 하위 자원·화면(예: 발주사의 `company-code`, `timetable`, 작업의 `assignment`)은 단수형을 씁니다.
 - Request Body에는 `@Valid`, 경로·쿼리 제약에는 `@Validated`를 적용합니다.
 - Adapter에서 Request를 Command/Query로 변환합니다. Web DTO를 Domain/Application과 공유하거나 JPA Entity를 반환하지 않습니다. DTO 변경은 [구성 규칙](#dto)을 따릅니다.
-- 정상 응답은 `success`, `code`, `message`, `result`로 감쌉니다. Application의 비즈니스 오류는 모듈별 ErrorCode와 `BusinessException`으로 표현합니다. Domain 불변식 오류는 [오류 계약](architecture.md#errors)에 따라 변환합니다.
+- 정상 응답은 `success`, `code`, `message`, `result`로 감쌉니다. 예외: 파일 내려받기는 래퍼 없이 실제 미디어 타입과 `Content-Disposition`으로 응답하고(브라우저가 파일 이름을 읽도록 CORS 노출 헤더에 포함), 오류는 같은 JSON 구조로 응답합니다. Application의 비즈니스 오류는 모듈별 ErrorCode와 `BusinessException`으로 표현합니다. Domain 불변식 오류는 [오류 계약](architecture.md#errors)에 따라 변환합니다.
 - Controller는 `{module}.adapter.in.web.docs`의 `*ControllerDocs`를 구현합니다. [Controller 문서 계약](#controllers)에 따라 성공 결과 타입·실제 `BaseCode` enum 오류를 선언하고 공통 커스터마이저가 래퍼를 반영합니다.
 - 인증된 `/api/**` 컨트롤러 요청은 모두 profile의 [가입 공통 검사](../../../../docs/domain/profile.md#profile-signup-gate) 대상이며 가입 미완료·약관 재동의 전 계정은 `PROFILE-005`(403)를 받습니다. 가입을 마치기 전에 써야 하는 API는 profile 허용 목록에 더하고, 이 403은 ControllerDocs에 선언하지 않습니다(profile이 문서에 자동으로 덧붙임).
 - 공개 HTTP 계약 변경 시 해당 [응답](#responses)·[파라미터와 보안](#parameters) 규칙을 적용하고 [생성 계약을 검증](#verification)합니다.
