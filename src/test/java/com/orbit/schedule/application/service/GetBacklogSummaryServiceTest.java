@@ -70,7 +70,7 @@ class GetBacklogSummaryServiceTest {
     }
 
     @Test
-    @DisplayName("쪽의 작업을 등록자·거절 사유가 담긴 대기함 카드로 옮기고 두 건수를 담는다")
+    @DisplayName("쪽의 작업을 등록자·거절 사유가 담긴 대기함 카드로 옮기고, 전체 수와 거절을 뺀 등록 수·거절 수를 담는다")
     void mapsCardsAndCounts() {
         fixture.givenManager();
         fixture.staffProfiles.given(ORGANIZATION_ID, new StaffProfile(REGISTRAR_ID, "김운영", false, null));
@@ -83,7 +83,8 @@ class GetBacklogSummaryServiceTest {
 
         BacklogSummaryInfo summary = service.get(query(null, null));
 
-        assertThat(summary.backlogCount()).isEqualTo(12);
+        assertThat(summary.totalCount()).isEqualTo(12);
+        assertThat(summary.registeredCount()).isEqualTo(9);
         assertThat(summary.rejectedCount()).isEqualTo(3);
         assertThat(summary.page()).isZero();
         assertThat(summary.size()).isEqualTo(GetBacklogSummaryService.DEFAULT_PAGE_SIZE);

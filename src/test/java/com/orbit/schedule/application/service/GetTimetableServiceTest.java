@@ -279,7 +279,7 @@ class GetTimetableServiceTest {
     }
 
     @Test
-    @DisplayName("대기함은 오래 등록된 순으로 담고, 거절로 돌아온 작업은 거절 사유와 돌아온 시각을 담는다")
+    @DisplayName("대기함은 오래 등록된 순으로 담고, 거절로 돌아온 작업은 거절 사유를 담는다")
     void listsBacklogOldestFirst() {
         fixture.givenManager(ActorRole.OWNER);
         WorkId newer = fixture.workRepository.store(Work.register(
@@ -305,7 +305,6 @@ class GetTimetableServiceTest {
                                 true,
                                 RejectionReason.OTHER,
                                 "너무 멀어요",
-                                ACCEPTED_AT,
                                 false),
                         new BacklogWorkInfo(
                                 newer.value(),
@@ -321,7 +320,6 @@ class GetTimetableServiceTest {
                                 false,
                                 null,
                                 null,
-                                REGISTERED_AT.plusSeconds(60),
                                 false));
     }
 
@@ -362,14 +360,14 @@ class GetTimetableServiceTest {
     }
 
     @Test
-    @DisplayName("대기함에 들어온 지 방치 기준이 지난 작업을 방치로 표시한다")
+    @DisplayName("등록한 지 방치 기준이 지난 대기함 작업을 방치로 표시한다")
     void marksStaleBacklog() {
         fixture.givenManager();
-        Instant enteredAt = NOW.minus(Duration.ofHours(72));
+        Instant registeredAt = NOW.minus(Duration.ofHours(72));
         WorkId stale = fixture.workRepository.store(
-                Work.register(ORGANIZATION_ID, "방치 작업", REGISTRAR_ID, enteredAt, null, null, null));
+                Work.register(ORGANIZATION_ID, "방치 작업", REGISTRAR_ID, registeredAt, null, null, null));
         WorkId fresh = fixture.workRepository.store(
-                Work.register(ORGANIZATION_ID, "아직 아님", REGISTRAR_ID, enteredAt.plusSeconds(1), null, null, null));
+                Work.register(ORGANIZATION_ID, "아직 아님", REGISTRAR_ID, registeredAt.plusSeconds(1), null, null, null));
 
         assertThat(service.get(query(FROM, TO)).backlog())
                 .extracting(BacklogWorkInfo::workId, BacklogWorkInfo::stale)

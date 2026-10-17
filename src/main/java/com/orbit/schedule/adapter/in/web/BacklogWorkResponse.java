@@ -43,10 +43,7 @@ public record BacklogWorkResponse(
 
         @Schema(description = "거절 메모(기타 사유). 없으면 null") String rejectionNote,
 
-        @Schema(description = "대기함에 들어온 시각(등록 또는 마지막으로 돌아온 시각)", example = "2026-10-18T01:00:00Z")
-        Instant backlogEnteredAt,
-
-        @Schema(description = "대기함에서 방치된 작업인지(backlogEnteredAt부터 72시간 이상)", example = "false")
+        @Schema(description = "대기함에서 방치된 작업인지(registeredAt부터 72시간 이상). 거절·배정 해제로 돌아온 작업도 등록 시각부터 센다", example = "false")
         boolean stale) {
 
     public static BacklogWorkResponse from(BacklogWorkInfo info) {
@@ -65,7 +62,6 @@ public record BacklogWorkResponse(
                 info.returnedByRejection(),
                 info.rejectionReason(),
                 info.rejectionNote(),
-                info.backlogEnteredAt(),
                 info.stale());
     }
 }

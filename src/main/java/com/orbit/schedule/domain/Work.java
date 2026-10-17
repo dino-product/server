@@ -28,7 +28,10 @@ public final class Work {
     /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한, HM-238). */
     public static final int MAX_SITE_PHOTO_ID_LENGTH = 500;
 
-    /** 대기함에 들어온 뒤 이만큼 지나면 방치된 작업으로 보고 강조한다. 화면 시간대와 관계없이 경과 시간(72시간)으로 판정한다([스케줄·배정] §5, SCH-009). */
+    /**
+     * 등록한 뒤 이만큼 지나도 대기함에 남아 있으면 방치된 작업으로 보고 강조한다. 거절·배정 해제로 돌아온 작업도 다시 세지 않는다. 화면 시간대와 관계없이 경과
+     * 시간(72시간)으로 판정한다([스케줄·배정] §5, SCH-009).
+     */
     public static final Duration BACKLOG_STALE_AFTER = Duration.ofDays(3);
 
     /** 현재 배정이 없는 작업(등록·취소)의 마지막 배정이 관리자 조치나 탈퇴로 끝났을 때 허용하는 방식. 재배정·일정 변경 뒤에는 새 배정이 남는다. */
@@ -366,20 +369,10 @@ public final class Work {
                 && assignmentHistory.getLast().result() == AssignmentResult.REJECTED;
     }
 
-    /**
-     * 대기함에 들어온 시각. 등록한 뒤 한 번도 배정하지 않았으면 등록 시각이고, 거절·배정 해제·기사 반환으로 돌아왔으면 돌아온 시각(작업에 남은 가장 늦은 기록)이다.
-     * 대기함(등록) 작업이 아니면 비어 있다.
-     */
-    public Optional<Instant> backlogEnteredAt() {
-        return status == WorkStatus.REGISTERED ? Optional.of(latestRecordedMoment()) : Optional.empty();
-    }
-
-    /** 주어진 시각에 대기함에서 방치된 작업인지. 대기함에 들어온 지 {@link #BACKLOG_STALE_AFTER} 이상 지났으면 방치다. */
+    /** 주어진 시각에 대기함에서 방치된 작업인지. 대기함(등록) 작업이고 등록한 지 {@link #BACKLOG_STALE_AFTER} 이상 지났으면 방치다. */
     public boolean isStaleInBacklogAt(Instant now) {
         Objects.requireNonNull(now, "now must not be null");
-        return backlogEnteredAt()
-                .map(enteredAt -> !now.isBefore(enteredAt.plus(BACKLOG_STALE_AFTER)))
-                .orElse(false);
+        return status == WorkStatus.REGISTERED && !now.isBefore(registeredAt.plus(BACKLOG_STALE_AFTER));
     }
 
     /** 대기함 작업을 기사·일정에 배정하고 수락을 기다린다. 배정한 관리자(조직 소속)를 이력에 남긴다. */

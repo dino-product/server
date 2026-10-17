@@ -6,8 +6,7 @@ import java.time.Instant;
 import com.orbit.schedule.domain.RejectionReason;
 
 /**
- * 대기함 작업 카드 하나. 타임테이블의 대기함과 작업 목록의 대기함 요약이 함께 쓴다. 방치 여부는 등록 시각이 아니라 대기함에 들어온 시각을 기준으로
- * 판정한다.
+ * 대기함 작업 카드 하나. 타임테이블의 대기함과 작업 목록의 대기함 요약이 함께 쓴다.
  *
  * @param workType 작업유형. 없으면 null
  * @param registrar 등록자
@@ -20,8 +19,7 @@ import com.orbit.schedule.domain.RejectionReason;
  * @param returnedByRejection 기사가 거절해 돌아온 작업인지
  * @param rejectionReason 돌아오게 한 거절의 사유. 거절로 돌아온 작업이 아니면 null
  * @param rejectionNote 그 거절의 메모(기타 사유). 없으면 null
- * @param backlogEnteredAt 대기함에 들어온 시각(등록 또는 마지막으로 돌아온 시각)
- * @param stale 조회 시각에 대기함에서 방치된 작업인지
+ * @param stale 조회 시각에 대기함에서 방치된 작업인지(등록한 지 72시간 이상)
  */
 public record BacklogWorkInfo(
         Long workId,
@@ -37,5 +35,4 @@ public record BacklogWorkInfo(
         boolean returnedByRejection,
         RejectionReason rejectionReason,
         String rejectionNote,
-        Instant backlogEnteredAt,
         boolean stale) {}

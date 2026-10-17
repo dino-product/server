@@ -386,6 +386,14 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas"
                                 + "['com.orbit.schedule.adapter.in.web.search.BacklogSummaryResponse']"
                                 + ".properties.rejectedCount")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.search.BacklogSummaryResponse']"
+                                + ".properties.registeredCount")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.search.BacklogSummaryResponse']"
+                                + ".properties.totalCount")
                         .exists());
     }
 

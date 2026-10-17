@@ -67,7 +67,8 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                     Instant.now().minusSeconds(60),
                     new MembershipId(organization.ownerMembership()));
             long assignedId = save(assigned);
-            Work rejected = registered(organization, "거절된 작업", Instant.now().minus(Duration.ofHours(2)));
+            // 4일 전에 등록해 방금 거절로 돌아온 작업: 방치는 등록 시각부터 센다.
+            Work rejected = registered(organization, "거절된 작업", Instant.now().minus(Duration.ofDays(4)));
             rejected.assign(
                     new WorkSchedule(TECHNICIAN, DAY.plus(Duration.ofHours(5)), Duration.ofHours(1)),
                     Instant.now().minusSeconds(120),
@@ -106,14 +107,15 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(jsonPath("$.result.scheduledWorks[0].endTime")
                             .value(DAY.plus(Duration.ofHours(3)).toString()))
                     .andExpect(jsonPath("$.result.backlog.length()").value(2))
-                    .andExpect(jsonPath("$.result.backlog[0].workId").value(plannedId))
-                    .andExpect(jsonPath("$.result.backlog[0].plannedExpectedDurationMinutes")
+                    .andExpect(jsonPath("$.result.backlog[0].workId").value(rejectedId))
+                    .andExpect(jsonPath("$.result.backlog[0].rejectionReason").value("OTHER"))
+                    .andExpect(jsonPath("$.result.backlog[0].rejectionNote").value("너무 멀어요"))
+                    .andExpect(jsonPath("$.result.backlog[0].stale").value(true))
+                    .andExpect(jsonPath("$.result.backlog[1].workId").value(plannedId))
+                    .andExpect(jsonPath("$.result.backlog[1].plannedExpectedDurationMinutes")
                             .value(90))
-                    .andExpect(jsonPath("$.result.backlog[0].technicianMissing").value(true))
-                    .andExpect(jsonPath("$.result.backlog[0].timeMissing").value(false))
-                    .andExpect(jsonPath("$.result.backlog[1].workId").value(rejectedId))
-                    .andExpect(jsonPath("$.result.backlog[1].rejectionReason").value("OTHER"))
-                    .andExpect(jsonPath("$.result.backlog[1].rejectionNote").value("너무 멀어요"))
+                    .andExpect(jsonPath("$.result.backlog[1].technicianMissing").value(true))
+                    .andExpect(jsonPath("$.result.backlog[1].timeMissing").value(false))
                     .andExpect(jsonPath("$.result.backlog[1].stale").value(false));
         }
 
@@ -268,7 +270,7 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
-        @DisplayName("대기함 요약은 대기함·거절 건수와 오래된 순의 대기함 카드를 쪽으로 돌려준다")
+        @DisplayName("대기함 요약은 전체·등록·거절 건수와 오래된 순의 대기함 카드를 쪽으로 돌려준다")
         void returnsBacklogSummary() throws Exception {
             Organization organization = organization();
             givenDisplayInfos(organization);
@@ -292,7 +294,8 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
             mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/backlog?size=1", organization.id())
                             .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.result.backlogCount").value(2))
+                    .andExpect(jsonPath("$.result.totalCount").value(2))
+                    .andExpect(jsonPath("$.result.registeredCount").value(1))
                     .andExpect(jsonPath("$.result.rejectedCount").value(1))
                     .andExpect(jsonPath("$.result.works.length()").value(1))
                     .andExpect(jsonPath("$.result.works[0].workId").value(oldest))
@@ -539,7 +542,7 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
             mockMvc.perform(get("/api/v1/organizations/{organizationId}/works/backlog", organization.id())
                             .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.result.backlogCount").value(0));
+                    .andExpect(jsonPath("$.result.totalCount").value(0));
             detail(organization.owner(), organization.id(), 0)
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-003"));

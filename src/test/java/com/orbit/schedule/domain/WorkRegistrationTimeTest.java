@@ -52,45 +52,21 @@ class WorkRegistrationTimeTest {
     }
 
     @Test
-    @DisplayName("대기함에 들어온 시각은 등록 작업이면 등록 시각, 돌아온 작업이면 거절·해제·탈퇴 반환 시각이다")
-    void tracksWhenWorkEnteredBacklog() {
-        Work registered = register(REGISTERED_AT);
-        Work rejected = register(REGISTERED_AT);
-        rejected.assign(SCHEDULE, REGISTERED_AT.plusSeconds(10), REGISTRAR);
-        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), REGISTERED_AT.plusSeconds(20));
-        Work unassigned = register(REGISTERED_AT);
-        unassigned.assign(SCHEDULE, REGISTERED_AT.plusSeconds(10), REGISTRAR);
-        unassigned.accept(REGISTERED_AT.plusSeconds(20));
-        unassigned.unassign(REGISTERED_AT.plusSeconds(30), REGISTRAR);
-
-        Work released = register(REGISTERED_AT);
-        released.assign(SCHEDULE, REGISTERED_AT.plusSeconds(10), REGISTRAR);
-        released.releaseForWithdrawal(REGISTERED_AT.plusSeconds(40));
-
-        assertThat(registered.backlogEnteredAt()).contains(REGISTERED_AT);
-        assertThat(rejected.backlogEnteredAt()).contains(REGISTERED_AT.plusSeconds(20));
-        assertThat(unassigned.backlogEnteredAt()).contains(REGISTERED_AT.plusSeconds(30));
-        assertThat(released.backlogEnteredAt()).contains(REGISTERED_AT.plusSeconds(40));
-    }
-
-    @Test
-    @DisplayName("대기함에 없는 작업은 대기함에 들어온 시각이 없고 방치되지 않는다")
-    void hasNoBacklogEntryOutsideBacklog() {
+    @DisplayName("대기함에 없는 작업은 방치되지 않는다")
+    void isNotStaleOutsideBacklog() {
         Work assigned = register(REGISTERED_AT);
         assigned.assign(SCHEDULE, REGISTERED_AT.plusSeconds(10), REGISTRAR);
         Work cancelled = register(REGISTERED_AT);
         cancelled.cancel(REGISTERED_AT, REGISTRAR, CancellationReason.DUPLICATE_REGISTRATION, null);
         Instant muchLater = REGISTERED_AT.plus(Duration.ofDays(30));
 
-        assertThat(assigned.backlogEnteredAt()).isEmpty();
-        assertThat(cancelled.backlogEnteredAt()).isEmpty();
         assertThat(assigned.isStaleInBacklogAt(muchLater)).isFalse();
         assertThat(cancelled.isStaleInBacklogAt(muchLater)).isFalse();
     }
 
     @Test
-    @DisplayName("대기함에 들어온 지 3일(72시간)이 되면 방치로 본다")
-    void becomesStaleThreeDaysAfterEnteringBacklog() {
+    @DisplayName("등록한 지 3일(72시간)이 되면 방치로 본다")
+    void becomesStaleThreeDaysAfterRegistration() {
         Work work = register(REGISTERED_AT);
         Instant threeDaysLater = REGISTERED_AT.plus(Work.BACKLOG_STALE_AFTER);
 
@@ -100,16 +76,23 @@ class WorkRegistrationTimeTest {
     }
 
     @Test
-    @DisplayName("거절로 돌아온 작업은 돌아온 시각부터 다시 센다")
-    void restartsStaleCountWhenReturned() {
-        Work work = register(REGISTERED_AT);
-        Instant rejectedAt = REGISTERED_AT.plus(Duration.ofDays(2));
-        work.assign(SCHEDULE, rejectedAt.minusSeconds(10), REGISTRAR);
-        work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), rejectedAt);
+    @DisplayName("거절·배정 해제·기사 반환으로 돌아온 작업도 다시 세지 않고 등록 시각부터 센다")
+    void keepsCountingFromRegistrationWhenReturned() {
+        Instant returnedAt = REGISTERED_AT.plus(Duration.ofDays(2));
+        Work rejected = register(REGISTERED_AT);
+        rejected.assign(SCHEDULE, returnedAt.minusSeconds(10), REGISTRAR);
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), returnedAt);
+        Work unassigned = register(REGISTERED_AT);
+        unassigned.assign(SCHEDULE, returnedAt.minusSeconds(10), REGISTRAR);
+        unassigned.unassign(returnedAt, REGISTRAR);
+        Work released = register(REGISTERED_AT);
+        released.assign(SCHEDULE, returnedAt.minusSeconds(10), REGISTRAR);
+        released.releaseForWithdrawal(returnedAt);
+        Instant threeDaysAfterRegistration = REGISTERED_AT.plus(Work.BACKLOG_STALE_AFTER);
 
-        assertThat(work.isStaleInBacklogAt(REGISTERED_AT.plus(Duration.ofDays(3))))
-                .isFalse();
-        assertThat(work.isStaleInBacklogAt(rejectedAt.plus(Duration.ofDays(3)))).isTrue();
+        assertThat(List.of(rejected, unassigned, released))
+                .allSatisfy(work -> assertThat(work.isStaleInBacklogAt(threeDaysAfterRegistration))
+                        .isTrue());
     }
 
     @Test

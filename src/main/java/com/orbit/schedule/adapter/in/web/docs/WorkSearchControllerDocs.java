@@ -112,8 +112,8 @@ public interface WorkSearchControllerDocs {
 
     @Operation(
             summary = "대기함 요약 조회",
-            description = "작업 목록 위에 고정하는 대기함 잔여·거절 작업을 조회합니다. 대기함 작업 수(거절로 돌아온 작업 포함)와 그 가운데 "
-                    + "기사가 거절해 돌아온 작업 수, "
+            description = "작업 목록 위에 고정하는 대기함 잔여·거절 작업을 조회합니다. 대기함 작업 수(totalCount, 거절로 돌아온 "
+                    + "작업 포함)와 그 가운데 거절로 돌아온 작업을 뺀 수(registeredCount)·거절로 돌아온 작업 수(rejectedCount), "
                     + "오래된 순으로 쪽을 나눈 대기함 카드(부족 항목·등록자·거절 사유)를 돌려줍니다. "
                     + "쪽 입력이 범위를 벗어나면 SCHEDULE-003, 숫자 형식 오류는 COMMON-400입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005입니다.",

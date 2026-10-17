@@ -26,8 +26,9 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.shared.error.BusinessException;
 
 /**
- * 작업 목록 위에 고정하는 대기함 요약 조회. 대기함 작업 수(거절로 돌아온 작업 포함)와 그 가운데 거절로 돌아온 작업 수, 오래된 순으로 쪽을 나눈 대기함 카드를 돌려준다. 건수와 카드가 같은 시점을 보도록
- * 한 스냅샷(REPEATABLE READ)에서 읽는다. 기사는 요청할 수 없다(403 SCHEDULE-005). 쪽 입력이 틀리면 요청자 확인 뒤 400(SCHEDULE-003)이다.
+ * 작업 목록 위에 고정하는 대기함 요약 조회. 대기함 작업 수(거절로 돌아온 작업 포함)와 그 가운데 거절로 돌아온 작업 수·나머지 수, 오래된 순으로 쪽을
+ * 나눈 대기함 카드를 돌려준다. 건수와 카드가 같은 시점을 보도록 한 스냅샷(REPEATABLE READ)에서 읽는다. 기사는 요청할 수 없다(403
+ * SCHEDULE-005). 쪽 입력이 틀리면 요청자 확인 뒤 400(SCHEDULE-003)이다.
  */
 @Service
 public class GetBacklogSummaryService implements GetBacklogSummaryUseCase {
@@ -84,6 +85,7 @@ public class GetBacklogSummaryService implements GetBacklogSummaryUseCase {
                 works);
         return new BacklogSummaryInfo(
                 backlog.totalCount(),
+                backlog.totalCount() - rejectedCount,
                 rejectedCount,
                 works.stream()
                         .map(work -> BacklogWorks.card(work, now, displayInfos))
