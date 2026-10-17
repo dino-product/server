@@ -10,10 +10,8 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
-import com.orbit.schedule.application.port.out.AccountTechnicianContractsPort;
 import com.orbit.schedule.application.port.out.LoadTechnicianNamePort;
 import com.orbit.schedule.application.port.out.PhotoUrlPort;
-import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkTypePort;
 
@@ -31,9 +29,7 @@ class TemporaryAdapterProfileTest {
             assertThat(context).hasSingleBean(WorkQueryPort.class);
             assertThat(context).hasSingleBean(LoadTechnicianNamePort.class);
             assertThat(context).hasSingleBean(PhotoUrlPort.class);
-            assertThat(context).hasSingleBean(TechnicianContractPort.class);
             assertThat(context).hasSingleBean(WorkTypePort.class);
-            assertThat(context).hasSingleBean(AccountTechnicianContractsPort.class);
         });
     }
 
@@ -45,19 +41,22 @@ class TemporaryAdapterProfileTest {
             assertThat(context).doesNotHaveBean(WorkQueryPort.class);
             assertThat(context).doesNotHaveBean(LoadTechnicianNamePort.class);
             assertThat(context).doesNotHaveBean(PhotoUrlPort.class);
-            assertThat(context).doesNotHaveBean(TechnicianContractPort.class);
             assertThat(context).doesNotHaveBean(WorkTypePort.class);
-            assertThat(context).doesNotHaveBean(AccountTechnicianContractsPort.class);
         });
     }
 
     @Configuration(proxyBeanMethods = false)
-    // 모든 프로필에서 등록하는 실제 어댑터(persistence, organization 요청자 조회)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에 들어오게 한다.
+    // 모든 프로필에서 등록하는 실제 어댑터(persistence, organization 계약 번역)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에 들어오게 한다.
     @ComponentScan(
             basePackages = "com.orbit.schedule.adapter.out",
             excludeFilters =
                     @ComponentScan.Filter(
                             type = FilterType.REGEX,
-                            pattern = {".*\\.persistence\\..*", ".*\\.organization\\.OrganizationActorAdapter"}))
+                            pattern = {
+                                ".*\\.persistence\\..*",
+                                ".*\\.organization\\.OrganizationActorAdapter",
+                                ".*\\.organization\\.OrganizationTechnicianContractAdapter",
+                                ".*\\.organization\\.OrganizationAccountTechnicianContractsAdapter"
+                            }))
     static class ScanTemporaryAdapters {}
 }

@@ -32,6 +32,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.OrganizationMemberLookup;
+import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.TechnicianWorkRelease;
 import com.orbit.organization.TechnicianWorkReleaseResult;
 import com.orbit.organization.WorkReleaseBlocked;
@@ -73,9 +74,12 @@ class TechnicianWorkReleaseIntegrationTest {
     private static final Duration TWO_HOURS = Duration.ofHours(2);
     private static final long TEST_TIMEOUT_SECONDS = 10;
 
-    // 조립에 필요한 organization 계약. 이 테스트는 요청자를 확인하지 않는다.
+    // 조립에 필요한 organization 계약. 이 테스트는 요청자와 기사 계약을 확인하지 않는다.
     @MockitoBean
     private OrganizationMemberLookup memberLookup;
+
+    @MockitoBean
+    private TechnicianContractLookup technicianContractLookup;
 
     @Autowired
     private TechnicianWorkRelease technicianWorkRelease;

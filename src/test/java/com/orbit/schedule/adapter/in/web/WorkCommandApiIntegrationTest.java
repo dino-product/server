@@ -80,7 +80,7 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
     @Autowired
     private WorkRepository workRepository;
 
-    // 배정할 기사의 계약 확인. organization 계약 전이라 대체하며, 넣지 않으면 임시 어댑터처럼 거부한다.
+    // 배정할 기사의 계약 확인. 테스트가 기사 계약 행을 만들지 않으므로 대체하며, 넣지 않은 조합은 활성 기사 계약이 아니다.
     @MockitoBean
     private TechnicianContractPort technicianContractPort;
 
