@@ -20,6 +20,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 @DisplayName("작업 상태 강제 정정")
 class WorkStatusCorrectionTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final MembershipId MANAGER_ID = new MembershipId(99L);
@@ -407,7 +409,7 @@ class WorkStatusCorrectionTest {
     }
 
     private static Work registeredWork() {
-        return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, null, null, null);
+        return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, null, null, null);
     }
 
     private static Work acceptedWork() {
@@ -471,6 +473,7 @@ class WorkStatusCorrectionTest {
                 work.organizationId(),
                 work.name(),
                 work.registrarId(),
+                work.registeredAt(),
                 work.workType().orElse(null),
                 work.schedule().orElse(null),
                 work.customerInfo(),

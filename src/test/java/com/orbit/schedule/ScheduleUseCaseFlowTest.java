@@ -339,6 +339,7 @@ class ScheduleUseCaseFlowTest {
                         null,
                         null,
                         null,
+                        null,
                         false))
                 .workId();
     }

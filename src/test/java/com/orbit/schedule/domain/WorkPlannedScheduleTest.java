@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 @DisplayName("작업의 미리 입력한 일정")
 class WorkPlannedScheduleTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final OrganizationId ORGANIZATION = new OrganizationId(100L);
     private static final MembershipId REGISTRAR = new MembershipId(1L);
     private static final TechnicianId TECHNICIAN = new TechnicianId(3L);
@@ -79,8 +81,21 @@ class WorkPlannedScheduleTest {
                 .hasMessage("Only a REGISTERED work can have a planned schedule");
     }
 
+    @Test
+    @DisplayName("배정됐다 돌아온 대기함 작업에는 미리 입력한 일정을 복원하지 않는다")
+    void rejectsPlannedScheduleOfReturnedWork() {
+        WorkSchedule schedule = new WorkSchedule(TECHNICIAN, TEN, TWO_HOURS);
+        AssignmentHistory rejected = new AssignmentHistory(schedule, NOW, REGISTRAR);
+        rejected.reject(new Rejection(RejectionReason.OTHER, "장비 없음"), NOW.plusSeconds(60));
+
+        assertThatThrownBy(() ->
+                        restore(WorkStatus.REGISTERED, null, new PlannedSchedule(null, TEN, null), List.of(rejected)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Only a never-assigned work can have a planned schedule");
+    }
+
     private static Work register(PlannedSchedule planned) {
-        return Work.register(ORGANIZATION, "에어컨 수리", REGISTRAR, null, null, null, planned);
+        return Work.register(ORGANIZATION, "에어컨 수리", REGISTRAR, REGISTERED_AT, null, null, null, planned);
     }
 
     private static Work restore(
@@ -90,6 +105,7 @@ class WorkPlannedScheduleTest {
                 ORGANIZATION,
                 "에어컨 수리",
                 REGISTRAR,
+                REGISTERED_AT,
                 null,
                 schedule,
                 planned,

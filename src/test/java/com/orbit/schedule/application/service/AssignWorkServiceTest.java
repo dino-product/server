@@ -5,6 +5,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANA
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -287,7 +288,7 @@ class AssignWorkServiceTest {
     }
 
     private WorkId rejectedWork(Instant rejectedAt) {
-        Work work = Work.register(ORGANIZATION_ID, "거절된 작업", REGISTRAR_ID, null, null, null);
+        Work work = Work.register(ORGANIZATION_ID, "거절된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), rejectedAt, MANAGER_ID);
         work.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), rejectedAt);
         return fixture.workRepository.store(work);

@@ -321,6 +321,9 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("SCHEDULE-013"))
                 .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.CreateWorkRequest']"
                                 + ".properties.schedule")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.CreateWorkRequest']"
+                                + ".properties.sitePhotoIds")
                         .exists());
     }
 
@@ -379,6 +382,107 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("SCHEDULE-008"))
                 .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.ScheduleChangeResponse']"
                                 + ".properties.applied")
+                        .exists());
+    }
+
+    @Test
+    void documentsTimetableQueryWithFiltersAndBacklogCards() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/timetable'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("타임테이블 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'technicianTypeIds')]")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-003'].value.code")
+                        .value("SCHEDULE-003"))
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.BacklogWorkResponse']"
+                                + ".properties.stale")
+                        .exists());
+    }
+
+    @Test
+    void documentsWorkSearchAndBacklogSummary() throws Exception {
+        String search = "$.paths['/api/v1/organizations/{organizationId}/works'].get";
+        String backlog = "$.paths['/api/v1/organizations/{organizationId}/works/backlog'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(search + ".summary").value("작업 목록 검색"))
+                .andExpect(jsonPath(search + ".parameters[?(@.name == 'registrarId')]")
+                        .exists())
+                .andExpect(jsonPath(search + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-003'].value.code")
+                        .value("SCHEDULE-003"))
+                .andExpect(jsonPath(backlog + ".summary").value("대기함 요약 조회"))
+                .andExpect(jsonPath(backlog + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.search.BacklogSummaryResponse']"
+                                + ".properties.rejectedCount")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.search.BacklogSummaryResponse']"
+                                + ".properties.registeredCount")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.search.BacklogSummaryResponse']"
+                                + ".properties.totalCount")
+                        .exists());
+    }
+
+    @Test
+    void documentsWorkExportAsSpreadsheetWithRowLimit() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/export'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업내역 출력"))
+                .andExpect(jsonPath(operation + ".responses['200'].content"
+                                + "['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'timeZone')].schema.type")
+                        .value(contains("string")))
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-015'].value.code")
+                        .value("SCHEDULE-015"));
+    }
+
+    @Test
+    void documentsWorkDetailWithoutStatusCorrections() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}'].get";
+        String schema = "$.components.schemas['com.orbit.schedule.adapter.in.web.detail.WorkDetailResponse']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업 상세 조회"))
+                .andExpect(jsonPath(operation + ".responses['404'].content['application/json']"
+                                + ".examples['SCHEDULE-001'].value.code")
+                        .value("SCHEDULE-001"))
+                .andExpect(jsonPath(schema + ".properties.registeredAt").exists())
+                .andExpect(jsonPath(schema + ".properties.sitePhotos").exists())
+                .andExpect(jsonPath(schema + ".properties.statusCorrections").doesNotExist());
+    }
+
+    @Test
+    void documentsProgressBoardWithCardsAndSummary() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/progress-board'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("진행 보드 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-003'].value.code")
+                        .value("SCHEDULE-003"))
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.board.ProgressBoardResponse.Card']"
+                                + ".properties.customerName")
                         .exists());
     }
 

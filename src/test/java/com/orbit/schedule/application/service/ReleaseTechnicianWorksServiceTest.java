@@ -5,6 +5,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -223,7 +224,8 @@ class ReleaseTechnicianWorksServiceTest {
     @DisplayName("한 작업이라도 돌릴 수 없으면 관리자 입력 오류로 바꾸지 않고 도메인 예외로 실패하며 어떤 작업도 저장하지 않는다")
     void savesNothingWhenAnyWorkCannotBeReleased() {
         givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
-        Work assignedLater = Work.register(ORGANIZATION_ID, "나중에 배정된 작업", REGISTRAR_ID, null, null, null);
+        Work assignedLater =
+                Work.register(ORGANIZATION_ID, "나중에 배정된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         assignedLater.assign(
                 new WorkSchedule(TECHNICIAN_ID, TEN.plus(Duration.ofHours(3)), TWO_HOURS),
                 NOW.plus(Duration.ofHours(1)),
@@ -267,8 +269,8 @@ class ReleaseTechnicianWorksServiceTest {
     }
 
     private WorkId givenPlanned(OrganizationId organizationId, PlannedSchedule plannedSchedule) {
-        return fixture.workRepository.store(
-                Work.register(organizationId, "미리 입력한 작업", REGISTRAR_ID, null, null, null, plannedSchedule));
+        return fixture.workRepository.store(Work.register(
+                organizationId, "미리 입력한 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null, plannedSchedule));
     }
 
     private static ReleaseTechnicianWorksCommand command(Cause cause) {

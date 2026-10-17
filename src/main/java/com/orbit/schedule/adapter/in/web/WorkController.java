@@ -60,6 +60,7 @@ class WorkController implements WorkControllerDocs {
                 customer == null ? null : customer.address(),
                 payment == null ? null : payment.fee(),
                 payment == null ? null : payment.method(),
+                request.sitePhotoIds(),
                 schedule == null ? null : schedule.technicianId(),
                 schedule == null ? null : schedule.startTime(),
                 minutes == null ? null : Duration.ofMinutes(minutes),

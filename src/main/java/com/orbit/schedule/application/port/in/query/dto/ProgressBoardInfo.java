@@ -6,9 +6,9 @@ import java.util.List;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 진행 보드. 구간과 일정이 겹치는 작업을 상태별 열로 나누고 진행 현황을 센다.
+ * 진행 보드. 보일 일정이 구간과 겹치는 작업을 상태별 열로 나누고 진행 현황을 센다.
  *
- * @param columns 수락대기·수락됨·작업중·완료 순서의 열. 작업이 없는 상태도 빈 열로 담는다
+ * @param columns 등록·배정됨·작업전·작업중·완료 순서의 열. 작업이 없는 상태도 빈 열로 담는다
  */
 public record ProgressBoardInfo(List<Column> columns, Summary summary) {
 
@@ -31,18 +31,31 @@ public record ProgressBoardInfo(List<Column> columns, Summary summary) {
     /**
      * 작업 카드 하나.
      *
-     * @param delayed 조회 시각에 지연된 작업인지
+     * @param technician 담당 기사. 등록 작업은 미리 입력한 담당기사나 마지막 배정의 기사이고, 없으면 null
+     * @param startTime 예정 시작시각. 등록 작업은 미리 입력한 값이나 마지막 배정의 시각
+     * @param endTime 예정 종료시각. 예상소요시간을 모르는 등록 작업이면 null
+     * @param customerName 고객 이름. 없으면 null
+     * @param delayed 조회 시각에 지연된 작업인지. 예정 종료시각이 지났는데 끝나지 않은 작업(시간이 있는 등록 작업 포함)과 예정 종료시각이나 그 뒤에
+     *     완료한 작업이다
+     * @param returnedByRejection 기사가 거절해 대기함으로 돌아온 작업인지(화면의 거절 표시)
      */
     public record Card(
-            Long workId, String name, Long technicianId, Instant startTime, Instant endTime, boolean delayed) {}
+            Long workId,
+            String name,
+            TechnicianInfo technician,
+            Instant startTime,
+            Instant endTime,
+            String customerName,
+            boolean delayed,
+            boolean returnedByRejection) {}
 
     /**
      * 보드의 작업 수 집계.
      *
-     * @param total 보드의 모든 작업 수
+     * @param total 보드의 모든 작업 수(다섯 열 카드 수의 합)
+     * @param inProgress 작업중인 작업 수(요약의 진행 중, [현황 파악] §4 MON-003)
+     * @param delayed 지금 지연 중인 작업 수(등록·배정됨·작업전·작업중 중. 늦게 완료한 작업은 세지 않는다)
      * @param completed 완료된 작업 수
-     * @param inProgress 작업중인 작업 수
-     * @param delayed 지연된 작업 수(수락대기·수락됨·작업중 중)
      */
-    public record Summary(int total, int completed, int inProgress, int delayed) {}
+    public record Summary(int total, int inProgress, int delayed, int completed) {}
 }

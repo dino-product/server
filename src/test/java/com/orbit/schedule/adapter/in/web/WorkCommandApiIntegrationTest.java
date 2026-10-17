@@ -8,37 +8,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
-
-import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.MACSigner;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
-import com.orbit.schedule.application.port.out.TechnicianContractPort;
-import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CustomerInfo;
@@ -53,42 +35,14 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
-import com.orbit.support.IntegrationTestSupport;
 
-import tools.jackson.databind.ObjectMapper;
-
-/**
- * 작업 변경 API를 공통 응답·보안·트랜잭션·영속성과 함께 확인한다. 발주사는 API로 만들고(생성자가 총관리자), 다른 직원 소속·기사 계약은 참여 승인 기능이 아직 없어
- * 테이블에 직접 넣는다. 다른 API를 검증할 작업은 원하는 상태로 바로 맞추려고 저장소로 준비한다.
- */
-@AutoConfigureMockMvc
+/** 작업 변경 API를 공통 응답·보안·트랜잭션·영속성과 함께 확인한다. 준비물은 {@link ScheduleApiTestSupport}를 따른다. */
 @DisplayName("작업 변경 API")
-class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
+class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
 
-    private static final AtomicLong ACCOUNT_IDS = new AtomicLong(70_000);
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final Instant START = Instant.parse("2030-03-02T01:00:00Z");
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private WorkRepository workRepository;
-
-    // 배정할 기사의 계약 확인. 테스트가 기사 계약 행을 만들지 않으므로 대체하며, 넣지 않은 조합은 활성 기사 계약이 아니다.
-    @MockitoBean
-    private TechnicianContractPort technicianContractPort;
-
-    @Value("${app.auth.jwt.secret}")
-    private String jwtSecret;
-
-    @Value("${app.auth.jwt.issuer}")
-    private String jwtIssuer;
 
     @Nested
     @DisplayName("작업 등록")
@@ -106,6 +60,34 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
             Work saved = stored(organization, workId);
             assertThat(saved.status()).isEqualTo(WorkStatus.REGISTERED);
             assertThat(saved.registrarId()).isEqualTo(new MembershipId(organization.ownerMembership()));
+        }
+
+        @Test
+        @DisplayName("현장 사진 식별자를 함께 주면 붙인 순서대로 남긴다")
+        void registersWithSitePhotos() throws Exception {
+            Organization organization = organization();
+
+            long workId = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "sitePhotoIds", List.of("photo-1", "photo-2")))
+                    .andExpect(status().isOk()));
+
+            assertThat(stored(organization, workId).sitePhotos()).containsExactly("photo-1", "photo-2");
+        }
+
+        @Test
+        @DisplayName("현장 사진이 6장을 넘으면 400 SCHEDULE-003이고 만들지 않는다")
+        void rejectsTooManySitePhotos() throws Exception {
+            Organization organization = organization();
+
+            create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "sitePhotoIds", Collections.nCopies(7, "photo")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            assertThat(worksIn(organization)).isZero();
         }
 
         @Test
@@ -737,32 +719,6 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 delete(ASSIGNMENT, organizationId, workId).header(HttpHeaders.AUTHORIZATION, bearer(requester)));
     }
 
-    /** 발주사와 그 총관리자. 총관리자의 직원 소속은 작업 등록자로도 쓴다. */
-    private record Organization(long id, long owner, long ownerMembership) {}
-
-    private Organization organization() throws Exception {
-        long owner = account();
-        String body = mockMvc.perform(post("/api/v1/organizations")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("name", "오르빗 설비", "industry", "HVAC"))))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        long organizationId = objectMapper
-                .readTree(body)
-                .path("result")
-                .path("organizationId")
-                .asLong();
-        Long membership = jdbcTemplate.queryForObject(
-                "select id from company_memberships where company_id = ? and member_id = ?",
-                Long.class,
-                organizationId,
-                owner);
-        return new Organization(organizationId, owner, membership);
-    }
-
     private long registeredWork(Organization organization) {
         return save(registered(organization));
     }
@@ -791,65 +747,15 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 new OrganizationId(organization.id()),
                 "대기 작업",
                 new MembershipId(organization.ownerMembership()),
+                REGISTERED_AT,
                 null,
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
-    }
-
-    private long save(Work work) {
-        return workRepository.save(work).id().orElseThrow().value();
     }
 
     private Work stored(Organization organization, long workId) {
         return workRepository
                 .findInOrganization(new OrganizationId(organization.id()), new WorkId(workId))
                 .orElseThrow();
-    }
-
-    private void staffMembership(long organizationId, long accountId) {
-        Timestamp now = Timestamp.from(Instant.now());
-        jdbcTemplate.update(
-                "insert into company_memberships"
-                        + " (company_id, member_id, is_owner, status,"
-                        + " joined_at, status_changed_at, created_at, updated_at)"
-                        + " values (?, ?, false, 'ACTIVE', ?, ?, ?, ?)",
-                organizationId,
-                accountId,
-                now,
-                now,
-                now,
-                now);
-    }
-
-    private void technicianContract(long organizationId, long accountId) {
-        Timestamp now = Timestamp.from(Instant.now());
-        jdbcTemplate.update(
-                "insert into technician (company_id, member_id, status, status_changed_at, created_at, updated_at)"
-                        + " values (?, ?, 'ACTIVE', ?, ?, ?)",
-                organizationId,
-                accountId,
-                now,
-                now,
-                now);
-    }
-
-    private static long account() {
-        return ACCOUNT_IDS.incrementAndGet();
-    }
-
-    private String bearer(long accountId) throws Exception {
-        Instant issuedAt = Instant.now();
-        SignedJWT jwt = new SignedJWT(
-                new JWSHeader(JWSAlgorithm.HS256),
-                new JWTClaimsSet.Builder()
-                        .issuer(jwtIssuer)
-                        .subject(Long.toString(accountId))
-                        .jwtID(UUID.randomUUID().toString())
-                        .issueTime(Date.from(issuedAt))
-                        .expirationTime(Date.from(issuedAt.plusSeconds(600)))
-                        .claim("token_use", "access")
-                        .build());
-        jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
-        return "Bearer " + jwt.serialize();
     }
 }

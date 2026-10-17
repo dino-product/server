@@ -63,6 +63,8 @@ import com.orbit.support.TestcontainersConfiguration;
 @DisplayName("대기함 반환 요구 인터페이스(PostgreSQL)")
 class TechnicianWorkReleaseIntegrationTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     // 테스트들이 같은 DB를 쓰므로 테스트마다 다른 조직을 써서 앞선 테스트가 남긴 작업·잠금이 섞이지 않게 한다.
     private static final AtomicLong NEXT_ORGANIZATION_ID = new AtomicLong(700L);
     private static final TechnicianId TECHNICIAN_ID = new TechnicianId(31L);
@@ -128,6 +130,7 @@ class TechnicianWorkReleaseIntegrationTest {
                         organizationId,
                         "미리 입력한 작업",
                         REGISTRAR_ID,
+                        REGISTERED_AT,
                         null,
                         null,
                         null,
@@ -272,7 +275,7 @@ class TechnicianWorkReleaseIntegrationTest {
     /** 한 시간 전에 배정하고 그 뒤에 수락·시작한 작업. 반환 시각(지금)이 이 기록들보다 늦도록 과거 시각을 쓴다. */
     private Work work(WorkStatus status, TechnicianId technicianId, int hoursAfterTen) {
         Instant assignedAt = Instant.now().minus(Duration.ofHours(1));
-        Work work = Work.register(organizationId, "반환 대상", REGISTRAR_ID, null, null, null);
+        Work work = Work.register(organizationId, "반환 대상", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(
                 new WorkSchedule(technicianId, TEN.plus(Duration.ofHours(hoursAfterTen)), TWO_HOURS),
                 assignedAt,
