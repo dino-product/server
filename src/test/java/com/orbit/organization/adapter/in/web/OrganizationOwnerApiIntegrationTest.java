@@ -34,6 +34,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.support.IntegrationTestSupport;
+import com.orbit.support.SignupTestSupport;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -49,6 +50,8 @@ class OrganizationOwnerApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    private final SignupTestSupport.SignupOnce signups = new SignupTestSupport.SignupOnce();
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -292,6 +295,8 @@ class OrganizationOwnerApiIntegrationTest extends IntegrationTestSupport {
                         .claim("token_use", "access")
                         .build());
         jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
-        return jwt.serialize();
+        String accessToken = jwt.serialize();
+        signups.ensure(mockMvc, objectMapper, accountId, accessToken);
+        return accessToken;
     }
 }
