@@ -1,5 +1,7 @@
 package com.orbit.auth.adapter.out.persistence;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -49,6 +51,14 @@ class AccountPersistenceAdapter implements AccountRepository {
     @Transactional(propagation = Propagation.MANDATORY)
     public Optional<Account> findByIdForUpdate(AccountId accountId) {
         return repository.findLockedById(accountId.value()).map(AccountJpaEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Account> listClosedSince(Instant since) {
+        return repository.findClosedSince(since).stream()
+                .map(AccountJpaEntity::toDomain)
+                .toList();
     }
 
     @Override

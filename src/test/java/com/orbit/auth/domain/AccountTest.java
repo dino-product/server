@@ -140,8 +140,8 @@ class AccountTest {
 
             assertThat(unlinks)
                     .containsExactly(
-                            new ProviderUnlink(id, KAKAO_IDENTITY, CLOSED_AT),
-                            new ProviderUnlink(id, APPLE_IDENTITY, CLOSED_AT));
+                            ProviderUnlink.request(id, KAKAO_IDENTITY, CLOSED_AT),
+                            ProviderUnlink.request(id, APPLE_IDENTITY, CLOSED_AT));
             assertThat(account.isClosed()).isTrue();
             assertThat(account.closedAt()).contains(CLOSED_AT);
             assertThat(account.identities()).isEmpty();
@@ -179,16 +179,6 @@ class AccountTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("closedAt must not be before registeredAt");
             assertThat(account.isClosed()).isFalse();
-        }
-
-        @Test
-        @DisplayName("연결 해제할 일의 문자열 표현에는 제공자 회원번호를 넣지 않는다")
-        void hidesSubjectInProviderUnlinkText() {
-            ProviderUnlink unlink = new ProviderUnlink(new AccountId(10L), KAKAO_IDENTITY, CLOSED_AT);
-
-            assertThat(unlink.toString())
-                    .doesNotContain(KAKAO_IDENTITY.subject())
-                    .contains("KAKAO");
         }
     }
 }

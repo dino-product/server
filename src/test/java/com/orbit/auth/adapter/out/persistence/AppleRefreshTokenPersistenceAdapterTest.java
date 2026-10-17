@@ -86,6 +86,26 @@ class AppleRefreshTokenPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("철회한 클라이언트의 값만 지우거나 계정의 값을 모두 지운다. 없는 값을 지워도 오류가 없다")
+    void deletesPerClientAndPerAccount() {
+        AccountId accountId = newAccount();
+        AccountId other = newAccount();
+        adapter.save(accountId, "com.orbit.app", "app", NOW);
+        adapter.save(accountId, "com.orbit.web", "web", NOW);
+        adapter.save(other, "com.orbit.app", "other", NOW);
+
+        adapter.delete(accountId, "com.orbit.app");
+        adapter.delete(accountId, "com.orbit.app");
+        entityManager.clear();
+        assertThat(adapter.listByAccount(accountId)).containsExactly(new AppleRefreshToken("com.orbit.web", "web"));
+
+        adapter.deleteByAccount(accountId);
+        entityManager.clear();
+        assertThat(adapter.listByAccount(accountId)).isEmpty();
+        assertThat(adapter.listByAccount(other)).containsExactly(new AppleRefreshToken("com.orbit.app", "other"));
+    }
+
+    @Test
     @DisplayName("저장한 값이 없는 계정은 빈 목록이다")
     void listsNothingForAccountWithoutTokens() {
         assertThat(adapter.listByAccount(newAccount())).isEmpty();
