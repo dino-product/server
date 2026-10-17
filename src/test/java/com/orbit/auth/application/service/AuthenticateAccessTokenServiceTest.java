@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbit.auth.application.port.in.query.dto.AccessTokenInfo;
 import com.orbit.auth.application.port.in.query.dto.AuthenticateAccessTokenQuery;
 import com.orbit.auth.application.port.out.AccessTokenPort;
+import com.orbit.auth.application.port.out.ClosedAccountPort;
 import com.orbit.auth.application.port.out.RevokedAccessTokenPort;
 import com.orbit.auth.domain.AccessToken;
 import com.orbit.auth.domain.AccountId;
@@ -39,6 +40,9 @@ class AuthenticateAccessTokenServiceTest {
     @Mock
     private RevokedAccessTokenPort revokedTokens;
 
+    @Mock
+    private ClosedAccountPort closedAccounts;
+
     @InjectMocks
     private AuthenticateAccessTokenService service;
 
@@ -47,25 +51,38 @@ class AuthenticateAccessTokenServiceTest {
     void authenticatesValidToken() {
         when(accessTokens.parse("access-token")).thenReturn(Optional.of(TOKEN));
         when(revokedTokens.isRevoked("jti")).thenReturn(false);
+        when(closedAccounts.isClosed(new AccountId(7L))).thenReturn(false);
 
         assertThat(service.authenticate(QUERY)).contains(new AccessTokenInfo(7L, "jti", NOW.plus(Duration.ofHours(1))));
     }
 
     @Test
-    @DisplayName("폐기된 토큰은 거부한다")
+    @DisplayName("폐기된 토큰은 계정 폐쇄 표시를 보지 않고 거부한다")
     void rejectsRevokedToken() {
         when(accessTokens.parse("access-token")).thenReturn(Optional.of(TOKEN));
         when(revokedTokens.isRevoked("jti")).thenReturn(true);
 
         assertThat(service.authenticate(QUERY)).isEmpty();
+        verify(closedAccounts, never()).isClosed(any());
     }
 
     @Test
-    @DisplayName("검증에 실패한 토큰은 폐기 목록을 보지 않고 거부한다")
+    @DisplayName("닫힌 계정의 토큰은 폐기되지 않았어도 거부한다")
+    void rejectsTokenOfClosedAccount() {
+        when(accessTokens.parse("access-token")).thenReturn(Optional.of(TOKEN));
+        when(revokedTokens.isRevoked("jti")).thenReturn(false);
+        when(closedAccounts.isClosed(new AccountId(7L))).thenReturn(true);
+
+        assertThat(service.authenticate(QUERY)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("검증에 실패한 토큰은 폐기 목록과 계정 폐쇄 표시를 보지 않고 거부한다")
     void rejectsInvalidTokenWithoutRevocationLookup() {
         when(accessTokens.parse("access-token")).thenReturn(Optional.empty());
 
         assertThat(service.authenticate(QUERY)).isEmpty();
         verify(revokedTokens, never()).isRevoked(any());
+        verify(closedAccounts, never()).isClosed(any());
     }
 }
