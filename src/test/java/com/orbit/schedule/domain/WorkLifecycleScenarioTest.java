@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 @DisplayName("작업 생애주기 통합 시나리오")
 class WorkLifecycleScenarioTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final MembershipId MANAGER_ID = new MembershipId(99L);
 
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
@@ -260,7 +262,8 @@ class WorkLifecycleScenarioTest {
     }
 
     private static Work registeredWork() {
-        return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+        return Work.register(
+                ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
     }
 
     private static final Optional<AssignmentEnding> NOT_ENDED = Optional.empty();
@@ -286,6 +289,7 @@ class WorkLifecycleScenarioTest {
                 work.organizationId(),
                 work.name(),
                 work.registrarId(),
+                work.registeredAt(),
                 work.workType().orElse(null),
                 work.schedule().orElse(null),
                 work.customerInfo(),

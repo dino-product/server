@@ -12,8 +12,8 @@ import com.orbit.schedule.domain.ActualPaymentMethod;
  * @param actualFee 실제 받은 금액(원)
  */
 public record CompletionReportInfo(
-        List<Photo> beforePhotos,
-        List<Photo> afterPhotos,
+        List<PhotoInfo> beforePhotos,
+        List<PhotoInfo> afterPhotos,
         String usedParts,
         String workNote,
         Long actualFee,
@@ -23,7 +23,4 @@ public record CompletionReportInfo(
         beforePhotos = List.copyOf(beforePhotos);
         afterPhotos = List.copyOf(afterPhotos);
     }
-
-    /** 업로드를 마친 사진의 식별자와 내려받을 주소. */
-    public record Photo(String photoId, String url) {}
 }

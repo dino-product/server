@@ -6,6 +6,8 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHE
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -86,6 +88,20 @@ class UpdateWorkDetailsServiceTest {
         assertThat(saved.workType()).isEmpty();
         assertThat(saved.customerInfo()).isEqualTo(new CustomerInfo(null, null, null));
         assertThat(saved.paymentInfo()).isEqualTo(new PaymentInfo(null, null));
+    }
+
+    @Test
+    @DisplayName("기본정보 수정은 등록 때 붙인 현장 사진을 그대로 둔다")
+    void keepsSitePhotos() {
+        fixture.givenManager();
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.REGISTERED));
+        work.replaceSitePhotos(List.of("site-1"));
+        WorkId id = fixture.workRepository.store(work);
+
+        service.update(new UpdateWorkDetailsCommand(
+                ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), "보일러 점검", null, null, null, null, null, null));
+
+        assertThat(fixture.singleSaved().sitePhotos()).containsExactly("site-1");
     }
 
     @ParameterizedTest
