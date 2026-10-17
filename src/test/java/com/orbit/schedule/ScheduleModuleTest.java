@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -21,6 +22,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.StaffMember;
+import com.orbit.organization.TechnicianContract;
+import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
@@ -62,6 +65,8 @@ import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkHistoryQuery;
 import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
+import com.orbit.schedule.application.port.out.AccountTechnicianContract;
+import com.orbit.schedule.application.port.out.AccountTechnicianContractsPort;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.TechnicianContractPort;
@@ -102,11 +107,18 @@ class ScheduleModuleTest {
     private TechnicianContractPort technicianContractPort;
 
     @Autowired
+    private AccountTechnicianContractsPort accountTechnicianContractsPort;
+
+    @Autowired
     private WorkTypePort workTypePort;
 
     // organization 공개 계약. 조립 테스트는 schedule만 띄우므로 대체하며, 넣지 않으면 활성 구성원이 없다.
     @MockitoBean
     private OrganizationMemberLookup memberLookup;
+
+    // organization 공개 계약. 넣지 않으면 활성 기사 계약이 없다.
+    @MockitoBean
+    private TechnicianContractLookup technicianContractLookup;
 
     @Autowired
     private CreateWorkUseCase createWorkUseCase;
@@ -300,9 +312,20 @@ class ScheduleModuleTest {
     }
 
     @Test
-    void assembledOrganizationReferencePortsDenyUntilOrganizationContracts() {
+    void assembledTechnicianContractPortsUseOrganizationContract() {
+        when(technicianContractLookup.existsActive(100L, 3L)).thenReturn(true);
+        when(technicianContractLookup.listByAccount(7L)).thenReturn(List.of(new TechnicianContract(3L, 100L, false)));
+
         assertThat(technicianContractPort.isActive(ORGANIZATION_ID, new TechnicianId(3L)))
+                .isTrue();
+        assertThat(technicianContractPort.isActive(ORGANIZATION_ID, new TechnicianId(4L)))
                 .isFalse();
+        assertThat(accountTechnicianContractsPort.listByAccount(7L))
+                .containsExactly(new AccountTechnicianContract(new TechnicianId(3L), ORGANIZATION_ID, false));
+    }
+
+    @Test
+    void assembledWorkTypePortDeniesUntilOrganizationContract() {
         assertThat(workTypePort.isSelectable(ORGANIZATION_ID, new WorkTypeId(2L)))
                 .isFalse();
     }

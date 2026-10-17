@@ -58,8 +58,8 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
     @Autowired
     protected WorkRepository workRepository;
 
-    // organization·profile 계약 전이라 대체하는 출력 포트. 넣지 않으면 임시 어댑터처럼 기사 계약을 거부하고 표시 정보를 찾지 못한다. 모든 API 테스트가
-    // 같은 대체 Bean을 두어 Spring 컨텍스트를 함께 쓴다.
+    // 대체하는 출력 포트. 기사 계약 확인은 테스트가 기사 계약 행을 만들지 않아 대체하며 넣지 않은 조합은 활성 기사 계약이 아니다. 표시 정보는
+    // organization·profile 계약 전이라 대체한다. 모든 API 테스트가 같은 대체 Bean을 두어 Spring 컨텍스트를 함께 쓴다.
     @MockitoBean
     protected TechnicianContractPort technicianContractPort;
 

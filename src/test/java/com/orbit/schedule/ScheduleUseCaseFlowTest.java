@@ -71,7 +71,7 @@ import com.orbit.support.TestcontainersConfiguration;
 
 /**
  * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. 계정별 요청자를 간단히 정하려고 행위자 포트만 테스트 구현(@Primary)으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
- * 배정할 기사의 계약 확인은 임시 어댑터가 모두 거부하므로 대체하고, 흐름에서 배정하는 기사만 테스트마다 그 조직의 활성 기사 계약으로 넣는다.
+ * 조립 테스트는 organization을 띄우지 않으므로 배정할 기사의 계약 확인을 대체하고, 흐름에서 배정하는 기사만 테스트마다 그 조직의 활성 기사 계약으로 넣는다.
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
@@ -87,7 +87,7 @@ class ScheduleUseCaseFlowTest {
     @MockitoBean
     private TechnicianContractPort technicianContractPort;
 
-    // 탈퇴하는 기사 계정의 기사 계약 조회. 임시 어댑터가 모두 거부하므로 대체한다.
+    // 탈퇴하는 기사 계정의 기사 계약 조회. organization을 띄우지 않으므로 대체한다.
     @MockitoBean
     private AccountTechnicianContractsPort accountTechnicianContractsPort;
 
