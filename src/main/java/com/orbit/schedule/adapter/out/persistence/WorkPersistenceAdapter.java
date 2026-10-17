@@ -81,7 +81,10 @@ class WorkPersistenceAdapter implements WorkRepository {
                 .toList();
     }
 
-    /** 대기함 작업은 미리 입력한 담당기사를 일정과 같은 {@code technician_id} 컬럼에 둔다({@link WorkMapper}). */
+    /**
+     * 대기함 작업은 미리 입력한 담당기사를 일정과 같은 {@code technician_id} 컬럼에 둔다({@link WorkMapper}). 배정됐다 돌아온 작업의 그 컬럼은 마지막 배정의
+     * 기사라 복원한 뒤 미리 입력한 담당기사로 다시 거른다.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<Work> listBacklogPlannedForTechnician(OrganizationId organizationId, TechnicianId technicianId) {
@@ -92,6 +95,9 @@ class WorkPersistenceAdapter implements WorkRepository {
                         organizationId.value(), technicianId.value(), EnumSet.of(WorkStatus.REGISTERED))
                 .stream()
                 .map(WorkMapper::toDomain)
+                .filter(work -> work.plannedSchedule()
+                        .map(planned -> technicianId.equals(planned.technicianId()))
+                        .orElse(false))
                 .toList();
     }
 }
