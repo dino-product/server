@@ -24,10 +24,10 @@
 | 정책서 | 기준 버전 | 확인 시각 | 관련 모듈 | 이 정책서가 원본인 공통 규칙 |
 | --- | --- | --- | --- | --- |
 | [[조직·계정] 정책](https://app.notion.com/p/3cdf190e116681ffb967c10178f30374) | v1.7 | 2026-10-15 16:10 | `organization`, `auth`, `user` | §10 시스템 전체 권한 매트릭스, §9 참여 요청·소속·계정 상태 코드 |
-| [[작업] 정책](https://app.notion.com/p/3cef190e116681ffb614e9fa12cd3ae3) | v1.4 | 2026-10-16 17:23 | `schedule` | §9 작업 상태 코드·표시값 |
-| [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v1.3 | 2026-10-16 17:23 | `schedule` | — |
+| [[작업] 정책](https://app.notion.com/p/3cef190e116681ffb614e9fa12cd3ae3) | v2.0 | 2026-10-17 13:45 | `schedule` | §9 작업 상태 코드·표시값 |
+| [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v2.0 | 2026-10-17 13:38 | `schedule` | — |
 | [[현장 수행] 정책](https://app.notion.com/p/3d0f190e11668133ba17c64b6d33ba5b) | v1.1 | 2026-10-01 00:40 | `schedule` | — |
-| [[현황 파악] 정책](https://app.notion.com/p/3d0f190e11668148aaf1cbfd9685ef05) | v1.1 | 2026-10-16 17:23 | `schedule` (조회) | — |
+| [[현황 파악] 정책](https://app.notion.com/p/3d0f190e11668148aaf1cbfd9685ef05) | v2.0 | 2026-10-17 13:46 | `schedule` (조회) | — |
 | [[알림] 정책](https://app.notion.com/p/3d0f190e116681aab442e9e8f237c63e) | v1.2 | 2026-10-01 00:40 | `notification` | §4 알림 트리거 |
 
 정책서 안의 이슈 ID(`ORG-`, `JOB-`, `SCH-`, `FLD-`, `MON-`, `NTF-`)는 각 정책서 마지막 절의 "확정 필요 항목"에 등록되어 있으며, 레포 문서는 이 ID를 그대로 인용한다.
@@ -42,7 +42,7 @@
 | [[작업] 기능명세](https://app.notion.com/p/3cef190e1166819b9f21ca729f69fc97) | v1.3 | 2026-10-14 17:37 | §5 데이터 명세 |
 | [[스케줄·배정] 기능명세](https://app.notion.com/p/3cef190e116681359a7eeeceb3626f2b) | v1.2 | 2026-10-16 17:23 | |
 | [[현장 수행] 기능명세](https://app.notion.com/p/3d0f190e116681f8850bee316cf8fb00) | v1.1 | 2026-10-01 00:40 | §5 완료보고 입력(수행 메모 255자, 사진 장당 40MB) |
-| [[현황 파악] 기능명세](https://app.notion.com/p/3d0f190e1166810caa81ee205bbf4589) | v1.0 | 2026-10-01 00:40 | |
+| [[현황 파악] 기능명세](https://app.notion.com/p/3d0f190e1166810caa81ee205bbf4589) | v2.0 | 2026-10-17 13:45 | |
 | [[알림] 기능명세](https://app.notion.com/p/3d0f190e116681e3912ce55ffad90c06) | v1.2 | 2026-10-01 00:40 | |
 
 ### QA·시나리오
