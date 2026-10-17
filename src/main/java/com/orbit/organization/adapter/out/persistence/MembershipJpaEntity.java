@@ -37,6 +37,10 @@ class MembershipJpaEntity extends BaseTimeEntity {
     @Column(name = "is_owner", nullable = false)
     private boolean owner;
 
+    /** 직원 유형. NULL은 "유형 없음"이다. 지정은 소속·계약 유형 지정 작업이 도메인과 함께 연결하고, 지금은 유형 삭제 때 해제만 한다. */
+    @Column(name = "company_membership_category_id")
+    private Long staffCategoryId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
     private MembershipStatus status;

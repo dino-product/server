@@ -3,6 +3,7 @@ package com.orbit.organization.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -31,6 +32,7 @@ import com.orbit.organization.application.port.in.command.dto.RequestParticipati
 import com.orbit.organization.application.port.out.AccountMembership;
 import com.orbit.organization.application.port.out.AccountMembershipQueryPort;
 import com.orbit.organization.application.port.out.CompanyCodeAttemptLimiter;
+import com.orbit.organization.application.port.out.OrganizationBusyException;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.application.port.out.ParticipationRequestRepository;
 import com.orbit.organization.domain.AccountId;
@@ -119,6 +121,18 @@ class RequestParticipationServiceTest {
 
         assertRejected("7K2M9X", OrganizationErrorCode.RETIRED_COMPANY_CODE);
         verify(organizationRepository).lock(ORGANIZATION_ID);
+        verifyNoInteractions(membershipQueryPort, requestRepository);
+    }
+
+    @Test
+    @DisplayName("앞선 변경이 발주사 잠금 대기 한도 안에 끝나지 않으면 요청을 만들지 않고 409로 거부한다")
+    void rejectsWhenOrganizationIsBusy() {
+        lockedOrganization();
+        doThrow(new OrganizationBusyException(new IllegalStateException("lock timeout")))
+                .when(organizationRepository)
+                .lock(ORGANIZATION_ID);
+
+        assertRejected("7K2M9X", OrganizationErrorCode.ORGANIZATION_BUSY);
         verifyNoInteractions(membershipQueryPort, requestRepository);
     }
 
