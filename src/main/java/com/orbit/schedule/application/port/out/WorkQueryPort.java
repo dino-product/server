@@ -32,6 +32,12 @@ public interface WorkQueryPort {
      */
     List<Work> listScheduledBetween(OrganizationId organizationId, Instant from, Instant to);
 
+    /**
+     * 보일 일정({@link Work#shownSchedule})이 [from, to) 구간과 겹치는 작업(등록·수락대기·수락됨·작업중·완료). 대기함 작업은 미리 입력한 값이나 마지막 배정
+     * 일정으로 판정하며, 예상소요시간을 몰라 끝을 모르면 시작시각이 구간 안일 때만, 시작시각을 모르면 담지 않는다. 취소된 작업은 담지 않는다.
+     */
+    List<Work> listShownBetween(OrganizationId organizationId, Instant from, Instant to);
+
     /** {@link #listScheduledBetween} 가운데 현재 일정의 담당이 그 기사인 작업. */
     List<Work> listScheduledForTechnician(
             OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to);

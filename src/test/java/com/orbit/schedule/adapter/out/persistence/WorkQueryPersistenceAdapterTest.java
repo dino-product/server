@@ -90,6 +90,10 @@ class WorkQueryPersistenceAdapterTest {
             WorkId completed = save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T07:00:00Z", 60)));
             save(cancelled(organization, "취소", schedule(TECHNICIAN, "2026-10-21T09:00:00Z", 60)));
             save(planned(organization, "미리 입력한 일정", schedule(TECHNICIAN, "2026-10-21T11:00:00Z", 60)));
+            // 거절로 돌아온 작업의 일정 컬럼에는 마지막 배정 일정이 남지만 기사의 일정이 아니다.
+            Work rejected = assigned(organization, "거절됨", schedule(TECHNICIAN, "2026-10-21T13:00:00Z", 60));
+            rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ASSIGNED_AT.plusSeconds(60));
+            save(rejected);
             save(assigned(organization(), "다른 조직", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
 
             List<Work> works = inTx(() -> adapter.listScheduledBetween(organization, FROM, TO));
@@ -190,6 +194,60 @@ class WorkQueryPersistenceAdapterTest {
 
             assertThat(works).isEmpty();
         }
+    }
+
+    @Test
+    @DisplayName("보일 일정 구간 조회는 일정 상태와 시간이 구간에 든 대기함 작업을 담고, 끝을 모르는 대기함 작업은 시작이 구간 안일 때만 담는다")
+    void listsWorksWhoseShownScheduleOverlapsPeriod() {
+        OrganizationId organization = organization();
+        WorkId pending = save(assigned(organization, "수락대기", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
+        WorkId completed = save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T03:00:00Z", 60)));
+        save(cancelled(organization, "취소", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));
+        WorkId plannedTime = save(Work.register(
+                organization,
+                "시간만 정한 대기",
+                REGISTRAR,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(null, Instant.parse("2026-10-20T23:30:00Z"), Duration.ofHours(1))));
+        WorkId startOnly = save(planned(organization, "시작만 정한 대기", schedule(TECHNICIAN, "2026-10-21T07:00:00Z", 60)));
+        save(planned(organization, "구간 전에 시작만 정한 대기", schedule(TECHNICIAN, "2026-10-20T23:00:00Z", 60)));
+        WorkId startsAtFrom =
+                save(planned(organization, "from에 시작만 정한 대기", schedule(TECHNICIAN, "2026-10-21T00:00:00Z", 60)));
+        save(planned(organization, "to에 시작만 정한 대기", schedule(TECHNICIAN, "2026-10-22T00:00:00Z", 60)));
+        save(Work.register(
+                organization,
+                "from에 끝나는 대기",
+                REGISTRAR,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(null, Instant.parse("2026-10-20T23:00:00Z"), Duration.ofHours(1))));
+        save(Work.register(
+                organization,
+                "기사만 정한 대기",
+                REGISTRAR,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN, null, null)));
+        Work rejected = assigned(organization, "거절됨", schedule(OTHER_TECHNICIAN, "2026-10-21T09:00:00Z", 60));
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ASSIGNED_AT.plusSeconds(60));
+        WorkId returned = save(rejected);
+        Work rejectedOutside = assigned(organization, "구간 밖 거절", schedule(TECHNICIAN, "2026-10-22T00:00:00Z", 60));
+        rejectedOutside.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ASSIGNED_AT.plusSeconds(60));
+        save(rejectedOutside);
+        save(registered(organization, "일정 없음"));
+        save(assigned(organization(), "다른 조직", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
+
+        List<Work> works = inTx(() -> adapter.listShownBetween(organization, FROM, TO));
+
+        assertThat(ids(works))
+                .containsExactlyInAnyOrder(pending, completed, plannedTime, startOnly, startsAtFrom, returned);
     }
 
     @Test

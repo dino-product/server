@@ -62,6 +62,11 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
             .filter(status -> status.isActive() || status == WorkStatus.COMPLETED)
             .collect(Collectors.toUnmodifiableSet());
 
+    /** 보일 일정으로 구간에 담는 상태(일정 상태와 등록). */
+    private static final Set<WorkStatus> SHOWN_STATUSES = Arrays.stream(WorkStatus.values())
+            .filter(status -> status != WorkStatus.CANCELLED)
+            .collect(Collectors.toUnmodifiableSet());
+
     private static final char LIKE_ESCAPE = '\\';
 
     private static final QWorkJpaEntity WORK = QWorkJpaEntity.workJpaEntity;
@@ -83,6 +88,20 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
     public List<Work> listScheduledBetween(OrganizationId organizationId, Instant from, Instant to) {
         requirePeriod(organizationId, from, to);
         return currentSchedulesBetween(WORK.companyId.eq(organizationId.value()), from, to);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Work> listShownBetween(OrganizationId organizationId, Instant from, Instant to) {
+        requirePeriod(organizationId, from, to);
+        // 끝을 모르는(예상소요시간이 없는) 대기함 행은 종료 비교가 null이라 시작시각이 구간 안인지만 본다.
+        return listWithAssignments(WORK.companyId
+                .eq(organizationId.value())
+                .and(WORK.status.in(SHOWN_STATUSES))
+                .and(WORK.scheduledStartAt.goe(from.minus(WorkSchedule.MAX_EXPECTED_DURATION)))
+                .and(WORK.scheduledStartAt.lt(to))
+                .and(endsAfter(WORK.scheduledStartAt, WORK.expectedDuration, from)
+                        .or(WORK.expectedDuration.isNull().and(WORK.scheduledStartAt.goe(from)))));
     }
 
     @Override

@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 /**
- * 작업 목록·출력의 담당기사·예정시간 칸에 보일 일정({@link Work#shownSchedule}). 지금 일정이거나, 대기함 작업이면 등록 때 미리 입력한 값이나 마지막
+ * 작업 목록·출력의 담당기사·예정시간 칸과 진행 보드 카드에 보일 일정({@link Work#shownSchedule}). 지금 일정이거나, 대기함 작업이면 등록 때 미리 입력한 값이나 마지막
  * 배정의 일정이다. 미리 입력한 값은 일부만 있을 수 있어 세 값 모두 비어 있을 수 있다.
  *
  * @param technicianId 담당기사. 없으면 null

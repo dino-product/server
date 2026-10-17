@@ -26,6 +26,9 @@ import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
 import com.orbit.schedule.application.port.in.query.dto.ProgressBoardInfo;
 import com.orbit.schedule.application.port.in.query.dto.TechnicianInfo;
 import com.orbit.schedule.application.port.out.TechnicianProfile;
+import com.orbit.schedule.domain.PlannedSchedule;
+import com.orbit.schedule.domain.Rejection;
+import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -42,7 +45,7 @@ class GetProgressBoardServiceTest {
             fixture.actorPort, fixture.workRepository, fixture.technicianProfiles, fixture.clock);
 
     @Test
-    @DisplayName("구간의 작업만 배정됨·작업전·작업중·완료 열로 나누고 각 열은 시작시각·작업 식별자 순이며, 카드에 담당 기사·고객 이름을 담고 전체·작업중·지연·완료 수를 센다")
+    @DisplayName("구간의 작업만 등록·배정됨·작업전·작업중·완료 열로 나누고 각 열은 시작시각·작업 식별자 순이며, 카드에 담당 기사·고객 이름을 담고 전체·작업중·지연·완료 수를 센다")
     void groupsWorksByStatus() {
         fixture.givenManager();
         fixture.technicianProfiles.given(ORGANIZATION_ID, new TechnicianProfile(TECHNICIAN_ID, "김민수", null));
@@ -67,15 +70,17 @@ class GetProgressBoardServiceTest {
         assertThat(board.columns())
                 .extracting(ProgressBoardInfo.Column::status)
                 .containsExactly(
+                        WorkStatus.REGISTERED,
                         WorkStatus.PENDING_ACCEPTANCE,
                         WorkStatus.ACCEPTED,
                         WorkStatus.IN_PROGRESS,
                         WorkStatus.COMPLETED);
-        assertThat(board.columns().get(0).cards())
+        assertThat(board.columns().get(0).cards()).as("시간이 없는 대기함 작업은 담지 않는다").isEmpty();
+        assertThat(board.columns().get(1).cards())
                 .extracting(ProgressBoardInfo.Card::workId)
                 .containsExactly(pending.value(), sameStartPending.value(), laterPending.value());
-        assertThat(board.columns().get(1).cards()).isEmpty();
-        assertThat(board.columns().get(2).cards())
+        assertThat(board.columns().get(2).cards()).isEmpty();
+        assertThat(board.columns().get(3).cards())
                 .containsExactly(new ProgressBoardInfo.Card(
                         lateInProgress.value(),
                         "늦은 작업",
@@ -83,8 +88,9 @@ class GetProgressBoardServiceTest {
                         pastStart,
                         pastStart.plus(TWO_HOURS),
                         "홍길동",
-                        true));
-        assertThat(board.columns().get(3).cards())
+                        true,
+                        false));
+        assertThat(board.columns().get(4).cards())
                 .extracting(
                         ProgressBoardInfo.Card::workId,
                         card -> card.technician().name(),
@@ -109,11 +115,11 @@ class GetProgressBoardServiceTest {
 
         ProgressBoardInfo board = service.get(query(FROM, TO));
 
-        assertThat(board.columns().get(0).cards())
+        assertThat(board.columns().get(1).cards())
                 .singleElement()
                 .extracting(ProgressBoardInfo.Card::delayed)
                 .isEqualTo(true);
-        assertThat(board.columns().get(1).cards())
+        assertThat(board.columns().get(2).cards())
                 .singleElement()
                 .extracting(ProgressBoardInfo.Card::delayed)
                 .isEqualTo(true);
@@ -130,7 +136,7 @@ class GetProgressBoardServiceTest {
 
         ProgressBoardInfo board = service.get(query(FROM, TO));
 
-        assertThat(board.columns().get(3).cards())
+        assertThat(board.columns().get(4).cards())
                 .singleElement()
                 .extracting(ProgressBoardInfo.Card::delayed)
                 .isEqualTo(true);
@@ -138,13 +144,13 @@ class GetProgressBoardServiceTest {
     }
 
     @Test
-    @DisplayName("작업이 없으면 빈 열 네 개와 0 집계를 돌려준다")
+    @DisplayName("작업이 없으면 빈 열 다섯 개와 0 집계를 돌려준다")
     void returnsEmptyBoard() {
         fixture.givenManager();
 
         ProgressBoardInfo board = service.get(query(FROM, TO));
 
-        assertThat(board.columns()).hasSize(4).allSatisfy(column -> assertThat(column.cards())
+        assertThat(board.columns()).hasSize(5).allSatisfy(column -> assertThat(column.cards())
                 .isEmpty());
         assertThat(board.summary()).isEqualTo(new ProgressBoardInfo.Summary(0, 0, 0, 0));
     }
@@ -174,10 +180,67 @@ class GetProgressBoardServiceTest {
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), ASSIGNED_AT, REGISTRAR_ID);
         fixture.workRepository.store(work);
 
-        assertThat(service.get(query(FROM, TO)).columns().getFirst().cards())
+        assertThat(service.get(query(FROM, TO)).columns().get(1).cards())
                 .singleElement()
                 .extracting(ProgressBoardInfo.Card::customerName)
                 .isNull();
+    }
+
+    @Test
+    @DisplayName("미리 입력한 시간이나 마지막 배정 시간이 구간에 든 대기함 작업을 등록 열에 담고, 거절로 돌아온 작업과 지연을 표시해 지연 수에 센다")
+    void showsBacklogWorksWithTimeInPeriod() {
+        fixture.givenManager();
+        fixture.technicianProfiles.given(ORGANIZATION_ID, new TechnicianProfile(TECHNICIAN_ID, "김민수", null));
+        Instant pastStart = NOW.minus(Duration.ofHours(3));
+        WorkId plannedLate = fixture.workRepository.store(Work.register(
+                ORGANIZATION_ID,
+                "시간만 정한 작업",
+                REGISTRAR_ID,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(null, pastStart, TWO_HOURS)));
+        WorkId startOnly = fixture.workRepository.store(Work.register(
+                ORGANIZATION_ID,
+                "시작만 정한 작업",
+                REGISTRAR_ID,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN_ID, TEN, null)));
+        fixture.workRepository.store(Work.register(
+                ORGANIZATION_ID,
+                "기사만 정한 작업",
+                REGISTRAR_ID,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN_ID, null, null)));
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ASSIGNED_AT.plusSeconds(60));
+        WorkId rejectedId = fixture.workRepository.store(rejected);
+
+        ProgressBoardInfo board = service.get(query(FROM, TO));
+
+        TechnicianInfo kim = new TechnicianInfo(TECHNICIAN_ID.value(), "김민수", null);
+        assertThat(board.columns().getFirst().cards())
+                .containsExactly(
+                        new ProgressBoardInfo.Card(
+                                plannedLate.value(),
+                                "시간만 정한 작업",
+                                null,
+                                pastStart,
+                                pastStart.plus(TWO_HOURS),
+                                null,
+                                true,
+                                false),
+                        new ProgressBoardInfo.Card(startOnly.value(), "시작만 정한 작업", kim, TEN, null, null, false, false),
+                        new ProgressBoardInfo.Card(
+                                rejectedId.value(), "대상 작업", kim, TEN, TEN.plus(TWO_HOURS), "홍길동", false, true));
+        assertThat(board.summary()).isEqualTo(new ProgressBoardInfo.Summary(3, 0, 1, 0));
     }
 
     private static GetProgressBoardQuery query(Instant from, Instant to) {

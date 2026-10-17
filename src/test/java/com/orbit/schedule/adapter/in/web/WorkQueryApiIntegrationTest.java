@@ -590,7 +590,7 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
     class ProgressBoard {
 
         @Test
-        @DisplayName("구간의 작업을 상태별 열로 나눠 담당 기사·고객 이름과 함께 돌려주고, 진행 중은 작업중만 센다")
+        @DisplayName("구간의 작업을 등록부터 완료까지 상태별 열로 나눠 담당 기사·고객 이름·거절 표시와 함께 돌려주고, 진행 중은 작업중만 센다")
         void returnsBoard() throws Exception {
             Organization organization = organization();
             givenDisplayInfos(organization);
@@ -602,22 +602,38 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                     new MembershipId(organization.ownerMembership()));
             long pendingId = save(pending);
             save(registered(organization, "대기 작업", Instant.now().minus(Duration.ofHours(1))));
+            Work rejected = registered(organization, "거절된 작업", Instant.now().minus(Duration.ofHours(1)));
+            rejected.assign(
+                    new WorkSchedule(TECHNICIAN, DAY.plus(Duration.ofHours(3)), Duration.ofHours(1)),
+                    Instant.now().minusSeconds(120),
+                    new MembershipId(organization.ownerMembership()));
+            rejected.reject(
+                    new Rejection(RejectionReason.SCHEDULE_CONFLICT, null),
+                    Instant.now().minusSeconds(60));
+            long rejectedId = save(rejected);
 
             board(organization.owner(), organization.id(), "from=" + DAY + "&to=" + DAY.plus(Duration.ofDays(1)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.result.columns.length()").value(4))
-                    .andExpect(jsonPath("$.result.columns[0].status").value("PENDING_ACCEPTANCE"))
-                    .andExpect(jsonPath("$.result.columns[0].cards[0].workId").value(pendingId))
+                    .andExpect(jsonPath("$.result.columns.length()").value(5))
+                    .andExpect(jsonPath("$.result.columns[0].status").value("REGISTERED"))
+                    .andExpect(jsonPath("$.result.columns[0].cards.length()").value(1))
+                    .andExpect(jsonPath("$.result.columns[0].cards[0].workId").value(rejectedId))
+                    .andExpect(jsonPath("$.result.columns[0].cards[0].returnedByRejection")
+                            .value(true))
                     .andExpect(jsonPath("$.result.columns[0].cards[0].technician.name")
                             .value("김민수"))
-                    .andExpect(jsonPath("$.result.columns[0].cards[0].customerName")
+                    .andExpect(jsonPath("$.result.columns[1].status").value("PENDING_ACCEPTANCE"))
+                    .andExpect(jsonPath("$.result.columns[1].cards[0].workId").value(pendingId))
+                    .andExpect(jsonPath("$.result.columns[1].cards[0].technician.name")
+                            .value("김민수"))
+                    .andExpect(jsonPath("$.result.columns[1].cards[0].customerName")
                             .value("박서준"))
-                    .andExpect(jsonPath("$.result.columns[0].cards[0].delayed").value(false))
+                    .andExpect(jsonPath("$.result.columns[1].cards[0].delayed").value(false))
                     .andExpect(
-                            jsonPath("$.result.columns[0].cards[0].startTime").value(DAY.toString()))
-                    .andExpect(jsonPath("$.result.columns[0].cards[0].endTime")
+                            jsonPath("$.result.columns[1].cards[0].startTime").value(DAY.toString()))
+                    .andExpect(jsonPath("$.result.columns[1].cards[0].endTime")
                             .value(DAY.plus(Duration.ofHours(2)).toString()))
-                    .andExpect(jsonPath("$.result.summary.total").value(1))
+                    .andExpect(jsonPath("$.result.summary.total").value(2))
                     .andExpect(jsonPath("$.result.summary.inProgress").value(0))
                     .andExpect(jsonPath("$.result.summary.delayed").value(0))
                     .andExpect(jsonPath("$.result.summary.completed").value(0));
