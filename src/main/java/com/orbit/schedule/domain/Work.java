@@ -22,6 +22,18 @@ public final class Work {
     /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
     public static final int MAX_NAME_LENGTH = 100;
 
+    /** 등록 때 붙일 수 있는 현장 사진 수. */
+    public static final int MAX_SITE_PHOTO_COUNT = 6;
+
+    /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한, HM-238). */
+    public static final int MAX_SITE_PHOTO_ID_LENGTH = 500;
+
+    /**
+     * 등록한 뒤 이만큼 지나도 대기함에 남아 있으면 방치된 작업으로 보고 강조한다. 거절·배정 해제로 돌아온 작업도 다시 세지 않는다. 화면 시간대와 관계없이 경과
+     * 시간(72시간)으로 판정한다([스케줄·배정] §5, SCH-009).
+     */
+    public static final Duration BACKLOG_STALE_AFTER = Duration.ofDays(3);
+
     /** 현재 배정이 없는 작업(등록·취소)의 마지막 배정이 관리자 조치나 탈퇴로 끝났을 때 허용하는 방식. 재배정·일정 변경 뒤에는 새 배정이 남는다. */
     private static final Set<AssignmentEndReason> BACKLOG_ENDINGS = Set.of(
             AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED, AssignmentEndReason.ACCOUNT_WITHDRAWN);
@@ -30,6 +42,7 @@ public final class Work {
     private final OrganizationId organizationId;
     private String name;
     private final MembershipId registrarId;
+    private final Instant registeredAt;
     private WorkTypeId workType;
     private WorkSchedule schedule;
     private CustomerInfo customerInfo;
@@ -42,12 +55,14 @@ public final class Work {
     private Cancellation cancellation;
     private final List<StatusCorrection> statusCorrections;
     private PlannedSchedule plannedSchedule;
+    private List<String> sitePhotos = List.of();
 
     private Work(
             WorkId id,
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             WorkSchedule schedule,
             CustomerInfo customerInfo,
@@ -66,6 +81,9 @@ public final class Work {
         if (registrarId == null) {
             throw new IllegalArgumentException("registrarId must not be null");
         }
+        if (registeredAt == null) {
+            throw new IllegalArgumentException("registeredAt must not be null");
+        }
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
         }
@@ -73,6 +91,7 @@ public final class Work {
         this.organizationId = organizationId;
         this.name = name;
         this.registrarId = registrarId;
+        this.registeredAt = truncateToMicros(registeredAt);
         this.workType = workType;
         this.schedule = schedule;
         this.customerInfo = orEmpty(customerInfo);
@@ -86,10 +105,12 @@ public final class Work {
         this.statusCorrections = statusCorrections == null ? new ArrayList<>() : new ArrayList<>(statusCorrections);
     }
 
+    /** 작업을 대기함에 등록한다. 등록 시각 뒤로만 배정·취소 같은 기록을 남길 수 있다. */
     public static Work register(
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             CustomerInfo customerInfo,
             PaymentInfo paymentInfo) {
@@ -98,6 +119,7 @@ public final class Work {
                 organizationId,
                 name,
                 registrarId,
+                registeredAt,
                 workType,
                 null,
                 customerInfo,
@@ -116,11 +138,12 @@ public final class Work {
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             CustomerInfo customerInfo,
             PaymentInfo paymentInfo,
             PlannedSchedule plannedSchedule) {
-        Work work = register(organizationId, name, registrarId, workType, customerInfo, paymentInfo);
+        Work work = register(organizationId, name, registrarId, registeredAt, workType, customerInfo, paymentInfo);
         work.plannedSchedule = plannedSchedule;
         return work;
     }
@@ -130,6 +153,7 @@ public final class Work {
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             WorkSchedule schedule,
             CustomerInfo customerInfo,
@@ -146,6 +170,7 @@ public final class Work {
                 organizationId,
                 name,
                 registrarId,
+                registeredAt,
                 workType,
                 schedule,
                 customerInfo,
@@ -161,12 +186,13 @@ public final class Work {
         return work;
     }
 
-    /** 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간까지 복원한다. 미리 입력한 일정은 대기함(등록) 작업에만 있다. */
+    /** 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간까지 복원한다. 미리 입력한 일정은 배정한 적 없는 대기함(등록) 작업에만 있다. */
     public static Work reconstitute(
             WorkId id,
             OrganizationId organizationId,
             String name,
             MembershipId registrarId,
+            Instant registeredAt,
             WorkTypeId workType,
             WorkSchedule schedule,
             PlannedSchedule plannedSchedule,
@@ -184,6 +210,7 @@ public final class Work {
                 organizationId,
                 name,
                 registrarId,
+                registeredAt,
                 workType,
                 schedule,
                 customerInfo,
@@ -198,7 +225,52 @@ public final class Work {
         if (plannedSchedule != null && status != WorkStatus.REGISTERED) {
             throw new IllegalArgumentException("Only a REGISTERED work can have a planned schedule");
         }
+        if (plannedSchedule != null && !assignmentHistory.isEmpty()) {
+            throw new IllegalArgumentException("Only a never-assigned work can have a planned schedule");
+        }
         work.plannedSchedule = plannedSchedule;
+        return work;
+    }
+
+    /** 등록 때 붙인 현장 사진까지 복원한다. */
+    public static Work reconstitute(
+            WorkId id,
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            Instant registeredAt,
+            WorkTypeId workType,
+            WorkSchedule schedule,
+            PlannedSchedule plannedSchedule,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            WorkStatus status,
+            List<AssignmentHistory> assignmentHistory,
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt,
+            Cancellation cancellation,
+            List<StatusCorrection> statusCorrections,
+            List<String> sitePhotos) {
+        Work work = reconstitute(
+                id,
+                organizationId,
+                name,
+                registrarId,
+                registeredAt,
+                workType,
+                schedule,
+                plannedSchedule,
+                customerInfo,
+                paymentInfo,
+                status,
+                assignmentHistory,
+                completionReport,
+                startedAt,
+                completedAt,
+                cancellation,
+                statusCorrections);
+        work.sitePhotos = requireSitePhotos(sitePhotos);
         return work;
     }
 
@@ -218,6 +290,10 @@ public final class Work {
         return registrarId;
     }
 
+    public Instant registeredAt() {
+        return registeredAt;
+    }
+
     public Optional<WorkTypeId> workType() {
         return Optional.ofNullable(workType);
     }
@@ -228,6 +304,11 @@ public final class Work {
 
     public Optional<PlannedSchedule> plannedSchedule() {
         return Optional.ofNullable(plannedSchedule);
+    }
+
+    /** 등록 때 붙인 현장 사진 식별자. 붙인 순서다. */
+    public List<String> sitePhotos() {
+        return sitePhotos;
     }
 
     public CustomerInfo customerInfo() {
@@ -276,12 +357,48 @@ public final class Work {
     }
 
     /**
-     * 주어진 시각에 지연된 작업인지. 아직 끝나지 않은(수락대기·수락됨·작업중) 작업의 예정 종료시각이 그 시각이거나 이미 지났으면 지연이다. 지연은 상태가 아니라 조회
-     * 시각으로 계산하는 표시값이다.
+     * 작업 목록·출력의 담당기사·예정시간 칸과 진행 보드 카드에 보일 일정. 지금 일정이 있으면 그 일정이다. 대기함 작업은 등록 때 미리 입력한 값(일부일 수 있다)이거나,
+     * 배정됐다 거절·배정 해제·기사 반환(·취소를 대기함으로 되돌린 정정)으로 돌아온 작업이면 마지막 배정의 일정이다. 반환한 기사가 비활성·탈퇴했어도
+     * 그대로다. 미리 입력한 값은 배정한 적 없는 작업에만 있으므로 둘은 겹치지 않는다. 일정이 없는 취소 작업(배정 전에 취소)은 비어 있다.
+     */
+    public Optional<ShownSchedule> shownSchedule() {
+        if (schedule != null) {
+            return Optional.of(ShownSchedule.of(schedule));
+        }
+        if (status != WorkStatus.REGISTERED) {
+            return Optional.empty();
+        }
+        if (plannedSchedule != null) {
+            return Optional.of(ShownSchedule.of(plannedSchedule));
+        }
+        return assignmentHistory.isEmpty()
+                ? Optional.empty()
+                : Optional.of(ShownSchedule.of(assignmentHistory.getLast().schedule()));
+    }
+
+    /**
+     * 주어진 시각에 지연된 작업인지. 지연은 상태가 아니라 조회 시각으로 계산하는 표시값이며, 예정 종료시각이 그 시각이거나 이미 지났는데 끝나지 않은 작업과 늦게 끝난
+     * 작업이다.
+     *
+     * <ul>
+     *   <li>수락대기·수락됨·작업중: 예정 종료시각이 그 시각이거나 이미 지났으면 지연이다.
+     *   <li>완료: 예정 종료시각이나 그 뒤에 완료했으면 지연이다(완료 시점에 이미 지연이었던 작업).
+     *   <li>등록(대기함): {@link #shownSchedule 보일 일정}의 종료시각이 그 시각이거나 이미 지났으면 지연이다. 시작시각이나 예상소요시간을 모르면 지연이 아니다.
+     *   <li>취소: 지연이 아니다.
+     * </ul>
      */
     public boolean isDelayedAt(Instant now) {
         Objects.requireNonNull(now, "now must not be null");
-        return status.isActive() && !now.isBefore(schedule.endTime());
+        return switch (status) {
+            case PENDING_ACCEPTANCE, ACCEPTED, IN_PROGRESS -> !now.isBefore(schedule.endTime());
+            case COMPLETED -> !completedAt.isBefore(schedule.endTime());
+            case REGISTERED ->
+                shownSchedule()
+                        .flatMap(ShownSchedule::endTime)
+                        .map(endTime -> !now.isBefore(endTime))
+                        .orElse(false);
+            case CANCELLED -> false;
+        };
     }
 
     /** 기사가 거절해 대기함으로 돌아온 작업인지. 대기함 작업의 최신 배정이 거절로 끝났으면 그렇다. 대기함 목록의 거절 반환 표시와 작업 목록의 거절 필터가 쓴다. */
@@ -289,6 +406,12 @@ public final class Work {
         return status == WorkStatus.REGISTERED
                 && !assignmentHistory.isEmpty()
                 && assignmentHistory.getLast().result() == AssignmentResult.REJECTED;
+    }
+
+    /** 주어진 시각에 대기함에서 방치된 작업인지. 대기함(등록) 작업이고 등록한 지 {@link #BACKLOG_STALE_AFTER} 이상 지났으면 방치다. */
+    public boolean isStaleInBacklogAt(Instant now) {
+        Objects.requireNonNull(now, "now must not be null");
+        return status == WorkStatus.REGISTERED && !now.isBefore(registeredAt.plus(BACKLOG_STALE_AFTER));
     }
 
     /** 대기함 작업을 기사·일정에 배정하고 수락을 기다린다. 배정한 관리자(조직 소속)를 이력에 남긴다. */
@@ -373,6 +496,17 @@ public final class Work {
         plannedSchedule = plannedSchedule.startTime() == null && plannedSchedule.expectedDuration() == null
                 ? null
                 : new PlannedSchedule(null, plannedSchedule.startTime(), plannedSchedule.expectedDuration());
+    }
+
+    /**
+     * 현장 사진을 주어진 식별자로 교체한다. 업로드를 마친 파일의 식별자를 받으며, null이면 비운다. 완료·취소된 작업은 바꿀 수 없다. 입력을 상태보다 먼저 검증한다.
+     */
+    public void replaceSitePhotos(List<String> photoIds) {
+        List<String> photos = requireSitePhotos(photoIds);
+        if (status.isTerminal()) {
+            throw new IllegalStateException("Cannot change site photos when status is " + status);
+        }
+        sitePhotos = photos;
     }
 
     /**
@@ -494,9 +628,10 @@ public final class Work {
         status = target;
     }
 
-    /** 작업에 남은 가장 늦은 기록 시각(배정 이력의 마지막 시각, 시작·완료·취소·정정 시각). 없으면 {@link Instant#MIN}. */
+    /** 작업에 남은 가장 늦은 기록 시각(등록 시각, 배정 이력의 마지막 시각, 시작·완료·취소·정정 시각). */
     private Instant latestRecordedMoment() {
         return Stream.of(
+                        registeredAt,
                         assignmentHistory.isEmpty()
                                 ? null
                                 : assignmentHistory.getLast().lastMoment(),
@@ -508,7 +643,7 @@ public final class Work {
                         cancellation == null ? null : cancellation.cancelledAt())
                 .filter(Objects::nonNull)
                 .max(Comparator.naturalOrder())
-                .orElse(Instant.MIN);
+                .orElseThrow();
     }
 
     /** 정정 뒤에 기록하는 시각(배정·시작·완료·해제·취소)이 마지막 정정 시각보다 앞서지 않게 한다. field는 오류 메시지에 쓸 시각 이름이다. */
@@ -551,10 +686,13 @@ public final class Work {
     }
 
     /**
-     * 새 배정·취소 시각이 최신 배정 이력의 마지막 시각(종료·응답·배정 시각 중 가장 늦은 것)보다 이르지 않은지 확인해 이력의 시간 순서를 지킨다. field는
-     * 오류 메시지에 쓸 시각 이름이다.
+     * 새 배정·취소 시각이 최신 배정 이력의 마지막 시각(종료·응답·배정 시각 중 가장 늦은 것), 배정 이력이 없으면 등록 시각보다 이르지 않은지 확인해 기록의
+     * 시간 순서를 지킨다. field는 오류 메시지에 쓸 시각 이름이다.
      */
     private void requireNotBeforeLatestAssignment(Instant at, String field) {
+        if (assignmentHistory.isEmpty() && at.isBefore(registeredAt)) {
+            throw new IllegalArgumentException(field + " must not be before the registration");
+        }
         if (!assignmentHistory.isEmpty()
                 && at.isBefore(assignmentHistory.getLast().lastMoment())) {
             throw new IllegalArgumentException(field + " must not be before the latest assignment");
@@ -568,8 +706,9 @@ public final class Work {
         }
     }
 
-    /** 저장값 복원 시 상태와 일정·배정 이력·완료보고·시작·완료 시각·취소 기록·상태 정정 기록이 서로 맞는지 검증한다. */
+    /** 저장값 복원 시 등록 시각·상태와 일정·배정 이력·완료보고·시작·완료 시각·취소 기록·상태 정정 기록이 서로 맞는지 검증한다. */
     private void requireConsistentState() {
+        requireNotBeforeRegistration();
         for (int i = 0; i < assignmentHistory.size() - 1; i++) {
             AssignmentHistory previous = assignmentHistory.get(i);
             if (previous.result() == AssignmentResult.PENDING) {
@@ -618,6 +757,21 @@ public final class Work {
         requireConsistentProgressTimes(latest);
         requireConsistentCancellation(latest);
         requireConsistentCorrections();
+    }
+
+    /** 저장된 배정·취소·정정 기록은 등록 시각보다 앞서지 않는다. 그 뒤의 기록 순서는 각 기록의 검증이 맡는다. */
+    private void requireNotBeforeRegistration() {
+        if (!assignmentHistory.isEmpty()
+                && assignmentHistory.getFirst().assignedAt().isBefore(registeredAt)) {
+            throw new IllegalArgumentException("assignment histories must not precede the registration");
+        }
+        if (cancellation != null && cancellation.cancelledAt().isBefore(registeredAt)) {
+            throw new IllegalArgumentException("cancelledAt must not precede the registration");
+        }
+        if (!statusCorrections.isEmpty()
+                && statusCorrections.getFirst().correctedAt().isBefore(registeredAt)) {
+            throw new IllegalArgumentException("status corrections must not precede the registration");
+        }
     }
 
     /** 대기함으로 되돌린 정정이 가리키는 배정 순번들. */
@@ -823,6 +977,22 @@ public final class Work {
         if (status != requiredStatus) {
             throw new IllegalStateException("Cannot " + action + " when status is " + status);
         }
+    }
+
+    private static List<String> requireSitePhotos(List<String> photoIds) {
+        if (photoIds == null) {
+            return List.of();
+        }
+        if (photoIds.size() > MAX_SITE_PHOTO_COUNT) {
+            throw new IllegalArgumentException("sitePhotos must be at most " + MAX_SITE_PHOTO_COUNT);
+        }
+        for (String photoId : photoIds) {
+            if (photoId == null || photoId.isBlank() || photoId.length() > MAX_SITE_PHOTO_ID_LENGTH) {
+                throw new IllegalArgumentException(
+                        "sitePhotos must be non-blank ids of at most " + MAX_SITE_PHOTO_ID_LENGTH + " characters");
+            }
+        }
+        return List.copyOf(photoIds);
     }
 
     private static void requireName(String name) {

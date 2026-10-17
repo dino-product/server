@@ -26,7 +26,9 @@ public interface WorkControllerDocs {
                     + "기사의 수락을 기다리고, 비우면 대기함에 둡니다. schedule 항목을 일부만 주면 입력한 값을 남긴 채 대기함에 둡니다. "
                     + "같은 기사의 다른 작업과 시간이 겹치는데 schedule.conflictConfirmed가 false면 작업을 만들지 않고 applied=false와 "
                     + "겹친 작업을 돌려줍니다(오류 아님). 확인 뒤 schedule.conflictConfirmed=true로 다시 보내면 만듭니다. "
-                    + "입력 규칙 위반은 SCHEDULE-003, 본문 형식 오류(목록에 없는 결제 방식 등)는 COMMON-400, 선택할 수 없는 작업 유형은 SCHEDULE-014, "
+                    + "현장 사진은 업로드를 마친 파일의 식별자로 최대 6장까지 받습니다(sitePhotoIds). "
+                    + "입력 규칙 위반(현장 사진 7장 이상, 빈·500자 넘는 식별자 포함)은 SCHEDULE-003, 본문 형식 오류(목록에 없는 결제 방식 등)는 COMMON-400, "
+                    + "선택할 수 없는 작업 유형은 SCHEDULE-014, "
                     + "배정하거나 일부만 준 담당기사가 그 조직의 활성 기사 계약이 아니면 SCHEDULE-013, 같은 기사의 다른 변경을 기다리다 시간이 지나면 SCHEDULE-006입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
