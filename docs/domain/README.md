@@ -6,7 +6,7 @@
 
 | 모듈 | 소유 책임 | 공개 계약 | 허용 의존성 |
 | --- | --- | --- | --- |
-| `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안, JPA 감사 컬럼 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`), `shared::security` (`SecurityFilterChainCustomizer`, `ApiErrorResponseWriter`), `shared::persistence` (`BaseTimeEntity`) | 없음 |
+| `shared` | 오류 기반, OpenAPI 오류 문서화, 공통 응답 구현, 설정과 보안, JPA 감사 컬럼, 이벤트 발행 기록의 실패 재전송·감시 | `shared::error` (`BaseCode`, `BusinessException`, `CommonErrorCode`), `shared::openapi` (`ApiErrorCodes`, `ApiErrorCodesGroup`), `shared::security` (`SecurityFilterChainCustomizer`, `ApiErrorResponseWriter`), `shared::persistence` (`BaseTimeEntity`) | 없음 |
 | `user` | 사용자 등록과 사용자 요약 조회 | [User 공개 계약](user.md#공개-계약) | `shared::error`, `shared::openapi` |
 | `auth` | 카카오·Apple OIDC 로그인, 계정(`Account`) 발급·조회, Apple refresh token 암호화 보관·철회 포트, Access Token 발급·검증·로그아웃과 예제 subject 조회·등록 이벤트 후속 처리 | [Auth 공개 계약](auth.md#패키지와-공개-계약) | `shared::error`, `shared::openapi`, `shared::security`, `user` |
 | `organization` | 골격 — 조직·소속·참여 요청 관리 예정 | 없음 | 없음 |
