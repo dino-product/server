@@ -17,6 +17,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.domain.AccountId;
@@ -61,8 +63,30 @@ class OrganizationPersistenceAdapterTest {
 
     @BeforeEach
     void setUp() {
-        organizations = new OrganizationPersistenceAdapter(organizationRepository, retiredCodeRepository);
+        organizations = new OrganizationPersistenceAdapter(
+                organizationRepository, retiredCodeRepository, jdbcTemplate, new OrganizationLockProperties(null));
         memberships = new MembershipPersistenceAdapter(membershipRepository);
+    }
+
+    @Test
+    @DisplayName("발주사를 잠근 뒤에는 트랜잭션이 앞서 정한 대기 한도를 그대로 되돌린다")
+    void restoresPreviousLockTimeoutAfterLocking() {
+        OrganizationId id = organizations.save(organization("7K2M9X")).id().orElseThrow();
+        jdbcTemplate.execute("SET LOCAL lock_timeout = '7s'");
+
+        organizations.lock(id);
+
+        assertThat(jdbcTemplate.queryForObject("SELECT current_setting('lock_timeout')", String.class))
+                .isEqualTo("7s");
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @DisplayName("트랜잭션 밖에서는 곧바로 풀리는 잠금이 되므로 거부한다")
+    void rejectsLockingOutsideTransaction() {
+        assertThatThrownBy(() -> organizations.lock(new OrganizationId(1L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("organization lock requires an active transaction");
     }
 
     @Test
@@ -235,16 +259,23 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("계정의 그 발주사 활성 소속만 찾는다")
+    @DisplayName("계정의 그 발주사 활성 소속만 찾고 그 소속이 있는지 확인한다")
     void findsActiveMembershipOfAccountInOrganization() {
         OrganizationId organizationId =
                 organizations.save(organization("E5F6G7")).id().orElseThrow();
         OrganizationId otherId = organizations.save(organization("H8J9K0")).id().orElseThrow();
         memberships.save(Membership.founder(organizationId, new AccountId(7L), NOW));
+        MembershipId deactivated = staffMembership(organizationId, 9L);
+        jdbcTemplate.update("update company_memberships set status = 'DEACTIVATED' where id = ?", deactivated.value());
 
         assertThat(memberships.findActive(organizationId, new AccountId(7L))).isPresent();
         assertThat(memberships.findActive(otherId, new AccountId(7L))).isEmpty();
         assertThat(memberships.findActive(organizationId, new AccountId(8L))).isEmpty();
+        assertThat(memberships.existsActive(organizationId, new AccountId(7L))).isTrue();
+        assertThat(memberships.existsActive(otherId, new AccountId(7L))).isFalse();
+        assertThat(memberships.existsActive(organizationId, new AccountId(8L))).isFalse();
+        assertThat(memberships.findActive(organizationId, new AccountId(9L))).isEmpty();
+        assertThat(memberships.existsActive(organizationId, new AccountId(9L))).isFalse();
     }
 
     @Test
