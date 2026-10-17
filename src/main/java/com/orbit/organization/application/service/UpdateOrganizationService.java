@@ -37,7 +37,7 @@ public class UpdateOrganizationService implements UpdateOrganizationUseCase {
         OrganizationName name = OrganizationInputs.name(command.name());
         Industry industry = OrganizationInputs.industry(command.industry());
 
-        organizationRepository.lock(organizationId);
+        OrganizationLocks.lock(organizationRepository, organizationId);
         Organization organization = organizationRepository
                 .findById(organizationId)
                 .orElseThrow(() -> new IllegalStateException("active membership must belong to an organization"));

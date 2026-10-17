@@ -3,6 +3,7 @@ package com.orbit.organization.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -28,6 +29,7 @@ import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.dto.UpdateOrganizationCommand;
 import com.orbit.organization.application.port.in.query.dto.OrganizationInfo;
 import com.orbit.organization.application.port.out.MembershipRepository;
+import com.orbit.organization.application.port.out.OrganizationBusyException;
 import com.orbit.organization.application.port.out.OrganizationRepository;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.CompanyCode;
@@ -95,6 +97,20 @@ class UpdateOrganizationServiceTest {
         OrganizationInfo result = service.update(new UpdateOrganizationCommand(7L, 10L, "오르빗 설비", Industry.PLUMBING));
 
         assertThat(result).isEqualTo(new OrganizationInfo(10L, "오르빗 설비", Industry.PLUMBING));
+    }
+
+    @Test
+    @DisplayName("앞선 변경이 대기 한도 안에 끝나지 않으면 409로 거부하고 저장하지 않는다")
+    void rejectsWhenOrganizationIsBusy() {
+        givenRequesterIs(true);
+        doThrow(new OrganizationBusyException(new IllegalStateException("lock timeout")))
+                .when(organizationRepository)
+                .lock(ORGANIZATION_ID);
+
+        assertRejected(
+                new UpdateOrganizationCommand(7L, 10L, "새 발주사", Industry.HVAC),
+                OrganizationErrorCode.ORGANIZATION_BUSY);
+        verify(organizationRepository, never()).save(any());
     }
 
     @Test
