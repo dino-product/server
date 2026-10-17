@@ -19,8 +19,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
-import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo.Photo;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
+import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkCompletionReportInfo;
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.CompletionReport;
@@ -60,8 +60,8 @@ class GetCompletionReportServiceTest {
         assertThat(info.completedAt()).isEqualTo(NOW);
         CompletionReportInfo report = info.report();
         assertThat(report.beforePhotos())
-                .containsExactly(new Photo("before-1", "url/before-1"), new Photo("before-2", "url/before-2"));
-        assertThat(report.afterPhotos()).containsExactly(new Photo("after-1", "url/after-1"));
+                .containsExactly(new PhotoInfo("before-1", "url/before-1"), new PhotoInfo("before-2", "url/before-2"));
+        assertThat(report.afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/after-1"));
         assertThat(report.usedParts()).isEqualTo("필터");
         assertThat(report.workNote()).isEqualTo("교체 완료");
         assertThat(report.actualFee()).isEqualTo(120_000L);

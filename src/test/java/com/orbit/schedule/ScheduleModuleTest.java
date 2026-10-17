@@ -88,6 +88,8 @@ import com.orbit.support.TestcontainersConfiguration;
 @Testcontainers(disabledWithoutDocker = true)
 class ScheduleModuleTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
 
     @Autowired
@@ -192,7 +194,7 @@ class ScheduleModuleTest {
     @Test
     void assembledWorkRepositoryStoresAndFindsWork() {
         WorkId id = workRepository
-                .save(Work.register(ORGANIZATION_ID, "모듈 작업", new MembershipId(1L), null, null, null))
+                .save(Work.register(ORGANIZATION_ID, "모듈 작업", new MembershipId(1L), REGISTERED_AT, null, null, null))
                 .id()
                 .orElseThrow();
 
@@ -206,6 +208,7 @@ class ScheduleModuleTest {
                         1L,
                         ORGANIZATION_ID.value(),
                         "모듈 작업",
+                        null,
                         null,
                         null,
                         null,
@@ -273,9 +276,9 @@ class ScheduleModuleTest {
                 () -> getCompletionReportUseCase.get(new GetCompletionReportQuery(1L, ORGANIZATION_ID.value(), 1L)));
         Instant from = Instant.parse("2026-09-25T00:00:00Z");
         assertDenied(() -> getTimetableUseCase.get(
-                new GetTimetableQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
-        assertDenied(() -> searchWorksUseCase.search(new SearchWorksQuery(
-                1L, ORGANIZATION_ID.value(), null, null, null, null, null, false, false, null, null, null)));
+                new GetTimetableQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)), null, null)));
+        assertDenied(
+                () -> searchWorksUseCase.search(new SearchWorksQuery(1L, ORGANIZATION_ID.value(), null, null, null)));
         assertDenied(() -> getProgressBoardUseCase.get(
                 new GetProgressBoardQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
         assertDenied(() -> getMyScheduleUseCase.get(
@@ -287,10 +290,13 @@ class ScheduleModuleTest {
     }
 
     @Test
-    void assembledWorkQueryPortIsEmptyUntilJpaAdapter() {
-        workRepository.save(Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), null, null, null));
+    void assembledWorkQueryPortReadsSavedWorks() {
+        Work saved = workRepository.save(
+                Work.register(ORGANIZATION_ID, "대기 작업", new MembershipId(1L), REGISTERED_AT, null, null, null));
 
-        assertThat(workQueryPort.listBacklog(ORGANIZATION_ID)).isEmpty();
+        assertThat(workQueryPort.listBacklog(ORGANIZATION_ID))
+                .extracting(work -> work.id().orElseThrow())
+                .contains(saved.id().orElseThrow());
     }
 
     @Test

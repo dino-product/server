@@ -15,6 +15,7 @@ import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
+import com.orbit.schedule.domain.ShownSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -26,10 +27,14 @@ import com.orbit.schedule.domain.WorkTypeId;
  * {@link Work} 애그리게잇과 JPA Entity 사이의 변환. Entity는 필드만 가지고 이 모듈의 매핑 결정은 여기에 모은다.
  *
  * <ul>
- *   <li>현재 일정(담당 기사·시작시각·예상소요시간)은 {@code work} 테이블에 둔 최신 배정 이력의 비정규화 사본이다. 겹침 후보 조회가 이력 테이블을 보지 않게
- *       하기 위한 것이며 저장할 때마다 Domain의 현재 일정으로 덮어쓴다. 등록(대기함) 상태면 같은 컬럼에 등록 때 일부만 입력한 미리 입력한
- *       일정({@code PlannedSchedule})을 담고, 읽을 때도 상태가 등록이면 미리 입력한 일정으로 해석한다. 일정을 기준으로 거르는 조회는 상태 조건을
- *       함께 걸어야 한다.
+ *   <li>{@code work} 테이블의 일정 컬럼(담당 기사·시작시각·예상소요시간)에는 작업에 보일 일정({@link Work#shownSchedule})을 저장할 때마다 덮어쓴다.
+ *       지금 일정이 있으면 최신 배정 이력의 비정규화 사본이라 겹침 후보 조회가 이력 테이블을 보지 않는다. 등록(대기함) 상태면 배정한 적 없는 작업은 등록
+ *       때 일부만 입력한 미리 입력한 일정({@code PlannedSchedule})이고, 배정됐다 돌아온 작업은 마지막 배정 일정의 사본이라 목록·출력 조회가 같은 컬럼으로
+ *       거르고 정렬한다. 읽을 때는 등록 상태이고 배정 이력이 없을 때만 미리 입력한 일정으로 해석한다. 일정을 기준으로 거르는 조회는 상태 조건을 함께
+ *       걸어야 한다.
+ *   <li>등록 때 붙인 현장 사진은 {@code work_site_images}에 붙인 순서(id 순)로 둔다. 바뀌었을 때만 모두 지우고 다시 넣는다. Domain이 완전한
+ *       애그리게잇이라 모든 복원에서 현장 사진 컬렉션을 일괄 조회({@code @BatchSize})로 함께 읽으며, 목록·출력 조회에서 50건마다 조회가 하나 느는 비용을
+ *       감수한다.
  *   <li>완료보고는 ERD대로 {@code work} 컬럼에 인라인이고 사진만 {@code work_execution_images}로 나뉜다. 작업 상태가 완료일 때만 복원하며, 항목이 모두
  *       선택 입력이라 보고 컬럼이 전부 비어 있어도 빈 보고를 만든다.
  *   <li>배정 이력의 순번은 부모 컬렉션의 {@code id} 순서다(ERD에 순번 컬럼이 없음). 기존 저장은 i번째 행을 i번째 이력으로 갱신하고 새 이력만 추가한다
@@ -37,6 +42,8 @@ import com.orbit.schedule.domain.WorkTypeId;
  *   <li>배정 종료의 처리자({@code ended_by})는 기사의 탈퇴로 끝난 배정이면 비어 있다. 처리자와 종료 방식의 짝은 Domain이 복원할 때 검증한다.
  *   <li>상태 정정 기록({@code StatusCorrection})은 ERD에 자리가 없어 저장하지 않으며 복원 시 빈 목록이다. 정정 기록이 있는 작업은 어댑터가 저장을
  *       거부한다(S-11).
+ *   <li>작업 목록의 최근 수정 시각은 감사 컬럼 {@code updated_at}이다. 루트 행이 바뀔 때만 갱신되므로, 모든 변경이 상태·일정 같은 루트 컬럼이나 자식
+ *       행의 추가·삭제를 함께 일으킨다는 전제에 기댄다. 기존 자식 행만 고치는 변경(거절 사유 정정 등)을 더하면 루트도 함께 갱신되게 한다.
  *   <li>복원({@link #toDomain})은 {@link Work#reconstitute}를 거치므로 저장값의 정합성 검증은 Domain이 한다. 검증 실패는 그대로 전파한다.
  * </ul>
  */
@@ -50,7 +57,11 @@ final class WorkMapper {
             throw new IllegalArgumentException("only new works can be converted to a new entity");
         }
         WorkJpaEntity entity = new WorkJpaEntity(
-                work.organizationId().value(), work.registrarId().value(), work.name(), work.status());
+                work.organizationId().value(),
+                work.registrarId().value(),
+                work.registeredAt(),
+                work.name(),
+                work.status());
         applyChanges(entity, work);
         return entity;
     }
@@ -68,16 +79,14 @@ final class WorkMapper {
                 customer.address().orElse(null),
                 payment.method().orElse(null),
                 payment.fee().map(Money::won).orElse(null));
-        // 대기함 작업은 일정 대신 등록 때 일부만 입력해 둔 값을 같은 컬럼에 담는다(둘은 동시에 있지 않다).
-        WorkSchedule schedule = work.schedule().orElse(null);
-        PlannedSchedule planned = work.plannedSchedule().orElse(null);
-        TechnicianId technician =
-                schedule != null ? schedule.technicianId() : planned == null ? null : planned.technicianId();
+        // 대기함 작업은 일정 대신 미리 입력한 값이나 마지막 배정 일정을 같은 컬럼에 담는다.
+        ShownSchedule shown = work.shownSchedule().orElse(null);
+        TechnicianId technician = shown == null ? null : shown.technicianId();
         entity.updateStatusAndSchedule(
                 work.status(),
                 technician == null ? null : technician.value(),
-                schedule != null ? schedule.startTime() : planned == null ? null : planned.startTime(),
-                schedule != null ? schedule.expectedDuration() : planned == null ? null : planned.expectedDuration());
+                shown == null ? null : shown.startTime(),
+                shown == null ? null : shown.expectedDuration());
         Cancellation cancellation = work.cancellation().orElse(null);
         entity.updateProgress(
                 work.startedAt().orElse(null),
@@ -88,6 +97,21 @@ final class WorkMapper {
                 cancellation == null ? null : cancellation.note());
         applyAssignments(entity, work.assignmentHistory());
         applyCompletionReport(entity, previousStatus, work.completionReport().orElse(null));
+        applySitePhotos(entity, work.sitePhotos());
+    }
+
+    /** 현장 사진은 바뀌었을 때만 모두 지우고 다시 넣는다(순서가 id 순이므로). */
+    private static void applySitePhotos(WorkJpaEntity entity, List<String> sitePhotos) {
+        List<WorkSiteImageJpaEntity> images = entity.siteImages();
+        List<String> stored =
+                images.stream().map(WorkSiteImageJpaEntity::imageUrl).toList();
+        if (stored.equals(sitePhotos)) {
+            return;
+        }
+        images.clear();
+        for (String photo : sitePhotos) {
+            images.add(new WorkSiteImageJpaEntity(entity, photo));
+        }
     }
 
     static Work toDomain(WorkJpaEntity entity) {
@@ -98,7 +122,9 @@ final class WorkMapper {
                 ? null
                 : new WorkSchedule(
                         new TechnicianId(entity.technicianId()), entity.scheduledStartAt(), entity.expectedDuration());
+        // 배정됐다 돌아온 대기함 작업의 일정 컬럼은 마지막 배정 일정의 사본이라 미리 입력한 일정이 아니다.
         PlannedSchedule planned = !backlog
+                        || !histories.isEmpty()
                         || (entity.technicianId() == null
                                 && entity.scheduledStartAt() == null
                                 && entity.expectedDuration() == null)
@@ -119,6 +145,7 @@ final class WorkMapper {
                 new OrganizationId(entity.companyId()),
                 entity.name(),
                 new MembershipId(entity.createdBy()),
+                entity.registeredAt(),
                 entity.jobTypeId() == null ? null : new WorkTypeId(entity.jobTypeId()),
                 schedule,
                 planned,
@@ -130,7 +157,10 @@ final class WorkMapper {
                 entity.startedAt(),
                 entity.completedAt(),
                 cancellation,
-                List.of());
+                List.of(),
+                entity.siteImages().stream()
+                        .map(WorkSiteImageJpaEntity::imageUrl)
+                        .toList());
     }
 
     private static void applyAssignments(WorkJpaEntity entity, List<AssignmentHistory> histories) {

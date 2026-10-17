@@ -11,28 +11,19 @@ import com.orbit.schedule.domain.Work;
  * 화면 조회용 작업 목록 출력 포트. 변경에 쓰는 {@link WorkRepository}와 달리 여러 작업을 조건으로 읽기만 한다. 조회는 모두 조직 범위이고, 결과는 영속 상태와
  * 분리된 사본이다. 순서를 정하는 검색 말고는 순서를 보장하지 않으므로 표시 순서는 호출자가 정한다. 인자는 null이 아니다.
  *
- * <p>TODO(HM-219): 지금은 빈 목록을 돌려주는 임시 구현뿐이다. JPA 어댑터에서 구현할 때 다음을 지킨다.
+ * <p>구현이 지킬 조건:
  *
  * <ul>
- *   <li>종료시각은 저장 컬럼이 아니라 시작시각 + 예상소요시간이다. 구간 조회는 {@code start_time >= from - 24시간 AND start_time < to}로
- *       시작시각 인덱스를 범위 스캔한 뒤 {@code start_time + expected_duration > from}으로 거른다(예상소요시간 상한이 24시간). 기사별 구간
- *       조회는 {@code (organization_id, technician_id, start_time)} 인덱스로 같은 방식으로 스캔한다. 기사 배정 이력 조회는 배정 이력 테이블의
- *       {@code (technician_id, start_time)} 인덱스를 같은 방식으로 스캔하고 EXISTS 서브쿼리로 작업을 골라 중복 없이 읽는다.
- *   <li>결과는 완전한 {@link Work} 애그리게잇이라 배정 이력·정정 기록·완료보고를 함께 읽는다. 목록마다 연관을 따로 읽는 N+1이 생기지 않게 일괄
- *       조회(fetch join·batch)로 읽거나, 목록 화면이 커지면 조회 전용 모델로 바꾼다. 쪽을 나누는 검색은 컬렉션을 fetch join한 채 쪽을 자르면
- *       전체를 읽은 뒤 메모리에서 자르므로, 식별자로 쪽을 먼저 고른 뒤 그 작업들을 일괄 조회한다.
- *   <li>등록(대기함) 상태 행도 일정 컬럼({@code technician_id}·{@code scheduled_start_at}·{@code expected_duration})에 등록 때 미리
- *       입력한 값을 가질 수 있다. 칸·기사별 구간·검색의 담당 기사·시작 구간처럼 일정으로 거르는 필터에는 상태 조건(등록 제외)을 함께 건다. 일정
- *       정렬은 대기함 작업을 빼지 않고 등록 상태 행의 일정 값을 없는 것으로 보아 맨 뒤에 둔다(예: {@code CASE WHEN status <> 'REGISTERED' THEN
- *       scheduled_start_at END NULLS LAST}). 이를 확인하는 어댑터 테스트를 둔다.
- *   <li>검색의 목록과 전체 수는 같은 시점 기준이어야 한다(서비스가 한 스냅샷 트랜잭션에서 부르거나, 한 쿼리로 함께 센다).
- *   <li>경계(끝이 from과 같거나 시작이 to와 같으면 제외), 검색 조건 해석, 한 작업에 겹치는 배정 이력이 여럿일 때의 중복 제거를 실제 데이터로 확인하는
- *       어댑터 테스트를 둔다.
- *   <li>대기함은 상한 없이 쌓일 수 있으므로 화면이 느려지면 쪽 나누기를 더한다. 구간 조회도 31일 구간의 모든 작업을 애그리게잇으로 읽으므로,
- *       조직 규모가 커지면 칸 목록의 상한이나 화면에 필요한 값만 읽는 조회 전용 모델을 검토한다.
- *   <li>여러 번 읽어 한 화면을 만드는 조회(타임테이블의 칸·대기함, 검색의 목록·전체 수)가 한 스냅샷을 보는지 두 트랜잭션으로 확인하는 어댑터 테스트를
- *       둔다(기사 잠금의 격리 수준 테스트처럼).
+ *   <li>종료시각은 저장 값이 아니라 시작시각 + 예상소요시간이다. 구간과 겹치는지는 끝이 from과 같거나 시작이 to와 같으면 겹치지 않는 반열림 구간으로 판정한다.
+ *   <li>등록(대기함) 작업은 미리 입력한 값이나 마지막 배정 일정을 보일 일정({@link Work#shownSchedule})으로 가질 수 있지만 기사의 일정이 아니다. 기사
+ *       일정을 읽는 구간 조회는 대기함 작업을 담지 않는다. 검색 조건은 {@link WorkSearchCriteria}가 정한다.
+ *   <li>결과는 완전한 {@link Work} 애그리게잇(배정 이력·완료보고 포함)이고, 호출자가 저장하지 않은 변경은 반영되지 않는다.
  * </ul>
+ *
+ * <p>호출자 조건: 여러 번 읽어 한 화면을 만드는 조회(타임테이블의 칸·대기함, 검색의 목록·전체 수)는 같은 시점을 보도록 한 스냅샷 트랜잭션(REPEATABLE
+ * READ)에서 부른다.
+ *
+ * <p>규모 한계: 대기함과 31일 구간 조회는 상한 없이 애그리게잇을 읽으므로, 조직 규모가 커지면 쪽 나누기나 화면에 필요한 값만 읽는 조회 전용 모델을 검토한다.
  */
 public interface WorkQueryPort {
 
@@ -40,6 +31,12 @@ public interface WorkQueryPort {
      * 현재 일정이 [from, to) 구간과 겹치는, 일정을 차지하거나 차지했던 작업(수락대기·수락됨·작업중·완료). 취소된 작업은 일정이 남아 있어도 담지 않는다.
      */
     List<Work> listScheduledBetween(OrganizationId organizationId, Instant from, Instant to);
+
+    /**
+     * 보일 일정({@link Work#shownSchedule})이 [from, to) 구간과 겹치는 작업(등록·수락대기·수락됨·작업중·완료). 대기함 작업은 미리 입력한 값이나 마지막 배정
+     * 일정으로 판정하며, 예상소요시간을 몰라 끝을 모르면 시작시각이 구간 안일 때만, 시작시각을 모르면 담지 않는다. 취소된 작업은 담지 않는다.
+     */
+    List<Work> listShownBetween(OrganizationId organizationId, Instant from, Instant to);
 
     /** {@link #listScheduledBetween} 가운데 현재 일정의 담당이 그 기사인 작업. */
     List<Work> listScheduledForTechnician(
@@ -57,8 +54,20 @@ public interface WorkQueryPort {
     List<Work> listBacklog(OrganizationId organizationId);
 
     /**
-     * 조건에 맞는 작업의 한 쪽과 전체 수. 조건의 정렬 순서를 지킨다. 쪽이 끝을 넘으면 빈 목록과 실제 전체 수를 돌려준다. 조건 해석(검색어 이스케이프, 지연 판정
-     * 시각, 정렬의 null 위치 등)은 {@link WorkSearchCriteria}를 따른다.
+     * 조건에 맞는 작업의 한 쪽과 전체 수. 조건의 정렬 순서를 지킨다. 쪽이 끝을 넘으면 빈 목록과 실제 전체 수를 돌려준다. 목록과 전체 수는 따로 읽을 수
+     * 있으므로 둘의 일관성은 호출 트랜잭션의 격리 수준에 따른다. 조건 해석(검색어 이스케이프, 지연 판정 시각, 정렬의 null 위치 등)은
+     * {@link WorkSearchCriteria}를 따른다.
      */
     WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria);
+
+    /**
+     * 조건과 정렬에 맞는 작업을 앞에서부터 최대 limit건 돌려준다. 조건의 쪽은 보지 않는다. 조건 해석은 {@link #search}와 같다. 한꺼번에 내려받는 출력이 쓰며,
+     * 구현은 쪽을 건너뛰지 않고 정렬된 식별자를 한 번에 고른 뒤 작업을 나눠 읽는다. 여러 번 읽으므로 스냅샷 트랜잭션에서 부르고, 많은 작업을 읽는 동안 호출
+     * 트랜잭션의 영속성 컨텍스트를 비울 수 있으므로 읽기 전용 트랜잭션에서만 부른다.
+     */
+    List<WorkSearchResult.SearchedWork> listMatching(
+            OrganizationId organizationId, WorkSearchCriteria criteria, int limit);
+
+    /** 조건에 맞는 작업 수. 조건의 정렬·쪽은 보지 않는다. 조건 해석은 {@link #search}와 같다. */
+    long count(OrganizationId organizationId, WorkSearchCriteria criteria);
 }

@@ -29,7 +29,7 @@ class WorkSearchCriteriaTest {
                 .isInstanceOf(IllegalArgumentException.class);
         for (String keyword : new String[] {"", " 보일러", "보일러 "}) {
             assertThatThrownBy(() -> new WorkSearchCriteria(
-                            keyword, Set.of(), null, null, null, false, null, Sort.REGISTERED_DESC, 0, 20))
+                            keyword, Set.of(), null, null, null, null, null, false, null, Sort.REGISTERED_DESC, 0, 20))
                     .isInstanceOf(IllegalArgumentException.class);
         }
         assertThatThrownBy(() -> criteria(Set.of(), Sort.REGISTERED_DESC, null, null, -1, 20))
@@ -45,6 +45,7 @@ class WorkSearchCriteriaTest {
 
     private static WorkSearchCriteria criteria(
             Set<WorkStatus> statuses, Sort sort, Instant startFrom, Instant startTo, int page, int size) {
-        return new WorkSearchCriteria(null, statuses, null, startFrom, startTo, false, null, sort, page, size);
+        return new WorkSearchCriteria(
+                null, statuses, null, null, null, startFrom, startTo, false, null, sort, page, size);
     }
 }
