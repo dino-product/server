@@ -13,8 +13,14 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.service.fake.FakeLoadActorPort;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort;
+import com.orbit.schedule.application.service.fake.FakeStaffProfilesPort;
+import com.orbit.schedule.application.service.fake.FakeTechnicianContractPort;
+import com.orbit.schedule.application.service.fake.FakeTechnicianProfilesPort;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
+import com.orbit.schedule.application.service.fake.FakeWorkTypeLabelsPort;
+import com.orbit.schedule.application.service.fake.FakeWorkTypePort;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
@@ -44,7 +50,16 @@ final class ScheduleServiceFixture {
 
     static final TechnicianId TECHNICIAN_ID = new TechnicianId(3L);
     static final TechnicianId OTHER_TECHNICIAN_ID = new TechnicianId(4L);
+    /** 요청 조직에서 선택할 수 있는 작업 유형. {@link #givenWork} 작업도 이 유형이다. */
+    static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
+
     static final Instant NOW = Instant.parse("2026-09-24T01:00:00Z");
+    /**
+     * 서비스 테스트가 등록하는 작업의 기본 등록 시각. 테스트가 쓰는 배정·응답 시각(지금부터 몇 시간 전)보다 앞서고, 대기함 방치 기준보다는 가까워 기본으로는
+     * 방치가 아니다. 방치를 볼 때는 시각을 따로 정한다.
+     */
+    static final Instant REGISTERED_AT = NOW.minus(Duration.ofHours(6));
+
     static final Instant ASSIGNED_AT = NOW.minus(Duration.ofHours(2));
     static final Instant ACCEPTED_AT = ASSIGNED_AT.plus(Duration.ofMinutes(30));
     static final Instant TEN = Instant.parse("2026-09-25T01:00:00Z");
@@ -55,6 +70,20 @@ final class ScheduleServiceFixture {
     final FakeLoadActorPort actorPort = new FakeLoadActorPort();
     final FakeLockTechnicianSchedulePort scheduleLock = new FakeLockTechnicianSchedulePort(workRepository);
     final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+    /** 요청 조직의 {@link #TECHNICIAN_ID}·{@link #OTHER_TECHNICIAN_ID}는 활성 기사 계약이다. */
+    final FakeTechnicianContractPort technicianContracts = new FakeTechnicianContractPort();
+    /** 요청 조직은 {@link #WORK_TYPE_ID}를 선택할 수 있다. */
+    final FakeWorkTypePort workTypes = new FakeWorkTypePort();
+    // 조회 화면의 표시 정보(기사·등록자·작업유형). 테스트가 넣지 않으면 찾지 못한다.
+    final FakeTechnicianProfilesPort technicianProfiles = new FakeTechnicianProfilesPort();
+    final FakeStaffProfilesPort staffProfiles = new FakeStaffProfilesPort();
+    final FakeWorkTypeLabelsPort workTypeLabels = new FakeWorkTypeLabelsPort();
+
+    ScheduleServiceFixture() {
+        technicianContracts.givenActive(ORGANIZATION_ID, TECHNICIAN_ID);
+        technicianContracts.givenActive(ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
+        workTypes.givenSelectable(ORGANIZATION_ID, WORK_TYPE_ID);
+    }
 
     void givenManager() {
         givenManager(ActorRole.STAFF);
@@ -84,7 +113,8 @@ final class ScheduleServiceFixture {
                 organizationId,
                 name,
                 REGISTRAR_ID,
-                new WorkTypeId(2L),
+                REGISTERED_AT,
+                WORK_TYPE_ID,
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         if (status != WorkStatus.REGISTERED) {
@@ -100,7 +130,7 @@ final class ScheduleServiceFixture {
             work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), ACCEPTED_AT);
         }
         if (status == WorkStatus.CANCELLED) {
-            work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID, "고객 요청");
+            work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         }
         return workRepository.store(work);
     }

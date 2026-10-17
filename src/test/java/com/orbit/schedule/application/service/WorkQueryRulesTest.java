@@ -34,7 +34,13 @@ class WorkQueryRulesTest {
     static Stream<UseCase> useCases() {
         return Stream.of(
                 new UseCase("작업 상세", (f, request) -> new GetWorkDetailService(
-                                f.actorPort, f.workRepository, photoId -> photoId, f.clock)
+                                f.actorPort,
+                                f.workRepository,
+                                photoId -> photoId,
+                                f.technicianProfiles,
+                                f.staffProfiles,
+                                f.workTypeLabels,
+                                f.clock)
                         .get(new GetWorkDetailQuery(request.accountId(), request.organizationId(), request.workId()))),
                 new UseCase("완료보고", (f, request) -> new GetCompletionReportService(
                                 f.actorPort, f.workRepository, photoId -> photoId)

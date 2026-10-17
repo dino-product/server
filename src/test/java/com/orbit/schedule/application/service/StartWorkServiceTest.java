@@ -23,6 +23,7 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
@@ -116,7 +117,7 @@ class StartWorkServiceTest {
     void rejectsStartAfterCancellationInProgress() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Work work = fixture.stored(fixture.givenWork(WorkStatus.IN_PROGRESS));
-        work.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, "고객 요청");
+        work.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         WorkId id = fixture.workRepository.store(work);
 
         fixture.assertRejected(() -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);

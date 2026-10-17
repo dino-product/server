@@ -28,6 +28,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
@@ -35,6 +36,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.TechnicianId;
@@ -57,6 +59,8 @@ import com.orbit.support.PersistenceTestConfiguration;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DisplayName("작업 JPA 저장소")
 class WorkPersistenceAdapterTest {
+
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
 
     private static final MembershipId REGISTRAR = new MembershipId(1L);
     private static final MembershipId MANAGER = new MembershipId(99L);
@@ -154,16 +158,197 @@ class WorkPersistenceAdapterTest {
                         },
                         WorkStatus.COMPLETED),
                 Arguments.of(
-                        "취소(대기함에서)", (Consumer<Work>) work -> work.cancel(NOW, MANAGER, "고객 요청"), WorkStatus.CANCELLED),
+                        "대기함(탈퇴 반환 — 처리자 없는 종료)",
+                        (Consumer<Work>) work -> {
+                            work.assign(SCHEDULE, NOW, MANAGER);
+                            work.accept(NOW.plusSeconds(10));
+                            work.releaseForWithdrawal(NOW.plusSeconds(20));
+                        },
+                        WorkStatus.REGISTERED),
+                Arguments.of(
+                        "배정됨(탈퇴 반환 뒤 다시 배정)",
+                        (Consumer<Work>) work -> {
+                            work.assign(SCHEDULE, NOW, MANAGER);
+                            work.releaseForWithdrawal(NOW.plusSeconds(10));
+                            work.assign(SCHEDULE, NOW.plusSeconds(20), MANAGER);
+                        },
+                        WorkStatus.PENDING_ACCEPTANCE),
+                Arguments.of(
+                        "취소(대기함에서)",
+                        (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.CUSTOMER_REQUEST, null),
+                        WorkStatus.CANCELLED),
+                Arguments.of(
+                        "취소(대기함에서, 기타 사유 메모)",
+                        (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.OTHER, "고객 연락 두절"),
+                        WorkStatus.CANCELLED),
                 Arguments.of(
                         "취소(작업중에서)",
                         (Consumer<Work>) work -> {
                             work.assign(SCHEDULE, NOW, MANAGER);
                             work.accept(NOW.plusSeconds(10));
                             work.start(NOW.plusSeconds(20));
-                            work.cancel(NOW.plusSeconds(30), MANAGER, "기사 사정");
+                            work.cancel(NOW.plusSeconds(30), MANAGER, CancellationReason.TECHNICIAN_ISSUE, null);
                         },
                         WorkStatus.CANCELLED));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("plannedSchedules")
+    @DisplayName("대기함 작업이 미리 입력한 일정은 일정 컬럼에 담아 저장했다가 그대로 복원한다")
+    void roundTripsPlannedScheduleOfBacklogWork(String name, PlannedSchedule planned) {
+        OrganizationId organization = organization();
+        Work work = Work.register(organization, name, REGISTRAR, REGISTERED_AT, null, null, null, planned);
+
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+        Work found = find(organization, id);
+
+        assertThat(found.status()).isEqualTo(WorkStatus.REGISTERED);
+        assertThat(found.schedule()).isEmpty();
+        assertThat(found.plannedSchedule()).contains(planned);
+        assertThat(found).usingRecursiveComparison().ignoringFields("id").isEqualTo(work);
+    }
+
+    @Test
+    @DisplayName("거절·배정 해제로 돌아온 작업은 일정 컬럼에 마지막 배정 일정을 담되 미리 입력한 일정으로 복원하지 않고, 대기함에서 취소한 작업은 일정 컬럼을 비운다")
+    void storesLastScheduleOfReturnedWorkAndClearsCancelledBacklog() {
+        OrganizationId organization = organization();
+        Work rejected = registered(organization, "거절");
+        rejected.assign(SCHEDULE, NOW, MANAGER);
+        WorkId rejectedId = inTx(() -> adapter().save(rejected)).id().orElseThrow();
+        Work storedRejected = find(organization, rejectedId);
+        storedRejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), NOW.plusSeconds(10));
+        inTx(() -> adapter().save(storedRejected));
+
+        Work unassigned = registered(organization, "해제");
+        unassigned.assign(SCHEDULE, NOW, MANAGER);
+        WorkId unassignedId = inTx(() -> adapter().save(unassigned)).id().orElseThrow();
+        Work storedUnassigned = find(organization, unassignedId);
+        storedUnassigned.unassign(NOW.plusSeconds(10), MANAGER);
+        inTx(() -> adapter().save(storedUnassigned));
+
+        Work planned = Work.register(
+                organization,
+                "취소",
+                REGISTRAR,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN, null, null));
+        WorkId plannedId = inTx(() -> adapter().save(planned)).id().orElseThrow();
+        Work storedPlanned = find(organization, plannedId);
+        storedPlanned.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
+        inTx(() -> adapter().save(storedPlanned));
+
+        for (WorkId id : new WorkId[] {rejectedId, unassignedId, plannedId}) {
+            Work found = find(organization, id);
+            assertThat(found.schedule()).isEmpty();
+            assertThat(found.plannedSchedule()).isEmpty();
+        }
+        for (WorkId id : new WorkId[] {rejectedId, unassignedId}) {
+            WorkJpaEntity entity = entity(id);
+            assertThat(entity.technicianId()).isEqualTo(SCHEDULE.technicianId().value());
+            assertThat(entity.scheduledStartAt()).isEqualTo(SCHEDULE.startTime());
+            assertThat(entity.expectedDuration()).isEqualTo(SCHEDULE.expectedDuration());
+        }
+        WorkJpaEntity cancelled = entity(plannedId);
+        assertThat(cancelled.technicianId()).isNull();
+        assertThat(cancelled.scheduledStartAt()).isNull();
+        assertThat(cancelled.expectedDuration()).isNull();
+    }
+
+    static Stream<Arguments> plannedSchedules() {
+        return Stream.of(
+                Arguments.of("담당기사만", new PlannedSchedule(TECHNICIAN, null, null)),
+                Arguments.of("시간만", new PlannedSchedule(null, NOW, Duration.ofMinutes(90))),
+                Arguments.of("담당기사·시작시각", new PlannedSchedule(TECHNICIAN, NOW, null)));
+    }
+
+    @Test
+    @DisplayName("미리 입력한 담당기사는 기사의 활성 작업이 아니고, 배정하면 실제 일정으로 저장되어 활성 작업으로 조회된다")
+    void storesAssignedScheduleAfterPlanned() {
+        OrganizationId organization = organization();
+        Work work = Work.register(
+                organization,
+                "배정 전환",
+                REGISTRAR,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN, null, null));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+        assertThat(inTx(() -> adapter().listActiveByTechnician(organization, TECHNICIAN)))
+                .isEmpty();
+        Work stored = find(organization, id);
+
+        stored.assign(SCHEDULE, NOW, MANAGER);
+        inTx(() -> adapter().save(stored));
+
+        Work found = find(organization, id);
+        assertThat(found.plannedSchedule()).isEmpty();
+        assertThat(found.schedule()).contains(SCHEDULE);
+        assertThat(inTx(() -> adapter().listActiveByTechnician(organization, TECHNICIAN)))
+                .extracting(active -> active.id().orElseThrow())
+                .containsExactly(id);
+    }
+
+    @Test
+    @DisplayName("미리 입력한 담당기사로 같은 조직의 대기함 작업만 찾고, 담당기사를 비운 작업은 더 찾지 않는다")
+    void listsBacklogPlannedForTechnician() {
+        OrganizationId organization = organization();
+        WorkId planned = inTx(() -> adapter()
+                        .save(Work.register(
+                                organization,
+                                "기사만",
+                                REGISTRAR,
+                                REGISTERED_AT,
+                                null,
+                                null,
+                                null,
+                                new PlannedSchedule(TECHNICIAN, NOW, null))))
+                .id()
+                .orElseThrow();
+        inTx(() -> adapter()
+                .save(Work.register(
+                        organization,
+                        "다른 기사",
+                        REGISTRAR,
+                        REGISTERED_AT,
+                        null,
+                        null,
+                        null,
+                        new PlannedSchedule(OTHER_TECHNICIAN, null, null))));
+        inTx(() -> adapter()
+                .save(Work.register(
+                        organization(),
+                        "다른 조직",
+                        REGISTRAR,
+                        REGISTERED_AT,
+                        null,
+                        null,
+                        null,
+                        new PlannedSchedule(TECHNICIAN, null, null))));
+        Work assigned = registered(organization, "배정됨");
+        assigned.assign(SCHEDULE, NOW, MANAGER);
+        inTx(() -> adapter().save(assigned));
+        // 거절로 돌아온 작업의 일정 컬럼에는 그 기사가 남지만 미리 입력한 담당기사가 아니다.
+        Work rejected = registered(organization, "거절됨");
+        rejected.assign(SCHEDULE, NOW, MANAGER);
+        rejected.reject(new Rejection(RejectionReason.OTHER, "거리 멀어요"), NOW.plusSeconds(10));
+        inTx(() -> adapter().save(rejected));
+
+        assertThat(inTx(() -> adapter().listBacklogPlannedForTechnician(organization, TECHNICIAN)))
+                .extracting(work -> work.id().orElseThrow())
+                .containsExactly(planned);
+
+        Work stored = find(organization, planned);
+        stored.clearPlannedTechnician();
+        inTx(() -> adapter().save(stored));
+
+        assertThat(find(organization, planned).plannedSchedule()).contains(new PlannedSchedule(null, NOW, null));
+        assertThat(inTx(() -> adapter().listBacklogPlannedForTechnician(organization, TECHNICIAN)))
+                .isEmpty();
     }
 
     private static void completeWithHistory(Work work) {
@@ -265,6 +450,7 @@ class WorkPersistenceAdapterTest {
                 organization(),
                 "없는 작업",
                 REGISTRAR,
+                REGISTERED_AT,
                 null,
                 null,
                 null,
@@ -291,6 +477,7 @@ class WorkPersistenceAdapterTest {
                 organization(),
                 saved.name(),
                 REGISTRAR,
+                REGISTERED_AT,
                 null,
                 null,
                 null,
@@ -329,7 +516,7 @@ class WorkPersistenceAdapterTest {
         OrganizationId organization = organization();
         Work work = registered(organization, "정정된 작업");
         work.assign(SCHEDULE, NOW, MANAGER);
-        work.cancel(NOW.plusSeconds(10), MANAGER, "중복 등록");
+        work.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
         work.correctStatus(WorkStatus.REGISTERED, NOW.plusSeconds(20), MANAGER, "잘못 취소");
 
         assertThatThrownBy(() -> inTx(() -> adapter().save(work)))
@@ -395,7 +582,7 @@ class WorkPersistenceAdapterTest {
         reassignedAway.reassign(OTHER_SCHEDULE, NOW.plusSeconds(10), MANAGER);
         Work cancelled = registered(organization, "취소");
         cancelled.assign(SCHEDULE, NOW, MANAGER);
-        cancelled.cancel(NOW.plusSeconds(10), MANAGER, "중복 등록");
+        cancelled.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
         Work backlog = registered(organization, "대기함");
         Work otherOrganization = registered(organization(), "다른 조직");
         otherOrganization.assign(SCHEDULE, NOW, MANAGER);
@@ -431,8 +618,33 @@ class WorkPersistenceAdapterTest {
         });
     }
 
+    @Test
+    @DisplayName("현장 사진을 붙인 순서대로 저장·복원하고, 바꾸면 새 목록으로 교체하며, 비우면 지운다")
+    void roundTripsSitePhotos() {
+        OrganizationId organization = organization();
+        Work work = registered(organization, "현장 사진 작업");
+        work.replaceSitePhotos(List.of("photo-2", "photo-1"));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+
+        Work found = find(organization, id);
+        assertThat(found.sitePhotos()).containsExactly("photo-2", "photo-1");
+
+        found.replaceSitePhotos(List.of("photo-3"));
+        inTx(() -> adapter().save(found));
+        Work replaced = find(organization, id);
+        assertThat(replaced.sitePhotos()).containsExactly("photo-3");
+
+        replaced.replaceSitePhotos(null);
+        inTx(() -> adapter().save(replaced));
+        assertThat(find(organization, id).sitePhotos()).isEmpty();
+    }
+
     private Work find(OrganizationId organization, WorkId id) {
         return inTx(() -> adapter().findInOrganization(organization, id).orElseThrow());
+    }
+
+    private WorkJpaEntity entity(WorkId id) {
+        return inTx(() -> springDataRepository.findById(id.value()).orElseThrow());
     }
 
     private <T> T inTx(Supplier<T> action) {
@@ -444,6 +656,7 @@ class WorkPersistenceAdapterTest {
                 organization,
                 name,
                 REGISTRAR,
+                REGISTERED_AT,
                 new WorkTypeId(2L),
                 new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));

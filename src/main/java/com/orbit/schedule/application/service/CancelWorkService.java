@@ -40,7 +40,7 @@ public class CancelWorkService implements CancelWorkUseCase {
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
 
         Instant now = clock.instant();
-        DomainRuleViolations.run(() -> work.cancel(now, actor.membershipId(), command.reason()));
+        DomainRuleViolations.run(() -> work.cancel(now, actor.membershipId(), command.reason(), command.note()));
 
         workRepository.save(work);
     }

@@ -27,7 +27,7 @@ public record WorkHistoryInfo(Long technicianId, List<AssignedWork> works, Stati
      *     다시 배정됐으면 false
      * @param assignmentNumber 이 배정의 순번(1부터). 지금 배정이 아닐 수 있으므로 수락·거절 등에는 current가 true일 때만 쓴다
      * @param result 그 배정의 결과
-     * @param endReason 그 배정이 관리자 조치로 끝났으면 방식. 아니면 null
+     * @param endReason 그 배정이 관리자 조치나 담당 기사의 탈퇴(처리자 없음, {@code ACCOUNT_WITHDRAWN})로 끝났으면 방식. 아니면 null
      */
     public record AssignedWork(
             Long workId,

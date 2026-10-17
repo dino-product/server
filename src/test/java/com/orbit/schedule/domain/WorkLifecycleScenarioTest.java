@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 @DisplayName("작업 생애주기 통합 시나리오")
 class WorkLifecycleScenarioTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final MembershipId MANAGER_ID = new MembershipId(99L);
 
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
@@ -166,7 +168,7 @@ class WorkLifecycleScenarioTest {
         work.reschedule(
                 RESCHEDULED_FIRST_SCHEDULE.startTime(), RESCHEDULED_FIRST_SCHEDULE.expectedDuration(), T2, MANAGER_ID);
         work.reassign(SECOND_SCHEDULE, T3, MANAGER_ID);
-        work.cancel(T4, MANAGER_ID, "고객 요청");
+        work.cancel(T4, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
         assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         assertThat(work.completionReport()).isEmpty();
@@ -200,7 +202,7 @@ class WorkLifecycleScenarioTest {
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
         work.accept(T2);
         work.start(T3);
-        work.cancel(T5, MANAGER_ID, "고객 요청");
+        work.cancel(T5, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
         assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         assertHistory(
@@ -245,7 +247,7 @@ class WorkLifecycleScenarioTest {
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
         work.accept(T2);
         work.unassign(T3, MANAGER_ID);
-        work.cancel(T4, MANAGER_ID, "고객 요청");
+        work.cancel(T4, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
         assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
         assertThat(work.schedule()).isEmpty();
@@ -260,7 +262,8 @@ class WorkLifecycleScenarioTest {
     }
 
     private static Work registeredWork() {
-        return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+        return Work.register(
+                ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
     }
 
     private static final Optional<AssignmentEnding> NOT_ENDED = Optional.empty();
@@ -286,6 +289,7 @@ class WorkLifecycleScenarioTest {
                 work.organizationId(),
                 work.name(),
                 work.registrarId(),
+                work.registeredAt(),
                 work.workType().orElse(null),
                 work.schedule().orElse(null),
                 work.customerInfo(),

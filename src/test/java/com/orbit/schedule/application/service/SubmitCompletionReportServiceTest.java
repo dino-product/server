@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.domain.ActualPaymentMethod;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.Work;
@@ -96,7 +97,7 @@ class SubmitCompletionReportServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId accepted = fixture.givenWork(WorkStatus.ACCEPTED);
         Work cancelled = fixture.stored(fixture.givenWork(WorkStatus.IN_PROGRESS));
-        cancelled.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, "고객 요청");
+        cancelled.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         WorkId cancelledInProgress = fixture.workRepository.store(cancelled);
 
         for (WorkId id : new WorkId[] {accepted, cancelledInProgress}) {

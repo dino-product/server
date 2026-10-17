@@ -32,7 +32,12 @@ import com.orbit.shared.persistence.BaseTimeEntity;
  * 소유라 FK 없는 {@code Long} 컬럼이다. 결과·응답 시각·거절·종료 기록은 Domain이 바꾼 값을 저장 때 덮어쓴다.
  */
 @Entity
-@Table(name = "work_assignments", indexes = @Index(name = "ix_work_assignments_work", columnList = "work_id"))
+@Table(
+        name = "work_assignments",
+        indexes = {
+            @Index(name = "ix_work_assignments_work", columnList = "work_id"),
+            @Index(name = "ix_work_assignments_technician_start", columnList = "technician_id, scheduled_start_at")
+        })
 class WorkAssignmentJpaEntity extends BaseTimeEntity {
 
     @Id

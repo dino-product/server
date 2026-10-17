@@ -3,6 +3,7 @@ package com.orbit.schedule.application.service;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -14,7 +15,8 @@ import com.orbit.schedule.application.port.in.query.GetTeamScheduleUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetTeamScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.TeamScheduleInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
-import com.orbit.schedule.application.port.out.LoadTechnicianNamePort;
+import com.orbit.schedule.application.port.out.LoadTechnicianProfilesPort;
+import com.orbit.schedule.application.port.out.TechnicianProfile;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.TechnicianId;
@@ -40,13 +42,15 @@ public class GetTeamScheduleService implements GetTeamScheduleUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkQueryPort workQueryPort;
-    private final LoadTechnicianNamePort loadTechnicianNamePort;
+    private final LoadTechnicianProfilesPort loadTechnicianProfilesPort;
 
     public GetTeamScheduleService(
-            LoadActorPort loadActorPort, WorkQueryPort workQueryPort, LoadTechnicianNamePort loadTechnicianNamePort) {
+            LoadActorPort loadActorPort,
+            WorkQueryPort workQueryPort,
+            LoadTechnicianProfilesPort loadTechnicianProfilesPort) {
         this.loadActorPort = loadActorPort;
         this.workQueryPort = workQueryPort;
-        this.loadTechnicianNamePort = loadTechnicianNamePort;
+        this.loadTechnicianProfilesPort = loadTechnicianProfilesPort;
     }
 
     @Override
@@ -60,21 +64,24 @@ public class GetTeamScheduleService implements GetTeamScheduleUseCase {
         Set<TechnicianId> technicianIds = works.stream()
                 .map(work -> work.schedule().orElseThrow().technicianId())
                 .collect(Collectors.toSet());
-        Map<TechnicianId, String> names = technicianIds.isEmpty()
+        Map<TechnicianId, TechnicianProfile> profiles = technicianIds.isEmpty()
                 ? Map.of()
-                : loadTechnicianNamePort.loadNames(technician.organizationId(), technicianIds);
+                : loadTechnicianProfilesPort.findProfiles(technician.organizationId(), technicianIds);
         return new TeamScheduleInfo(works.stream()
-                .map(work -> slot(work, technician, names))
+                .map(work -> slot(work, technician, profiles))
                 .sorted(SLOT_ORDER)
                 .toList());
     }
 
-    private static TeamScheduleInfo.Slot slot(Work work, TechnicianActor technician, Map<TechnicianId, String> names) {
+    private static TeamScheduleInfo.Slot slot(
+            Work work, TechnicianActor technician, Map<TechnicianId, TechnicianProfile> profiles) {
         WorkSchedule schedule = work.schedule().orElseThrow();
         boolean mine = schedule.technicianId().equals(technician.technicianId());
         return new TeamScheduleInfo.Slot(
                 schedule.technicianId().value(),
-                names.get(schedule.technicianId()),
+                Optional.ofNullable(profiles.get(schedule.technicianId()))
+                        .map(TechnicianProfile::name)
+                        .orElse(null),
                 schedule.startTime(),
                 schedule.endTime(),
                 work.status(),

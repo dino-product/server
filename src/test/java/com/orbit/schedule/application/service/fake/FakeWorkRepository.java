@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
@@ -22,8 +23,8 @@ import com.orbit.schedule.domain.WorkStatus;
 /**
  * 서비스 단위 테스트용 WorkRepository. 스캔되지 않도록 애너테이션을 붙이지 않는다. 실제 저장소처럼 저장·조회 때 복사본을 주고받아 save 없는 변경이나 save 뒤 변경이
  * 저장값에 섞이지 않게 하고, 식별자가 있는데 없는 작업의 저장은 거부한다. 서비스가 저장할 때마다 그 시점의 복사본을 기록한다. 기사 활성 작업 목록은 포트 계약대로
- * 순서를 보장하지 않으므로, 서비스가 순서를 정하는지 드러나도록 저장한 순서의 역순으로 돌려준다. 조회용 목록({@link WorkQueryPort})도 같은 저장소에서
- * 같은 역순으로 돌려준다.
+ * 순서를 보장하지 않으므로, 서비스가 순서를 정하는지 드러나도록 저장한 순서의 역순으로 돌려준다. 미리 입력한 담당기사로 찾는 대기함 작업과 조회용
+ * 목록({@link WorkQueryPort})도 같은 저장소에서 같은 역순으로 돌려준다.
  */
 public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
 
@@ -33,6 +34,9 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private int activeByTechnicianQueryCount;
     private final List<WorkSearchCriteria> searches = new ArrayList<>();
     private WorkSearchResult searchResult;
+    private final List<WorkSearchCriteria> counts = new ArrayList<>();
+    private final List<Listing> listings = new ArrayList<>();
+    private final Map<Predicate<WorkSearchCriteria>, Long> givenCounts = new LinkedHashMap<>();
 
     @Override
     public Work save(Work work) {
@@ -72,6 +76,16 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     }
 
     @Override
+    public List<Work> listBacklogPlannedForTechnician(OrganizationId organizationId, TechnicianId technicianId) {
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        return listBacklog(organizationId).stream()
+                .filter(work -> work.plannedSchedule()
+                        .map(planned -> technicianId.equals(planned.technicianId()))
+                        .orElse(false))
+                .toList();
+    }
+
+    @Override
     public List<Work> listScheduledBetween(OrganizationId organizationId, Instant from, Instant to) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         Objects.requireNonNull(from, "from must not be null");
@@ -81,6 +95,23 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 .filter(work -> work.schedule()
                         .map(schedule -> schedule.startTime().isBefore(to)
                                 && schedule.endTime().isAfter(from))
+                        .orElse(false))
+                .toList();
+    }
+
+    @Override
+    public List<Work> listShownBetween(OrganizationId organizationId, Instant from, Instant to) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(from, "from must not be null");
+        Objects.requireNonNull(to, "to must not be null");
+        return inOrganization(organizationId).stream()
+                .filter(work -> work.status() != WorkStatus.CANCELLED)
+                .filter(work -> work.shownSchedule()
+                        .filter(shown ->
+                                shown.startTime() != null && shown.startTime().isBefore(to))
+                        .map(shown -> shown.endTime()
+                                .map(endTime -> endTime.isAfter(from))
+                                .orElse(!shown.startTime().isBefore(from)))
                         .orElse(false))
                 .toList();
     }
@@ -120,7 +151,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
 
     /**
      * 검색 조건은 해석하지 않고 기록만 한다(조건 해석은 실제 어댑터의 몫). {@link #givenSearchResult}로 정한 결과가 있으면 그것을, 없으면 조직의 모든 작업을 저장
-     * 역순으로 돌려준다.
+     * 역순으로 돌려준다. 저장 시각을 따로 두지 않으므로 정하지 않은 최근 수정 시각은 등록 시각으로 채운다.
      */
     @Override
     public WorkSearchResult search(OrganizationId organizationId, WorkSearchCriteria criteria) {
@@ -131,13 +162,74 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
             return searchResult;
         }
         List<Work> works = inOrganization(organizationId);
-        return new WorkSearchResult(works, works.size());
+        return new WorkSearchResult(
+                works.stream()
+                        .map(work -> new WorkSearchResult.SearchedWork(work, work.registeredAt()))
+                        .toList(),
+                works.size());
     }
 
-    /** 검색이 돌려줄 작업(이 순서 그대로)과 전체 수를 정한다. */
-    public void givenSearchResult(List<WorkId> workIds, long totalCount) {
-        searchResult = new WorkSearchResult(
-                workIds.stream().map(id -> copyOf(store.get(id.value()), id)).toList(), totalCount);
+    /** 검색이 돌려줄 작업(이 순서 그대로)과 각 작업의 최근 수정 시각, 전체 수를 정한다. */
+    public void givenSearchResult(List<WorkId> workIds, List<Instant> lastModifiedAts, long totalCount) {
+        if (workIds.size() != lastModifiedAts.size()) {
+            throw new IllegalArgumentException("each work needs its last modified time");
+        }
+        List<WorkSearchResult.SearchedWork> works = new ArrayList<>();
+        for (int i = 0; i < workIds.size(); i++) {
+            WorkId id = workIds.get(i);
+            works.add(new WorkSearchResult.SearchedWork(copyOf(store.get(id.value()), id), lastModifiedAts.get(i)));
+        }
+        searchResult = new WorkSearchResult(works, totalCount);
+    }
+
+    /**
+     * 조건 해석 없이 기록만 하고, {@link #givenCount}로 정한 수 가운데 조건에 처음 맞는 것을, 없으면 조직의 모든 작업 수를 돌려준다.
+     */
+    @Override
+    public long count(OrganizationId organizationId, WorkSearchCriteria criteria) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(criteria, "criteria must not be null");
+        counts.add(criteria);
+        return givenCounts.entrySet().stream()
+                .filter(entry -> entry.getKey().test(criteria))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElseGet(() -> (long) inOrganization(organizationId).size());
+    }
+
+    /**
+     * 조건 해석 없이 기록만 하고, {@link #givenSearchResult}로 정한 작업이 있으면 그것을, 없으면 조직의 모든 작업을 저장 역순으로 앞에서부터 최대 limit건
+     * 돌려준다.
+     */
+    @Override
+    public List<WorkSearchResult.SearchedWork> listMatching(
+            OrganizationId organizationId, WorkSearchCriteria criteria, int limit) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(criteria, "criteria must not be null");
+        listings.add(new Listing(criteria, limit));
+        List<WorkSearchResult.SearchedWork> works = searchResult != null
+                ? searchResult.works()
+                : inOrganization(organizationId).stream()
+                        .map(work -> new WorkSearchResult.SearchedWork(work, work.registeredAt()))
+                        .toList();
+        return works.stream().limit(limit).toList();
+    }
+
+    /** 서비스가 한꺼번에 읽은 조건과 상한. */
+    public List<Listing> listings() {
+        return List.copyOf(listings);
+    }
+
+    public record Listing(WorkSearchCriteria criteria, int limit) {}
+
+    /** 이 조건으로 셀 때 돌려줄 수를 정한다. */
+    public void givenCount(Predicate<WorkSearchCriteria> matches, long count) {
+        givenCounts.put(matches, count);
+    }
+
+    /** 서비스가 센 조건. */
+    public List<WorkSearchCriteria> counts() {
+        return List.copyOf(counts);
     }
 
     /** 서비스가 검색한 조건. */
@@ -188,8 +280,10 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 work.organizationId(),
                 work.name(),
                 work.registrarId(),
+                work.registeredAt(),
                 work.workType().orElse(null),
                 work.schedule().orElse(null),
+                work.plannedSchedule().orElse(null),
                 work.customerInfo(),
                 work.paymentInfo(),
                 work.status(),
@@ -198,6 +292,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 work.startedAt().orElse(null),
                 work.completedAt().orElse(null),
                 work.cancellation().orElse(null),
-                work.statusCorrections());
+                work.statusCorrections(),
+                work.sitePhotos());
     }
 }

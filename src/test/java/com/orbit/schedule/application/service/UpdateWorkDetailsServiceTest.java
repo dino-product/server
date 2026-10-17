@@ -2,8 +2,11 @@ package com.orbit.schedule.application.service;
 
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +30,11 @@ class UpdateWorkDetailsServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final UpdateWorkDetailsService service =
-            new UpdateWorkDetailsService(fixture.actorPort, fixture.workRepository);
+            new UpdateWorkDetailsService(fixture.actorPort, fixture.workRepository, fixture.workTypes);
+
+    UpdateWorkDetailsServiceTest() {
+        fixture.workTypes.givenSelectable(ORGANIZATION_ID, new WorkTypeId(9L));
+    }
 
     @ParameterizedTest
     @EnumSource(
@@ -81,6 +88,20 @@ class UpdateWorkDetailsServiceTest {
         assertThat(saved.workType()).isEmpty();
         assertThat(saved.customerInfo()).isEqualTo(new CustomerInfo(null, null, null));
         assertThat(saved.paymentInfo()).isEqualTo(new PaymentInfo(null, null));
+    }
+
+    @Test
+    @DisplayName("기본정보 수정은 등록 때 붙인 현장 사진을 그대로 둔다")
+    void keepsSitePhotos() {
+        fixture.givenManager();
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.REGISTERED));
+        work.replaceSitePhotos(List.of("site-1"));
+        WorkId id = fixture.workRepository.store(work);
+
+        service.update(new UpdateWorkDetailsCommand(
+                ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), "보일러 점검", null, null, null, null, null, null));
+
+        assertThat(fixture.singleSaved().sitePhotos()).containsExactly("site-1");
     }
 
     @ParameterizedTest
@@ -140,6 +161,41 @@ class UpdateWorkDetailsServiceTest {
         fixture.assertRejected(
                 () -> service.update(customerCommand(id.value(), null, null, "가".repeat(201))),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("작업 유형이 요청 조직에서 선택할 수 없는 유형이면 저장하지 않고 선택할 수 없는 작업 유형 오류다")
+    void rejectsWorkTypeNotSelectable() {
+        fixture.givenManager();
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+        fixture.workTypes.givenSelectable(OTHER_ORGANIZATION_ID, new WorkTypeId(10L));
+
+        for (long workTypeId : new long[] {10L, 11L}) {
+            fixture.assertRejected(
+                    () -> service.update(command(id.value(), "보일러 점검", 80_000L, workTypeId)),
+                    ScheduleErrorCode.WORK_TYPE_NOT_SELECTABLE);
+        }
+        assertThat(fixture.stored(id).name()).isEqualTo("대상 작업");
+    }
+
+    @Test
+    @DisplayName("작업 유형은 입력·상태 확인을 통과했고 유형을 지정한 요청만 확인한다")
+    void checksWorkTypeOnlyAfterInputAndStateWhenGiven() {
+        fixture.givenManager();
+        fixture.workTypes.givenNotSelectable(ORGANIZATION_ID, new WorkTypeId(9L));
+        WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
+        WorkId completed = fixture.givenWork(WorkStatus.COMPLETED);
+
+        fixture.assertRejected(
+                () -> service.update(command(registered.value(), " ", 80_000L, 9L)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(command(completed.value(), "보일러 점검", 80_000L, 9L)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
+        service.update(command(registered.value(), "보일러 점검", 80_000L, null));
+
+        assertThat(fixture.singleSaved().workType()).isEmpty();
+        assertThat(fixture.workTypes.checks()).isZero();
     }
 
     private static UpdateWorkDetailsCommand customerCommand(long workId, String name, String phone, String address) {

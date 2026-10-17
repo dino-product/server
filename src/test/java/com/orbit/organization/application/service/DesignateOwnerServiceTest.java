@@ -1,0 +1,171 @@
+package com.orbit.organization.application.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import com.orbit.organization.application.error.OrganizationErrorCode;
+import com.orbit.organization.application.port.in.command.dto.DesignateOwnerCommand;
+import com.orbit.organization.application.port.out.OrganizationBusyException;
+import com.orbit.organization.application.port.out.OrganizationRepository;
+import com.orbit.organization.domain.AccountId;
+import com.orbit.organization.domain.Membership;
+import com.orbit.organization.domain.MembershipId;
+import com.orbit.organization.domain.MembershipStatus;
+import com.orbit.organization.domain.OrganizationId;
+import com.orbit.shared.error.BaseCode;
+import com.orbit.shared.error.BusinessException;
+
+@DisplayName("총관리자 지정")
+class DesignateOwnerServiceTest {
+
+    private static final OrganizationId ORGANIZATION = new OrganizationId(1L);
+    private static final OrganizationId OTHER_ORGANIZATION = new OrganizationId(2L);
+    private static final AccountId REQUESTER = new AccountId(7L);
+
+    private final OrganizationRepository organizationRepository = mock(OrganizationRepository.class);
+    private final InMemoryMembershipRepository memberships = new InMemoryMembershipRepository();
+
+    private DesignateOwnerService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new DesignateOwnerService(organizationRepository, memberships);
+    }
+
+    @Test
+    @DisplayName("총관리자가 같은 발주사 직원을 지정하면 총관리자가 추가되고 기존 총관리자는 유지된다")
+    void designatesStaffAsAdditionalOwner() {
+        Membership requester = memberships.given(ORGANIZATION, REQUESTER, true);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+
+        service.designate(command(staff));
+
+        assertThat(memberships.stored(id(staff)).isOwner()).isTrue();
+        assertThat(memberships.stored(id(requester)).isOwner()).isTrue();
+        verify(organizationRepository).lock(ORGANIZATION);
+    }
+
+    @Test
+    @DisplayName("이미 총관리자인 소속을 다시 지정하면 저장하지 않고 성공한다")
+    void designatingExistingOwnerSucceedsWithoutSaving() {
+        memberships.given(ORGANIZATION, REQUESTER, true);
+        Membership otherOwner = memberships.given(ORGANIZATION, new AccountId(8L), true);
+
+        service.designate(command(otherOwner));
+
+        assertThat(memberships.stored(id(otherOwner)).isOwner()).isTrue();
+        assertThat(memberships.saveCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("요청자가 그 발주사의 활성 소속이 아니면 발주사를 잠그지 않고 403으로 거부한다")
+    void rejectsRequesterOutsideOrganization() {
+        memberships.given(OTHER_ORGANIZATION, REQUESTER, true);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+
+        assertRejected(command(staff), OrganizationErrorCode.NOT_ORGANIZATION_MEMBER);
+        verify(organizationRepository, never()).lock(any());
+    }
+
+    @Test
+    @DisplayName("앞선 변경이 대기 한도 안에 끝나지 않으면 총관리자가 아닌 직원의 요청도 총관리자 확인 전에 409로 거부한다")
+    void rejectsWhenOrganizationIsBusy() {
+        memberships.given(ORGANIZATION, REQUESTER, false);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+        doThrow(new OrganizationBusyException(new IllegalStateException("lock timeout")))
+                .when(organizationRepository)
+                .lock(ORGANIZATION);
+
+        assertRejected(command(staff), OrganizationErrorCode.ORGANIZATION_BUSY);
+        assertThat(memberships.stored(id(staff)).isOwner()).isFalse();
+    }
+
+    @Test
+    @DisplayName("잠금을 기다리는 사이 요청자 소속이 비활성화되면 잠근 뒤 다시 읽어 403으로 거부한다")
+    void rejectsRequesterDeactivatedWhileWaitingForLock() {
+        Membership requester = memberships.given(ORGANIZATION, REQUESTER, true);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+        doAnswer(invocation -> {
+                    memberships.deactivate(id(requester));
+                    return null;
+                })
+                .when(organizationRepository)
+                .lock(ORGANIZATION);
+
+        assertRejected(command(staff), OrganizationErrorCode.NOT_ORGANIZATION_MEMBER);
+        assertThat(memberships.stored(id(staff)).isOwner()).isFalse();
+    }
+
+    @Test
+    @DisplayName("총관리자가 아닌 직원이 요청하면 403으로 거부한다")
+    void rejectsStaffRequester() {
+        memberships.given(ORGANIZATION, REQUESTER, false);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+
+        assertRejected(command(staff), OrganizationErrorCode.OWNER_ONLY);
+    }
+
+    @Test
+    @DisplayName("대상 소속이 없으면 404로 거부한다")
+    void rejectsMissingTarget() {
+        memberships.given(ORGANIZATION, REQUESTER, true);
+
+        assertRejected(new DesignateOwnerCommand(7L, 1L, 99L), OrganizationErrorCode.MEMBERSHIP_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("다른 발주사의 소속을 지정하면 없는 소속처럼 404로 거부한다")
+    void hidesMembershipOfOtherOrganization() {
+        memberships.given(ORGANIZATION, REQUESTER, true);
+        Membership outsider = memberships.given(OTHER_ORGANIZATION, new AccountId(8L), false);
+
+        assertRejected(command(outsider), OrganizationErrorCode.MEMBERSHIP_NOT_FOUND);
+        assertThat(memberships.stored(id(outsider)).isOwner()).isFalse();
+    }
+
+    @Test
+    @DisplayName("비활성 직원 소속을 지정하면 409로 거부한다")
+    void rejectsDeactivatedTarget() {
+        memberships.given(ORGANIZATION, REQUESTER, true);
+        Membership deactivated =
+                memberships.given(ORGANIZATION, new AccountId(8L), false, MembershipStatus.DEACTIVATED);
+
+        assertRejected(command(deactivated), OrganizationErrorCode.INACTIVE_MEMBERSHIP);
+        assertThat(memberships.stored(id(deactivated)).isOwner()).isFalse();
+    }
+
+    @Test
+    @DisplayName("비활성 소속의 계정이 요청하면 그 발주사 소속이 아닌 것으로 403 거부한다")
+    void rejectsDeactivatedRequester() {
+        memberships.given(ORGANIZATION, REQUESTER, true, MembershipStatus.DEACTIVATED);
+        Membership staff = memberships.given(ORGANIZATION, new AccountId(8L), false);
+
+        assertRejected(command(staff), OrganizationErrorCode.NOT_ORGANIZATION_MEMBER);
+    }
+
+    private void assertRejected(DesignateOwnerCommand command, BaseCode expected) {
+        assertThatThrownBy(() -> service.designate(command))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(expected));
+        assertThat(memberships.saveCount()).isZero();
+    }
+
+    private static DesignateOwnerCommand command(Membership target) {
+        return new DesignateOwnerCommand(
+                REQUESTER.value(), ORGANIZATION.value(), id(target).value());
+    }
+
+    private static MembershipId id(Membership membership) {
+        return membership.id().orElseThrow();
+    }
+}

@@ -32,6 +32,8 @@ dependencies {
 
     add("runtimeOnly", "org.postgresql:postgresql")
 
+    add("implementation", "org.dhatim:fastexcel:${version("fastexcel")}")
+
     add("implementation", "org.springdoc:springdoc-openapi-starter-webmvc-ui:${version("springdoc")}")
     add("implementation", "io.micrometer:micrometer-registry-prometheus")
 
@@ -52,4 +54,5 @@ dependencies {
     add("testImplementation", "org.springframework.boot:spring-boot-testcontainers")
     add("testImplementation", "org.testcontainers:testcontainers-junit-jupiter")
     add("testImplementation", "org.testcontainers:testcontainers-postgresql")
+    add("testImplementation", "org.dhatim:fastexcel-reader:${version("fastexcel")}")
 }

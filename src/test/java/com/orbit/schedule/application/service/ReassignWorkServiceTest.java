@@ -5,12 +5,15 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCO
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -31,17 +34,23 @@ import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.shared.error.BusinessException;
 
 @DisplayName("담당기사 재배정")
 class ReassignWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final ReassignWorkService service =
-            new ReassignWorkService(fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.clock);
+    private final ReassignWorkService service = new ReassignWorkService(
+            fixture.actorPort,
+            fixture.workRepository,
+            fixture.technicianContracts,
+            fixture.scheduleLock,
+            fixture.clock);
 
     @Test
     @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 지금 시각으로 회수하고 새 기사의 수락을 기다린다")
@@ -172,7 +181,7 @@ class ReassignWorkServiceTest {
     @DisplayName("재배정 시각이 직전 이력의 응답 시각보다 앞서면 입력 오류다")
     void rejectsReassignmentBeforeLatestHistory() {
         fixture.givenManager();
-        Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, null, null, null);
+        Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
         work.accept(NOW.plus(Duration.ofHours(1)));
         WorkId id = fixture.workRepository.store(work);
@@ -192,6 +201,64 @@ class ReassignWorkServiceTest {
         fixture.assertRejected(
                 () -> service.reassign(command(id.value(), OTHER_TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
                 ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY);
+    }
+
+    @Test
+    @DisplayName("새 기사가 요청 조직의 활성 기사 계약이 아니면 그 기사를 잠근 뒤 일정을 읽거나 저장하지 않고 배정할 수 없는 기사 오류다")
+    void rejectsTechnicianWithoutActiveContract() {
+        fixture.givenManager();
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        TechnicianId otherOrganizationTechnician = new TechnicianId(5L);
+        fixture.technicianContracts.givenActive(OTHER_ORGANIZATION_ID, otherOrganizationTechnician);
+        fixture.technicianContracts.givenInactive(ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
+
+        for (TechnicianId technicianId : new TechnicianId[] {OTHER_TECHNICIAN_ID, otherOrganizationTechnician}) {
+            assertThatThrownBy(() -> service.reassign(command(id.value(), technicianId.value(), TEN, TWO_HOURS, true)))
+                    .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                            .isEqualTo(ScheduleErrorCode.TECHNICIAN_NOT_ASSIGNABLE));
+        }
+        assertThat(fixture.scheduleLock.locks())
+                .containsExactly(
+                        new Lock(ORGANIZATION_ID, OTHER_TECHNICIAN_ID, 0),
+                        new Lock(ORGANIZATION_ID, otherOrganizationTechnician, 0));
+        assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.stored(id).schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
+    }
+
+    @Test
+    @DisplayName("새 기사 계약은 입력·상태·같은 기사·이력 시각 확인을 통과하고 기사를 잠근 요청만 확인한다")
+    void checksTechnicianContractAfterInputStateSameTechnicianAndLock() {
+        fixture.givenManager();
+        fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
+        fixture.technicianContracts.givenInactive(ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
+        WorkId pending = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
+
+        fixture.assertRejected(
+                () -> service.reassign(
+                        command(pending.value(), OTHER_TECHNICIAN_ID.value(), TEN, Duration.ZERO, false)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.reassign(command(registered.value(), OTHER_TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
+        fixture.assertRejected(
+                () -> service.reassign(command(pending.value(), TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
+                ScheduleErrorCode.SAME_TECHNICIAN);
+        Work acceptedLater =
+                Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
+        acceptedLater.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
+        acceptedLater.accept(NOW.plus(Duration.ofHours(1)));
+        WorkId acceptedLaterId = fixture.workRepository.store(acceptedLater);
+        fixture.assertRejected(
+                () -> service.reassign(
+                        command(acceptedLaterId.value(), OTHER_TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
+        fixture.assertRejected(
+                () -> service.reassign(command(pending.value(), OTHER_TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
+                ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY);
+        assertThat(fixture.technicianContracts.checks()).isZero();
     }
 
     private static ReassignWorkCommand command(
