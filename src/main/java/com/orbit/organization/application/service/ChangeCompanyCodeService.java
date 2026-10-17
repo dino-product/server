@@ -42,7 +42,7 @@ public class ChangeCompanyCodeService implements ChangeCompanyCodeUseCase {
     public CompanyCodeInfo change(ChangeCompanyCodeCommand command) {
         OrganizationId organizationId =
                 OrganizationOwners.require(membershipRepository, command.accountId(), command.organizationId());
-        organizationRepository.lock(organizationId);
+        OrganizationLocks.lock(organizationRepository, organizationId);
         Organization organization = organizationRepository
                 .findById(organizationId)
                 .orElseThrow(() -> new IllegalStateException("active membership must belong to an organization"));

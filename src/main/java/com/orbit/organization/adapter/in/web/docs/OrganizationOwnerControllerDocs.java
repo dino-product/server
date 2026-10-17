@@ -21,7 +21,8 @@ public interface OrganizationOwnerControllerDocs {
             description = "총관리자가 같은 발주사의 직원 소속을 총관리자로 추가 지정합니다. 기존 총관리자는 그대로 유지되며 바로 반영됩니다. "
                     + "이미 총관리자인 소속을 다시 지정해도 성공합니다. "
                     + "비활성 소속은 지정할 수 없어 ORGANIZATION-006입니다. 요청자가 그 발주사 소속이 아니면 ORGANIZATION-002, "
-                    + "총관리자가 아니면 ORGANIZATION-003, 대상 직원 소속이 없거나 다른 발주사 소속이면 ORGANIZATION-004입니다.",
+                    + "총관리자가 아니면 ORGANIZATION-003, 대상 직원 소속이 없거나 다른 발주사 소속이면 ORGANIZATION-004입니다. "
+                    + "같은 발주사의 다른 변경이 끝나기를 기다리다 대기 한도를 넘기면 ORGANIZATION-010입니다(잠시 후 다시 시도).",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "지정 성공")
     @ApiErrorCodes(
@@ -29,7 +30,13 @@ public interface OrganizationOwnerControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "MEMBERSHIP_NOT_FOUND", "INACTIVE_MEMBERSHIP"})
+            includes = {
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "MEMBERSHIP_NOT_FOUND",
+                "INACTIVE_MEMBERSHIP",
+                "ORGANIZATION_BUSY"
+            })
     void designate(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) @Positive Long organizationId,
@@ -41,7 +48,8 @@ public interface OrganizationOwnerControllerDocs {
             description = "총관리자가 본인 또는 다른 총관리자의 총관리자 권한을 해제합니다. 해제된 소속은 바로 일반 직원이 됩니다. "
                     + "발주사의 마지막 총관리자는 해제할 수 없어 ORGANIZATION-005입니다. 총관리자가 아닌 소속을 해제해도 성공합니다. "
                     + "요청자가 그 발주사 소속이 아니면 ORGANIZATION-002, 총관리자가 아니면 ORGANIZATION-003, "
-                    + "대상 직원 소속이 없거나 다른 발주사 소속이면 ORGANIZATION-004입니다.",
+                    + "대상 직원 소속이 없거나 다른 발주사 소속이면 ORGANIZATION-004입니다. "
+                    + "같은 발주사의 다른 변경이 끝나기를 기다리다 대기 한도를 넘기면 ORGANIZATION-010입니다(잠시 후 다시 시도).",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "해제 성공")
     @ApiErrorCodes(
@@ -49,7 +57,13 @@ public interface OrganizationOwnerControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "MEMBERSHIP_NOT_FOUND", "LAST_OWNER"})
+            includes = {
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "MEMBERSHIP_NOT_FOUND",
+                "LAST_OWNER",
+                "ORGANIZATION_BUSY"
+            })
     void revoke(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) @Positive Long organizationId,

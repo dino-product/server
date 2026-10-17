@@ -33,6 +33,9 @@ spring:
       hibernate:
         show_sql: false
         default_schema: public
+        # 스키마를 자동 생성하는 프로필(local·test의 create-drop)에서만 실행된다. 운영(ddl-auto: none)은 실행하지 않는다.
+        hbm2ddl:
+          import_files: db/partial-unique-indexes.sql
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -133,6 +136,9 @@ app:
         service: "2026-10-10"
         privacy: "2026-10-10"
         marketing: "2026-10-10"
+  organization:
+    lock:
+      wait-limit: ${ORGANIZATION_LOCK_WAIT_LIMIT:}
   schedule:
     technician-lock:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
