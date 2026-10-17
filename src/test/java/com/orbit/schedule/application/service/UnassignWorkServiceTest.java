@@ -5,6 +5,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCO
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -89,7 +90,7 @@ class UnassignWorkServiceTest {
     @DisplayName("해제 시각이 대기 중인 배정의 배정 시각보다 앞서면 입력 오류다")
     void rejectsUnassignmentBeforeAssignment() {
         fixture.givenManager();
-        Work work = Work.register(ORGANIZATION_ID, "나중에 배정된 작업", REGISTRAR_ID, null, null, null);
+        Work work = Work.register(ORGANIZATION_ID, "나중에 배정된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW.plus(Duration.ofHours(1)), MANAGER_ID);
         WorkId id = fixture.workRepository.store(work);
 
@@ -100,7 +101,7 @@ class UnassignWorkServiceTest {
     @DisplayName("해제 시각이 수락 시각보다 앞서면 입력 오류다")
     void rejectsUnassignmentBeforeAcceptance() {
         fixture.givenManager();
-        Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, null, null, null);
+        Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
         work.accept(NOW.plus(Duration.ofHours(1)));
         WorkId id = fixture.workRepository.store(work);

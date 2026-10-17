@@ -32,6 +32,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.OrganizationMemberLookup;
+import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.TechnicianWorkRelease;
 import com.orbit.organization.TechnicianWorkReleaseResult;
 import com.orbit.organization.WorkReleaseBlocked;
@@ -62,6 +63,8 @@ import com.orbit.support.TestcontainersConfiguration;
 @DisplayName("대기함 반환 요구 인터페이스(PostgreSQL)")
 class TechnicianWorkReleaseIntegrationTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     // 테스트들이 같은 DB를 쓰므로 테스트마다 다른 조직을 써서 앞선 테스트가 남긴 작업·잠금이 섞이지 않게 한다.
     private static final AtomicLong NEXT_ORGANIZATION_ID = new AtomicLong(700L);
     private static final TechnicianId TECHNICIAN_ID = new TechnicianId(31L);
@@ -73,9 +76,12 @@ class TechnicianWorkReleaseIntegrationTest {
     private static final Duration TWO_HOURS = Duration.ofHours(2);
     private static final long TEST_TIMEOUT_SECONDS = 10;
 
-    // 조립에 필요한 organization 계약. 이 테스트는 요청자를 확인하지 않는다.
+    // 조립에 필요한 organization 계약. 이 테스트는 요청자와 기사 계약을 확인하지 않는다.
     @MockitoBean
     private OrganizationMemberLookup memberLookup;
+
+    @MockitoBean
+    private TechnicianContractLookup technicianContractLookup;
 
     @Autowired
     private TechnicianWorkRelease technicianWorkRelease;
@@ -124,6 +130,7 @@ class TechnicianWorkReleaseIntegrationTest {
                         organizationId,
                         "미리 입력한 작업",
                         REGISTRAR_ID,
+                        REGISTERED_AT,
                         null,
                         null,
                         null,
@@ -268,7 +275,7 @@ class TechnicianWorkReleaseIntegrationTest {
     /** 한 시간 전에 배정하고 그 뒤에 수락·시작한 작업. 반환 시각(지금)이 이 기록들보다 늦도록 과거 시각을 쓴다. */
     private Work work(WorkStatus status, TechnicianId technicianId, int hoursAfterTen) {
         Instant assignedAt = Instant.now().minus(Duration.ofHours(1));
-        Work work = Work.register(organizationId, "반환 대상", REGISTRAR_ID, null, null, null);
+        Work work = Work.register(organizationId, "반환 대상", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(
                 new WorkSchedule(technicianId, TEN.plus(Duration.ofHours(hoursAfterTen)), TWO_HOURS),
                 assignedAt,
