@@ -51,7 +51,7 @@ public record ProgressBoardResponse(
             @Schema(description = "고객 이름. 없으면 null", example = "박서준")
             String customerName,
 
-            @Schema(description = "조회 시각에 지연된 작업인지", example = "false")
+            @Schema(description = "조회 시각에 지연된 작업인지. 예정 종료 시각이나 그 뒤에 완료한 작업도 지연", example = "false")
             boolean delayed) {
 
         static Card from(ProgressBoardInfo.Card info) {
@@ -74,7 +74,7 @@ public record ProgressBoardResponse(
             @Schema(description = "진행 중(작업중) 작업 수", example = "8")
             int inProgress,
 
-            @Schema(description = "지연된 작업 수(배정됨·작업전·작업중 중)", example = "1")
+            @Schema(description = "지금 지연 중인 작업 수(배정됨·작업전·작업중 중. 늦게 완료한 작업은 세지 않음)", example = "1")
             int delayed,
 
             @Schema(description = "완료된 작업 수", example = "15")

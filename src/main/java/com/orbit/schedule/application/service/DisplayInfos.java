@@ -21,6 +21,7 @@ import com.orbit.schedule.application.port.out.TypeLabel;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PlannedSchedule;
+import com.orbit.schedule.domain.ShownSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -28,7 +29,7 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.schedule.domain.WorkTypeId;
 
 /**
- * 조회 응답에 담을 작업들의 표시 정보(담당기사·미리 입력한 담당기사, 상세에서는 배정 이력의 기사, 등록자, 작업유형)를 포트마다 한 번에 찾아 두고 꺼내 쓴다. 찾을 대상이 없는 포트는 부르지 않는다. 찾지
+ * 조회 응답에 담을 작업들의 표시 정보(보일 일정의 담당기사, 상세에서는 배정 이력의 기사, 등록자, 작업유형)를 포트마다 한 번에 찾아 두고 꺼내 쓴다. 찾을 대상이 없는 포트는 부르지 않는다. 찾지
  * 못한 대상은 식별자만 담는다. 삭제된 작업유형은 작업이 시작되기 전(등록·배정됨·작업전)이면 유형 없음으로 보이고, 작업중·완료·취소 작업에는 삭제 전 이름·색 그대로 보인다([작업] §11).
  */
 final class DisplayInfos {
@@ -108,8 +109,8 @@ final class DisplayInfos {
         Set<MembershipId> registrarIds = new HashSet<>();
         Set<WorkTypeId> workTypeIds = new HashSet<>();
         for (Work work : works) {
-            work.schedule().map(WorkSchedule::technicianId).ifPresent(technicianIds::add);
-            work.plannedSchedule().map(PlannedSchedule::technicianId).ifPresent(technicianIds::add);
+            // 지금 일정·미리 입력한 담당기사·돌아온 작업의 마지막 배정 기사를 모두 담는다.
+            work.shownSchedule().map(ShownSchedule::technicianId).ifPresent(technicianIds::add);
             if (withHistory) {
                 work.assignmentHistory()
                         .forEach(history -> technicianIds.add(history.schedule().technicianId()));
@@ -135,7 +136,8 @@ final class DisplayInfos {
         return planned == null || planned.technicianId() == null ? null : technician(planned.technicianId());
     }
 
-    private TechnicianInfo technician(TechnicianId technicianId) {
+    /** 그 기사의 표시 정보. 찾지 못했으면 식별자만 담는다. */
+    TechnicianInfo technician(TechnicianId technicianId) {
         TechnicianProfile profile = technicians.get(technicianId);
         return profile == null ? new TechnicianInfo(technicianId.value(), null, null) : technicianInfo(profile);
     }

@@ -186,7 +186,7 @@ public final class Work {
         return work;
     }
 
-    /** 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간까지 복원한다. 미리 입력한 일정은 대기함(등록) 작업에만 있다. */
+    /** 대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간까지 복원한다. 미리 입력한 일정은 배정한 적 없는 대기함(등록) 작업에만 있다. */
     public static Work reconstitute(
             WorkId id,
             OrganizationId organizationId,
@@ -224,6 +224,9 @@ public final class Work {
                 statusCorrections);
         if (plannedSchedule != null && status != WorkStatus.REGISTERED) {
             throw new IllegalArgumentException("Only a REGISTERED work can have a planned schedule");
+        }
+        if (plannedSchedule != null && !assignmentHistory.isEmpty()) {
+            throw new IllegalArgumentException("Only a never-assigned work can have a planned schedule");
         }
         work.plannedSchedule = plannedSchedule;
         return work;
@@ -354,12 +357,48 @@ public final class Work {
     }
 
     /**
-     * 주어진 시각에 지연된 작업인지. 아직 끝나지 않은(수락대기·수락됨·작업중) 작업의 예정 종료시각이 그 시각이거나 이미 지났으면 지연이다. 지연은 상태가 아니라 조회
-     * 시각으로 계산하는 표시값이다.
+     * 작업 목록·출력의 담당기사·예정시간 칸에 보일 일정. 지금 일정이 있으면 그 일정이다. 대기함 작업은 등록 때 미리 입력한 값(일부일 수 있다)이거나,
+     * 배정됐다 거절·배정 해제·기사 반환(·취소를 대기함으로 되돌린 정정)으로 돌아온 작업이면 마지막 배정의 일정이다. 반환한 기사가 비활성·탈퇴했어도
+     * 그대로다. 미리 입력한 값은 배정한 적 없는 작업에만 있으므로 둘은 겹치지 않는다. 일정이 없는 취소 작업(배정 전에 취소)은 비어 있다.
+     */
+    public Optional<ShownSchedule> shownSchedule() {
+        if (schedule != null) {
+            return Optional.of(ShownSchedule.of(schedule));
+        }
+        if (status != WorkStatus.REGISTERED) {
+            return Optional.empty();
+        }
+        if (plannedSchedule != null) {
+            return Optional.of(ShownSchedule.of(plannedSchedule));
+        }
+        return assignmentHistory.isEmpty()
+                ? Optional.empty()
+                : Optional.of(ShownSchedule.of(assignmentHistory.getLast().schedule()));
+    }
+
+    /**
+     * 주어진 시각에 지연된 작업인지. 지연은 상태가 아니라 조회 시각으로 계산하는 표시값이며, 예정 종료시각이 그 시각이거나 이미 지났는데 끝나지 않은 작업과 늦게 끝난
+     * 작업이다.
+     *
+     * <ul>
+     *   <li>수락대기·수락됨·작업중: 예정 종료시각이 그 시각이거나 이미 지났으면 지연이다.
+     *   <li>완료: 예정 종료시각이나 그 뒤에 완료했으면 지연이다(완료 시점에 이미 지연이었던 작업).
+     *   <li>등록(대기함): {@link #shownSchedule 보일 일정}의 종료시각이 그 시각이거나 이미 지났으면 지연이다. 시작시각이나 예상소요시간을 모르면 지연이 아니다.
+     *   <li>취소: 지연이 아니다.
+     * </ul>
      */
     public boolean isDelayedAt(Instant now) {
         Objects.requireNonNull(now, "now must not be null");
-        return status.isActive() && !now.isBefore(schedule.endTime());
+        return switch (status) {
+            case PENDING_ACCEPTANCE, ACCEPTED, IN_PROGRESS -> !now.isBefore(schedule.endTime());
+            case COMPLETED -> !completedAt.isBefore(schedule.endTime());
+            case REGISTERED ->
+                shownSchedule()
+                        .flatMap(ShownSchedule::endTime)
+                        .map(endTime -> !now.isBefore(endTime))
+                        .orElse(false);
+            case CANCELLED -> false;
+        };
     }
 
     /** 기사가 거절해 대기함으로 돌아온 작업인지. 대기함 작업의 최신 배정이 거절로 끝났으면 그렇다. 대기함 목록의 거절 반환 표시와 작업 목록의 거절 필터가 쓴다. */

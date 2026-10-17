@@ -10,13 +10,14 @@ import com.orbit.schedule.domain.WorkStatus;
  *
  * @param keyword 작업명·고객 이름·연락처·주소 중 하나에 대소문자 구분 없이 포함되는 글자. 앞뒤 공백을 빼고 최대 100자이며, 비우거나 공백뿐이면 거르지 않는다
  * @param statuses 이 상태 중 하나인 작업만. null이거나 비어 있으면 모든 상태. null 원소는 받지 않는다
- * @param technicianId 작업에 남은 일정의 담당 기사(완료·배정 중 취소된 작업 포함)
+ * @param technicianId 목록의 담당기사 칸과 같은, 작업에 보일 일정의 담당 기사(완료·배정 중 취소된 작업, 대기함 작업의 미리 입력한 담당기사·마지막
+ *     배정 기사 포함)
  * @param workTypeId 이 작업유형의 작업만
  * @param registrarId 이 소속(직원·총관리자)이 등록한 작업만
- * @param startFrom 작업에 남은 일정의 시작시각 하한(포함). startTo와 함께 주거나 함께 비우며, 1970년부터 9999년까지다
+ * @param startFrom 작업에 보일 일정의 시작시각 하한(포함). startTo와 함께 주거나 함께 비우며, 1970년부터 9999년까지다
  * @param startTo 일정 시작시각 상한(제외). startFrom보다 늦다
  * @param returnedByRejectionOnly 기사가 거절해 대기함으로 돌아온 작업만
- * @param delayedOnly 지금 지연된 작업만
+ * @param delayedOnly 지금 지연된 작업만(늦게 완료한 작업과 보일 일정의 종료시각이 지난 대기함 작업 포함)
  * @param sort 정렬. null이면 최근 등록 먼저
  */
 public record WorkSearchFilter(

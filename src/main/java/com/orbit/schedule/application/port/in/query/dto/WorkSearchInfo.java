@@ -22,9 +22,10 @@ public record WorkSearchInfo(List<WorkSummary> works, long totalCount, int page,
     /**
      * 목록의 작업 한 줄.
      *
-     * @param technician 작업에 남은 일정의 담당 기사. 일정이 없으면(대기함, 배정 전에 취소된 작업) null
-     * @param startTime 작업에 남은 일정의 시작시각. 일정이 없으면 null
-     * @param endTime 작업에 남은 일정의 종료시각. 일정이 없으면 null
+     * @param technician 작업에 보일 일정({@link com.orbit.schedule.domain.Work#shownSchedule})의 담당 기사. 대기함 작업은 미리 입력한
+     *     담당기사나 마지막 배정의 기사다. 없으면(담당기사를 정하지 않은 대기함 작업, 배정 전에 취소된 작업) null
+     * @param startTime 작업에 보일 일정의 시작시각. 없으면 null
+     * @param endTime 작업에 보일 일정의 종료시각. 시작시각이나 예상소요시간이 없으면 null
      * @param customerName 고객 이름. 없으면 null
      * @param workType 작업유형. 없으면 null
      * @param registrar 등록자

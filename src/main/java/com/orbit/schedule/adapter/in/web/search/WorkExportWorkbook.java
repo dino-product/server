@@ -86,12 +86,18 @@ final class WorkExportWorkbook {
         }
     }
 
-    /** 같은 날이면 "2026-10-21 09:00 ~ 11:00", 날을 넘기면 끝도 날짜와 함께 쓴다. 일정이 없으면 null(빈 셀)이다. */
+    /**
+     * 같은 날이면 "2026-10-21 09:00 ~ 11:00", 날을 넘기면 끝도 날짜와 함께 쓴다. 끝을 모르면(예상소요시간을 정하지 않은 대기함 작업) "2026-10-21 09:00
+     * ~"이고, 시작을 모르면 null(빈 셀)이다.
+     */
     private static String scheduledTime(Instant start, Instant end, ZoneId zone) {
         if (start == null) {
             return null;
         }
         ZonedDateTime localStart = start.atZone(zone);
+        if (end == null) {
+            return DATE_TIME.format(localStart) + " ~";
+        }
         ZonedDateTime localEnd = end.atZone(zone);
         DateTimeFormatter endFormat = localStart.toLocalDate().equals(localEnd.toLocalDate()) ? TIME : DATE_TIME;
         return DATE_TIME.format(localStart) + " ~ " + endFormat.format(localEnd);
@@ -104,7 +110,7 @@ final class WorkExportWorkbook {
         return type == null ? name : name + "(" + type + ")";
     }
 
-    /** 담당기사가 없으면(대기함) null(빈 셀)이다. */
+    /** 담당기사가 없으면(담당기사를 정하지 않은 대기함 작업, 배정 전에 취소된 작업) null(빈 셀)이다. */
     private static String technicianName(TechnicianInfo technician) {
         if (technician == null) {
             return null;

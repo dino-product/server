@@ -244,6 +244,37 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
+        @DisplayName("거절로 돌아온 대기함 작업은 마지막 배정의 기사·시간을 보이고 그 기사·기간 조건에도 걸린다")
+        void showsLastAssignmentOfReturnedWork() throws Exception {
+            Organization organization = organization();
+            givenDisplayInfos(organization);
+            Work rejected = registered(organization, "거절된 작업", Instant.now().minus(Duration.ofHours(1)));
+            rejected.assign(
+                    new WorkSchedule(TECHNICIAN, DAY, Duration.ofHours(2)),
+                    Instant.now().minusSeconds(120),
+                    new MembershipId(organization.ownerMembership()));
+            rejected.reject(
+                    new Rejection(RejectionReason.SCHEDULE_CONFLICT, null),
+                    Instant.now().minusSeconds(60));
+            long rejectedId = save(rejected);
+
+            works(
+                            organization.owner(),
+                            organization.id(),
+                            "technicianId=" + TECHNICIAN.value() + "&startFrom=" + DAY + "&startTo="
+                                    + DAY.plus(Duration.ofDays(1)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.totalCount").value(1))
+                    .andExpect(jsonPath("$.result.works[0].workId").value(rejectedId))
+                    .andExpect(jsonPath("$.result.works[0].status").value("REGISTERED"))
+                    .andExpect(jsonPath("$.result.works[0].returnedByRejection").value(true))
+                    .andExpect(jsonPath("$.result.works[0].technician.name").value("김민수"))
+                    .andExpect(jsonPath("$.result.works[0].startTime").value(DAY.toString()))
+                    .andExpect(jsonPath("$.result.works[0].endTime")
+                            .value(DAY.plus(Duration.ofHours(2)).toString()));
+        }
+
+        @Test
         @DisplayName("목록에 없는 상태·정렬이나 숫자 형식 오류는 COMMON-400, 범위를 벗어난 조건은 SCHEDULE-003이다")
         void rejectsInvalidCriteria() throws Exception {
             Organization organization = organization();

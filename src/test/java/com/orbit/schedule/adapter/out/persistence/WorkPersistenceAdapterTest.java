@@ -209,8 +209,8 @@ class WorkPersistenceAdapterTest {
     }
 
     @Test
-    @DisplayName("거절·배정 해제로 대기함에 돌아오거나 대기함에서 취소한 작업은 일정 컬럼을 비워 미리 입력한 일정으로 복원되지 않는다")
-    void clearsScheduleColumnsWhenWorkLeavesSchedule() {
+    @DisplayName("거절·배정 해제로 돌아온 작업은 일정 컬럼에 마지막 배정 일정을 담되 미리 입력한 일정으로 복원하지 않고, 대기함에서 취소한 작업은 일정 컬럼을 비운다")
+    void storesLastScheduleOfReturnedWorkAndClearsCancelledBacklog() {
         OrganizationId organization = organization();
         Work rejected = registered(organization, "거절");
         rejected.assign(SCHEDULE, NOW, MANAGER);
@@ -245,6 +245,16 @@ class WorkPersistenceAdapterTest {
             assertThat(found.schedule()).isEmpty();
             assertThat(found.plannedSchedule()).isEmpty();
         }
+        for (WorkId id : new WorkId[] {rejectedId, unassignedId}) {
+            WorkJpaEntity entity = entity(id);
+            assertThat(entity.technicianId()).isEqualTo(SCHEDULE.technicianId().value());
+            assertThat(entity.scheduledStartAt()).isEqualTo(SCHEDULE.startTime());
+            assertThat(entity.expectedDuration()).isEqualTo(SCHEDULE.expectedDuration());
+        }
+        WorkJpaEntity cancelled = entity(plannedId);
+        assertThat(cancelled.technicianId()).isNull();
+        assertThat(cancelled.scheduledStartAt()).isNull();
+        assertThat(cancelled.expectedDuration()).isNull();
     }
 
     static Stream<Arguments> plannedSchedules() {
@@ -322,6 +332,11 @@ class WorkPersistenceAdapterTest {
         Work assigned = registered(organization, "배정됨");
         assigned.assign(SCHEDULE, NOW, MANAGER);
         inTx(() -> adapter().save(assigned));
+        // 거절로 돌아온 작업의 일정 컬럼에는 그 기사가 남지만 미리 입력한 담당기사가 아니다.
+        Work rejected = registered(organization, "거절됨");
+        rejected.assign(SCHEDULE, NOW, MANAGER);
+        rejected.reject(new Rejection(RejectionReason.OTHER, "거리 멀어요"), NOW.plusSeconds(10));
+        inTx(() -> adapter().save(rejected));
 
         assertThat(inTx(() -> adapter().listBacklogPlannedForTechnician(organization, TECHNICIAN)))
                 .extracting(work -> work.id().orElseThrow())
@@ -626,6 +641,10 @@ class WorkPersistenceAdapterTest {
 
     private Work find(OrganizationId organization, WorkId id) {
         return inTx(() -> adapter().findInOrganization(organization, id).orElseThrow());
+    }
+
+    private WorkJpaEntity entity(WorkId id) {
+        return inTx(() -> springDataRepository.findById(id.value()).orElseThrow());
     }
 
     private <T> T inTx(Supplier<T> action) {

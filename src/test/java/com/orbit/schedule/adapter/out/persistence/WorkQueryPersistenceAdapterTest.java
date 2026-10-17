@@ -255,7 +255,7 @@ class WorkQueryPersistenceAdapterTest {
         }
 
         @Test
-        @DisplayName("상태·담당 기사·시작 구간(시작 포함, 끝 제외)은 완료·취소 작업에 남은 일정까지 거르고 대기함의 미리 입력한 일정은 보지 않는다")
+        @DisplayName("상태·담당 기사·시작 구간(시작 포함, 끝 제외)은 보일 일정으로 거른다: 완료·취소 작업의 일정, 대기함의 미리 입력한 값과 마지막 배정 일정")
         void filtersByStatusTechnicianAndStartPeriod() {
             OrganizationId organization = organization();
             WorkId pending = save(assigned(organization, "수락대기", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
@@ -266,14 +266,18 @@ class WorkQueryPersistenceAdapterTest {
             WorkId completed = save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T00:00:00Z", 60)));
             WorkId cancelled =
                     save(cancelled(organization, "배정 중 취소", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));
+            Work rejected = assigned(organization, "거절됨", schedule(TECHNICIAN, "2026-10-21T07:00:00Z", 60));
+            rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ASSIGNED_AT.plusSeconds(60));
+            WorkId returned = save(rejected);
             save(assigned(organization, "to에 시작", schedule(OTHER_TECHNICIAN, "2026-10-22T00:00:00Z", 60)));
+            WorkId unscheduled = save(registered(organization, "일정 없음"));
 
             assertThat(searchIds(organization, criteria().statuses(Set.of(WorkStatus.REGISTERED))))
-                    .containsExactly(planned);
+                    .containsExactlyInAnyOrder(planned, returned, unscheduled);
             assertThat(searchIds(organization, criteria().technician(TECHNICIAN)))
-                    .containsExactlyInAnyOrder(pending, later, completed, cancelled);
+                    .containsExactlyInAnyOrder(pending, later, planned, completed, cancelled, returned);
             assertThat(searchIds(organization, criteria().start(FROM, TO)))
-                    .containsExactlyInAnyOrder(pending, otherTechnician, completed, cancelled);
+                    .containsExactlyInAnyOrder(pending, otherTechnician, planned, completed, cancelled, returned);
         }
 
         @Test
@@ -298,7 +302,7 @@ class WorkQueryPersistenceAdapterTest {
         }
 
         @Test
-        @DisplayName("지연 조건은 그 시각에 예정 종료가 지났거나 같은 활성 작업만 담는다")
+        @DisplayName("지연 조건은 그 시각에 예정 종료가 지났거나 같은 활성·대기함 작업과 예정 종료나 그 뒤에 완료한 작업을 담는다")
         void filtersDelayedAtGivenInstant() {
             OrganizationId organization = organization();
             Instant delayedAt = Instant.parse("2026-10-21T02:00:00Z");
@@ -306,14 +310,34 @@ class WorkQueryPersistenceAdapterTest {
             WorkId inProgress =
                     save(started(organization, "작업중 지연", schedule(OTHER_TECHNICIAN, "2026-10-21T00:00:00Z", 30)));
             save(assigned(organization, "아직 안 끝남", schedule(TECHNICIAN, "2026-10-21T01:30:00Z", 60)));
-            save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-20T01:00:00Z", 60)));
+            WorkId completedLate =
+                    save(completed(organization, "늦게 완료", schedule(TECHNICIAN, "2026-10-20T01:00:00Z", 60)));
+            Work onTime = started(organization, "제때 완료", schedule(TECHNICIAN, "2026-10-20T03:00:00Z", 60));
+            onTime.submitCompletionReport(
+                    new CompletionReport(List.of(), List.of(), null, null, null, null),
+                    Instant.parse("2026-10-20T03:59:00Z"));
+            save(onTime);
+            WorkId plannedEnded = save(Work.register(
+                    organization,
+                    "시간만 정한 대기",
+                    REGISTRAR,
+                    REGISTERED_AT,
+                    null,
+                    null,
+                    null,
+                    new PlannedSchedule(null, Instant.parse("2026-10-21T00:00:00Z"), Duration.ofHours(1))));
+            save(planned(organization, "시작만 정한 대기", schedule(TECHNICIAN, "2026-10-21T00:00:00Z", 60)));
+            Work rejected = assigned(organization, "거절됨", schedule(TECHNICIAN, "2026-10-21T00:00:00Z", 60));
+            rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ASSIGNED_AT.plusSeconds(60));
+            WorkId returned = save(rejected);
+            save(cancelled(organization, "취소", schedule(TECHNICIAN, "2026-10-21T00:00:00Z", 60)));
 
             assertThat(searchIds(organization, criteria().delayedAt(delayedAt)))
-                    .containsExactlyInAnyOrder(endsExactly, inProgress);
+                    .containsExactlyInAnyOrder(endsExactly, inProgress, completedLate, plannedEnded, returned);
         }
 
         @Test
-        @DisplayName("시작시각 정렬은 일정이 없는 작업을 맨 뒤에 두고 같은 값은 식별자 내림차순이다")
+        @DisplayName("시작시각 정렬은 보일 일정(대기함의 미리 입력한 시작시각 포함) 기준이고, 시작시각이 없는 작업은 맨 뒤, 같은 값은 식별자 내림차순이다")
         void sortsByStartTimeWithUnscheduledLast() {
             OrganizationId organization = organization();
             WorkId early = save(assigned(organization, "이른", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
@@ -324,7 +348,7 @@ class WorkQueryPersistenceAdapterTest {
             WorkId unscheduled = save(registered(organization, "일정 없음"));
 
             assertThat(searchIds(organization, criteria().sort(WorkSearchCriteria.Sort.START_TIME_ASC)))
-                    .containsExactly(sameAsEarly, early, late, unscheduled, planned);
+                    .containsExactly(planned, sameAsEarly, early, late, unscheduled);
             assertThat(searchIds(organization, criteria().sort(WorkSearchCriteria.Sort.REGISTERED_DESC)))
                     .containsExactly(unscheduled, planned, sameAsEarly, late, early);
         }

@@ -121,6 +121,23 @@ class GetProgressBoardServiceTest {
     }
 
     @Test
+    @DisplayName("예정 종료시각 뒤에 완료한 작업은 카드에는 지연으로 보이지만 요약의 지연 수에는 들지 않는다")
+    void showsLateCompletionWithoutCountingItAsDelayed() {
+        fixture.givenManager();
+        // 완료는 ACCEPTED_AT(NOW - 1.5시간)이고 예정 종료는 NOW - 2시간이다.
+        fixture.givenWork(
+                ORGANIZATION_ID, "늦게 완료", WorkStatus.COMPLETED, TECHNICIAN_ID, NOW.minus(Duration.ofHours(4)));
+
+        ProgressBoardInfo board = service.get(query(FROM, TO));
+
+        assertThat(board.columns().get(3).cards())
+                .singleElement()
+                .extracting(ProgressBoardInfo.Card::delayed)
+                .isEqualTo(true);
+        assertThat(board.summary()).isEqualTo(new ProgressBoardInfo.Summary(1, 0, 0, 1));
+    }
+
+    @Test
     @DisplayName("작업이 없으면 빈 열 네 개와 0 집계를 돌려준다")
     void returnsEmptyBoard() {
         fixture.givenManager();

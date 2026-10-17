@@ -34,6 +34,7 @@ import com.orbit.schedule.application.port.out.TechnicianProfile;
 import com.orbit.schedule.application.port.out.TypeLabel;
 import com.orbit.schedule.application.port.out.WorkSearchCriteria;
 import com.orbit.schedule.domain.MembershipId;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -187,9 +188,10 @@ class SearchWorksServiceTest {
                                 rejectedId.value(),
                                 "대상 작업",
                                 WorkStatus.REGISTERED,
-                                null,
-                                null,
-                                null,
+                                // 거절로 돌아온 작업은 마지막 배정의 기사·시간을 보인다.
+                                new TechnicianInfo(TECHNICIAN_ID.value(), "김기사", null),
+                                TEN,
+                                TEN.plus(TWO_HOURS),
                                 "홍길동",
                                 workType,
                                 registrar,
@@ -197,6 +199,31 @@ class SearchWorksServiceTest {
                                 rejectedModified,
                                 false,
                                 true));
+    }
+
+    @Test
+    @DisplayName("배정한 적 없는 대기함 작업은 미리 입력한 담당기사·시작시각을 보이고, 예상소요시간을 모르면 종료시각은 비운다")
+    void mapsPlannedValuesOfBacklogWork() {
+        fixture.givenManager();
+        fixture.technicianProfiles.given(ORGANIZATION_ID, new TechnicianProfile(TECHNICIAN_ID, "김기사", null));
+        WorkId planned = fixture.workRepository.store(Work.register(
+                ORGANIZATION_ID,
+                "기사·시작만 정한 작업",
+                REGISTRAR_ID,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN_ID, TEN, null)));
+        fixture.workRepository.givenSearchResult(List.of(planned), List.of(NOW), 1);
+
+        assertThat(service.search(query().build()).works()).singleElement().satisfies(summary -> {
+            assertThat(summary.technician()).isEqualTo(new TechnicianInfo(TECHNICIAN_ID.value(), "김기사", null));
+            assertThat(summary.startTime()).isEqualTo(TEN);
+            assertThat(summary.endTime()).isNull();
+            assertThat(summary.delayed()).isFalse();
+        });
+        assertThat(fixture.technicianProfiles.lookups()).containsExactly(Set.of(TECHNICIAN_ID));
     }
 
     @Test

@@ -15,7 +15,8 @@ import com.orbit.schedule.domain.WorkStatus;
  * 작업 상세. 관리자는 모든 항목을 받고, 기사는 자기에게 보이는 항목만 받는다(보이지 않는 항목은 null·false·빈 목록). 기사가 지금 담당이 아니면(다른 기사로
  * 바뀌었거나 대기함으로 돌아갔으면) 작업명·상태와 자기 배정 이력만 받는다.
  *
- * @param delayed 조회 시각에 지연된 작업인지(아직 끝나지 않았는데 예정 종료시각과 같거나 지남). 기사가 지금 담당이 아니면 false
+ * @param delayed 조회 시각에 지연된 작업인지({@link com.orbit.schedule.domain.Work#isDelayedAt}). 배정됐다 돌아온 대기함 작업은 일정이
+ *     없어도 마지막 배정 일정(배정 이력의 마지막)으로 판정한다. 기사가 지금 담당이 아니면 false
  * @param workType 작업유형(시작 전 작업의 삭제된 유형은 없는 것으로 본다). 없거나 기사가 지금 담당이 아니면 null
  * @param registrar 등록자. 관리자에게만 담고 기사에게는 null
  * @param registeredAt 등록 시각(상태 변경 이력의 "작업 등록됨"). 기사가 지금 담당이 아니면 null

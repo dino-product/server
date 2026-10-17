@@ -29,7 +29,9 @@ public interface WorkSearchControllerDocs {
     @Operation(
             summary = "작업 목록 검색",
             description = "관리자가 조직의 작업을 조건으로 거르고 정렬해 쪽으로 나눠 조회합니다. 비운 조건은 거르지 않습니다. "
-                    + "담당 기사·시작 구간은 작업에 남은 일정 기준이라 대기함 작업은 걸리지 않습니다. "
+                    + "담당 기사·시작 구간과 예정시간 정렬은 목록의 담당기사·예정시간 칸과 같은 값 기준이라, 대기함 작업도 등록 때 미리 입력한 값이나 "
+                    + "배정됐다 돌아온 작업의 마지막 배정 일정으로 걸립니다. "
+                    + "지연은 끝나지 않았는데 예정 종료 시각이 지난 작업(대기함 작업 포함)과 예정 종료 시각이나 그 뒤에 완료한 작업입니다. "
                     + "statuses는 반복하거나 쉼표로 이어 보냅니다(빈 원소가 섞이면 SCHEDULE-003). "
                     + "검색어가 100자를 넘거나, 식별자가 양수가 아니거나, 시작 구간을 한쪽만 주거나 뒤집었거나, 쪽 입력이 범위를 벗어나면 SCHEDULE-003, "
                     + "목록에 없는 상태·정렬이나 시각·숫자 형식 오류는 COMMON-400입니다. "
@@ -53,7 +55,7 @@ public interface WorkSearchControllerDocs {
             @Parameter(description = "조직(발주사) 식별자", example = "1", required = true) Long organizationId,
             @Parameter(description = "작업명·고객 이름·연락처·주소에 포함되는 글자(최대 100자)", example = "보일러") String keyword,
             @Parameter(description = "이 상태 중 하나인 작업만", example = "PENDING_ACCEPTANCE") Set<WorkStatus> statuses,
-            @Parameter(description = "작업에 남은 일정의 담당 기사(기사 계약 식별자)", example = "12") Long technicianId,
+            @Parameter(description = "목록의 담당기사 칸에 보이는 기사(기사 계약 식별자)", example = "12") Long technicianId,
             @Parameter(description = "작업유형 식별자", example = "3") Long workTypeId,
             @Parameter(description = "등록자(직원·총관리자 소속 식별자)", example = "5") Long registrarId,
             @Parameter(description = "예정 시작 시각 하한(포함, ISO-8601 UTC). startTo와 함께", example = "2026-10-20T15:00:00Z")
@@ -95,7 +97,7 @@ public interface WorkSearchControllerDocs {
             @Parameter(description = "조직(발주사) 식별자", example = "1", required = true) Long organizationId,
             @Parameter(description = "작업명·고객 이름·연락처·주소에 포함되는 글자(최대 100자)", example = "보일러") String keyword,
             @Parameter(description = "이 상태 중 하나인 작업만", example = "PENDING_ACCEPTANCE") Set<WorkStatus> statuses,
-            @Parameter(description = "작업에 남은 일정의 담당 기사(기사 계약 식별자)", example = "12") Long technicianId,
+            @Parameter(description = "목록의 담당기사 칸에 보이는 기사(기사 계약 식별자)", example = "12") Long technicianId,
             @Parameter(description = "작업유형 식별자", example = "3") Long workTypeId,
             @Parameter(description = "등록자(직원·총관리자 소속 식별자)", example = "5") Long registrarId,
             @Parameter(description = "예정 시작 시각 하한(포함, ISO-8601 UTC). startTo와 함께", example = "2026-10-20T15:00:00Z")

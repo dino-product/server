@@ -322,17 +322,21 @@ class GetWorkDetailServiceTest {
     }
 
     @Test
-    @DisplayName("예정 종료시각과 같거나 지났는데 끝나지 않은 작업은 지연으로, 끝난 작업이나 아직 시간이 남은 작업은 지연이 아닌 것으로 표시한다")
+    @DisplayName("예정 종료시각과 같거나 지났는데 끝나지 않았거나 그 뒤에 완료한 작업은 지연으로, 제때 끝난 작업이나 아직 시간이 남은 작업은 지연이 아닌 것으로 표시한다")
     void marksDelay() {
         fixture.givenManager(ActorRole.OWNER);
         Instant pastStart = NOW.minus(TWO_HOURS);
         WorkId late = fixture.givenWork(ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, pastStart);
         WorkId done = fixture.givenWork(ORGANIZATION_ID, "끝난 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, pastStart);
+        // 완료(ACCEPTED_AT = NOW - 1.5시간)가 예정 종료(NOW - 2시간)보다 늦다.
+        WorkId doneLate = fixture.givenWork(
+                ORGANIZATION_ID, "늦게 끝난 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, NOW.minus(Duration.ofHours(4)));
         WorkId running = fixture.givenWork(
                 ORGANIZATION_ID, "진행 중 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, pastStart.plusSeconds(60));
 
         assertThat(service.get(query(late.value())).delayed()).isTrue();
         assertThat(service.get(query(done.value())).delayed()).isFalse();
+        assertThat(service.get(query(doneLate.value())).delayed()).isTrue();
         assertThat(service.get(query(running.value())).delayed()).isFalse();
     }
 

@@ -69,8 +69,21 @@ class WorkExportWorkbookTest {
                 null,
                 PaymentMethod.BANK_TRANSFER);
 
+        WorkExportInfo.Row startOnly = new WorkExportInfo.Row(
+                summary(
+                        "시작만 정한 작업",
+                        WorkStatus.REGISTERED,
+                        new TechnicianInfo(3L, "김기사", null),
+                        Instant.parse("2026-10-21T00:00:00Z"),
+                        null,
+                        null,
+                        new StaffInfo(1L, "김운영", false, null),
+                        null),
+                null,
+                null);
+
         List<Row> rows = read(WorkExportWorkbook.write(
-                new WorkExportInfo(List.of(assigned, overnight, backlog), EXPORTED_AT), SEOUL));
+                new WorkExportInfo(List.of(assigned, overnight, backlog, startOnly), EXPORTED_AT), SEOUL));
 
         assertThat(texts(rows.get(0))).containsExactlyElementsOf(WorkExportWorkbook.HEADERS);
         assertThat(texts(rows.get(1)))
@@ -102,7 +115,11 @@ class WorkExportWorkbookTest {
                 .containsExactly(
                         "대기 작업", "등록", "", "", "", WorkExportWorkbook.UNKNOWN_NAME, "2026-10-21 00:30", "", "", "계좌이체");
         assertThat(rows.get(3).getCell(2)).as("값이 없는 칸은 빈 셀이다").isNull();
-        assertThat(rows).hasSize(4);
+        assertThat(texts(rows.get(4)))
+                .as("끝을 모르는 대기함 작업은 시작만 쓴다")
+                .containsExactly(
+                        "시작만 정한 작업", "등록", "김기사", "", "2026-10-21 09:00 ~", "김운영", "2026-10-21 00:30", "", "", "");
+        assertThat(rows).hasSize(5);
     }
 
     @Test

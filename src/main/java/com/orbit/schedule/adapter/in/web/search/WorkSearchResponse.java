@@ -41,13 +41,17 @@ public record WorkSearchResponse(
                     example = "PENDING_ACCEPTANCE")
             WorkStatus status,
 
-            @Schema(description = "작업에 남은 일정의 담당 기사. 일정이 없으면(대기함, 배정 전에 취소된 작업) null")
+            @Schema(
+                    description = "담당 기사. 대기함 작업은 등록 때 미리 입력한 담당기사나 배정됐다 돌아온 작업의 마지막 배정 기사다. "
+                            + "없으면(담당기사를 정하지 않은 대기함 작업, 배정 전에 취소된 작업) null")
             TechnicianResponse technician,
 
-            @Schema(description = "예정 시작 시각. 일정이 없으면 null", example = "2026-10-21T00:00:00Z")
+            @Schema(
+                    description = "예정 시작 시각. 대기함 작업은 미리 입력한 값이나 마지막 배정의 시각이다. 없으면 null",
+                    example = "2026-10-21T00:00:00Z")
             Instant startTime,
 
-            @Schema(description = "예정 종료 시각. 일정이 없으면 null", example = "2026-10-21T02:00:00Z")
+            @Schema(description = "예정 종료 시각. 시작 시각이나 예상 소요시간을 모르면 null", example = "2026-10-21T02:00:00Z")
             Instant endTime,
 
             @Schema(description = "고객명. 없으면 null", example = "이정호")
@@ -62,7 +66,9 @@ public record WorkSearchResponse(
             @Schema(description = "최근 수정 시각(마지막 저장 시각)", example = "2026-10-19T03:00:00Z")
             Instant lastModifiedAt,
 
-            @Schema(description = "조회 시각에 지연된 작업인지", example = "false")
+            @Schema(
+                    description = "조회 시각에 지연된 작업인지. 끝나지 않았는데 예정 종료 시각이 지났거나(대기함 작업 포함) 예정 종료 시각이나 그 뒤에 완료했으면 지연",
+                    example = "false")
             boolean delayed,
 
             @Schema(description = "기사가 거절해 대기함으로 돌아온 작업인지", example = "false")

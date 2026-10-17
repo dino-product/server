@@ -27,10 +27,10 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.ComparableExpression;
 import com.querydsl.core.types.dsl.DateTimeExpression;
 import com.querydsl.core.types.dsl.Expressions;
@@ -44,7 +44,8 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
  * <ul>
  *   <li>종료시각은 저장 컬럼이 아니라 시작시각 + 예상소요시간이다. 구간 조회는 시작시각이 {@code [from - 예상소요시간 상한, to)}인 행을 시작시각 인덱스로
  *       좁힌 뒤 시작시각 + 예상소요시간이 {@code from}보다 늦은 행만 고른다.
- *   <li>등록(대기함) 상태 행도 일정 컬럼에 미리 입력한 값을 가질 수 있으므로({@link WorkMapper}) 일정으로 거르는 조건과 정렬에는 상태 조건을 함께 건다.
+ *   <li>일정 컬럼은 작업에 보일 일정이라({@link WorkMapper}) 등록(대기함) 행에도 미리 입력한 값이나 마지막 배정 일정이 있다. 기사 일정을 읽는 구간
+ *       조회는 상태 조건을 함께 걸고, 작업 목록의 담당기사·기간 조건과 예정시간 정렬은 화면의 담당기사·예정시간 칸과 같도록 그대로 쓴다.
  *   <li>검색은 조건에 맞는 식별자로 쪽을 먼저 고른 뒤 그 작업들만 읽는다(컬렉션을 함께 읽은 채 쪽을 자르면 전체를 메모리에서 자르게 된다). 목록과 전체 수는
  *       따로 읽으므로 둘의 일관성은 호출 트랜잭션의 격리 수준에 따른다.
  * </ul>
@@ -52,9 +53,10 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 @Repository
 class WorkQueryPersistenceAdapter implements WorkQueryPort {
 
-    /** 기사 일정을 차지하는(활성) 상태. {@link Work#isDelayedAt}의 판정 대상과 같다. */
-    private static final Set<WorkStatus> ACTIVE_STATUSES =
-            Arrays.stream(WorkStatus.values()).filter(WorkStatus::isActive).collect(Collectors.toUnmodifiableSet());
+    /** 끝나지 않아 지금 시각으로 지연을 판정하는 상태(활성과 등록). {@link Work#isDelayedAt} 참고. */
+    private static final Set<WorkStatus> UNFINISHED_STATUSES = Arrays.stream(WorkStatus.values())
+            .filter(status -> status.isActive() || status == WorkStatus.REGISTERED)
+            .collect(Collectors.toUnmodifiableSet());
     /** 일정을 차지하거나 차지했던 상태(활성과 완료). 구간 조회가 담는다. */
     private static final Set<WorkStatus> SCHEDULED_STATUSES = Arrays.stream(WorkStatus.values())
             .filter(status -> status.isActive() || status == WorkStatus.COMPLETED)
@@ -206,10 +208,6 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
         if (!criteria.statuses().isEmpty()) {
             condition.and(WORK.status.in(criteria.statuses()));
         }
-        if (criteria.technicianId() != null || criteria.startFrom() != null) {
-            // 대기함 행의 일정 컬럼은 미리 입력한 값이라 일정으로 보지 않는다.
-            condition.and(WORK.status.ne(WorkStatus.REGISTERED));
-        }
         if (criteria.technicianId() != null) {
             condition.and(WORK.technicianId.eq(criteria.technicianId().value()));
         }
@@ -228,7 +226,11 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
             condition.and(WORK.status.eq(WorkStatus.REGISTERED)).and(latestAssignmentRejected());
         }
         if (criteria.delayedAt() != null) {
-            condition.and(WORK.status.in(ACTIVE_STATUSES)).and(endsNoLaterThan(criteria.delayedAt()));
+            // 끝나지 않은 작업은 조회 시각, 완료한 작업은 완료 시각이 종료시각 이후면 지연이다. 시작시각이나 예상소요시간이 없으면 종료시각이 null이라 빠진다.
+            condition.and(WORK.status
+                    .in(UNFINISHED_STATUSES)
+                    .and(endsNoLaterThan(Expressions.constant(criteria.delayedAt())))
+                    .or(WORK.status.eq(WorkStatus.COMPLETED).and(endsNoLaterThan(WORK.completedAt))));
         }
         return condition;
     }
@@ -246,9 +248,8 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
                 .exists();
     }
 
-    private static BooleanExpression endsNoLaterThan(Instant instant) {
-        return Expressions.booleanTemplate(
-                "{0} + {1} <= {2}", WORK.scheduledStartAt, WORK.expectedDuration, Expressions.constant(instant));
+    private static BooleanExpression endsNoLaterThan(Expression<Instant> instant) {
+        return Expressions.booleanTemplate("{0} + {1} <= {2}", WORK.scheduledStartAt, WORK.expectedDuration, instant);
     }
 
     private static BooleanExpression endsAfter(
@@ -262,17 +263,9 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
             case REGISTERED_DESC -> new OrderSpecifier<?>[] {WORK.registeredAt.desc(), tieBreaker};
             case REGISTERED_ASC -> new OrderSpecifier<?>[] {WORK.registeredAt.asc(), WORK.id.asc()};
             case START_TIME_ASC ->
-                new OrderSpecifier<?>[] {scheduledStart().asc().nullsLast(), tieBreaker};
+                new OrderSpecifier<?>[] {WORK.scheduledStartAt.asc().nullsLast(), tieBreaker};
             case LAST_MODIFIED_DESC -> new OrderSpecifier<?>[] {WORK.updatedAt.desc(), tieBreaker};
         };
-    }
-
-    /** 일정 정렬 키. 대기함 행의 미리 입력한 시작시각은 일정이 아니므로 없는 값으로 본다. */
-    private static DateTimeExpression<Instant> scheduledStart() {
-        return new CaseBuilder()
-                .when(WORK.status.ne(WorkStatus.REGISTERED))
-                .then(WORK.scheduledStartAt)
-                .otherwise(Expressions.nullExpression(Instant.class));
     }
 
     private List<WorkSearchResult.SearchedWork> loadInOrder(List<Long> ids) {

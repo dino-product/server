@@ -10,9 +10,9 @@ import com.orbit.schedule.application.port.in.query.dto.WorkSearchInfo;
 import com.orbit.schedule.application.port.out.WorkSearchCriteria;
 import com.orbit.schedule.application.port.out.WorkSearchResult;
 import com.orbit.schedule.domain.MembershipId;
+import com.orbit.schedule.domain.ShownSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
-import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkTypeId;
 import com.orbit.shared.error.BusinessException;
 
@@ -67,14 +67,15 @@ final class WorkSearchConditions {
     static WorkSearchInfo.WorkSummary summary(
             WorkSearchResult.SearchedWork searched, Instant now, DisplayInfos displayInfos) {
         Work work = searched.work();
-        WorkSchedule schedule = work.schedule().orElse(null);
+        ShownSchedule shown = work.shownSchedule().orElse(null);
+        TechnicianId technicianId = shown == null ? null : shown.technicianId();
         return new WorkSearchInfo.WorkSummary(
                 work.id().orElseThrow().value(),
                 work.name(),
                 work.status(),
-                schedule == null ? null : displayInfos.assignee(schedule),
-                schedule == null ? null : schedule.startTime(),
-                schedule == null ? null : schedule.endTime(),
+                technicianId == null ? null : displayInfos.technician(technicianId),
+                shown == null ? null : shown.startTime(),
+                shown == null ? null : shown.endTime().orElse(null),
                 work.customerInfo().name().orElse(null),
                 displayInfos.workType(work),
                 displayInfos.registrar(work),

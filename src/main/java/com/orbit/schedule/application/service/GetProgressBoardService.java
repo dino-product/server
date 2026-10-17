@@ -81,7 +81,12 @@ public class GetProgressBoardService implements GetProgressBoardUseCase {
         return new ProgressBoardInfo.Summary(
                 cards.size(),
                 cardCount(columns, WorkStatus.IN_PROGRESS),
-                (int) cards.stream().filter(ProgressBoardInfo.Card::delayed).count(),
+                // 늦게 완료한 작업도 카드에는 지연으로 보이지만, 요약은 지금 지연 중인 작업만 센다.
+                (int) columns.stream()
+                        .filter(column -> column.status() != WorkStatus.COMPLETED)
+                        .flatMap(column -> column.cards().stream())
+                        .filter(ProgressBoardInfo.Card::delayed)
+                        .count(),
                 cardCount(columns, WorkStatus.COMPLETED));
     }
 

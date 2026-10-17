@@ -33,7 +33,7 @@ public record ProgressBoardInfo(List<Column> columns, Summary summary) {
      *
      * @param technician 담당 기사
      * @param customerName 고객 이름. 없으면 null
-     * @param delayed 조회 시각에 지연된 작업인지
+     * @param delayed 조회 시각에 지연된 작업인지. 예정 종료시각이나 그 뒤에 완료한 작업도 지연이다
      */
     public record Card(
             Long workId,
@@ -49,7 +49,7 @@ public record ProgressBoardInfo(List<Column> columns, Summary summary) {
      *
      * @param total 보드의 모든 작업 수(네 열 카드 수의 합)
      * @param inProgress 작업중인 작업 수(요약의 진행 중, [현황 파악] §4 MON-003)
-     * @param delayed 지연된 작업 수(배정됨·작업전·작업중 중)
+     * @param delayed 지금 지연 중인 작업 수(배정됨·작업전·작업중 중. 늦게 완료한 작업은 세지 않는다)
      * @param completed 완료된 작업 수
      */
     public record Summary(int total, int inProgress, int delayed, int completed) {}
