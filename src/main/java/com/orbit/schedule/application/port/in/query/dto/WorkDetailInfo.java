@@ -29,8 +29,9 @@ import com.orbit.schedule.domain.WorkStatus;
  * @param completedAt 완료 시각. 없거나 기사가 지금 담당이 아니면 null
  * @param cancellation 취소 기록. 없거나 기사가 지금 담당이 아니면 null
  * @param completionReport 완료보고. 없거나 기사가 지금 담당이 아니면 null
- * @param sitePhotos 등록 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록
+ * @param sitePhotos 등록·수정 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록
  * @param statusCorrections 관리자 강제 변경 기록. 기사에게는 빈 목록
+ * @param version 작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다
  */
 public record WorkDetailInfo(
         Long workId,
@@ -50,7 +51,8 @@ public record WorkDetailInfo(
         Cancellation cancellation,
         CompletionReportInfo completionReport,
         List<PhotoInfo> sitePhotos,
-        List<StatusCorrection> statusCorrections) {
+        List<StatusCorrection> statusCorrections,
+        long version) {
 
     public WorkDetailInfo {
         assignments = List.copyOf(assignments);
@@ -58,8 +60,13 @@ public record WorkDetailInfo(
         statusCorrections = List.copyOf(statusCorrections);
     }
 
-    /** 입력하지 않은 항목은 null이다. */
-    public record Customer(String name, String phone, String address) {}
+    /**
+     * 입력하지 않은 항목은 null이다.
+     *
+     * @param address 현장 기본주소
+     * @param addressDetail 현장 상세주소
+     */
+    public record Customer(String name, String phone, String postalCode, String address, String addressDetail) {}
 
     /** 입력하지 않은 항목은 null이다. */
     public record Payment(Long fee, PaymentMethod method) {}

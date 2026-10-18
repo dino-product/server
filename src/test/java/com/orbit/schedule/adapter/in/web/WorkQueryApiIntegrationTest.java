@@ -36,6 +36,7 @@ import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -106,6 +107,7 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                             .value(true))
                     .andExpect(jsonPath("$.result.scheduledWorks[0].endTime")
                             .value(DAY.plus(Duration.ofHours(3)).toString()))
+                    .andExpect(jsonPath("$.result.scheduledWorks[0].version").value(0))
                     .andExpect(jsonPath("$.result.backlog.length()").value(2))
                     .andExpect(jsonPath("$.result.backlog[0].workId").value(rejectedId))
                     .andExpect(jsonPath("$.result.backlog[0].rejectionReason").value("OTHER"))
@@ -116,7 +118,8 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                             .value(90))
                     .andExpect(jsonPath("$.result.backlog[1].technicianMissing").value(true))
                     .andExpect(jsonPath("$.result.backlog[1].timeMissing").value(false))
-                    .andExpect(jsonPath("$.result.backlog[1].stale").value(false));
+                    .andExpect(jsonPath("$.result.backlog[1].stale").value(false))
+                    .andExpect(jsonPath("$.result.backlog[1].version").value(0));
         }
 
         @Test
@@ -457,7 +460,30 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(
                             jsonPath("$.result.assignments[0].assignmentNumber").value(1))
                     .andExpect(jsonPath("$.result.assignments[0].result").value("PENDING"))
-                    .andExpect(jsonPath("$.result.statusCorrections").doesNotExist());
+                    .andExpect(jsonPath("$.result.statusCorrections").doesNotExist())
+                    .andExpect(jsonPath("$.result.version").value(0));
+        }
+
+        @Test
+        @DisplayName("고객 정보의 현장 주소를 우편번호·기본주소·상세주소로 나눠 돌려준다")
+        void returnsSiteAddressParts() throws Exception {
+            Organization organization = organization();
+            long workId = save(Work.register(
+                    new OrganizationId(organization.id()),
+                    "주소 작업",
+                    new MembershipId(organization.ownerMembership()),
+                    Instant.now().minus(Duration.ofHours(1)),
+                    null,
+                    new CustomerInfo("이정호", null, new SiteAddress("04043", "서울시 마포구 양화로 45", "3층 302호")),
+                    null));
+
+            detail(organization.owner(), organization.id(), workId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.customer.name").value("이정호"))
+                    .andExpect(jsonPath("$.result.customer.phone").value(nullValue()))
+                    .andExpect(jsonPath("$.result.customer.postalCode").value("04043"))
+                    .andExpect(jsonPath("$.result.customer.address").value("서울시 마포구 양화로 45"))
+                    .andExpect(jsonPath("$.result.customer.addressDetail").value("3층 302호"));
         }
 
         @Test
@@ -595,7 +621,8 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
             Organization organization = organization();
             givenDisplayInfos(organization);
             Work pending = registered(organization, "배정된 작업", Instant.now().minus(Duration.ofHours(2)));
-            pending.changeDetails("배정된 작업", new WorkTypeId(INSTALL.id()), new CustomerInfo("박서준", null, null), null);
+            pending.changeDetails(
+                    "배정된 작업", new WorkTypeId(INSTALL.id()), new CustomerInfo("박서준", null, null), null, null);
             pending.assign(
                     new WorkSchedule(TECHNICIAN, DAY, Duration.ofHours(2)),
                     Instant.now().minusSeconds(60),

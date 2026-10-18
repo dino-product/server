@@ -55,7 +55,10 @@ public record TimetableResponse(
             boolean conflicting,
 
             @Schema(description = "작업유형. 없으면 null") LabelResponse workType,
-            @Schema(description = "등록자") StaffResponse registrar) {
+            @Schema(description = "등록자") StaffResponse registrar,
+
+            @Schema(description = "작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다", example = "3")
+            long version) {
 
         static ScheduledWork from(TimetableInfo.ScheduledWork info) {
             return new ScheduledWork(
@@ -68,7 +71,8 @@ public record TimetableResponse(
                     info.delayed(),
                     info.conflicting(),
                     LabelResponse.from(info.workType()),
-                    StaffResponse.from(info.registrar()));
+                    StaffResponse.from(info.registrar()),
+                    info.version());
         }
     }
 }

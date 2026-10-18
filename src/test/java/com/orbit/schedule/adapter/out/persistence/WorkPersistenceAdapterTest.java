@@ -21,11 +21,13 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.schedule.application.port.out.ConcurrentWorkChangeException;
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CancellationReason;
@@ -39,6 +41,7 @@ import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -367,7 +370,7 @@ class WorkPersistenceAdapterTest {
                         "필터 1개",
                         "교체 완료",
                         new Money(150_000L),
-                        ActualPaymentMethod.CREDIT_CARD),
+                        ActualPaymentMethod.INVOICE),
                 NOW.plusSeconds(80));
     }
 
@@ -440,6 +443,35 @@ class WorkPersistenceAdapterTest {
         assertThat(inTx(() -> adapter().findInOrganization(organization(), id))).isEmpty();
         assertThat(inTx(() -> adapter().listActiveByTechnician(organization(), TECHNICIAN)))
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("저장할 때마다 버전을 올리고, 읽은 뒤 다른 트랜잭션이 먼저 바꾼 작업은 저장 자리에서 동시 변경으로 거부한다")
+    void detectsConcurrentChangeAtSave() {
+        OrganizationId organization = organization();
+        WorkId id = inTx(() -> adapter().save(registered(organization, "버전 작업")))
+                .id()
+                .orElseThrow();
+        assertThat(find(organization, id).version()).isZero();
+        TransactionTemplate requiresNew = new TransactionTemplate(transactionManager);
+        requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        assertThatThrownBy(() -> inTx(() -> {
+                    Work mine = adapter().findInOrganization(organization, id).orElseThrow();
+                    requiresNew.executeWithoutResult(status -> {
+                        Work theirs =
+                                adapter().findInOrganization(organization, id).orElseThrow();
+                        theirs.changeDetails("먼저 바꾼 작업", null, null, null, null);
+                        assertThat(adapter().save(theirs).version()).isEqualTo(1L);
+                    });
+                    mine.changeDetails("나중에 바꾼 작업", null, null, null, null);
+                    return adapter().save(mine);
+                }))
+                .isInstanceOf(ConcurrentWorkChangeException.class);
+
+        Work stored = find(organization, id);
+        assertThat(stored.name()).isEqualTo("먼저 바꾼 작업");
+        assertThat(stored.version()).isEqualTo(1L);
     }
 
     @Test
@@ -658,7 +690,7 @@ class WorkPersistenceAdapterTest {
                 REGISTRAR,
                 REGISTERED_AT,
                 new WorkTypeId(2L),
-                new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
+                new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress("04043", "서울시", "3층")),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
     }
 

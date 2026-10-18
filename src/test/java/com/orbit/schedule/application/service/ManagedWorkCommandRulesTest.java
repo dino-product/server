@@ -12,11 +12,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
@@ -33,8 +35,8 @@ import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 기존 작업을 바꾸는 유즈케이스가 공통 오류 순서(schedule 지침)의 앞부분 — 계정 → 조직 식별자 → 구성원 → 요청자 종류(관리자) → 작업 식별자 → 작업 조회 — 을 같게 지키는지
- * 확인한다. 유즈케이스별 규칙은 각 서비스 테스트가 다룬다.
+ * 기존 작업을 바꾸는 유즈케이스가 공통 오류 순서(schedule 지침)의 앞부분 — 계정 → 조직 식별자 → 구성원 → 요청자 종류(관리자) → 작업 식별자 → 작업 조회
+ * → (등록자 본인·총관리자만 하는 변경에 한해) 등록자 본인·총관리자 권한 — 을 같게 지키는지 확인한다. 유즈케이스별 규칙은 각 서비스 테스트가 다룬다.
  */
 @DisplayName("작업 변경 유즈케이스 공통 오류 순서")
 class ManagedWorkCommandRulesTest {
@@ -54,7 +56,10 @@ class ManagedWorkCommandRulesTest {
                                 null,
                                 null,
                                 null,
+                                null,
+                                null,
                                 request.validInput() ? 80_000L : -1L,
+                                null,
                                 null))),
                 new UseCase("배정", (f, request) -> new AssignWorkService(
                                 f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
@@ -85,7 +90,8 @@ class ManagedWorkCommandRulesTest {
                                 request.validInput() ? OTHER_TECHNICIAN_ID.value() : 0L,
                                 TEN,
                                 request.validInput() ? TWO_HOURS : Duration.ZERO,
-                                false))),
+                                false,
+                                request.validInput() ? 0L : null))),
                 new UseCase("일정 변경", (f, request) -> new RescheduleWorkService(
                                 f.actorPort, f.workRepository, f.scheduleLock, f.clock)
                         .reschedule(new RescheduleWorkCommand(
@@ -97,7 +103,10 @@ class ManagedWorkCommandRulesTest {
                                 false))),
                 new UseCase("배정 해제", (f, request) -> new UnassignWorkService(f.actorPort, f.workRepository, f.clock)
                         .unassign(new UnassignWorkCommand(
-                                request.accountId(), request.organizationId(), request.workId()))),
+                                request.accountId(),
+                                request.organizationId(),
+                                request.workId(),
+                                request.validInput() ? 0L : null))),
                 new UseCase("취소", (f, request) -> new CancelWorkService(f.actorPort, f.workRepository, f.clock)
                         .cancel(new CancelWorkCommand(
                                 request.accountId(),
@@ -113,6 +122,81 @@ class ManagedWorkCommandRulesTest {
                                 request.workId(),
                                 request.validInput() ? WorkStatus.IN_PROGRESS : null,
                                 "정정"))));
+    }
+
+    /** 등록자 본인·총관리자만 하는 변경. 배정된 작업(수락대기)이면 배정 변경(통합)도 재배정·일정 변경이라 여기에 든다. */
+    static Stream<UseCase> registrarOrOwnerUseCases() {
+        Set<String> names = Set.of("기본정보 수정", "재배정", "배정 변경(통합)", "일정 변경", "배정 해제", "취소");
+        return useCases().filter(useCase -> names.contains(useCase.name()));
+    }
+
+    @ParameterizedTest
+    @MethodSource("registrarOrOwnerUseCases")
+    @DisplayName("등록자가 아닌 직원은 입력이 잘못돼도 권한 오류이고 아무것도 바꾸거나 잠그지 않는다")
+    void rejectsOtherStaffBeforeInput(UseCase useCase) {
+        fixture.givenManager(ActorRole.STAFF);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+
+        fixture.assertRejected(
+                () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), false)),
+                ScheduleErrorCode.ACTION_NOT_ALLOWED);
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.scheduleLock.locks()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @MethodSource("registrarOrOwnerUseCases")
+    @DisplayName("등록자가 아닌 직원이어도 없거나 다른 조직의 작업이면 권한보다 찾을 수 없음이 먼저다")
+    void hidesMissingWorkBeforeRegistrarCheck(UseCase useCase) {
+        fixture.givenManager(ActorRole.STAFF);
+        WorkId otherOrganizationWork =
+                fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
+
+        for (long workId : new long[] {otherOrganizationWork.value(), UNKNOWN_WORK_ID}) {
+            fixture.assertRejected(
+                    () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), workId, false)),
+                    ScheduleErrorCode.WORK_NOT_FOUND);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("registrarOrOwnerUseCases")
+    @DisplayName("등록자 본인인 직원은 할 수 있다")
+    void allowsRegistrarStaff(UseCase useCase) {
+        fixture.givenRegistrarStaff();
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+
+        useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), true));
+
+        assertThat(fixture.workRepository.saved()).hasSize(1);
+    }
+
+    @ParameterizedTest
+    @MethodSource("registrarOrOwnerUseCases")
+    @DisplayName("총관리자는 다른 직원이 등록한 작업에도 할 수 있다")
+    void allowsOwnerForWorkOfOtherRegistrar(UseCase useCase) {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+
+        useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), true));
+
+        assertThat(fixture.workRepository.saved()).hasSize(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"배정", "배정 변경(통합)"})
+    @DisplayName("대기함 작업의 배정은 등록자가 아닌 직원도 한다")
+    void allowsAnyStaffToAssignBacklogWork(String name) {
+        fixture.givenManager(ActorRole.STAFF);
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+        UseCase useCase = useCases()
+                .filter(candidate -> candidate.name().equals(name))
+                .findFirst()
+                .orElseThrow();
+
+        useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), true));
+
+        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
     }
 
     @ParameterizedTest

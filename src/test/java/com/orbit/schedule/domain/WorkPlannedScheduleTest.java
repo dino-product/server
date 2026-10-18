@@ -51,7 +51,7 @@ class WorkPlannedScheduleTest {
         PlannedSchedule planned = new PlannedSchedule(TECHNICIAN, TEN, null);
         Work work = register(planned);
 
-        work.changeDetails("보일러 점검", null, null, null);
+        work.changeDetails("보일러 점검", null, null, null, null);
 
         assertThat(work.plannedSchedule()).contains(planned);
     }

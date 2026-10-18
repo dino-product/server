@@ -22,6 +22,7 @@ import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PlannedSchedule;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -81,7 +82,13 @@ public class CreateWorkService implements CreateWorkUseCase {
                     actor.membershipId(),
                     now,
                     command.workTypeId() == null ? null : new WorkTypeId(command.workTypeId()),
-                    new CustomerInfo(command.customerName(), command.customerPhone(), command.customerAddress()),
+                    new CustomerInfo(
+                            command.customerName(),
+                            command.customerPhone(),
+                            new SiteAddress(
+                                    command.customerPostalCode(),
+                                    command.customerAddress(),
+                                    command.customerAddressDetail())),
                     new PaymentInfo(command.fee() == null ? null : new Money(command.fee()), command.paymentMethod()),
                     complete ? null : plannedSchedule(command));
             registered.replaceSitePhotos(command.sitePhotoIds());

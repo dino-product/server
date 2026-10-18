@@ -49,6 +49,7 @@ public class RescheduleWorkService implements RescheduleWorkUseCase {
         ManagerActor actor =
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
+        OrganizationActors.requireRegistrarOrOwner(actor, work);
         DomainRuleViolations.run(() -> WorkSchedule.requireValidTime(command.startTime(), command.expectedDuration()));
 
         Instant now = clock.instant();

@@ -28,6 +28,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -94,6 +95,11 @@ final class ScheduleServiceFixture {
         actorPort.givenManager(ACCOUNT_ID, ORGANIZATION_ID, MANAGER_ID.value(), role);
     }
 
+    /** 요청자를 {@link #givenWork} 작업을 등록한 직원({@link #REGISTRAR_ID})으로 둔다. */
+    void givenRegistrarStaff() {
+        actorPort.givenManager(ACCOUNT_ID, ORGANIZATION_ID, REGISTRAR_ID.value(), ActorRole.STAFF);
+    }
+
     /** 요청자를 주어진 기사로 둔다. 담당 기사 본인 여부는 기사 식별자로 판단한다. */
     void givenTechnician(TechnicianId technicianId) {
         actorPort.givenTechnician(ACCOUNT_ID, ORGANIZATION_ID, technicianId.value());
@@ -115,7 +121,7 @@ final class ScheduleServiceFixture {
                 REGISTRAR_ID,
                 REGISTERED_AT,
                 WORK_TYPE_ID,
-                new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
+                new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress("04043", "서울시", "3층")),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         if (status != WorkStatus.REGISTERED) {
             work.assign(new WorkSchedule(technicianId, start, TWO_HOURS), ASSIGNED_AT, SETUP_MANAGER_ID);
