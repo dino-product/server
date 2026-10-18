@@ -53,7 +53,7 @@ public interface WorkSearchControllerDocs {
     WorkSearchResponse search(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "조직(발주사) 식별자", example = "1", required = true) Long organizationId,
-            @Parameter(description = "작업명·고객 이름·연락처·주소에 포함되는 글자(최대 100자)", example = "보일러") String keyword,
+            @Parameter(description = "작업명·고객 이름·연락처·기본주소·상세주소에 포함되는 글자(최대 100자)", example = "보일러") String keyword,
             @Parameter(description = "이 상태 중 하나인 작업만", example = "PENDING_ACCEPTANCE") Set<WorkStatus> statuses,
             @Parameter(description = "목록의 담당기사 칸에 보이는 기사(기사 계약 식별자)", example = "12") Long technicianId,
             @Parameter(description = "작업유형 식별자", example = "3") Long workTypeId,
@@ -95,7 +95,7 @@ public interface WorkSearchControllerDocs {
     ResponseEntity<byte[]> export(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "조직(발주사) 식별자", example = "1", required = true) Long organizationId,
-            @Parameter(description = "작업명·고객 이름·연락처·주소에 포함되는 글자(최대 100자)", example = "보일러") String keyword,
+            @Parameter(description = "작업명·고객 이름·연락처·기본주소·상세주소에 포함되는 글자(최대 100자)", example = "보일러") String keyword,
             @Parameter(description = "이 상태 중 하나인 작업만", example = "PENDING_ACCEPTANCE") Set<WorkStatus> statuses,
             @Parameter(description = "목록의 담당기사 칸에 보이는 기사(기사 계약 식별자)", example = "12") Long technicianId,
             @Parameter(description = "작업유형 식별자", example = "3") Long workTypeId,

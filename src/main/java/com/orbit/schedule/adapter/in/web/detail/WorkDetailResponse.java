@@ -61,8 +61,11 @@ public record WorkDetailResponse(
         @Schema(description = "취소 기록. 없으면 null") Cancellation cancellation,
         @Schema(description = "완료보고. 없으면 null") CompletionReport completionReport,
 
-        @Schema(description = "등록 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록")
-        List<Photo> sitePhotos) {
+        @Schema(description = "등록·수정 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록")
+        List<Photo> sitePhotos,
+
+        @Schema(description = "작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다", example = "3")
+        long version) {
 
     static WorkDetailResponse from(WorkDetailInfo info) {
         return new WorkDetailResponse(
@@ -84,7 +87,8 @@ public record WorkDetailResponse(
                 info.completedAt(),
                 info.cancellation() == null ? null : Cancellation.from(info.cancellation()),
                 info.completionReport() == null ? null : CompletionReport.from(info.completionReport()),
-                info.sitePhotos().stream().map(Photo::from).toList());
+                info.sitePhotos().stream().map(Photo::from).toList(),
+                info.version());
     }
 
     private static Integer minutes(Duration duration) {
@@ -98,11 +102,17 @@ public record WorkDetailResponse(
             @Schema(description = "연락처", example = "010-1234-5678")
             String phone,
 
-            @Schema(description = "현장 주소", example = "서울시 마포구 합정동 123-4")
-            String address) {
+            @Schema(description = "현장 우편번호", example = "04043")
+            String postalCode,
+
+            @Schema(description = "현장 기본주소", example = "서울시 마포구 양화로 45")
+            String address,
+
+            @Schema(description = "현장 상세주소", example = "3층 302호")
+            String addressDetail) {
 
         static Customer from(WorkDetailInfo.Customer info) {
-            return new Customer(info.name(), info.phone(), info.address());
+            return new Customer(info.name(), info.phone(), info.postalCode(), info.address(), info.addressDetail());
         }
     }
 
@@ -111,7 +121,9 @@ public record WorkDetailResponse(
             @Schema(description = "작업 금액(원)", example = "120000")
             Long fee,
 
-            @Schema(description = "결제 방식. ON_SITE_CARD(현장 카드), ON_SITE_CASH(현장 현금), BANK_TRANSFER(계좌이체)")
+            @Schema(
+                    description =
+                            "결제 방식. ON_SITE_CARD(현장 카드), ON_SITE_CASH(현장 현금), BANK_TRANSFER(계좌이체), INVOICE(청구서 발행·후불)")
             PaymentMethod method) {}
 
     @Schema(description = "일정")
@@ -235,7 +247,7 @@ public record WorkDetailResponse(
             @Schema(description = "작업 메모") String workNote,
             @Schema(description = "실제 결제 금액(원)") Long actualFee,
 
-            @Schema(description = "실제 결제 방식. CASH(현금), BANK_TRANSFER(계좌이체), CREDIT_CARD(신용카드)")
+            @Schema(description = "실제 결제 방식. CASH(현금), BANK_TRANSFER(계좌이체), CREDIT_CARD(신용카드), INVOICE(청구서 발행·후불)")
             ActualPaymentMethod actualPaymentMethod) {
 
         static CompletionReport from(CompletionReportInfo info) {

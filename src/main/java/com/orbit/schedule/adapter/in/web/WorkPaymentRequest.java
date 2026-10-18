@@ -10,6 +10,7 @@ public record WorkPaymentRequest(
         Long fee,
 
         @Schema(
-                description = "결제 방식. ON_SITE_CARD(현장 카드), ON_SITE_CASH(현장 현금), BANK_TRANSFER(계좌이체)",
+                description =
+                        "결제 방식. ON_SITE_CARD(현장 카드), ON_SITE_CASH(현장 현금), BANK_TRANSFER(계좌이체), INVOICE(청구서 발행·후불)",
                 example = "ON_SITE_CARD")
         PaymentMethod method) {}

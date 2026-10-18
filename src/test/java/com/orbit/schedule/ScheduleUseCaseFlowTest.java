@@ -177,7 +177,11 @@ class ScheduleUseCaseFlowTest {
                                 false))
                         .applied())
                 .isTrue();
-        unassignWorkUseCase.unassign(new UnassignWorkCommand(ACCOUNT_ID, organizationId.value(), workId));
+        long version = workRepository
+                .findInOrganization(organizationId, new WorkId(workId))
+                .orElseThrow()
+                .version();
+        unassignWorkUseCase.unassign(new UnassignWorkCommand(ACCOUNT_ID, organizationId.value(), workId, version));
 
         Work stored = workRepository
                 .findInOrganization(organizationId, new WorkId(workId))
@@ -330,6 +334,8 @@ class ScheduleUseCaseFlowTest {
                         ACCOUNT_ID,
                         organizationId.value(),
                         name,
+                        null,
+                        null,
                         null,
                         null,
                         null,

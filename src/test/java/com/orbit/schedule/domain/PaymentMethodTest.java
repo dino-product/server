@@ -16,6 +16,7 @@ class PaymentMethodTest {
         assertThat(PaymentMethod.ON_SITE_CARD.actualCounterpart()).isEqualTo(ActualPaymentMethod.CREDIT_CARD);
         assertThat(PaymentMethod.ON_SITE_CASH.actualCounterpart()).isEqualTo(ActualPaymentMethod.CASH);
         assertThat(PaymentMethod.BANK_TRANSFER.actualCounterpart()).isEqualTo(ActualPaymentMethod.BANK_TRANSFER);
+        assertThat(PaymentMethod.INVOICE.actualCounterpart()).isEqualTo(ActualPaymentMethod.INVOICE);
         assertThat(Arrays.stream(PaymentMethod.values()).map(PaymentMethod::actualCounterpart))
                 .containsExactlyInAnyOrder(ActualPaymentMethod.values());
     }

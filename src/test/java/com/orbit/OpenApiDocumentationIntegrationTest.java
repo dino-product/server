@@ -382,6 +382,24 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("SCHEDULE-008"))
                 .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.ScheduleChangeResponse']"
                                 + ".properties.applied")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-016'].value.code")
+                        .value("SCHEDULE-016"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.ChangeWorkAssignmentRequest']"
+                                + ".properties.expectedVersion")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.timetable.TimetableResponse.ScheduledWork']"
+                                + ".properties.version")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.BacklogWorkResponse']"
+                                + ".properties.version")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.detail.WorkDetailResponse']"
+                                + ".properties.version")
                         .exists());
     }
 
@@ -463,7 +481,14 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("SCHEDULE-001"))
                 .andExpect(jsonPath(schema + ".properties.registeredAt").exists())
                 .andExpect(jsonPath(schema + ".properties.sitePhotos").exists())
-                .andExpect(jsonPath(schema + ".properties.statusCorrections").doesNotExist());
+                .andExpect(jsonPath(schema + ".properties.statusCorrections").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.detail.WorkDetailResponse.Customer']"
+                                + ".properties.addressDetail")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.WorkCustomerRequest']"
+                                + ".properties.postalCode")
+                        .exists());
     }
 
     @Test
@@ -497,7 +522,12 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(operation + ".responses['204']").exists())
                 .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
                                 + ".examples['SCHEDULE-002'].value.code")
-                        .value("SCHEDULE-002"));
+                        .value("SCHEDULE-002"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-016'].value.code")
+                        .value("SCHEDULE-016"))
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'expectedVersion')].required")
+                        .value(contains(true)));
     }
 
     @Test

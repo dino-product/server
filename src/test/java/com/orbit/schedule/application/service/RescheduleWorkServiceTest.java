@@ -25,6 +25,7 @@ import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
+import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
@@ -46,7 +47,7 @@ class RescheduleWorkServiceTest {
     @Test
     @DisplayName("수락된 작업의 시간을 바꾸면 같은 기사를 잠그고 판정해 같은 기사에게 다시 수락받는다")
     void reschedulesAcceptedWork() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.ACCEPTED);
 
         ScheduleChangeInfo result = service.reschedule(command(id.value(), ELEVEN, TWO_HOURS, false));
@@ -67,7 +68,7 @@ class RescheduleWorkServiceTest {
     @Test
     @DisplayName("작업 자신의 기존 일정과 겹치는 것은 겹침으로 보지 않고, 대기 중이던 배정은 지금 시각으로 회수한다")
     void ignoresOwnPreviousSchedule() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
         ScheduleChangeInfo result = service.reschedule(command(id.value(), ELEVEN, TWO_HOURS, false));
@@ -83,7 +84,7 @@ class RescheduleWorkServiceTest {
     @Test
     @DisplayName("같은 기사의 다른 활성 작업과 겹치는데 확인하지 않았으면 반영하지 않고, 확인했으면 반영한다")
     void checksConflictsOfSameTechnician() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId existing = fixture.givenWork(
                 ORGANIZATION_ID,
                 "기존 작업",
@@ -111,7 +112,7 @@ class RescheduleWorkServiceTest {
     @Test
     @DisplayName("같은 시간으로 바꾸면 입력 오류와 구분되는 일정 그대로 오류다")
     void rejectsUnchangedSchedule() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
         fixture.assertRejected(
@@ -125,7 +126,7 @@ class RescheduleWorkServiceTest {
             names = {"REGISTERED", "IN_PROGRESS", "COMPLETED", "CANCELLED"})
     @DisplayName("수락대기·수락됨이 아니면 담당기사·일정이 남아 있든 없든 상태 오류다")
     void rejectsUnchangeableStatus(WorkStatus status) {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(status);
 
         fixture.assertRejected(
@@ -139,7 +140,7 @@ class RescheduleWorkServiceTest {
             names = {"REGISTERED", "CANCELLED"})
     @DisplayName("시간 입력이 잘못되면 담당기사가 없는 작업이라도 상태 오류보다 먼저 입력 오류다")
     void checksInputBeforeState(WorkStatus status) {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(status);
 
         fixture.assertRejected(
@@ -150,7 +151,7 @@ class RescheduleWorkServiceTest {
     @Test
     @DisplayName("시작시각이 없거나 소요시간이 0 이하이거나 24시간을 넘으면 입력 오류다")
     void rejectsInvalidTime() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
         fixture.assertRejected(
@@ -166,7 +167,7 @@ class RescheduleWorkServiceTest {
     @Test
     @DisplayName("변경 시각이 직전 이력의 응답 시각보다 앞서면 입력 오류다")
     void rejectsRescheduleBeforeLatestHistory() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
         work.accept(NOW.plus(Duration.ofHours(1)));
@@ -180,7 +181,7 @@ class RescheduleWorkServiceTest {
     @Test
     @DisplayName("같은 기사의 앞선 변경을 기다리다 잠금에 실패하면 변경 중 오류다")
     void reportsBusyTechnician() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
         fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
 

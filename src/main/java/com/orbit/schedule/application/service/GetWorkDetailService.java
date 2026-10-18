@@ -118,7 +118,8 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                 null,
                 null,
                 List.of(),
-                List.of());
+                List.of(),
+                work.version());
     }
 
     private DisplayInfos displayInfos(Work work) {
@@ -157,6 +158,7 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                         .map(report -> WorkViews.completionReport(report, photoUrlPort))
                         .orElse(null),
                 WorkViews.photos(work.sitePhotos(), photoUrlPort),
-                statusCorrections);
+                statusCorrections,
+                work.version());
     }
 }
