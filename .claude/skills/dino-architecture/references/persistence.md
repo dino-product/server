@@ -42,10 +42,10 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 ## 프로필과 실행 환경
 
 - 패키징된 설정은 기본 활성 프로필을 선택하지 않습니다. 환경의 `SPRING_PROFILES_ACTIVE`로 지정합니다.
-- 공통·`prod`의 `ddl-auto`는 `none`, `create-drop`은 로컬 예제·테스트에서만 허용합니다. 로컬 DB에 보존할 데이터를 넣지 않습니다.
+- 스키마는 Flyway 마이그레이션(`src/main/resources/db/migration`)으로만 바꿉니다. 모든 프로필의 `ddl-auto`는 `validate`이며 Hibernate가 스키마를 만들거나 지우는 설정(`create`·`create-drop`·`update`)을 쓰지 않습니다. 파일·호환성 규칙은 [ADR-004](../../../../docs/adr/004-schema-migration.md#결정)가 원본입니다.
 - 운영은 `SPRING_PROFILES_ACTIVE=prod`로 실행합니다. `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`는 기본값 없이 받아 누락 시 시작에 실패하게 합니다. `KAKAO_ALLOWED_AUDIENCES`, `AUTH_JWT_SECRET`, `APPLE_ALLOWED_AUDIENCES`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_REFRESH_TOKEN_ENCRYPTION_KEY`, `APPLE_SERVICES_ID`, `APPLE_WEB_REDIRECT_URI`, `APPLE_WEB_RETURN_URI`, `APPLE_ANDROID_RETURN_URI`는 모든 프로필에서 기본값 없이 받습니다([Auth 설정](../../../../docs/domain/auth.md#설정)).
 - `prod,local` 동시 지정에도 로컬 설정이 활성화되지 않도록 프로필 표현식으로 보호합니다. 운영 OpenAPI UI는 비활성화합니다.
 - 설정은 `application-{profile}.yml`로 분리하고 공통 설정을 중복하지 않습니다.
-- 현재 마이그레이션 도구는 없습니다. 운영 배포 전에 마이그레이션 전략을 ADR로 결정합니다.
+- 테이블·컬럼·인덱스를 바꾸는 Entity 변경은 같은 PR에 새 버전의 마이그레이션을 추가합니다. develop에 머지된 마이그레이션 파일은 고치지 않습니다.
 
 실행 명령: [빠른 시작](../../../../README.md#빠른-시작). 참고: [영속성 결정](../../../../docs/adr/001-backend-architecture.md#영속성과-이벤트).

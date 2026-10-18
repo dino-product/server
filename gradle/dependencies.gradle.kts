@@ -29,6 +29,8 @@ dependencies {
     add("annotationProcessor", "jakarta.annotation:jakarta.annotation-api")
     add("annotationProcessor", "jakarta.persistence:jakarta.persistence-api")
 
+    add("implementation", "org.springframework.boot:spring-boot-starter-flyway")
+    add("runtimeOnly", "org.flywaydb:flyway-database-postgresql")
     add("runtimeOnly", "org.postgresql:postgresql")
 
     add("implementation", "org.dhatim:fastexcel:${version("fastexcel")}")
