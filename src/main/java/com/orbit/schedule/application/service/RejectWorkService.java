@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,11 +28,17 @@ public class RejectWorkService implements RejectWorkUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    public RejectWorkService(LoadActorPort loadActorPort, WorkRepository workRepository, Clock clock) {
+    public RejectWorkService(
+            LoadActorPort loadActorPort,
+            WorkRepository workRepository,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -55,5 +62,6 @@ public class RejectWorkService implements RejectWorkUseCase {
         DomainRuleViolations.run(() -> work.reject(rejection, now));
 
         workRepository.save(work);
+        eventPublisher.publishEvent(WorkEvents.rejected(work, technician.technicianId(), rejection, now));
     }
 }

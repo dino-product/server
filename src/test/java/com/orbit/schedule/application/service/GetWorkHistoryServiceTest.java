@@ -77,13 +77,7 @@ class GetWorkHistoryServiceTest {
                         WorkHistoryInfo.AssignedWork::result,
                         WorkHistoryInfo.AssignedWork::endReason)
                 .containsExactly(
-                        tuple(
-                                rescheduledId.value(),
-                                WorkStatus.PENDING_ACCEPTANCE,
-                                true,
-                                2,
-                                AssignmentResult.PENDING,
-                                null),
+                        tuple(rescheduledId.value(), WorkStatus.ACCEPTED, true, 2, AssignmentResult.ACCEPTED, null),
                         tuple(
                                 cancelled.value(),
                                 WorkStatus.CANCELLED,
@@ -132,7 +126,6 @@ class GetWorkHistoryServiceTest {
         Work movedOut =
                 fixture.stored(fixture.givenWork(ORGANIZATION_ID, "옮겨진 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN));
         movedOut.reschedule(later, TWO_HOURS, NOW, SETUP_MANAGER_ID);
-        movedOut.accept(NOW);
         movedOut.start(NOW);
         movedOut.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
         WorkId movedOutId = fixture.workRepository.store(movedOut);

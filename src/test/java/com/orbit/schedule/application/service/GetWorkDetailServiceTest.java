@@ -340,7 +340,58 @@ class GetWorkDetailServiceTest {
         assertThat(service.get(query(running.value())).delayed()).isFalse();
     }
 
+    @Test
+    @DisplayName("관리자는 완료보고 요청 기록(오래된 것부터)과 지금 다시 요청할 수 있는지를 보고, 지금 담당인 기사는 둘 다 받지 않는다")
+    void managerSeesCompletionReportRequests() {
+        Instant overdueStart = NOW.minus(Duration.ofHours(3));
+        Instant first = NOW.minus(Duration.ofMinutes(50));
+        Instant second = NOW.minus(Duration.ofMinutes(10));
+        Work work = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, overdueStart));
+        work.requestCompletionReport(first, SETUP_MANAGER_ID);
+        work.requestCompletionReport(second, OWNER_ID);
+        WorkId id = fixture.workRepository.store(work);
+
+        fixture.givenManager();
+        WorkDetailInfo managerView = service.get(query(id.value()));
+        assertThat(managerView.completionReportRequests())
+                .containsExactly(
+                        new WorkDetailInfo.CompletionReportRequest(first, SETUP_MANAGER_ID.value()),
+                        new WorkDetailInfo.CompletionReportRequest(second, OWNER_ID.value()));
+        assertThat(managerView.completionReportRequestable())
+                .as("마지막 요청 뒤 30분이 지나지 않았다")
+                .isFalse();
+
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkDetailInfo technicianView = service.get(query(id.value()));
+        assertThat(technicianView.completionReportRequests()).isEmpty();
+        assertThat(technicianView.completionReportRequestable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("예정 종료가 지난 작업중 작업에 요청한 적이 없으면 관리자에게 요청할 수 있다고 보이고, 종료 전이거나 작업중이 아니면 아니다")
+    void marksCompletionReportRequestable() {
+        fixture.givenManager();
+        Instant overdueStart = NOW.minus(Duration.ofHours(3));
+        WorkId overdue =
+                fixture.givenWork(ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, overdueStart);
+        WorkId running = fixture.givenWork(
+                ORGANIZATION_ID, "진행 중 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, NOW.minus(Duration.ofHours(1)));
+        WorkId accepted =
+                fixture.givenWork(ORGANIZATION_ID, "시작 전 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, overdueStart);
+
+        WorkDetailInfo overdueView = service.get(query(overdue.value()));
+        assertThat(overdueView.completionReportRequestable()).isTrue();
+        assertThat(overdueView.completionReportRequests()).isEmpty();
+        assertThat(service.get(query(running.value())).completionReportRequestable())
+                .isFalse();
+        assertThat(service.get(query(accepted.value())).completionReportRequestable())
+                .isFalse();
+    }
+
     private static void assertHidden(WorkDetailInfo detail) {
+        assertThat(detail.completionReportRequests()).isEmpty();
+        assertThat(detail.completionReportRequestable()).isFalse();
         assertThat(detail.delayed()).isFalse();
         assertThat(detail.workType()).isNull();
         assertThat(detail.registrar()).isNull();

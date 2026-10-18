@@ -31,6 +31,9 @@ import com.orbit.schedule.domain.WorkStatus;
  * @param completionReport 완료보고. 없거나 기사가 지금 담당이 아니면 null
  * @param sitePhotos 등록·수정 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록
  * @param statusCorrections 관리자 강제 변경 기록. 기사에게는 빈 목록
+ * @param completionReportRequests 사무실이 담당 기사에게 완료보고를 요청한 기록(오래된 것부터). 관리자에게만 담고 기사에게는 빈 목록
+ * @param completionReportRequestable 조회 시각에 완료보고를 요청할 수 있는지
+ *     ({@link com.orbit.schedule.domain.Work#canRequestCompletionReportAt}). 관리자에게만 계산하고 기사에게는 false
  * @param version 작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다
  */
 public record WorkDetailInfo(
@@ -52,13 +55,23 @@ public record WorkDetailInfo(
         CompletionReportInfo completionReport,
         List<PhotoInfo> sitePhotos,
         List<StatusCorrection> statusCorrections,
+        List<CompletionReportRequest> completionReportRequests,
+        boolean completionReportRequestable,
         long version) {
 
     public WorkDetailInfo {
         assignments = List.copyOf(assignments);
         sitePhotos = List.copyOf(sitePhotos);
         statusCorrections = List.copyOf(statusCorrections);
+        completionReportRequests = List.copyOf(completionReportRequests);
     }
+
+    /**
+     * 완료보고 요청 한 건.
+     *
+     * @param requestedBy 요청한 관리자(조직 소속)
+     */
+    public record CompletionReportRequest(Instant requestedAt, Long requestedBy) {}
 
     /**
      * 입력하지 않은 항목은 null이다.

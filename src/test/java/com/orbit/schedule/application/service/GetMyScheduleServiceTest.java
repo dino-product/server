@@ -78,7 +78,7 @@ class GetMyScheduleServiceTest {
                         MyScheduleInfo.ScheduledWork::assignmentNumber,
                         MyScheduleInfo.ScheduledWork::delayed)
                 .containsExactly(
-                        tuple(rescheduledId.value(), WorkStatus.PENDING_ACCEPTANCE, 2, true),
+                        tuple(rescheduledId.value(), WorkStatus.ACCEPTED, 2, true),
                         tuple(pending.value(), WorkStatus.PENDING_ACCEPTANCE, 1, false),
                         tuple(inProgress.value(), WorkStatus.IN_PROGRESS, 1, false),
                         tuple(completed.value(), WorkStatus.COMPLETED, 1, false),

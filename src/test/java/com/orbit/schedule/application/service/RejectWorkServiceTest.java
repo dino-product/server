@@ -5,6 +5,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCO
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETUP_MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -13,7 +14,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
+import com.orbit.schedule.WorkRejected;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
 import com.orbit.schedule.domain.AssignmentResult;
@@ -30,10 +34,10 @@ class RejectWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final RejectWorkService service =
-            new RejectWorkService(fixture.actorPort, fixture.workRepository, fixture.clock);
+            new RejectWorkService(fixture.actorPort, fixture.workRepository, fixture.events, fixture.clock);
 
     @Test
-    @DisplayName("담당 기사가 최신 배정을 사유와 함께 거절하면 지금 시각으로 거절을 기록하고 대기함으로 돌린다")
+    @DisplayName("담당 기사가 최신 배정을 사유와 함께 거절하면 지금 시각으로 거절을 기록하고 대기함으로 돌리며, 저장한 뒤 등록자에게 알릴 거절을 발행한다")
     void rejectsCurrentAssignment() {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
@@ -50,6 +54,38 @@ class RejectWorkServiceTest {
             assertThat(history.ending()).isEmpty();
         });
         assertThat(fixture.scheduleLock.locks()).isEmpty();
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkRejected(
+                        id.value(),
+                        ORGANIZATION_ID.value(),
+                        REGISTRAR_ID.value(),
+                        TECHNICIAN_ID.value(),
+                        "대상 작업",
+                        "LOCATION_TOO_FAR",
+                        null,
+                        NOW));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "SCHEDULE_CONFLICT, , SCHEDULE_CONFLICT,",
+        "ALREADY_ASSIGNED, , ALREADY_ASSIGNED,",
+        "LOCATION_TOO_FAR, , LOCATION_TOO_FAR,",
+        "SCOPE_MISMATCH, , SCOPE_MISMATCH,",
+        "OTHER, 차량 고장, OTHER, 차량 고장"
+    })
+    @DisplayName("거절 사유는 표시 문구가 아니라 사유 코드로, 기사가 입력한 메모는 기타일 때만 담는다")
+    void publishesRejectionReasonAsCodeAndNote(
+            RejectionReason reason, String note, String expectedCode, String expectedNote) {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+
+        service.reject(command(id.value(), 1, reason, note));
+
+        assertThat(fixture.events.published()).singleElement().isInstanceOfSatisfying(WorkRejected.class, event -> {
+            assertThat(event.reasonCode()).isEqualTo(expectedCode);
+            assertThat(event.reasonNote()).isEqualTo(expectedNote);
+        });
     }
 
     @Test
@@ -73,6 +109,7 @@ class RejectWorkServiceTest {
         service.reject(command(id.value(), 1, RejectionReason.OTHER, "차량 고장"));
 
         assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.events.published()).isEmpty();
     }
 
     @Test

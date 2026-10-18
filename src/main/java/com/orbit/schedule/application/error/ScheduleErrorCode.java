@@ -26,7 +26,8 @@ public enum ScheduleErrorCode implements BaseCode {
     TECHNICIAN_NOT_ASSIGNABLE(HttpStatus.BAD_REQUEST, "SCHEDULE-013", "배정할 수 없는 기사입니다. 다른 기사를 선택해 주세요."),
     WORK_TYPE_NOT_SELECTABLE(HttpStatus.BAD_REQUEST, "SCHEDULE-014", "선택할 수 없는 작업 유형입니다. 다른 유형을 선택해 주세요."),
     EXPORT_TOO_LARGE(HttpStatus.BAD_REQUEST, "SCHEDULE-015", "출력할 작업이 너무 많습니다. 조건을 좁혀 다시 시도해 주세요."),
-    WORK_CHANGED(HttpStatus.CONFLICT, "SCHEDULE-016", "변경된 정보입니다. 최신 정보를 확인해 주세요.");
+    WORK_CHANGED(HttpStatus.CONFLICT, "SCHEDULE-016", "변경된 정보입니다. 최신 정보를 확인해 주세요."),
+    COMPLETION_REPORT_REQUESTED_RECENTLY(HttpStatus.TOO_MANY_REQUESTS, "SCHEDULE-019", "잠시 후 다시 요청할 수 있습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

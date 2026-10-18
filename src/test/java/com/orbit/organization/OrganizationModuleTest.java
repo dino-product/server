@@ -30,6 +30,9 @@ class OrganizationModuleTest {
     @Autowired
     private TechnicianContractLookup technicianContractLookup;
 
+    @Autowired
+    private OrganizationAccountLookup accountLookup;
+
     @Test
     void createsOrganizationWithinStandaloneModule() {
         CreatedOrganizationInfo created =
@@ -66,5 +69,18 @@ class OrganizationModuleTest {
 
         assertThat(technicianContractLookup.existsActive(created.organizationId(), 999_999L))
                 .isFalse();
+    }
+
+    @Test
+    void publicAccountLookupFindsFounderAccountByMembership() {
+        CreatedOrganizationInfo created =
+                useCase.create(new CreateOrganizationCommand(12L, "계정 조회 발주사", Industry.APPLIANCE_SERVICE));
+        StaffMember founder = (StaffMember)
+                memberLookup.findActiveMember(12L, created.organizationId()).orElseThrow();
+
+        assertThat(accountLookup.findActiveStaffAccountId(created.organizationId(), founder.membershipId()))
+                .contains(12L);
+        assertThat(accountLookup.findActiveTechnicianAccountId(created.organizationId(), 999_999L))
+                .isEmpty();
     }
 }

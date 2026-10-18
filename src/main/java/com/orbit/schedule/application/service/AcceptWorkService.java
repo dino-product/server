@@ -3,6 +3,7 @@ package com.orbit.schedule.application.service;
 import java.time.Clock;
 import java.time.Instant;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,11 +26,17 @@ public class AcceptWorkService implements AcceptWorkUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    public AcceptWorkService(LoadActorPort loadActorPort, WorkRepository workRepository, Clock clock) {
+    public AcceptWorkService(
+            LoadActorPort loadActorPort,
+            WorkRepository workRepository,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -52,5 +59,6 @@ public class AcceptWorkService implements AcceptWorkUseCase {
         DomainRuleViolations.run(() -> work.accept(now));
 
         workRepository.save(work);
+        eventPublisher.publishEvent(WorkEvents.accepted(work, technician.technicianId(), now));
     }
 }
