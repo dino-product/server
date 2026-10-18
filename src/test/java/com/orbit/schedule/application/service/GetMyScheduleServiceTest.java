@@ -92,6 +92,7 @@ class GetMyScheduleServiceTest {
                         TEN,
                         TEN.plus(TWO_HOURS),
                         "서울시",
+                        "3층",
                         false));
     }
 

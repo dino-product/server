@@ -230,6 +230,8 @@ class ScheduleModuleTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         false)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
@@ -238,7 +240,19 @@ class ScheduleModuleTest {
     @Test
     void assembledUpdateWorkDetailsUseCaseDeniesAccountWithoutActiveOrganizationMember() {
         assertThatThrownBy(() -> updateWorkDetailsUseCase.update(new UpdateWorkDetailsCommand(
-                        1L, ORGANIZATION_ID.value(), 1L, "모듈 작업", null, null, null, null, null, null)))
+                        1L,
+                        ORGANIZATION_ID.value(),
+                        1L,
+                        "모듈 작업",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.NOT_ORGANIZATION_MEMBER));
     }
@@ -264,7 +278,7 @@ class ScheduleModuleTest {
                 new ReassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 4L, startTime, Duration.ofHours(2), false)));
         assertDenied(() -> rescheduleWorkUseCase.reschedule(
                 new RescheduleWorkCommand(1L, ORGANIZATION_ID.value(), 1L, startTime, Duration.ofHours(2), false)));
-        assertDenied(() -> unassignWorkUseCase.unassign(new UnassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L)));
+        assertDenied(() -> unassignWorkUseCase.unassign(new UnassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 0L)));
         assertDenied(() -> cancelWorkUseCase.cancel(
                 new CancelWorkCommand(1L, ORGANIZATION_ID.value(), 1L, CancellationReason.CUSTOMER_REQUEST, null)));
         assertDenied(() -> correctWorkStatusUseCase.correct(

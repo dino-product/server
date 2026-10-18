@@ -141,6 +141,7 @@ final class WorkExportWorkbook {
             case ON_SITE_CARD -> "현장 카드";
             case ON_SITE_CASH -> "현장 현금";
             case BANK_TRANSFER -> "계좌이체";
+            case INVOICE -> "청구서 발행(후불)";
         };
     }
 }

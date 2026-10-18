@@ -23,7 +23,8 @@ class WorkScheduleConflictPolicyTest {
     private static final TechnicianId OTHER_TECHNICIAN_ID = new TechnicianId(4L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
-    private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
+    private static final CustomerInfo CUSTOMER_INFO =
+            new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시", null));
     private static final Instant NOW = Instant.parse("2026-09-21T00:00:00Z");
     private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(null, null, null, null, null, null);

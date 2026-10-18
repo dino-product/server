@@ -222,7 +222,8 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
                     .likeIgnoreCase(pattern, LIKE_ESCAPE)
                     .or(WORK.customerName.likeIgnoreCase(pattern, LIKE_ESCAPE))
                     .or(WORK.customerPhone.likeIgnoreCase(pattern, LIKE_ESCAPE))
-                    .or(WORK.customerAddress.likeIgnoreCase(pattern, LIKE_ESCAPE)));
+                    .or(WORK.customerAddress.likeIgnoreCase(pattern, LIKE_ESCAPE))
+                    .or(WORK.customerAddressDetail.likeIgnoreCase(pattern, LIKE_ESCAPE)));
         }
         if (!criteria.statuses().isEmpty()) {
             condition.and(WORK.status.in(criteria.statuses()));

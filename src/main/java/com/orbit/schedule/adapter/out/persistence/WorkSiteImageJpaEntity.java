@@ -15,7 +15,7 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
- * 작업 등록 때 붙인 현장 사진 한 장. 순서는 {@code id} 순이다. 사진 업로드 방식이 정해지기 전까지 {@code image_url}에는 Domain이 받은 사진 식별자를 그대로
+ * 작업 등록·기본정보 수정 때 붙인 현장 사진 한 장. 순서는 {@code id} 순이다. 사진 업로드 방식이 정해지기 전까지 {@code image_url}에는 Domain이 받은 사진 식별자를 그대로
  * 둔다. 완료보고 사진({@link WorkExecutionImageJpaEntity})과 생명주기가 달라 테이블을 나눈다(ERD에 없는 테이블이라 ERD에 추가한다).
  */
 @Entity
