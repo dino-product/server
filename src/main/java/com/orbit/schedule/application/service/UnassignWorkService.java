@@ -36,10 +36,12 @@ public class UnassignWorkService implements UnassignWorkUseCase {
         ManagerActor actor =
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
+        OrganizationActors.requireRegistrarOrOwner(actor, work);
+        WorkVersions.require(work, command.expectedVersion());
 
         Instant now = clock.instant();
         DomainRuleViolations.run(() -> work.unassign(now, actor.membershipId()));
 
-        workRepository.save(work);
+        WorkVersions.save(workRepository, work);
     }
 }

@@ -22,7 +22,7 @@ public final class Work {
     /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
     public static final int MAX_NAME_LENGTH = 100;
 
-    /** 등록 때 붙일 수 있는 현장 사진 수. */
+    /** 작업에 붙일 수 있는 현장 사진 수. */
     public static final int MAX_SITE_PHOTO_COUNT = 6;
 
     /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한, HM-238). */
@@ -56,6 +56,7 @@ public final class Work {
     private final List<StatusCorrection> statusCorrections;
     private PlannedSchedule plannedSchedule;
     private List<String> sitePhotos = List.of();
+    private long version;
 
     private Work(
             WorkId id,
@@ -232,7 +233,7 @@ public final class Work {
         return work;
     }
 
-    /** 등록 때 붙인 현장 사진까지 복원한다. */
+    /** 등록·수정 때 붙인 현장 사진까지 복원한다. */
     public static Work reconstitute(
             WorkId id,
             OrganizationId organizationId,
@@ -274,6 +275,53 @@ public final class Work {
         return work;
     }
 
+    /** 저장소가 매긴 버전까지 복원한다. */
+    public static Work reconstitute(
+            WorkId id,
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            Instant registeredAt,
+            WorkTypeId workType,
+            WorkSchedule schedule,
+            PlannedSchedule plannedSchedule,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            WorkStatus status,
+            List<AssignmentHistory> assignmentHistory,
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt,
+            Cancellation cancellation,
+            List<StatusCorrection> statusCorrections,
+            List<String> sitePhotos,
+            long version) {
+        if (version < 0) {
+            throw new IllegalArgumentException("version must not be negative");
+        }
+        Work work = reconstitute(
+                id,
+                organizationId,
+                name,
+                registrarId,
+                registeredAt,
+                workType,
+                schedule,
+                plannedSchedule,
+                customerInfo,
+                paymentInfo,
+                status,
+                assignmentHistory,
+                completionReport,
+                startedAt,
+                completedAt,
+                cancellation,
+                statusCorrections,
+                sitePhotos);
+        work.version = version;
+        return work;
+    }
+
     public Optional<WorkId> id() {
         return Optional.ofNullable(id);
     }
@@ -306,9 +354,21 @@ public final class Work {
         return Optional.ofNullable(plannedSchedule);
     }
 
-    /** 등록 때 붙인 현장 사진 식별자. 붙인 순서다. */
+    /** 등록·수정 때 붙인 현장 사진 식별자. 붙인 순서다. */
     public List<String> sitePhotos() {
         return sitePhotos;
+    }
+
+    /** 저장소가 매긴 버전. 새 작업은 0이고 저장소가 저장할 때마다 올린다. 도메인 변경은 버전을 바꾸지 않는다. */
+    public long version() {
+        return version;
+    }
+
+    /** 요청자가 본 버전이 지금 버전과 같은지 확인한다. 다르면 그 사이 다른 변경이 저장된 것이다. */
+    public void requireVersion(long expectedVersion) {
+        if (expectedVersion != version) {
+            throw new StaleWorkVersionException(expectedVersion, version);
+        }
     }
 
     public CustomerInfo customerInfo() {
@@ -510,19 +570,29 @@ public final class Work {
     }
 
     /**
-     * 작업명·작업 유형·고객정보·결제정보 네 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된 작업은 바꿀 수
-     * 없고, 상태·배정은 그대로 둔다. 서비스의 공통 오류 순서(입력 → 상태)에 맞춰 작업명을 상태보다 먼저 검증한다.
+     * 작업명·작업 유형·고객정보·결제정보·현장 사진 다섯 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된
+     * 작업은 바꿀 수 없고, 상태·배정은 그대로 둔다. 작업 유형은 시작 전까지만 바꾸거나 비울 수 있고 작업중에는 지금 유형을 그대로 줘야 한다. 서비스의 공통 오류
+     * 순서(입력 → 상태)에 맞춰 작업명·현장 사진을 상태보다 먼저 검증한다.
      */
     public void changeDetails(
-            String newName, WorkTypeId newWorkType, CustomerInfo newCustomerInfo, PaymentInfo newPaymentInfo) {
+            String newName,
+            WorkTypeId newWorkType,
+            CustomerInfo newCustomerInfo,
+            PaymentInfo newPaymentInfo,
+            List<String> newSitePhotoIds) {
         requireName(newName);
+        List<String> photos = requireSitePhotos(newSitePhotoIds);
         if (status.isTerminal()) {
             throw new IllegalStateException("Cannot change details when status is " + status);
+        }
+        if (status == WorkStatus.IN_PROGRESS && !Objects.equals(workType, newWorkType)) {
+            throw new IllegalStateException("Cannot change work type when status is " + status);
         }
         name = newName;
         workType = newWorkType;
         customerInfo = orEmpty(newCustomerInfo);
         paymentInfo = orEmpty(newPaymentInfo);
+        sitePhotos = photos;
     }
 
     /** 수락된 작업을 시작해 작업중으로 바꾸고 시작 시각을 남긴다. 시작 시각은 수락 시각보다 앞설 수 없다. 예정 시작시각과는 관계없이 시작할 수 있다. */

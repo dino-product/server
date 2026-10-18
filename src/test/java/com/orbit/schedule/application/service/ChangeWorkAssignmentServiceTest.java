@@ -24,6 +24,7 @@ import com.orbit.schedule.application.port.in.command.dto.ChangeWorkAssignmentCo
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
+import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentResult;
@@ -47,9 +48,9 @@ class ChangeWorkAssignmentServiceTest {
             fixture.clock);
 
     @Test
-    @DisplayName("대기함 작업은 배정해 수락대기로 만들고, 기사를 잠근 뒤 기사 계약을 확인한다")
+    @DisplayName("대기함 작업은 등록자가 아닌 직원도 배정해 수락대기로 만들고, 기사를 잠근 뒤 기사 계약을 확인한다")
     void assignsBacklogWork() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.STAFF);
         WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
 
         ScheduleChangeInfo result = service.change(command(id, TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
@@ -69,7 +70,7 @@ class ChangeWorkAssignmentServiceTest {
     @Test
     @DisplayName("다른 기사로 옮기면 재배정하고, 새 기사를 잠근 뒤 기사 계약을 확인한다")
     void reassignsToOtherTechnician() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.ACCEPTED);
 
         ScheduleChangeInfo result = service.change(command(id, OTHER_TECHNICIAN_ID.value(), ELEVEN, TWO_HOURS, false));
@@ -87,7 +88,7 @@ class ChangeWorkAssignmentServiceTest {
     @Test
     @DisplayName("같은 기사에서 시간만 옮기면 일정 변경이고, 현재 담당기사는 다시 확인하지 않는다")
     void reschedulesForSameTechnician() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
@@ -104,7 +105,7 @@ class ChangeWorkAssignmentServiceTest {
     @Test
     @DisplayName("같은 기사·같은 시간이면 바꿀 것이 없어 같은 일정 오류다")
     void rejectsUnchangedSchedule() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
         fixture.assertRejected(
@@ -115,7 +116,7 @@ class ChangeWorkAssignmentServiceTest {
     @Test
     @DisplayName("배정·재배정할 기사가 활성 기사 계약이 아니면 잠근 뒤 저장하지 않고 배정할 수 없는 기사 오류다")
     void rejectsInactiveTechnicianForAssignAndReassign() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
         WorkId backlog = fixture.givenWork(WorkStatus.REGISTERED);
         WorkId assigned = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
@@ -132,7 +133,7 @@ class ChangeWorkAssignmentServiceTest {
     @Test
     @DisplayName("같은 기사의 활성 작업과 겹치는데 확인하지 않았으면 반영하지 않고 겹친 작업을 돌려준다")
     void withholdsUnconfirmedConflict() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId existing =
                 fixture.givenWork(ORGANIZATION_ID, "기존 작업", WorkStatus.PENDING_ACCEPTANCE, OTHER_TECHNICIAN_ID, ELEVEN);
         WorkId target = fixture.givenWork(WorkStatus.REGISTERED);
@@ -151,7 +152,7 @@ class ChangeWorkAssignmentServiceTest {
             names = {"IN_PROGRESS", "COMPLETED", "CANCELLED"})
     @DisplayName("작업중·완료·취소된 작업은 기사·시간과 관계없이 상태 오류다")
     void rejectsUnchangeableStatus(WorkStatus status) {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(status);
 
         for (long technicianId : new long[] {TECHNICIAN_ID.value(), OTHER_TECHNICIAN_ID.value()}) {
@@ -164,7 +165,7 @@ class ChangeWorkAssignmentServiceTest {
     @Test
     @DisplayName("기사·시작시각·소요시간이 잘못되면 상태보다 먼저 입력 오류다")
     void checksInputBeforeState() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId completed = fixture.givenWork(WorkStatus.COMPLETED);
 
         fixture.assertRejected(
@@ -178,9 +179,63 @@ class ChangeWorkAssignmentServiceTest {
                 ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
+    @Test
+    @DisplayName("요청자가 본 버전이 지금 버전과 다르면 입력보다 먼저 변경된 정보 오류, 음수면 입력 오류이고 잠그거나 저장하지 않는다")
+    void rejectsStaleVersionBeforeInput() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+
+        fixture.assertRejected(() -> service.change(versioned(id, 0L, TEN, 1L)), ScheduleErrorCode.WORK_CHANGED);
+        fixture.assertRejected(
+                () -> service.change(versioned(id, TECHNICIAN_ID.value(), TEN, -1L)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.scheduleLock.locks()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("요청자가 본 버전이 없으면 입력 오류다")
+    void requiresExpectedVersion() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+
+        fixture.assertRejected(
+                () -> service.change(versioned(id, TECHNICIAN_ID.value(), TEN, null)),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        assertThat(fixture.workRepository.saved()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 다른 트랜잭션이 먼저 바꾼 것이 드러나면 변경된 정보 오류이고 반영하지 않는다")
+    void rejectsConcurrentChangeAtSave() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        // 저장 자리의 충돌은 기사를 잠그고 판정한 뒤 저장할 때 드러난다.
+        assertThatThrownBy(() -> service.change(versioned(id, TECHNICIAN_ID.value(), TEN, 0L)))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.WORK_CHANGED));
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.REGISTERED);
+    }
+
     private static ChangeWorkAssignmentCommand command(
             WorkId workId, Long technicianId, Instant start, Duration duration, boolean confirmed) {
         return new ChangeWorkAssignmentCommand(
-                ACCOUNT_ID, ORGANIZATION_ID.value(), workId.value(), technicianId, start, duration, confirmed);
+                ACCOUNT_ID, ORGANIZATION_ID.value(), workId.value(), technicianId, start, duration, confirmed, 0L);
+    }
+
+    private static ChangeWorkAssignmentCommand versioned(
+            WorkId workId, Long technicianId, Instant start, Long expectedVersion) {
+        return new ChangeWorkAssignmentCommand(
+                ACCOUNT_ID,
+                ORGANIZATION_ID.value(),
+                workId.value(),
+                technicianId,
+                start,
+                TWO_HOURS,
+                false,
+                expectedVersion);
     }
 }

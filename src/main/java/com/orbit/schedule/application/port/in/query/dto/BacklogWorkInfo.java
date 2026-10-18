@@ -20,6 +20,7 @@ import com.orbit.schedule.domain.RejectionReason;
  * @param rejectionReason 돌아오게 한 거절의 사유. 거절로 돌아온 작업이 아니면 null
  * @param rejectionNote 그 거절의 메모(기타 사유). 없으면 null
  * @param stale 조회 시각에 대기함에서 방치된 작업인지(등록한 지 72시간 이상)
+ * @param version 작업 버전. 배정 요청의 expectedVersion으로 그대로 보낸다
  */
 public record BacklogWorkInfo(
         Long workId,
@@ -35,4 +36,5 @@ public record BacklogWorkInfo(
         boolean returnedByRejection,
         RejectionReason rejectionReason,
         String rejectionNote,
-        boolean stale) {}
+        boolean stale,
+        long version) {}

@@ -126,7 +126,8 @@ class GetTimetableServiceTest {
                         false,
                         true,
                         label(INSTALL),
-                        REGISTRAR));
+                        REGISTRAR,
+                        0L));
     }
 
     @Test
@@ -305,7 +306,8 @@ class GetTimetableServiceTest {
                                 true,
                                 RejectionReason.OTHER,
                                 "너무 멀어요",
-                                false),
+                                false,
+                                0L),
                         new BacklogWorkInfo(
                                 newer.value(),
                                 "나중 등록",
@@ -320,7 +322,8 @@ class GetTimetableServiceTest {
                                 false,
                                 null,
                                 null,
-                                false));
+                                false,
+                                0L));
     }
 
     @Test

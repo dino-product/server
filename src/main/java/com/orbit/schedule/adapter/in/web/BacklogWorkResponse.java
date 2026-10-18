@@ -44,7 +44,10 @@ public record BacklogWorkResponse(
         @Schema(description = "거절 메모(기타 사유). 없으면 null") String rejectionNote,
 
         @Schema(description = "대기함에서 방치된 작업인지(registeredAt부터 72시간 이상). 거절·배정 해제로 돌아온 작업도 등록 시각부터 센다", example = "false")
-        boolean stale) {
+        boolean stale,
+
+        @Schema(description = "작업 버전. 배정 요청의 expectedVersion으로 그대로 보낸다", example = "3")
+        long version) {
 
     public static BacklogWorkResponse from(BacklogWorkInfo info) {
         Duration planned = info.plannedExpectedDuration();
@@ -62,6 +65,7 @@ public record BacklogWorkResponse(
                 info.returnedByRejection(),
                 info.rejectionReason(),
                 info.rejectionNote(),
-                info.stale());
+                info.stale(),
+                info.version());
     }
 }

@@ -55,6 +55,11 @@ public class ChangeWorkAssignmentService implements ChangeWorkAssignmentUseCase 
         ManagerActor actor =
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
+        // 대기함 작업의 배정은 모든 직원이, 대기함이 아닌 작업의 재배정·일정 변경은 등록자 본인·총관리자만 한다.
+        if (work.status() != WorkStatus.REGISTERED) {
+            OrganizationActors.requireRegistrarOrOwner(actor, work);
+        }
+        WorkVersions.require(work, command.expectedVersion());
         WorkSchedule requested = DomainRuleViolations.call(() -> new WorkSchedule(
                 new TechnicianId(command.technicianId()), command.startTime(), command.expectedDuration()));
 

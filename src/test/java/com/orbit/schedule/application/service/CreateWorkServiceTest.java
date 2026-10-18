@@ -38,6 +38,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -74,7 +75,8 @@ class CreateWorkServiceTest {
         assertThat(saved.registeredAt()).isEqualTo(NOW);
         assertThat(saved.name()).isEqualTo("에어컨 수리");
         assertThat(saved.workType()).contains(new WorkTypeId(2L));
-        assertThat(saved.customerInfo()).isEqualTo(new CustomerInfo("홍길동", "010-1234-5678", "서울시"));
+        assertThat(saved.customerInfo())
+                .isEqualTo(new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress("04043", "서울시", "3층")));
         assertThat(saved.paymentInfo()).isEqualTo(new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         assertThat(saved.status()).isEqualTo(WorkStatus.REGISTERED);
         assertThat(saved.schedule()).isEmpty();
@@ -89,6 +91,8 @@ class CreateWorkServiceTest {
                 ACCOUNT_ID,
                 ORGANIZATION_ID.value(),
                 "에어컨 수리",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -124,6 +128,8 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         false)))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("accountId must not be null");
@@ -134,7 +140,22 @@ class CreateWorkServiceTest {
     void checksOrganizationIdFirst() {
         fixture.assertRejected(
                 () -> service.create(new CreateWorkCommand(
-                        ACCOUNT_ID, 0L, "에어컨 수리", null, null, null, null, null, null, null, null, null, null, false)),
+                        ACCOUNT_ID,
+                        0L,
+                        "에어컨 수리",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
@@ -167,6 +188,8 @@ class CreateWorkServiceTest {
                         ORGANIZATION_ID.value(),
                         "에어컨 수리",
                         0L,
+                        null,
+                        null,
                         null,
                         null,
                         null,
@@ -221,6 +244,8 @@ class CreateWorkServiceTest {
                             null,
                             null,
                             null,
+                            null,
+                            null,
                             false)),
                     ScheduleErrorCode.WORK_TYPE_NOT_SELECTABLE);
         }
@@ -237,6 +262,8 @@ class CreateWorkServiceTest {
                 ACCOUNT_ID,
                 ORGANIZATION_ID.value(),
                 "에어컨 수리",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -353,6 +380,8 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         TECHNICIAN_ID.value(),
                         null,
                         null,
@@ -428,6 +457,8 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         TECHNICIAN_ID.value(),
                         TEN,
                         TWO_HOURS,
@@ -487,6 +518,8 @@ class CreateWorkServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 sitePhotoIds,
                 null,
                 null,
@@ -499,6 +532,8 @@ class CreateWorkServiceTest {
                 ACCOUNT_ID,
                 ORGANIZATION_ID.value(),
                 "에어컨 수리",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -520,7 +555,9 @@ class CreateWorkServiceTest {
                 null,
                 name,
                 phone,
+                null,
                 address,
+                null,
                 null,
                 null,
                 null,
@@ -538,7 +575,9 @@ class CreateWorkServiceTest {
                 2L,
                 "홍길동",
                 "010-1234-5678",
+                "04043",
                 "서울시",
+                "3층",
                 fee,
                 PaymentMethod.ON_SITE_CARD,
                 null,

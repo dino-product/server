@@ -17,6 +17,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.StatusCorrection;
 import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.TechnicianId;
@@ -39,7 +40,9 @@ final class WorkViews {
         return new WorkDetailInfo.Customer(
                 customer.name().orElse(null),
                 customer.phone().orElse(null),
-                customer.address().orElse(null));
+                customer.address().flatMap(SiteAddress::postalCode).orElse(null),
+                customer.address().flatMap(SiteAddress::baseAddress).orElse(null),
+                customer.address().flatMap(SiteAddress::detailAddress).orElse(null));
     }
 
     static WorkDetailInfo.Payment payment(PaymentInfo payment) {

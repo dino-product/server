@@ -35,6 +35,7 @@ import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -275,7 +276,7 @@ class WorkQueryPersistenceAdapterTest {
         WorkId id = save(registered(organization, "원래 이름"));
 
         inTx(() -> {
-            adapter.listBacklog(organization).getFirst().changeDetails("바뀐 이름", null, null, null);
+            adapter.listBacklog(organization).getFirst().changeDetails("바뀐 이름", null, null, null, null);
             return null;
         });
 
@@ -290,12 +291,15 @@ class WorkQueryPersistenceAdapterTest {
     class Search {
 
         @Test
-        @DisplayName("검색어는 작업명·고객 이름·연락처·주소를 대소문자 구분 없이 부분 일치로 찾고 와일드카드·이스케이프 문자는 글자로 본다")
+        @DisplayName("검색어는 작업명·고객 이름·연락처·기본주소·상세주소를 대소문자 구분 없이 부분 일치로 찾고 와일드카드·이스케이프 문자는 글자로 본다")
         void matchesKeywordLiterally() {
             OrganizationId organization = organization();
             WorkId byName = save(registered(organization, "Boiler 점검", null));
             WorkId byCustomer = save(registered(organization, "작업", new CustomerInfo("BOILER 고객", null, null)));
-            WorkId byAddress = save(registered(organization, "작업", new CustomerInfo(null, null, "boiler로 1")));
+            WorkId byAddress = save(registered(
+                    organization, "작업", new CustomerInfo(null, null, new SiteAddress(null, "boiler로 1", null))));
+            WorkId byAddressDetail = save(registered(
+                    organization, "작업", new CustomerInfo(null, null, new SiteAddress("04043", "서울시", "Boiler동 3층"))));
             WorkId byPhone = save(registered(organization, "작업", new CustomerInfo(null, "010-1234-5678", null)));
             WorkId percent = save(registered(organization, "100% 할인", null));
             save(registered(organization, "1000 할인", null));
@@ -305,7 +309,10 @@ class WorkQueryPersistenceAdapterTest {
             save(registered(organization(), "boiler 다른 조직", null));
 
             assertThat(searchIds(organization, criteria().keyword("boiler")))
-                    .containsExactlyInAnyOrder(byName, byCustomer, byAddress);
+                    .containsExactlyInAnyOrder(byName, byCustomer, byAddress, byAddressDetail);
+            assertThat(searchIds(organization, criteria().keyword("04043")))
+                    .as("우편번호는 찾지 않는다")
+                    .isEmpty();
             assertThat(searchIds(organization, criteria().keyword("1234-5678"))).containsExactly(byPhone);
             assertThat(searchIds(organization, criteria().keyword("100%"))).containsExactly(percent);
             assertThat(searchIds(organization, criteria().keyword("a_b"))).containsExactly(underscore);
@@ -444,7 +451,7 @@ class WorkQueryPersistenceAdapterTest {
             WorkId newerSave = save(registered(organization, "나중 저장"));
             Work changed = inTx(() -> repository.findInOrganization(organization, olderSave))
                     .orElseThrow();
-            changed.changeDetails("다시 저장", null, null, null);
+            changed.changeDetails("다시 저장", null, null, null, null);
             inTx(() -> repository.save(changed));
 
             WorkSearchResult result = inTx(() -> adapter.search(
@@ -470,6 +477,29 @@ class WorkQueryPersistenceAdapterTest {
             inTx(() -> repository.save(stored));
 
             assertThat(lastModifiedAt(organization, id)).isAfter(before);
+        }
+
+        @Test
+        @DisplayName("현장 사진만 바꾼 기본정보 수정도 최근 수정 시각을 올린다")
+        void bumpsLastModifiedOnSitePhotoOnlySave() {
+            OrganizationId organization = organization();
+            WorkId id = save(registered(organization, "사진 작업"));
+            Instant before = lastModifiedAt(organization, id);
+            Work stored =
+                    inTx(() -> repository.findInOrganization(organization, id)).orElseThrow();
+            stored.changeDetails(
+                    stored.name(),
+                    stored.workType().orElse(null),
+                    stored.customerInfo(),
+                    stored.paymentInfo(),
+                    List.of("site-1"));
+            inTx(() -> repository.save(stored));
+
+            assertThat(lastModifiedAt(organization, id)).isAfter(before);
+            assertThat(inTx(() -> repository.findInOrganization(organization, id))
+                            .orElseThrow()
+                            .sitePhotos())
+                    .containsExactly("site-1");
         }
 
         @Test
