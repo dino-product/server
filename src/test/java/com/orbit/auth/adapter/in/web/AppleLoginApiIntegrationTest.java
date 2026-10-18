@@ -65,6 +65,8 @@ class AppleLoginApiIntegrationTest extends AuthApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.registered").value(true))
                 .andExpect(jsonPath("$.result.accessToken").isString())
+                .andExpect(jsonPath("$.result.refreshToken").isString())
+                .andExpect(jsonPath("$.result.refreshTokenExpiresAt").isString())
                 .andReturn()
                 .getResponse()
                 .getContentAsString());

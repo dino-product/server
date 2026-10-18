@@ -31,7 +31,7 @@ class AuthenticateAccessTokenServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-09-27T01:00:00Z");
     private static final AccessToken TOKEN =
-            new AccessToken("jti", new AccountId(7L), NOW, NOW.plus(Duration.ofHours(1)));
+            new AccessToken("jti", new AccountId(7L), NOW, NOW.plus(Duration.ofHours(1)), null);
     private static final AuthenticateAccessTokenQuery QUERY = new AuthenticateAccessTokenQuery("access-token");
 
     @Mock

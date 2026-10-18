@@ -25,6 +25,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.domain.AccountId;
+import com.orbit.auth.domain.RefreshSessionId;
 
 @DisplayName("JWT Access Token 어댑터")
 class JwtAccessTokenAdapterTest {
@@ -34,6 +35,7 @@ class JwtAccessTokenAdapterTest {
     private static final Duration TTL = Duration.ofHours(1);
     private static final Instant NOW = Instant.parse("2026-09-27T01:00:00Z");
     private static final AccountId ACCOUNT_ID = new AccountId(42L);
+    private static final RefreshSessionId SESSION_ID = new RefreshSessionId("7f1c2b3a-4d5e-4f60-8a9b-0c1d2e3f4a5b");
     private static final JwtProperties PROPERTIES = new JwtProperties(SECRET, ISSUER, TTL);
 
     private final JwtAccessTokenAdapter adapter = new JwtAccessTokenAdapter(PROPERTIES, fixedClock(NOW));
@@ -41,9 +43,10 @@ class JwtAccessTokenAdapterTest {
     @Test
     @DisplayName("발급한 토큰을 같은 클레임으로 다시 읽는다")
     void issuesAndParsesToken() {
-        IssuedAccessToken issued = adapter.issue(ACCOUNT_ID);
+        IssuedAccessToken issued = adapter.issue(ACCOUNT_ID, SESSION_ID);
 
         assertThat(issued.token().accountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(issued.token().sessionId()).isEqualTo(SESSION_ID);
         assertThat(issued.token().issuedAt()).isEqualTo(NOW);
         assertThat(issued.token().expiresAt()).isEqualTo(NOW.plus(TTL));
         assertThat(adapter.parse(issued.value())).contains(issued.token());
@@ -60,7 +63,7 @@ class JwtAccessTokenAdapterTest {
     void truncatesIssuedAtToSeconds() {
         JwtAccessTokenAdapter fractional = new JwtAccessTokenAdapter(PROPERTIES, fixedClock(NOW.plusMillis(567)));
 
-        IssuedAccessToken issued = fractional.issue(ACCOUNT_ID);
+        IssuedAccessToken issued = fractional.issue(ACCOUNT_ID, SESSION_ID);
 
         assertThat(issued.token().issuedAt()).isEqualTo(NOW);
         assertThat(issued.token().expiresAt()).isEqualTo(NOW.plus(TTL));
@@ -70,14 +73,14 @@ class JwtAccessTokenAdapterTest {
     @Test
     @DisplayName("발급마다 다른 식별자를 가진다")
     void issuesUniqueTokenIds() {
-        assertThat(adapter.issue(ACCOUNT_ID).token().tokenId())
-                .isNotEqualTo(adapter.issue(ACCOUNT_ID).token().tokenId());
+        assertThat(adapter.issue(ACCOUNT_ID, SESSION_ID).token().tokenId())
+                .isNotEqualTo(adapter.issue(ACCOUNT_ID, SESSION_ID).token().tokenId());
     }
 
     @Test
     @DisplayName("본문이 바뀐 토큰은 거부한다")
     void rejectsTamperedToken() {
-        String value = adapter.issue(ACCOUNT_ID).value();
+        String value = adapter.issue(ACCOUNT_ID, SESSION_ID).value();
         String[] parts = value.split("\\.");
         String tampered = parts[0] + "." + parts[1].substring(0, parts[1].length() - 2) + "AA." + parts[2];
 
@@ -90,13 +93,13 @@ class JwtAccessTokenAdapterTest {
         JwtAccessTokenAdapter other = new JwtAccessTokenAdapter(
                 new JwtProperties("another-secret-key-with-at-least-32-bytes!!", ISSUER, TTL), fixedClock(NOW));
 
-        assertThat(adapter.parse(other.issue(ACCOUNT_ID).value())).isEmpty();
+        assertThat(adapter.parse(other.issue(ACCOUNT_ID, SESSION_ID).value())).isEmpty();
     }
 
     @Test
     @DisplayName("만료 시각이 지나면 오차 없이 거부한다")
     void rejectsExpiredToken() {
-        String value = adapter.issue(ACCOUNT_ID).value();
+        String value = adapter.issue(ACCOUNT_ID, SESSION_ID).value();
         JwtAccessTokenAdapter later =
                 new JwtAccessTokenAdapter(PROPERTIES, fixedClock(NOW.plus(TTL).plusSeconds(1)));
         JwtAccessTokenAdapter atExpiry = new JwtAccessTokenAdapter(PROPERTIES, fixedClock(NOW.plus(TTL)));
@@ -111,7 +114,8 @@ class JwtAccessTokenAdapterTest {
         JwtAccessTokenAdapter otherIssuer =
                 new JwtAccessTokenAdapter(new JwtProperties(SECRET, "someone-else", TTL), fixedClock(NOW));
 
-        assertThat(adapter.parse(otherIssuer.issue(ACCOUNT_ID).value())).isEmpty();
+        assertThat(adapter.parse(otherIssuer.issue(ACCOUNT_ID, SESSION_ID).value()))
+                .isEmpty();
     }
 
     @Test
@@ -130,6 +134,24 @@ class JwtAccessTokenAdapterTest {
         assertThat(adapter.parse(sign(claims().subject("not-a-number")))).isEmpty();
         assertThat(adapter.parse(sign(claims().subject("0")))).isEmpty();
         assertThat(adapter.parse(sign(claims().jwtID(null)))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("기기 세션 클레임이 없는 토큰(refresh token 도입 전 발급)은 세션 없이 읽는다")
+    void parsesTokenWithoutSession() throws JOSEException {
+        assertThat(adapter.parse(sign(claims()))).hasValueSatisfying(token -> {
+            assertThat(token.accountId()).isEqualTo(ACCOUNT_ID);
+            assertThat(token.sessionId()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("서명은 유효해도 기기 세션 클레임이 UUID가 아니면 거부한다")
+    void rejectsInvalidSession() throws JOSEException {
+        assertThat(adapter.parse(sign(claims().claim(JwtAccessTokenAdapter.SESSION_CLAIM, "not-a-uuid"))))
+                .isEmpty();
+        assertThat(adapter.parse(sign(claims().claim(JwtAccessTokenAdapter.SESSION_CLAIM, 7))))
+                .isEmpty();
     }
 
     @ParameterizedTest

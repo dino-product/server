@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +31,7 @@ import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.domain.AccessToken;
 import com.orbit.auth.domain.AccountId;
+import com.orbit.auth.domain.RefreshSessionId;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,6 +45,9 @@ class JwtAccessTokenAdapter implements AccessTokenPort {
 
     static final String TOKEN_USE_CLAIM = "token_use";
     static final String ACCESS_TOKEN_USE = "access";
+    /** 토큰을 발급한 기기 세션. 로그아웃이 그 세션의 refresh token까지 끝내는 데 쓴다. */
+    static final String SESSION_CLAIM = "sid";
+
     private static final String HMAC_ALGORITHM = "HmacSHA256";
 
     private final NimbusJwtEncoder encoder;
@@ -67,11 +72,15 @@ class JwtAccessTokenAdapter implements AccessTokenPort {
     }
 
     @Override
-    public IssuedAccessToken issue(AccountId accountId) {
+    public IssuedAccessToken issue(AccountId accountId, RefreshSessionId sessionId) {
         // JWT 시간 클레임은 초 단위이므로 발급 시각을 맞춰 파싱한 클레임이 발급 시 값과 같도록 한다.
         Instant issuedAt = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         AccessToken token = new AccessToken(
-                UUID.randomUUID().toString(), accountId, issuedAt, issuedAt.plus(properties.accessTokenTtl()));
+                UUID.randomUUID().toString(),
+                accountId,
+                issuedAt,
+                issuedAt.plus(properties.accessTokenTtl()),
+                Objects.requireNonNull(sessionId, "sessionId must not be null"));
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(properties.issuer())
                 .subject(Long.toString(accountId.value()))
@@ -79,6 +88,7 @@ class JwtAccessTokenAdapter implements AccessTokenPort {
                 .issuedAt(token.issuedAt())
                 .expiresAt(token.expiresAt())
                 .claim(TOKEN_USE_CLAIM, ACCESS_TOKEN_USE)
+                .claim(SESSION_CLAIM, sessionId.value())
                 .build();
         String value = encoder.encode(JwtEncoderParameters.from(
                         JwsHeader.with(MacAlgorithm.HS256).build(), claims))
@@ -108,11 +118,23 @@ class JwtAccessTokenAdapter implements AccessTokenPort {
                     jwt.getId(),
                     new AccountId(Long.parseLong(jwt.getSubject())),
                     jwt.getIssuedAt(),
-                    jwt.getExpiresAt()));
+                    jwt.getExpiresAt(),
+                    session(jwt)));
         } catch (IllegalArgumentException | NullPointerException exception) {
             log.debug("Access token rejected: invalid claims ({})", exception.getMessage());
             return Optional.empty();
         }
+    }
+
+    /** refresh token 도입 전에 발급한 토큰에는 세션 클레임이 없다. 있는데 문자열 UUID가 아니면 잘못된 클레임으로 거부한다. */
+    private static RefreshSessionId session(Jwt jwt) {
+        if (!jwt.hasClaim(SESSION_CLAIM)) {
+            return null;
+        }
+        if (!(jwt.getClaims().get(SESSION_CLAIM) instanceof String value)) {
+            throw new IllegalArgumentException("sid must be a string");
+        }
+        return new RefreshSessionId(value);
     }
 
     @Override

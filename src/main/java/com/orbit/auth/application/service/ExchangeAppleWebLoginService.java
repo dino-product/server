@@ -8,7 +8,6 @@ import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.in.command.ExchangeAppleWebLoginUseCase;
 import com.orbit.auth.application.port.in.command.dto.ExchangeAppleWebLoginCommand;
 import com.orbit.auth.application.port.in.command.dto.LoginInfo;
-import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.AppleLoginExchangePort;
 import com.orbit.auth.application.port.out.ClosedAccountPort;
@@ -31,11 +30,11 @@ public class ExchangeAppleWebLoginService implements ExchangeAppleWebLoginUseCas
             AppleLoginExchangePort loginExchanges,
             ClosedAccountPort closedAccounts,
             AccountRepository accounts,
-            AccessTokenPort accessTokens,
+            SessionTokenIssuer tokens,
             Clock clock) {
         this.loginExchanges = loginExchanges;
         this.closedAccounts = closedAccounts;
-        this.accountLogin = new AccountLogin(accounts, accessTokens, clock);
+        this.accountLogin = new AccountLogin(accounts, tokens, clock);
     }
 
     @Override
