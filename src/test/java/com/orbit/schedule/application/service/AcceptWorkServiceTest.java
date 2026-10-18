@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -36,7 +37,7 @@ class AcceptWorkServiceTest {
     @DisplayName("담당 기사가 화면에서 본 최신 배정을 수락하면 지금 시각으로 수락을 기록하고 일정은 그대로 둔다")
     void acceptsCurrentAssignment() {
         fixture.givenTechnician(TECHNICIAN_ID);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         service.accept(command(id.value()));
 
@@ -69,14 +70,14 @@ class AcceptWorkServiceTest {
     }
 
     @Test
-    @DisplayName("이미 거절한 배정은 수락할 수 없다")
-    void rejectsAcceptingRejectedAssignment() {
+    @DisplayName("이미 거절한 작업은 기사가 볼 수 없어 수락하려 하면 찾을 수 없음이다")
+    void hidesRejectedWorkFromAcceptance() {
         fixture.givenTechnician(TECHNICIAN_ID);
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
         WorkId id = fixture.workRepository.store(work);
 
-        fixture.assertRejected(() -> service.accept(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);
+        fixture.assertRejected(() -> service.accept(command(id.value())), ScheduleErrorCode.WORK_NOT_FOUND);
     }
 
     @Test
@@ -93,7 +94,7 @@ class AcceptWorkServiceTest {
     void checksStateBeforeResponseTime() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Work work = fixture.stored(rescheduledAfterNow());
-        work.unassign(NOW.plusSeconds(120), SETUP_MANAGER_ID);
+        work.cancel(NOW.plusSeconds(120), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         WorkId id = fixture.workRepository.store(work);
 
         fixture.assertRejected(() -> service.accept(command(id.value(), 2)), ScheduleErrorCode.INVALID_WORK_STATE);
@@ -101,7 +102,7 @@ class AcceptWorkServiceTest {
 
     /** 수락대기 작업을 고정 시계({@link ScheduleServiceFixture#NOW})보다 늦은 시각에 같은 기사의 다른 시간으로 바꿔 둔다. 새 배정은 2번이다. */
     private WorkId rescheduledAfterNow() {
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reschedule(TEN.plusSeconds(3_600), TWO_HOURS, NOW.plusSeconds(60), SETUP_MANAGER_ID);
         return fixture.workRepository.store(work);
     }

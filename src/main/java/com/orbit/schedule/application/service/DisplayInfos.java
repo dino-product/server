@@ -35,7 +35,7 @@ import com.orbit.schedule.domain.WorkTypeId;
 final class DisplayInfos {
 
     private static final Set<WorkStatus> NOT_STARTED =
-            EnumSet.of(WorkStatus.REGISTERED, WorkStatus.PENDING_ACCEPTANCE, WorkStatus.ACCEPTED);
+            EnumSet.of(WorkStatus.REGISTERED, WorkStatus.PENDING_ACCEPT, WorkStatus.ACCEPTED);
 
     private final Map<TechnicianId, TechnicianProfile> technicians;
     private final Map<MembershipId, StaffProfile> staff;
@@ -69,7 +69,7 @@ final class DisplayInfos {
         return of(technicianProfiles, staffProfiles, workTypeLabels, organizationId, List.of(work), true, true);
     }
 
-    /** 지금 담당인 기사에게 보일 작업 상세용. 그 기사 자신과 작업유형만 찾고, 기사에게 보이지 않는 등록자·다른 기사는 찾지 않는다. */
+    /** 기사에게 보일 작업 상세용(작업에 남은 일정의 기사가 그 기사). 그 기사 자신과 작업유형만 찾고, 기사에게 보이지 않는 등록자·다른 기사는 찾지 않는다. */
     static DisplayInfos ofCurrentTechnician(
             LoadTechnicianProfilesPort technicianProfiles,
             LoadStaffProfilesPort staffProfiles,
@@ -89,13 +89,6 @@ final class DisplayInfos {
                 findAll(technicianIds, ids -> technicianProfiles.findProfiles(organizationId, ids)),
                 Map.of(),
                 Map.of());
-    }
-
-    /** 그 기사 한 명의 표시 정보만 찾는다. 지금 담당이 아닌 기사에게 자기 배정만 보여 줄 때 쓴다. */
-    static DisplayInfos ofTechnician(
-            LoadTechnicianProfilesPort technicianProfiles, OrganizationId organizationId, TechnicianId technicianId) {
-        return new DisplayInfos(
-                technicianProfiles.findProfiles(organizationId, Set.of(technicianId)), Map.of(), Map.of());
     }
 
     private static DisplayInfos of(

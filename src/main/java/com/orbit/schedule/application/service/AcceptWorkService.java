@@ -39,7 +39,7 @@ public class AcceptWorkService implements AcceptWorkUseCase {
         TechnicianActor technician =
                 OrganizationActors.requireTechnician(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, technician.organizationId(), command.workId());
-        AssignedTechnicians.requireEverAssigned(work, technician);
+        AssignedTechnicians.requireVisible(work, technician);
         int assignmentNumber = AssignedTechnicians.requireAssignmentNumber(command.assignmentNumber());
         AssignmentHistory assignment =
                 AssignedTechnicians.requireCurrentAssignmentOf(work, technician, assignmentNumber);

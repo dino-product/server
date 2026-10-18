@@ -75,7 +75,7 @@ public class ReleaseTechnicianWorksService implements ReleaseTechnicianWorksUseC
 
         Instant now = clock.instant();
         List<Work> released = activeWorks.stream()
-                .filter(work -> work.status() == WorkStatus.PENDING_ACCEPTANCE || work.status() == WorkStatus.ACCEPTED)
+                .filter(work -> work.status() == WorkStatus.PENDING_ACCEPT || work.status() == WorkStatus.ACCEPTED)
                 .toList();
         released.forEach(work -> work.unassign(now, processedBy));
         List<Work> plannedForTechnician =

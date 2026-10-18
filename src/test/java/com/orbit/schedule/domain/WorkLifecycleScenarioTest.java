@@ -147,7 +147,7 @@ class WorkLifecycleScenarioTest {
         work.unassign(T3, MANAGER_ID);
         work.assign(SECOND_SCHEDULE, T4, MANAGER_ID);
 
-        assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(work.schedule()).contains(SECOND_SCHEDULE);
         assertHistory(
                 work,
@@ -171,7 +171,7 @@ class WorkLifecycleScenarioTest {
         work.reassign(SECOND_SCHEDULE, T3, MANAGER_ID);
         work.cancel(T4, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
-        assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
+        assertThat(work.status()).isEqualTo(WorkStatus.CANCELED);
         assertThat(work.completionReport()).isEmpty();
         assertHistory(
                 work,
@@ -205,7 +205,7 @@ class WorkLifecycleScenarioTest {
         work.start(T3);
         work.cancel(T5, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
-        assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
+        assertThat(work.status()).isEqualTo(WorkStatus.CANCELED);
         assertHistory(
                 work,
                 tuple(
@@ -227,7 +227,7 @@ class WorkLifecycleScenarioTest {
         work.reject(new Rejection(RejectionReason.OTHER, "기타 사유"), T4);
         work.assign(FIRST_SCHEDULE, T5, MANAGER_ID);
 
-        assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(work.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertHistory(
                 work,
                 tuple(
@@ -250,7 +250,7 @@ class WorkLifecycleScenarioTest {
         work.unassign(T3, MANAGER_ID);
         work.cancel(T4, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
-        assertThat(work.status()).isEqualTo(WorkStatus.CANCELLED);
+        assertThat(work.status()).isEqualTo(WorkStatus.CANCELED);
         assertThat(work.schedule()).isEmpty();
         assertHistory(
                 work,
@@ -300,8 +300,7 @@ class WorkLifecycleScenarioTest {
                 work.completionReport().orElse(null),
                 work.startedAt().orElse(null),
                 work.completedAt().orElse(null),
-                work.cancellation().orElse(null),
-                work.statusCorrections());
+                work.cancellation().orElse(null));
 
         assertThat(restored).usingRecursiveComparison().ignoringFields("id").isEqualTo(work);
     }

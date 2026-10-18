@@ -42,7 +42,7 @@ public class SubmitCompletionReportService implements SubmitCompletionReportUseC
         TechnicianActor technician =
                 OrganizationActors.requireTechnician(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, technician.organizationId(), command.workId());
-        AssignedTechnicians.requireEverAssigned(work, technician);
+        AssignedTechnicians.requireVisible(work, technician);
         int assignmentNumber = AssignedTechnicians.requireAssignmentNumber(command.assignmentNumber());
         CompletionReport report = DomainRuleViolations.call(() -> toReport(command));
         AssignedTechnicians.requireCurrentAssignmentOf(work, technician, assignmentNumber);

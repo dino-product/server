@@ -62,7 +62,7 @@ class ReleaseTechnicianWorksServiceTest {
     @EnumSource(Cause.class)
     @DisplayName("배정됨·작업전 작업을 처리한 관리자의 해제로 끝내고 대기함으로 돌린 뒤 돌린 작업을 식별자 순으로 돌려준다")
     void releasesPendingAndAcceptedWorks(Cause cause) {
-        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPT, 0);
         WorkId accepted = givenWork(WorkStatus.ACCEPTED, 3);
 
         TechnicianWorkReleaseInfo result = service.release(command(cause));
@@ -92,7 +92,7 @@ class ReleaseTechnicianWorksServiceTest {
     void deactivationKeepsInProgressAndCompletedWorks() {
         WorkId inProgress = givenWork(WorkStatus.IN_PROGRESS, 0);
         WorkId completed = givenWork(WorkStatus.COMPLETED, 3);
-        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPTANCE, 6);
+        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPT, 6);
 
         TechnicianWorkReleaseInfo result = service.release(command(Cause.DEACTIVATION));
 
@@ -106,7 +106,7 @@ class ReleaseTechnicianWorksServiceTest {
     @Test
     @DisplayName("역할 변경은 작업중 작업이 있으면 아무것도 바꾸지 않고 작업중 작업을 식별자 순으로 돌려준다")
     void roleChangeIsBlockedByInProgressWorks() {
-        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPT, 0);
         WorkId firstInProgress = givenWork(WorkStatus.IN_PROGRESS, 3);
         WorkId secondInProgress = givenWork(WorkStatus.IN_PROGRESS, 6);
 
@@ -116,7 +116,7 @@ class ReleaseTechnicianWorksServiceTest {
                 .isEqualTo(
                         TechnicianWorkReleaseInfo.blocked(List.of(firstInProgress.value(), secondInProgress.value())));
         assertThat(fixture.workRepository.saved()).isEmpty();
-        assertThat(fixture.stored(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(fixture.stored(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @ParameterizedTest
@@ -159,7 +159,7 @@ class ReleaseTechnicianWorksServiceTest {
         WorkId withTime = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, TEN, null));
         WorkId otherTechnician = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(OTHER_TECHNICIAN_ID, TEN, null));
         WorkId otherOrganization = givenPlanned(OTHER_ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
-        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPT, 0);
 
         TechnicianWorkReleaseInfo result = service.release(command(cause));
 
@@ -197,7 +197,7 @@ class ReleaseTechnicianWorksServiceTest {
         WorkId[] assignedWhileWaiting = new WorkId[1];
         WorkId[] plannedWhileWaiting = new WorkId[1];
         fixture.scheduleLock.whileWaiting(() -> {
-            assignedWhileWaiting[0] = givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+            assignedWhileWaiting[0] = givenWork(WorkStatus.PENDING_ACCEPT, 0);
             plannedWhileWaiting[0] = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
         });
 
@@ -211,7 +211,7 @@ class ReleaseTechnicianWorksServiceTest {
     @Test
     @DisplayName("같은 기사의 앞선 변경을 기다리다 대기 한도를 넘기면 409이고 아무것도 바꾸지 않는다")
     void rejectsWhenTechnicianScheduleIsBusy() {
-        givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+        givenWork(WorkStatus.PENDING_ACCEPT, 0);
         fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
 
         assertThatThrownBy(() -> service.release(command(Cause.DEACTIVATION)))
@@ -223,7 +223,7 @@ class ReleaseTechnicianWorksServiceTest {
     @Test
     @DisplayName("한 작업이라도 돌릴 수 없으면 관리자 입력 오류로 바꾸지 않고 도메인 예외로 실패하며 어떤 작업도 저장하지 않는다")
     void savesNothingWhenAnyWorkCannotBeReleased() {
-        givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+        givenWork(WorkStatus.PENDING_ACCEPT, 0);
         Work assignedLater =
                 Work.register(ORGANIZATION_ID, "나중에 배정된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         assignedLater.assign(
@@ -242,7 +242,7 @@ class ReleaseTechnicianWorksServiceTest {
     @ValueSource(ints = {TransactionDefinition.ISOLATION_REPEATABLE_READ, TransactionDefinition.ISOLATION_SERIALIZABLE})
     @DisplayName("바깥 트랜잭션이 READ COMMITTED보다 높은 격리 수준이면 잠근 뒤에도 앞선 커밋을 못 보므로 잠그기 전에 거부한다")
     void rejectsOuterTransactionAboveReadCommitted(int isolationLevel) {
-        givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+        givenWork(WorkStatus.PENDING_ACCEPT, 0);
         TransactionSynchronizationManager.setCurrentTransactionIsolationLevel(isolationLevel);
 
         assertThatThrownBy(() -> service.release(command(Cause.DEACTIVATION)))
@@ -254,7 +254,7 @@ class ReleaseTechnicianWorksServiceTest {
     @Test
     @DisplayName("바깥 트랜잭션이 READ COMMITTED로 지정됐으면 그대로 돌린다")
     void acceptsOuterTransactionInReadCommitted() {
-        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPTANCE, 0);
+        WorkId pending = givenWork(WorkStatus.PENDING_ACCEPT, 0);
         TransactionSynchronizationManager.setCurrentTransactionIsolationLevel(
                 TransactionDefinition.ISOLATION_READ_COMMITTED);
 

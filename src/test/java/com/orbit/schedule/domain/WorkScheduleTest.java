@@ -139,4 +139,41 @@ class WorkScheduleTest {
 
         assertThat(schedule.endTime()).isEqualTo(Instant.parse("2026-09-20T02:30:00Z"));
     }
+
+    @Test
+    @DisplayName("예정 시작 10분 전 정각부터 시작할 수 있고, 그보다 1마이크로초라도 이르면 이르다")
+    void allowsStartFromTenMinutesBeforeStartTime() {
+        WorkSchedule schedule = new WorkSchedule(TECHNICIAN_ID, START_TIME, Duration.ofHours(2));
+        Instant earliest = START_TIME.minus(Duration.ofMinutes(10));
+
+        assertThat(schedule.isTooEarlyToStart(earliest)).isFalse();
+        assertThat(schedule.isTooLateToStart(earliest)).isFalse();
+        assertThat(schedule.isTooEarlyToStart(earliest.minusNanos(1_000))).isTrue();
+        assertThat(schedule.isTooEarlyToStart(START_TIME)).isFalse();
+    }
+
+    @Test
+    @DisplayName("예정 종료 정각까지 시작할 수 있고, 그보다 1마이크로초라도 지나면 늦다")
+    void allowsStartUntilEndTime() {
+        WorkSchedule schedule = new WorkSchedule(TECHNICIAN_ID, START_TIME, Duration.ofHours(2));
+        Instant end = schedule.endTime();
+
+        assertThat(schedule.isTooLateToStart(end)).isFalse();
+        assertThat(schedule.isTooEarlyToStart(end)).isFalse();
+        assertThat(schedule.isTooLateToStart(end.plusNanos(1_000))).isTrue();
+        assertThat(schedule.isTooEarlyToStart(end.plusNanos(1_000))).isFalse();
+    }
+
+    @Test
+    @DisplayName("시작 가능 시간을 판정할 시각이 null이면 거부한다")
+    void rejectsNullStartRequestTime() {
+        WorkSchedule schedule = new WorkSchedule(TECHNICIAN_ID, START_TIME, Duration.ofHours(2));
+
+        assertThatThrownBy(() -> schedule.isTooEarlyToStart(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("at must not be null");
+        assertThatThrownBy(() -> schedule.isTooLateToStart(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("at must not be null");
+    }
 }

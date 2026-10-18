@@ -135,7 +135,7 @@ final class ScheduleServiceFixture {
         if (status == WorkStatus.COMPLETED) {
             work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), ACCEPTED_AT);
         }
-        if (status == WorkStatus.CANCELLED) {
+        if (status == WorkStatus.CANCELED) {
             work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         }
         return workRepository.store(work);

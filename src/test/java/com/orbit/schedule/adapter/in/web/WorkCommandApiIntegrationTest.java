@@ -123,7 +123,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(jsonPath("$.result.applied").value(true)));
 
             Work saved = stored(organization, workId);
-            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
             assertThat(saved.schedule())
                     .contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofMinutes(90)));
         }
@@ -449,7 +449,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(status().isNoContent());
 
             Work saved = stored(organization, workId);
-            assertThat(saved.status()).isEqualTo(WorkStatus.CANCELLED);
+            assertThat(saved.status()).isEqualTo(WorkStatus.CANCELED);
             assertThat(saved.cancellation()).hasValueSatisfying(cancellation -> {
                 assertThat(cancellation.reason()).isEqualTo(CancellationReason.CUSTOMER_REQUEST);
                 assertThat(cancellation.note()).isNull();
@@ -467,7 +467,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
             cancel(staff, organization.id(), workId, Map.of("reason", "CUSTOMER_REQUEST"))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
-            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         }
 
         @Test
@@ -577,7 +577,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(jsonPath("$.result.conflicts").isEmpty());
 
             Work saved = stored(organization, workId);
-            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
             assertThat(saved.schedule()).contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofHours(2)));
         }
 
@@ -655,7 +655,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(jsonPath("$.result.applied").value(true));
 
             Work saved = stored(organization, workId);
-            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
             assertThat(saved.schedule()).contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofHours(2)));
             assertThat(saved.assignmentHistory()).hasSize(2);
             assertThat(saved.assignmentHistory().getFirst().ending())
@@ -720,7 +720,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.result.applied").value(true))
                     .andExpect(jsonPath("$.result.conflicts[0].workId").value(existing));
-            assertThat(stored(organization, target).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(stored(organization, target).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         }
 
         @Test
@@ -781,7 +781,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
             unassign(organization.owner(), organization.id(), workId, 1L)
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-016"));
-            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         }
 
         @Test
@@ -822,7 +822,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
             unassign(technician, organization.id(), workId)
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
-            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         }
 
         @Test

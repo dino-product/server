@@ -19,11 +19,11 @@ import static org.assertj.core.api.Assertions.tuple;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.LabelInfo;
 import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
@@ -38,7 +38,6 @@ import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
@@ -51,8 +50,6 @@ import com.orbit.schedule.domain.WorkStatus;
 @DisplayName("작업 상세 조회")
 class GetWorkDetailServiceTest {
 
-    private static final MembershipId OWNER_ID = new MembershipId(13L);
-
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final GetWorkDetailService service = new GetWorkDetailService(
             fixture.actorPort,
@@ -64,12 +61,11 @@ class GetWorkDetailServiceTest {
             fixture.clock);
 
     @Test
-    @DisplayName("관리자는 작업유형·등록자·등록 시각·고객·결제·일정(기사 이름·기사유형)·배정 이력·진행 기록과 완료를 되돌린 강제 변경 기록(치운 보고의 사진 주소 포함)을 모두 본다")
+    @DisplayName("관리자는 작업유형·등록자·등록 시각·고객·결제·일정(기사 이름·기사유형)·배정 이력·진행 기록·완료보고(사진 주소 포함)를 모두 본다")
     void managerSeesEverything() {
         fixture.givenManager();
         Work work = fixture.stored(fixture.givenWork(WorkStatus.IN_PROGRESS));
         work.submitCompletionReport(new CompletionReport(List.of("before-1"), null, null, "첫 보고", null, null), NOW);
-        work.correctStatus(WorkStatus.IN_PROGRESS, NOW, OWNER_ID, "사진 누락");
         WorkId id = fixture.workRepository.store(work);
 
         fixture.technicianProfiles.given(
@@ -81,7 +77,7 @@ class GetWorkDetailServiceTest {
 
         assertThat(detail.workId()).isEqualTo(id.value());
         assertThat(detail.name()).isEqualTo("대상 작업");
-        assertThat(detail.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        assertThat(detail.status()).isEqualTo(WorkStatus.COMPLETED);
         assertThat(detail.workType()).isEqualTo(new LabelInfo(WORK_TYPE_ID.value(), "배관·설비", "#3366FF"));
         assertThat(detail.registrar()).isEqualTo(new StaffInfo(REGISTRAR_ID.value(), "김운영", false, null));
         assertThat(detail.registeredAt()).isEqualTo(REGISTERED_AT);
@@ -99,36 +95,27 @@ class GetWorkDetailServiceTest {
             assertThat(assignment.decidedAt()).isEqualTo(ACCEPTED_AT);
         });
         assertThat(detail.startedAt()).isEqualTo(ACCEPTED_AT);
-        assertThat(detail.completedAt()).isNull();
-        assertThat(detail.completionReport()).isNull();
-        assertThat(detail.statusCorrections()).singleElement().satisfies(correction -> {
-            assertThat(correction.from()).isEqualTo(WorkStatus.COMPLETED);
-            assertThat(correction.correctedBy()).isEqualTo(OWNER_ID.value());
-            assertThat(correction.reason()).isEqualTo("사진 누락");
-            assertThat(correction.retiredReport().workNote()).isEqualTo("첫 보고");
-            assertThat(correction.retiredReport().beforePhotos())
-                    .containsExactly(new PhotoInfo("before-1", "url/before-1"));
-            assertThat(correction.retiredCompletedAt()).isEqualTo(NOW);
-            assertThat(correction.restoredAssignmentNumber()).isNull();
-        });
+        assertThat(detail.completedAt()).isEqualTo(NOW);
+        assertThat(detail.completionReport().workNote()).isEqualTo("첫 보고");
+        assertThat(detail.completionReport().beforePhotos()).containsExactly(new PhotoInfo("before-1", "url/before-1"));
     }
 
     @Test
-    @DisplayName("관리자는 거절 사유·메모, 취소 종료, 되돌린 취소 기록과 되돌린 배정 순번을 본다")
-    void managerSeesRejectionCancellationAndRestoration() {
+    @DisplayName("관리자는 거절 사유·메모와 취소 기록·취소 종료를 본다")
+    void managerSeesRejectionAndCancellation() {
         fixture.givenManager();
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reject(new Rejection(RejectionReason.OTHER, "장비 없음"), ACCEPTED_AT);
         work.assign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), ACCEPTED_AT, SETUP_MANAGER_ID);
         work.cancel(NOW.minusSeconds(60), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
-        work.correctStatus(WorkStatus.REGISTERED, NOW, OWNER_ID, "잘못 취소");
         WorkId id = fixture.workRepository.store(work);
 
         WorkDetailInfo detail = service.get(query(id.value()));
 
-        assertThat(detail.status()).isEqualTo(WorkStatus.REGISTERED);
-        assertThat(detail.schedule()).isNull();
-        assertThat(detail.cancellation()).isNull();
+        assertThat(detail.status()).isEqualTo(WorkStatus.CANCELED);
+        assertThat(detail.cancellation())
+                .isEqualTo(new WorkDetailInfo.Cancellation(
+                        NOW.minusSeconds(60), SETUP_MANAGER_ID.value(), CancellationReason.CUSTOMER_REQUEST, null));
         assertThat(detail.assignments())
                 .extracting(
                         WorkDetailInfo.Assignment::assignmentNumber,
@@ -148,12 +135,6 @@ class GetWorkDetailServiceTest {
                                 AssignmentEndReason.CANCELLED,
                                 NOW.minusSeconds(60),
                                 SETUP_MANAGER_ID.value()));
-        assertThat(detail.statusCorrections()).singleElement().satisfies(correction -> {
-            assertThat(correction.retiredCancellation())
-                    .isEqualTo(new WorkDetailInfo.Cancellation(
-                            NOW.minusSeconds(60), SETUP_MANAGER_ID.value(), CancellationReason.CUSTOMER_REQUEST, null));
-            assertThat(correction.restoredAssignmentNumber()).isEqualTo(2);
-        });
     }
 
     @Test
@@ -198,11 +179,10 @@ class GetWorkDetailServiceTest {
     }
 
     @Test
-    @DisplayName("지금 담당인 기사는 고객·일정·진행 기록·완료보고·현장 사진을 보지만 등록자와 강제 변경 기록은 받지 않는다")
+    @DisplayName("지금 담당인 기사는 고객·일정·진행 기록·완료보고·현장 사진을 보지만 등록자는 받지 않는다")
     void currentTechnicianSeesTheirWork() {
         fixture.givenTechnician(TECHNICIAN_ID);
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.COMPLETED));
-        work.correctStatus(WorkStatus.IN_PROGRESS, NOW, OWNER_ID, "사진 누락");
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.IN_PROGRESS));
         work.replaceSitePhotos(List.of("site-1"));
         work.submitCompletionReport(new CompletionReport(null, List.of("after-1"), null, "다시 보고", null, null), NOW);
         WorkId id = fixture.workRepository.store(work);
@@ -218,7 +198,6 @@ class GetWorkDetailServiceTest {
         assertThat(detail.completedAt()).isEqualTo(NOW);
         assertThat(detail.completionReport().workNote()).isEqualTo("다시 보고");
         assertThat(detail.completionReport().afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/after-1"));
-        assertThat(detail.statusCorrections()).isEmpty();
         assertThat(detail.registrar()).as("등록자는 관리자에게만 보인다").isNull();
         assertThat(fixture.staffProfiles.lookups())
                 .as("기사에게 보이지 않는 등록자는 찾지 않는다")
@@ -232,7 +211,7 @@ class GetWorkDetailServiceTest {
         fixture.givenManager();
         fixture.technicianProfiles.given(ORGANIZATION_ID, new TechnicianProfile(TECHNICIAN_ID, "김민준", null));
         fixture.technicianProfiles.given(ORGANIZATION_ID, new TechnicianProfile(OTHER_TECHNICIAN_ID, "이철호", null));
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
         WorkId id = fixture.workRepository.store(work);
 
@@ -268,57 +247,75 @@ class GetWorkDetailServiceTest {
     }
 
     @Test
-    @DisplayName("배정 중 취소된 작업의 담당 기사는 취소 기록을 본다")
-    void currentTechnicianSeesCancellation() {
+    @DisplayName("배정 중 취소된 작업은 취소 당시 담당 기사에게 취소 기록과 함께 보인다")
+    void technicianOfCancelledAssignmentSeesCancellation() {
         fixture.givenTechnician(TECHNICIAN_ID);
-        WorkId id = fixture.givenWork(WorkStatus.CANCELLED);
+        WorkId id = fixture.givenWork(WorkStatus.CANCELED);
 
-        assertThat(service.get(query(id.value())).cancellation())
+        WorkDetailInfo detail = service.get(query(id.value()));
+
+        assertThat(detail.status()).isEqualTo(WorkStatus.CANCELED);
+        assertThat(detail.cancellation())
                 .isEqualTo(new WorkDetailInfo.Cancellation(
                         ACCEPTED_AT, SETUP_MANAGER_ID.value(), CancellationReason.CUSTOMER_REQUEST, null));
+        assertThat(detail.customer()).isNotNull();
+        assertThat(detail.schedule()).isNotNull();
     }
 
     @Test
-    @DisplayName("다른 기사로 바뀐 작업의 이전 기사는 작업명·상태와 자기 배정만 원래 순번으로 보고, 지연도 보지 않는다")
-    void formerTechnicianSeesOnlyTheirAssignments() {
+    @DisplayName("다른 기사로 재배정됐거나 거절해 대기함으로 돌아간 작업은 이전 기사가 볼 수 없어 찾을 수 없음이다")
+    void hidesWorkFromFormerTechnician() {
         fixture.givenTechnician(TECHNICIAN_ID);
-        Instant pastStart = NOW.minus(Duration.ofHours(3));
-        Work work = fixture.stored(
-                fixture.givenWork(ORGANIZATION_ID, "대상 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, pastStart));
-        work.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, pastStart, TWO_HOURS), NOW, SETUP_MANAGER_ID);
-        work.reassign(new WorkSchedule(TECHNICIAN_ID, pastStart, TWO_HOURS), NOW, SETUP_MANAGER_ID);
-        work.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, pastStart, TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        Work reassigned = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        reassigned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        WorkId reassignedId = fixture.workRepository.store(reassigned);
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        WorkId rejectedId = fixture.workRepository.store(rejected);
+
+        fixture.assertRejected(() -> service.get(query(reassignedId.value())), ScheduleErrorCode.WORK_NOT_FOUND);
+        fixture.assertRejected(() -> service.get(query(rejectedId.value())), ScheduleErrorCode.WORK_NOT_FOUND);
+        assertThat(fixture.technicianProfiles.lookups())
+                .as("볼 수 없는 작업의 표시 정보는 찾지 않는다")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("다른 기사를 거쳐 다시 배정받은 기사는 작업을 다시 보고, 지금 배정 하나만 원래 순번으로 받는다")
+    void technicianSeesWorkAgainAfterReassignedBack() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        work.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        work.reassign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
         WorkId id = fixture.workRepository.store(work);
-        assertThat(work.isDelayedAt(NOW)).isTrue();
 
         WorkDetailInfo detail = service.get(query(id.value()));
 
-        assertThat(detail.name()).isEqualTo("대상 작업");
-        assertThat(detail.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(detail.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
+        assertThat(detail.customer()).isNotNull();
+        assertThat(detail.schedule()).isNotNull();
         assertThat(detail.assignments())
                 .extracting(WorkDetailInfo.Assignment::assignmentNumber, WorkDetailInfo.Assignment::endReason)
-                .containsExactly(tuple(1, AssignmentEndReason.REASSIGNED), tuple(3, AssignmentEndReason.REASSIGNED));
-        assertHidden(detail);
-        assertThat(fixture.technicianProfiles.lookups())
-                .as("지금 담당이 아니면 자기 표시 정보만 찾는다")
-                .containsExactly(Set.of(TECHNICIAN_ID));
+                .containsExactly(tuple(3, null));
     }
 
     @Test
-    @DisplayName("거절해 대기함으로 돌아간 작업의 기사는 작업명·상태와 자기 배정만 본다")
-    void rejectingTechnicianSeesOnlyTheirAssignment() {
+    @DisplayName("거절한 작업을 같은 기사에게 다시 배정하면 그 기사에게 새 배정으로 다시 보이고 지난 거절은 보이지 않는다")
+    void technicianSeesRejectedWorkAgainAfterNewAssignment() {
         fixture.givenTechnician(TECHNICIAN_ID);
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
         WorkId id = fixture.workRepository.store(work);
 
         WorkDetailInfo detail = service.get(query(id.value()));
 
-        assertThat(detail.status()).isEqualTo(WorkStatus.REGISTERED);
-        assertThat(detail.assignments())
-                .extracting(WorkDetailInfo.Assignment::assignmentNumber, WorkDetailInfo.Assignment::rejectionReason)
-                .containsExactly(tuple(1, RejectionReason.SCHEDULE_CONFLICT));
-        assertHidden(detail);
+        assertThat(detail.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
+        assertThat(detail.schedule()).isNotNull();
+        assertThat(detail.assignments()).singleElement().satisfies(assignment -> {
+            assertThat(assignment.assignmentNumber()).isEqualTo(2);
+            assertThat(assignment.rejectionReason()).isNull();
+        });
     }
 
     @Test
@@ -338,22 +335,6 @@ class GetWorkDetailServiceTest {
         assertThat(service.get(query(done.value())).delayed()).isFalse();
         assertThat(service.get(query(doneLate.value())).delayed()).isTrue();
         assertThat(service.get(query(running.value())).delayed()).isFalse();
-    }
-
-    private static void assertHidden(WorkDetailInfo detail) {
-        assertThat(detail.delayed()).isFalse();
-        assertThat(detail.workType()).isNull();
-        assertThat(detail.registrar()).isNull();
-        assertThat(detail.registeredAt()).isNull();
-        assertThat(detail.customer()).isNull();
-        assertThat(detail.payment()).isNull();
-        assertThat(detail.schedule()).isNull();
-        assertThat(detail.startedAt()).isNull();
-        assertThat(detail.completedAt()).isNull();
-        assertThat(detail.cancellation()).isNull();
-        assertThat(detail.completionReport()).isNull();
-        assertThat(detail.statusCorrections()).isEmpty();
-        assertThat(detail.sitePhotos()).isEmpty();
     }
 
     private static GetWorkDetailQuery query(Long workId) {

@@ -121,7 +121,7 @@ class TechnicianWorkReleaseIntegrationTest {
     @Test
     @DisplayName("비활성화와 함께 커밋되면 배정됨·작업전 작업은 대기함으로 가고 미리 입력한 담당기사는 비며, 작업중 작업과 다른 기사의 작업은 그대로 남는다")
     void commitsReleaseWithCallerTransaction() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
         WorkId accepted = store(WorkStatus.ACCEPTED, TECHNICIAN_ID, 3);
         WorkId inProgress = store(WorkStatus.IN_PROGRESS, TECHNICIAN_ID, 6);
         WorkId otherTechnician = store(WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, 0);
@@ -151,7 +151,7 @@ class TechnicianWorkReleaseIntegrationTest {
     @Test
     @DisplayName("역할 변경이 롤백되면 반환도 함께 롤백된다")
     void rollsBackReleaseWithCallerTransaction() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             assertThat(technicianWorkRelease.releaseForRoleChange(
@@ -160,13 +160,13 @@ class TechnicianWorkReleaseIntegrationTest {
             status.setRollbackOnly();
         });
 
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
     @DisplayName("작업중 작업이 있는 기사의 역할 변경은 그 작업을 돌려주고 아무것도 바꾸지 않는다")
     void blocksRoleChangeWithInProgressWork() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
         WorkId inProgress = store(WorkStatus.IN_PROGRESS, TECHNICIAN_ID, 3);
 
         TechnicianWorkReleaseResult result = new TransactionTemplate(transactionManager)
@@ -174,24 +174,24 @@ class TechnicianWorkReleaseIntegrationTest {
                         organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY));
 
         assertThat(result).isEqualTo(new WorkReleaseBlocked(List.of(inProgress.value())));
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
     @DisplayName("바깥 트랜잭션 없이 부르면 반환이 기사 계약 종료와 따로 커밋되므로 거부한다")
     void rejectsCallWithoutCallerTransaction() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
 
         assertThatThrownBy(() -> technicianWorkRelease.releaseForDeactivation(
                         organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY))
                 .isInstanceOf(IllegalTransactionStateException.class);
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
     @DisplayName("바깥 트랜잭션이 REPEATABLE READ면 잠근 뒤에도 앞선 커밋을 못 보므로 거부한다")
     void rejectsCallerTransactionAboveReadCommitted() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
         TransactionTemplate repeatableRead = new TransactionTemplate(transactionManager);
         repeatableRead.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
 
@@ -199,7 +199,7 @@ class TechnicianWorkReleaseIntegrationTest {
                         repeatableRead.executeWithoutResult(status -> technicianWorkRelease.releaseForDeactivation(
                                 organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY)))
                 .isInstanceOf(IllegalStateException.class);
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
@@ -211,7 +211,7 @@ class TechnicianWorkReleaseIntegrationTest {
                 executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
                     lockTechnicianSchedulePort.lock(organizationId, TECHNICIAN_ID);
                     assignedWhileHolding[0] = workRepository
-                            .save(work(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0))
+                            .save(work(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0))
                             .id()
                             .orElseThrow();
                     locked.countDown();
@@ -235,7 +235,7 @@ class TechnicianWorkReleaseIntegrationTest {
     @Test
     @DisplayName("같은 기사의 앞선 변경이 대기 한도 안에 끝나지 않으면 409로 실패하고 바깥 트랜잭션도 롤백된다")
     void failsWhenTechnicianScheduleStaysBusy() throws Exception {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
         CountDownLatch locked = new CountDownLatch(1);
         executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             lockTechnicianSchedulePort.lock(organizationId, TECHNICIAN_ID);
@@ -248,7 +248,7 @@ class TechnicianWorkReleaseIntegrationTest {
                         organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY));
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     private void inCallerTransaction(Runnable call) {

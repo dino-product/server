@@ -70,7 +70,7 @@ public class ReleaseWithdrawnTechnicianWorksService implements ReleaseWithdrawnT
                     lockTechnicianSchedulePort, contract.organizationId(), contract.technicianId());
             for (Work work :
                     workRepository.listActiveByTechnician(contract.organizationId(), contract.technicianId())) {
-                if (work.status() == WorkStatus.PENDING_ACCEPTANCE || work.status() == WorkStatus.ACCEPTED) {
+                if (work.status() == WorkStatus.PENDING_ACCEPT || work.status() == WorkStatus.ACCEPTED) {
                     work.releaseForWithdrawal(now);
                     workRepository.save(work);
                 }

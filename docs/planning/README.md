@@ -145,14 +145,14 @@ Notion에 없는 제품 판단(`1x`·`3x`, 구현 중 새로 생긴 사용자 �
 
 레포 문서는 Notion 표시값을 쓰고, 코드 식별자는 백틱으로 적는다. 옛 표현은 코드 주석·이전 문서에 남아 있을 수 있으며 같은 뜻이다.
 
-| Notion 표시값 | Notion 코드(제안) | 레포 코드 | 옛 표현 |
-| --- | --- | --- | --- |
-| 등록 (기사·시간 없으면 대기함) | `REGISTERED` | `REGISTERED` | 대기중 |
-| 배정됨 | `PENDING_ACCEPT` | `PENDING_ACCEPTANCE` | 수락대기 |
-| 작업전 | `ACCEPTED` | `ACCEPTED` | 수락됨 |
-| 작업중 | `IN_PROGRESS` | `IN_PROGRESS` | — |
-| 완료 | `COMPLETED` | `COMPLETED` | — |
-| 취소 | `CANCELED` | `CANCELLED` | — |
+| Notion 표시값 | 코드 ([작업] §9) | 옛 표현 |
+| --- | --- | --- |
+| 등록 (기사·시간 없으면 대기함) | `REGISTERED` | 대기중 |
+| 배정됨 | `PENDING_ACCEPT` | 수락대기, `PENDING_ACCEPTANCE` |
+| 작업전 | `ACCEPTED` | 수락됨 |
+| 작업중 | `IN_PROGRESS` | — |
+| 완료 | `COMPLETED` | — |
+| 취소 | `CANCELED` | `CANCELLED` |
 
 | Notion 용어 | 레포 이름 | 비고 |
 | --- | --- | --- |

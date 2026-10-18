@@ -130,16 +130,20 @@ class SubmitCompletionReportServiceTest {
     @DisplayName("보고 입력이 잘못되면 담당 여부·최신 여부·상태보다 먼저 입력 오류다")
     void checksReportBeforeOwnershipAndState() {
         fixture.givenTechnician(TECHNICIAN_ID);
-        Work reassigned = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
-        reassigned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        Work reassigned = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "넘겨받은 작업", WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, TEN));
+        reassigned.reassign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
         WorkId reassignedId = fixture.workRepository.store(reassigned);
+        Work rescheduled = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        rescheduled.reschedule(TEN.plus(TWO_HOURS), TWO_HOURS, NOW, SETUP_MANAGER_ID);
+        WorkId rescheduledId = fixture.workRepository.store(rescheduled);
         WorkId accepted = fixture.givenWork(WorkStatus.ACCEPTED);
 
         fixture.assertRejected(
-                () -> service.submit(command(reassignedId.value(), 2, null, -1L, null)),
+                () -> service.submit(command(reassignedId.value(), 1, null, -1L, null)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
         fixture.assertRejected(
-                () -> service.submit(command(reassignedId.value(), 1, null, -1L, null)),
+                () -> service.submit(command(rescheduledId.value(), 1, null, -1L, null)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
         fixture.assertRejected(
                 () -> service.submit(command(accepted.value(), 1, null, -1L, null)),
