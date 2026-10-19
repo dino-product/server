@@ -21,6 +21,10 @@ public interface WorkTypeRelease {
      * <p>순서 전제: 같은 트랜잭션에서 그 유형 행을 삭제 표시로 바꿔 DB에 반영한 뒤 부른다. 작업에 유형을 지정하는 쪽은 {@link WorkTypeLookup#isSelectable}로
      * 유형 행을 공유 잠금으로 잡으므로, 그 행을 먼저 바꿔 두면 이 해제가 확인을 마친 작업의 커밋을 본 뒤에 실행되고 이후의 지정은 거부된다. 호출자의 트랜잭션은
      * READ COMMITTED여야 해제가 기다린 뒤 커밋된 작업을 본다.
+     *
+     * <p>실패: 호출자의 트랜잭션이 없으면 {@code IllegalTransactionStateException}을, READ COMMITTED보다 높은 격리 수준이면
+     * {@link IllegalStateException}을 던진다. 후자는 호출자의 트랜잭션을 롤백 전용으로 만들므로 잡지 말고 전파한다(잡고 정상 반환하면 커밋 때
+     * {@code UnexpectedRollbackException}으로 500이 된다).
      */
     List<WorkTypeReleasedWork> releaseForDeletion(Long organizationId, Long workTypeId);
 }
