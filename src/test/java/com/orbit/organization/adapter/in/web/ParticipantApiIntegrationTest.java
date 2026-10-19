@@ -44,7 +44,8 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * 총관리자의 참여 인원 API. 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻고, 발주사·직원 소속·기사 계약은 발주사 생성과
- * 참여 요청·승인 API로 만든다. 이름은 가입을 마친 profile 이름을 SQL로 바꿔 구분한다.
+ * 참여 요청·승인 API로 만든다. 이름은 profile의 프로필 수정 API로 바꿔 구분하고, 작업은 schedule의 작업 API로 만들고 확인한다. 직원 소속·기사 계약
+ * 식별자를 얻을 때만 organization 테이블을 읽는다.
  */
 @AutoConfigureMockMvc
 @DisplayName("참여 인원 API")
@@ -301,12 +302,12 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
         long technician = ACCOUNT_IDS.incrementAndGet();
         long technicianId = join(company, owner, technician, "TECHNICIAN");
         long workId = registerAssignedWork(owner, company.organizationId(), technicianId);
-        assertThat(workStatus(workId)).isEqualTo("PENDING_ACCEPTANCE");
+        assertThat(workStatus(owner, company.organizationId(), workId)).isEqualTo("PENDING_ACCEPTANCE");
 
         changeStatus(owner, company.organizationId(), "technicians", technicianId, "deactivation")
                 .andExpect(status().isNoContent());
 
-        assertThat(workStatus(workId)).isEqualTo("REGISTERED");
+        assertThat(workStatus(owner, company.organizationId(), workId)).isEqualTo("REGISTERED");
         listParticipants(owner, company.organizationId(), "TECHNICIAN", null)
                 .andExpect(jsonPath("$.result.participants[0].status").value("DEACTIVATED"));
         mockMvc.perform(get("/api/v1/memberships")
@@ -437,12 +438,21 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                 .asLong();
     }
 
-    private String workStatus(long workId) {
-        return jdbcTemplate.queryForObject("select status from work where id = ?", String.class, workId);
+    private String workStatus(long owner, long organizationId, long workId) throws Exception {
+        return result(mockMvc.perform(
+                        get("/api/v1/organizations/{organizationId}/works/{workId}", organizationId, workId)
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(owner))))
+                .path("status")
+                .asText();
     }
 
-    private void rename(long accountId, String name) {
-        jdbcTemplate.update("update profiles set name = ? where account_id = ?", name, accountId);
+    /** 가입을 마친 계정의 이름을 profile의 프로필 수정 API로 바꾼다. */
+    private void rename(long accountId, String name) throws Exception {
+        mockMvc.perform(put("/api/v1/profiles/{accountId}", accountId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", name, "phoneNumber", "01012345678"))))
+                .andExpect(status().isOk());
     }
 
     private Company createCompany(long owner, String name) throws Exception {
