@@ -1,6 +1,7 @@
 package com.orbit.organization.adapter.in.web.docs;
 
 import com.orbit.auth.AccountPrincipal;
+import com.orbit.organization.adapter.in.web.MemberCategoryAssignmentRequest;
 import com.orbit.organization.adapter.in.web.ParticipantsResponse;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.domain.ParticipationType;
@@ -20,6 +21,10 @@ public interface ParticipantControllerDocs {
 
     String OWNER_ONLY = "그 발주사의 활성 총관리자만 할 수 있습니다. 직원 소속이 없으면(기사·없는 발주사 포함) ORGANIZATION-002, "
             + "총관리자가 아닌 직원이면 ORGANIZATION-003입니다.";
+    String BUSY = "같은 발주사의 다른 변경이 끝나기를 기다리다 대기 한도를 넘기면 ORGANIZATION-010입니다(잠시 후 다시 시도).";
+    String ASSIGN = "세부 유형을 지정하거나 categoryId를 비워 \"유형 없음\"으로 바꿉니다. 같은 유형을 다시 지정해도 성공합니다. "
+            + "유형이 없거나 삭제됐거나 다른 발주사의 유형이면 ORGANIZATION-008, 대상이 비활성이면 ORGANIZATION-021입니다. " + BUSY + " "
+            + OWNER_ONLY;
 
     @Operation(
             summary = "참여 인원 목록 조회",
@@ -46,4 +51,53 @@ public interface ParticipantControllerDocs {
                     ParticipationType type,
             @Parameter(description = "이름 검색어. 앞뒤 공백을 지우고 대소문자 구분 없이 이름에 들어 있으면 나옵니다. 비우면 거르지 않습니다", example = "홍")
                     String name);
+
+    @Operation(
+            summary = "직원 유형 지정",
+            description =
+                    "직원 소속(총관리자 포함)에 그 발주사의 직원 유형을 지정합니다. 대상 직원 소속이 없거나 다른 발주사 소속이면 ORGANIZATION-004입니다. " + ASSIGN,
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(responseCode = "204", description = "지정 성공")
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED"})
+    @ApiErrorCodes(
+            enumClass = OrganizationErrorCode.class,
+            includes = {
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "MEMBERSHIP_NOT_FOUND",
+                "CATEGORY_NOT_FOUND",
+                "INACTIVE_MEMBER",
+                "ORGANIZATION_BUSY"
+            })
+    void assignStaffCategory(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
+            @Parameter(description = "직원 소속 식별자(참여 인원 목록의 memberId)", example = "3", required = true) Long membershipId,
+            MemberCategoryAssignmentRequest request);
+
+    @Operation(
+            summary = "기사 유형 지정",
+            description = "기사 계약에 그 발주사의 기사 유형을 지정합니다. 대상 기사 계약이 없거나 다른 발주사 계약이면 ORGANIZATION-020입니다. " + ASSIGN,
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(responseCode = "204", description = "지정 성공")
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED"})
+    @ApiErrorCodes(
+            enumClass = OrganizationErrorCode.class,
+            includes = {
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "TECHNICIAN_NOT_FOUND",
+                "CATEGORY_NOT_FOUND",
+                "INACTIVE_MEMBER",
+                "ORGANIZATION_BUSY"
+            })
+    void assignTechnicianCategory(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
+            @Parameter(description = "기사 계약 식별자(참여 인원 목록의 memberId)", example = "5", required = true) Long technicianId,
+            MemberCategoryAssignmentRequest request);
 }

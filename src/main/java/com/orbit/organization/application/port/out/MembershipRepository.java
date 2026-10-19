@@ -37,6 +37,9 @@ public interface MembershipRepository {
     /** 그 발주사에서 이 직원 유형이 지정된 모든 직원 소속(상태 무관)을 "유형 없음"으로 바꾸고 바뀐 소속 수를 돌려준다. */
     int unassignStaffCategory(OrganizationId organizationId, MemberCategoryId categoryId, Instant unassignedAt);
 
+    /** 직원 유형을 바꾼다. {@code categoryId}가 {@code null}이면 "유형 없음"이다. 유형은 소속 도메인에 없으므로 호출자는 발주사를 잠근 뒤 유형을 확인한다. */
+    void changeStaffCategory(MembershipId id, MemberCategoryId categoryId);
+
     /** 그 발주사의 활성 직원 소속 중 총관리자 수. */
     long countActiveOwners(OrganizationId organizationId);
 }

@@ -76,6 +76,14 @@ class MembershipPersistenceAdapter implements MembershipRepository {
     }
 
     @Override
+    public void changeStaffCategory(MembershipId id, MemberCategoryId categoryId) {
+        repository
+                .findById(id.value())
+                .orElseThrow(() -> new IllegalStateException("membership to change must exist"))
+                .changeCategory(categoryId == null ? null : categoryId.value());
+    }
+
+    @Override
     public long countActiveOwners(OrganizationId organizationId) {
         return repository.countByOrganizationIdAndOwnerTrueAndStatus(organizationId.value(), MembershipStatus.ACTIVE);
     }

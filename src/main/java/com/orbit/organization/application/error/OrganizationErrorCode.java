@@ -29,7 +29,9 @@ public enum OrganizationErrorCode implements BaseCode {
     REQUEST_NOT_PENDING(HttpStatus.CONFLICT, "ORGANIZATION-017", "승인 대기 중인 참여 요청만 취소할 수 있습니다."),
     TOO_MANY_COMPANY_CODE_ATTEMPTS(
             HttpStatus.TOO_MANY_REQUESTS, "ORGANIZATION-018", "회사 코드 확인에 여러 번 실패했습니다. 잠시 후 다시 시도해 주세요."),
-    INVALID_REJECT_REASON(HttpStatus.BAD_REQUEST, "ORGANIZATION-019", "거절 사유가 올바르지 않습니다.");
+    INVALID_REJECT_REASON(HttpStatus.BAD_REQUEST, "ORGANIZATION-019", "거절 사유가 올바르지 않습니다."),
+    TECHNICIAN_NOT_FOUND(HttpStatus.NOT_FOUND, "ORGANIZATION-020", "기사 계약을 찾을 수 없습니다."),
+    INACTIVE_MEMBER(HttpStatus.CONFLICT, "ORGANIZATION-021", "비활성 구성원의 세부 유형은 바꿀 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

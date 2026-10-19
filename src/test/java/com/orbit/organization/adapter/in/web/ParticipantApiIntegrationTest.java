@@ -1,13 +1,16 @@
 package com.orbit.organization.adapter.in.web;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -151,6 +154,73 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("COMMON-400"));
     }
 
+    @Test
+    @DisplayName("직원 소속에는 직원 유형을, 기사 계약에는 기사 유형을 지정하면 목록에 보이고, 비우면 유형 없음으로 돌아간다")
+    void assignsAndUnassignsCategories() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "유형 지정 발주사");
+        long staff = ACCOUNT_IDS.incrementAndGet();
+        long technician = ACCOUNT_IDS.incrementAndGet();
+        long membershipId = join(company, owner, staff, "STAFF");
+        long technicianId = join(company, owner, technician, "TECHNICIAN");
+        long staffCategory = createCategory(owner, company.organizationId(), "staff-categories", "정규직");
+        long technicianCategory = createCategory(owner, company.organizationId(), "technician-categories", "전기 기사");
+
+        assignCategory(owner, company.organizationId(), "staff-memberships", membershipId, staffCategory)
+                .andExpect(status().isNoContent());
+        assignCategory(owner, company.organizationId(), "technicians", technicianId, technicianCategory)
+                .andExpect(status().isNoContent());
+
+        listParticipants(owner, company.organizationId(), "TECHNICIAN", null)
+                .andExpect(
+                        jsonPath("$.result.participants[0].category.categoryId").value(technicianCategory))
+                .andExpect(jsonPath("$.result.participants[0].category.name").value("전기 기사"))
+                .andExpect(jsonPath("$.result.participants[0].category.color").value("#3B82F6"));
+        listParticipants(owner, company.organizationId(), null, null)
+                .andExpect(jsonPath("$.result.participants[?(@.memberId == " + membershipId + " && @.role == 'STAFF')]"
+                                + ".category.name")
+                        .value("정규직"));
+
+        assignCategory(owner, company.organizationId(), "technicians", technicianId, null)
+                .andExpect(status().isNoContent());
+        listParticipants(owner, company.organizationId(), "TECHNICIAN", null)
+                .andExpect(jsonPath("$.result.participants[0].category").isEmpty());
+    }
+
+    @Test
+    @DisplayName("삭제된 유형·다른 발주사의 유형은 404 ORGANIZATION-008, 다른 발주사의 기사 계약은 404 ORGANIZATION-020, 직원은 403이다")
+    void refusesInvalidCategoryAssignments() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "유형 거부 발주사");
+        long otherOwner = ACCOUNT_IDS.incrementAndGet();
+        Company otherCompany = createCompany(otherOwner, "다른 유형 발주사");
+        long staff = ACCOUNT_IDS.incrementAndGet();
+        long technician = ACCOUNT_IDS.incrementAndGet();
+        long membershipId = join(company, owner, staff, "STAFF");
+        long technicianId = join(company, owner, technician, "TECHNICIAN");
+        long deleted = createCategory(owner, company.organizationId(), "technician-categories", "배관 기사");
+        mockMvc.perform(delete(
+                                "/api/v1/organizations/{organizationId}/technician-categories/{categoryId}",
+                                company.organizationId(),
+                                deleted)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(owner)))
+                .andExpect(status().isNoContent());
+        long foreign = createCategory(otherOwner, otherCompany.organizationId(), "technician-categories", "전기 기사");
+
+        assignCategory(owner, company.organizationId(), "technicians", technicianId, deleted)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-008"));
+        assignCategory(owner, company.organizationId(), "technicians", technicianId, foreign)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-008"));
+        assignCategory(otherOwner, otherCompany.organizationId(), "technicians", technicianId, foreign)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-020"));
+        assignCategory(staff, company.organizationId(), "staff-memberships", membershipId, null)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-003"));
+    }
+
     private ResultActions listParticipants(long accountId, long organizationId, String type, String name)
             throws Exception {
         MockHttpServletRequestBuilder request = get(
@@ -192,6 +262,28 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                 Long.class,
                 company.organizationId(),
                 applicant);
+    }
+
+    private long createCategory(long owner, long organizationId, String collection, String name) throws Exception {
+        return result(mockMvc.perform(post("/api/v1/organizations/{organizationId}/" + collection, organizationId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", name, "color", "#3B82F6")))))
+                .path("categoryId")
+                .asLong();
+    }
+
+    private ResultActions assignCategory(
+            long accountId, long organizationId, String collection, long memberId, Long categoryId) throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("categoryId", categoryId);
+        return mockMvc.perform(put(
+                        "/api/v1/organizations/{organizationId}/" + collection + "/{memberId}/category",
+                        organizationId,
+                        memberId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body)));
     }
 
     private void rename(long accountId, String name) {

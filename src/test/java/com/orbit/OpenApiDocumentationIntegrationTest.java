@@ -681,6 +681,33 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsCategoryAssignmentForStaffMembershipsAndTechnicians() throws Exception {
+        String staff =
+                "$.paths['/api/v1/organizations/{organizationId}/staff-memberships/{membershipId}/category'].put";
+        String technician = "$.paths['/api/v1/organizations/{organizationId}/technicians/{technicianId}/category'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(staff + ".summary").value("직원 유형 지정"))
+                .andExpect(jsonPath(staff + ".requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/"
+                                + "com.orbit.organization.adapter.in.web.MemberCategoryAssignmentRequest"))
+                .andExpect(jsonPath(staff + ".responses['204']").exists())
+                .andExpect(jsonPath(staff + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-004'].value.code")
+                        .value("ORGANIZATION-004"))
+                .andExpect(jsonPath(technician + ".summary").value("기사 유형 지정"))
+                .andExpect(jsonPath(technician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-020'].value.code")
+                        .value("ORGANIZATION-020"))
+                .andExpect(jsonPath(technician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-008'].value.code")
+                        .value("ORGANIZATION-008"))
+                .andExpect(jsonPath(technician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-021'].value.code")
+                        .value("ORGANIZATION-021"));
+    }
+
+    @Test
     void documentsParticipationRequestApprovalAndRejectionAsBatches() throws Exception {
         String base = "$.paths['/api/v1/organizations/{organizationId}/participation-requests";
         String approve = base + "/approvals'].post";

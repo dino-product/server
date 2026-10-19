@@ -10,6 +10,7 @@ import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.Technician;
+import com.orbit.organization.domain.TechnicianId;
 
 @Repository
 class TechnicianPersistenceAdapter implements TechnicianRepository {
@@ -26,6 +27,11 @@ class TechnicianPersistenceAdapter implements TechnicianRepository {
     }
 
     @Override
+    public Optional<Technician> findById(TechnicianId id) {
+        return repository.findById(id.value()).map(TechnicianJpaEntity::toDomain);
+    }
+
+    @Override
     public Optional<Technician> find(OrganizationId organizationId, AccountId accountId) {
         return repository
                 .findByOrganizationIdAndAccountId(organizationId.value(), accountId.value())
@@ -39,6 +45,14 @@ class TechnicianPersistenceAdapter implements TechnicianRepository {
                 .orElseThrow(() -> new IllegalStateException("technician to reactivate must exist"));
         entity.reactivate(technician, unassignCategory);
         return entity.toDomain();
+    }
+
+    @Override
+    public void changeTechnicianCategory(TechnicianId id, MemberCategoryId categoryId) {
+        repository
+                .findById(id.value())
+                .orElseThrow(() -> new IllegalStateException("technician to change must exist"))
+                .changeCategory(categoryId == null ? null : categoryId.value());
     }
 
     @Override

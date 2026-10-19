@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
-/** 계정의 발주사 기사 계약. 같은 계정·발주사의 계약은 1행이며, 다시 활성이 되면 같은 계약 ID를 쓴다. 기사 유형은 유형 지정 작업이 연결한다. */
+/** 계정의 발주사 기사 계약. 같은 계정·발주사의 계약은 1행이며, 다시 활성이 되면 같은 계약 ID를 쓴다. 기사 유형은 계약 도메인에 두지 않고 저장소가 따로 바꾼다. */
 public final class Technician {
 
     private final TechnicianId id;

@@ -131,6 +131,11 @@ class InMemoryMembershipRepository implements MembershipRepository {
     }
 
     @Override
+    public void changeStaffCategory(MembershipId id, MemberCategoryId categoryId) {
+        throw new UnsupportedOperationException("staff categories are not modeled by this fake");
+    }
+
+    @Override
     public long countActiveOwners(OrganizationId organizationId) {
         return memberships.values().stream()
                 .filter(membership -> membership.organizationId().equals(organizationId))
