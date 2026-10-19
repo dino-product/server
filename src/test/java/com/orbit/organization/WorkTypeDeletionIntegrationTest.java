@@ -169,6 +169,7 @@ class WorkTypeDeletionIntegrationTest extends IntegrationTestSupport {
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             deleteWorkTypeUseCase.delete(new DeleteWorkTypeCommand(owner, organizationId, workType));
+            assertThat(jobTypeOf(work)).isNull();
             status.setRollbackOnly();
         });
 
