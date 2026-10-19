@@ -34,6 +34,7 @@ import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Work;
 import com.orbit.support.IntegrationTestSupport;
+import com.orbit.support.SignupTestSupport;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -51,6 +52,8 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
 
     @Autowired
     protected ObjectMapper objectMapper;
+
+    private final SignupTestSupport.SignupOnce signups = new SignupTestSupport.SignupOnce();
 
     @Autowired
     protected JdbcTemplate jdbcTemplate;
@@ -153,6 +156,8 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
                         .claim("token_use", "access")
                         .build());
         jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
-        return "Bearer " + jwt.serialize();
+        String accessToken = jwt.serialize();
+        signups.ensure(mockMvc, objectMapper, accountId, accessToken);
+        return "Bearer " + accessToken;
     }
 }
