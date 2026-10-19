@@ -13,7 +13,7 @@ public record ParticipantsResponse(
         @Schema(description = "역할별 인원 수. 이름 검색을 적용한 뒤 역할 필터와 관계없이 센다(비활성 포함)")
         Counts counts,
 
-        @Schema(description = "계정마다 한 줄. 이름 가나다순(같으면 참여일 오래된 순), 이름이 없는 계정은 맨 뒤")
+        @Schema(description = "계정마다 한 줄. 이름 가나다순(영문은 대소문자 구분 없이, 같으면 참여일 오래된 순), 이름이 없는 계정은 맨 뒤")
         List<Participant> participants) {
 
     static ParticipantsResponse from(ParticipantsInfo info) {

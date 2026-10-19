@@ -132,6 +132,26 @@ class ListParticipantsServiceTest {
     }
 
     @Test
+    @DisplayName("영문 이름은 대소문자 구분 없이 정렬하고, 대소문자만 다른 이름은 같은 이름으로 보아 참여일이 오래된 순이다")
+    void ordersLatinNamesIgnoringCase() {
+        AccountId zed = new AccountId(3L);
+        AccountId amy = new AccountId(4L);
+        AccountId bob = new AccountId(5L);
+        AccountId upperAmy = new AccountId(6L);
+        when(queryPort.listParticipants(ORGANIZATION_ID))
+                .thenReturn(List.of(
+                        staff(11L, zed, MemberRole.STAFF, true, FIRST, FIRST),
+                        staff(12L, amy, MemberRole.STAFF, true, THIRD, THIRD),
+                        staff(13L, bob, MemberRole.STAFF, true, FIRST, FIRST),
+                        staff(14L, upperAmy, MemberRole.STAFF, true, SECOND, SECOND)));
+        when(accountNames.findNames(any())).thenReturn(Map.of(zed, "Zed", amy, "amy", bob, "Bob", upperAmy, "AMY"));
+
+        assertThat(service.list(query(null, null)).participants())
+                .extracting(ParticipantInfo::memberId)
+                .containsExactly(14L, 12L, 13L, 11L);
+    }
+
+    @Test
     @DisplayName("역할 필터는 사무실 직원(총관리자 포함)이나 기사만 남기고, 인원 수는 필터와 관계없이 역할별로 센다")
     void filtersByTypeAndCountsEveryRole() {
         givenOwnerStaffTechnician();
