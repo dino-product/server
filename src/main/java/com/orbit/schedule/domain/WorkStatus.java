@@ -50,6 +50,14 @@ public enum WorkStatus {
         return this == COMPLETED || this == CANCELLED;
     }
 
+    /**
+     * 작업을 시작하기 전 상태(등록·수락대기·수락됨)인지. 작업 유형은 이 상태에서만 바꾸거나 비울 수 있고, 유형이 삭제되면 이 상태의 작업만 유형 없음이 된다([작업]
+     * §5, [조직·계정] §7).
+     */
+    public boolean isBeforeStart() {
+        return this == REGISTERED || this == PENDING_ACCEPTANCE || this == ACCEPTED;
+    }
+
     public WorkStatus transitionTo(WorkStatus nextStatus) {
         if (!canTransitionTo(nextStatus)) {
             throw new IllegalStateException("Cannot transition from " + this + " to " + nextStatus);
