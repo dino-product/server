@@ -1,6 +1,7 @@
 package com.orbit.schedule.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -10,8 +11,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.orbit.schedule.application.port.in.command.dto.ReleaseDeletedWorkTypeCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReleasedWorkTypeInfo;
@@ -31,6 +37,11 @@ class ReleaseDeletedWorkTypeServiceTest {
     private final RecordingPort port = new RecordingPort();
     private final ReleaseDeletedWorkTypeService service =
             new ReleaseDeletedWorkTypeService(port, Clock.fixed(NOW, ZoneOffset.UTC));
+
+    @AfterEach
+    void clearIsolationLevel() {
+        TransactionSynchronizationManager.setCurrentTransactionIsolationLevel(null);
+    }
 
     @Test
     @DisplayName("시작 전 상태(등록·배정됨·작업전)의 작업만 지금 시각으로 유형을 비우게 한다")
@@ -56,6 +67,28 @@ class ReleaseDeletedWorkTypeServiceTest {
                         new ReleasedWorkTypeInfo(7L, null),
                         new ReleasedWorkTypeInfo(8L, 3L),
                         new ReleasedWorkTypeInfo(9L, 3L));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {TransactionDefinition.ISOLATION_REPEATABLE_READ, TransactionDefinition.ISOLATION_SERIALIZABLE})
+    @DisplayName("바깥 트랜잭션이 READ COMMITTED보다 높은 격리 수준이면 기다린 뒤 커밋된 작업을 못 보므로 유형을 비우기 전에 거부한다")
+    void rejectsOuterTransactionAboveReadCommitted(int isolationLevel) {
+        TransactionSynchronizationManager.setCurrentTransactionIsolationLevel(isolationLevel);
+
+        assertThatThrownBy(() -> service.release(new ReleaseDeletedWorkTypeCommand(100L, 5L)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(port.statuses).isNull();
+    }
+
+    @Test
+    @DisplayName("바깥 트랜잭션이 READ COMMITTED로 지정됐으면 그대로 비운다")
+    void acceptsOuterTransactionInReadCommitted() {
+        TransactionSynchronizationManager.setCurrentTransactionIsolationLevel(
+                TransactionDefinition.ISOLATION_READ_COMMITTED);
+
+        service.release(new ReleaseDeletedWorkTypeCommand(100L, 5L));
+
+        assertThat(port.statuses).isNotNull();
     }
 
     private static final class RecordingPort implements WorkTypeUsagePort {
