@@ -5,6 +5,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.organization.WorkTypeLabel;
@@ -14,7 +15,10 @@ import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.WorkType;
 import com.orbit.organization.domain.WorkTypeId;
 
-/** 선택 가능 확인은 유형 행을 잠그므로 호출 트랜잭션에 참여하는 읽기·쓰기 트랜잭션으로 둔다. */
+/**
+ * 선택 가능 확인은 유형 행을 잠그고 그 잠금이 작업 저장의 커밋까지 남아야 하므로, 자체 트랜잭션을 열지 않고 호출자의 트랜잭션에만 참여한다(없으면 Spring이
+ * 거부한다).
+ */
 @Service
 public class WorkTypeLookupService implements WorkTypeLookup {
 
@@ -25,7 +29,7 @@ public class WorkTypeLookupService implements WorkTypeLookup {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public boolean isSelectable(Long organizationId, Long workTypeId) {
         return workTypeRepository.lockIfSelectable(new OrganizationId(organizationId), new WorkTypeId(workTypeId));
     }

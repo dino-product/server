@@ -1,6 +1,7 @@
 package com.orbit.organization;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Set;
 
@@ -10,6 +11,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
@@ -48,6 +52,9 @@ class OrganizationModuleTest {
 
     @Autowired
     private MemberDirectory memberDirectory;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void createsOrganizationWithinStandaloneModule() {
@@ -94,8 +101,11 @@ class OrganizationModuleTest {
         WorkTypeInfo workType =
                 createWorkTypeUseCase.create(new CreateWorkTypeCommand(12L, created.organizationId(), "설치", "#3B82F6"));
 
-        assertThat(workTypeLookup.isSelectable(created.organizationId(), workType.workTypeId()))
-                .isTrue();
+        Boolean selectable = new TransactionTemplate(transactionManager)
+                .execute(status -> workTypeLookup.isSelectable(created.organizationId(), workType.workTypeId()));
+        assertThat(selectable).isTrue();
+        assertThatThrownBy(() -> workTypeLookup.isSelectable(created.organizationId(), workType.workTypeId()))
+                .isInstanceOf(IllegalTransactionStateException.class);
         assertThat(workTypeLookup.findLabels(created.organizationId(), Set.of(workType.workTypeId())))
                 .containsExactly(new WorkTypeLabel(workType.workTypeId(), "설치", "#3B82F6", false));
     }

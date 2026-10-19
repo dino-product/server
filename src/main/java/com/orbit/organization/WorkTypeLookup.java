@@ -14,8 +14,9 @@ public interface WorkTypeLookup {
      *
      * <p>{@code true}이면 그 유형 행을 호출 트랜잭션이 끝날 때까지 공유 잠금으로 잡는다. 같은 유형의 삭제는 이 잠금이 풀리기를 기다린 뒤 시작 전 작업의 유형을
      * 해제하므로, 확인과 작업 저장 사이에 유형이 지워져도 삭제가 그 작업을 놓치지 않는다. 반대로 삭제가 먼저 진행 중이면 이 확인이 삭제의 커밋을 기다렸다가
-     * {@code false}를 돌려준다. 그래서 확인한 작업 저장과 같은 트랜잭션에서 부르고, 그 트랜잭션은 읽기 전용이 아니어야 한다(PostgreSQL은 읽기 전용
-     * 트랜잭션의 행 잠금을 거부한다).
+     * {@code false}를 돌려준다. 그래서 확인한 작업 저장과 같은 트랜잭션에서 부르고(트랜잭션 밖에서 부르면 {@code IllegalTransactionStateException}), 그
+     * 트랜잭션은 읽기 전용이 아니어야 한다(PostgreSQL은 읽기 전용 트랜잭션의 행 잠금을 거부한다). 작업 행을 바꾸기(flush) 전에 부른다. 그 작업이 이 유형의
+     * 시작 전 작업이면, 삭제가 유형 행을 바꾼 뒤 그 작업 행을 기다리는 동안 이 확인이 유형 행을 기다려 교착이 된다.
      */
     boolean isSelectable(Long organizationId, Long workTypeId);
 

@@ -11,7 +11,7 @@
 - 요청자 계정은 컨트롤러가 auth의 루트 공개 계약 `AccountPrincipal`을 `@AuthenticationPrincipal`로 받아 계정 식별자만 Command에 넘깁니다. 이 타입은 웹 어댑터에서만 참조하고 Application·Domain에는 `AccountId`나 `Long`만 넘깁니다. auth 내부 principal(`AuthenticatedAccount`)이나 `Authentication#getName()`에 기대지 않습니다. 이 의존 때문에 auth는 organization을 조회·구독할 수 없습니다.
 - 입력 규칙(발주사명·유형 이름 보이지 않는 문자 정리·앞뒤 공백 제거·길이·이모지·제어 문자 불가 등)은 Domain 값객체가 한 번만 검사하고(공통 이름 규칙은 `NameText`) 서비스가 발주사는 `ORGANIZATION-001`, 유형은 `ORGANIZATION-007`로 바꿉니다. Request에 같은 길이 제약을 중복하지 않습니다(Bean Validation은 UTF-16 단위로, Domain은 코드 포인트로 셉니다). Domain은 Spring·JPA·Web 타입과 `Clock`에 의존하지 않습니다.
 - 직원 유형·기사 유형은 테이블이 달라 식별자가 겹칠 수 있으므로 항상 `MemberCategoryKind`와 함께 찾습니다. 유형 생성·수정·삭제는 권한 확인 뒤 발주사 행을 잠그고(`OrganizationLocks`를 거쳐 `OrganizationRepository#lock`) 이름 중복·삭제 여부를 확인합니다. 발주사 잠금은 모든 유즈케이스가 `OrganizationLocks`를 거치며, 대기 한도는 `app.organization.lock.wait-limit`(기본 2초)이고 넘기면 `OrganizationBusyException`을 거쳐 `ORGANIZATION-010`이 됩니다. 삭제되지 않은 행끼리의 (발주사, 이름) 부분 유일 인덱스가 잠금을 거치지 않은 저장의 최종 방어선이며, 위반은 `DuplicateCategoryNameException`을 거쳐 `ORGANIZATION-009`가 됩니다. JPA 매핑으로 표현할 수 없어 `src/main/resources/db/partial-unique-indexes.sql`에 두며, 스키마를 자동 생성하는 프로필에서 실행됩니다.
-- 작업 유형(`WorkType`)은 삭제 뒤에도 시작한 작업이 이름·색상을 계속 참조하므로 직원·기사 유형과 다른 애그리게잇·테이블(`work_type`)로 두고, 이름·색상 규칙과 오류 코드(`ORGANIZATION-007`~`010`)는 함께 씁니다. 생성·수정·삭제의 잠금·중복 확인은 직원·기사 유형과 같습니다(부분 유일 인덱스 `uk_work_type_undeleted_name`). 작업 유형 확인(`WorkTypeLookup#isSelectable`)은 유형 행을 공유 잠금(FOR SHARE)으로 읽고, 삭제(`DeleteWorkTypeService`)는 유형 행을 삭제 표시로 바꿔 flush한 뒤 schedule의 요구 인터페이스 `WorkTypeRelease`로 시작 전 작업의 유형을 비웁니다. 이 순서를 바꾸면 확인을 마친 작업 저장과 삭제가 엇갈려 시작 전 작업에 삭제된 유형이 남습니다. 삭제는 같은 트랜잭션에서 `WorkTypeDeleted`를 발행하고, 이미 삭제된 유형을 다시 지우면 해제·발행하지 않습니다. 구성원 표시 정보(`MemberDirectory`)는 판단이 아닌 표시용이라 잠그지 않으며 구성원과 유형을 한 문장으로 읽습니다.
+- 작업 유형(`WorkType`)은 삭제 뒤에도 시작한 작업이 이름·색상을 계속 참조하므로 직원·기사 유형과 다른 애그리게잇·테이블(`work_type`)로 두고, 이름·색상 규칙과 오류 코드(`ORGANIZATION-007`~`010`)는 함께 씁니다. 생성·수정·삭제의 잠금·중복 확인은 직원·기사 유형과 같습니다(부분 유일 인덱스 `uk_work_type_undeleted_name`). 작업 유형 확인(`WorkTypeLookup#isSelectable`)은 호출자 트랜잭션에서만(`MANDATORY`) 유형 행을 공유 잠금(FOR SHARE)으로 읽고, 삭제(`DeleteWorkTypeService`)는 유형 행을 삭제 표시로 바꿔 flush한 뒤 schedule의 요구 인터페이스 `WorkTypeRelease`로 시작 전 작업의 유형을 비웁니다. 이 순서를 바꾸면 확인을 마친 작업 저장과 삭제가 엇갈려 시작 전 작업에 삭제된 유형이 남습니다. 삭제는 같은 트랜잭션에서 `WorkTypeDeleted`를 발행하고, 이미 삭제된 유형을 다시 지우면 해제·발행하지 않습니다. 구성원 표시 정보(`MemberDirectory`)는 판단이 아닌 표시용이라 잠그지 않으며 구성원과 유형을 한 문장으로 읽습니다.
 
 ## 오류 순서
 
@@ -24,7 +24,7 @@
 5. 활성 소속이지만 총관리자가 아님 — 403 `ORGANIZATION-003`
 6. 요청 값 — 발주사명 규칙·업종 누락은 400 `ORGANIZATION-001`, 유형 이름·색상 규칙은 400 `ORGANIZATION-007`
 7. 같은 발주사의 앞선 변경이 잠금 대기 한도 안에 끝나지 않음(발주사 정보 수정, 회사 코드 변경, 유형 생성·수정·삭제) — 409 `ORGANIZATION-010`. 총관리자 지정·해제는 4번 다음, 5번 전에 잠그므로 이 오류가 4번 다음에 옵니다
-8. 유형이 없거나 다른 발주사 유형, 수정하려는 유형이 삭제됨 — 404 `ORGANIZATION-008`. 삭제는 이미 삭제된 유형도 성공합니다
+8. 유형이 없거나 다른 발주사 유형, 수정하거나 삭제 영향 건수를 보려는 유형이 삭제됨 — 404 `ORGANIZATION-008`. 삭제는 이미 삭제된 유형도 성공합니다
 9. 같은 발주사·같은 종류의 삭제되지 않은 유형과 이름 중복 — 409 `ORGANIZATION-009`
 
 ## 집중 검증
