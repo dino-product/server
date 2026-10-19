@@ -32,5 +32,9 @@ interface SpringDataMembershipRepository extends JpaRepository<MembershipJpaEnti
             + " where m.accountId = :accountId and m.owner = true and m.status = :status order by m.organizationId")
     List<Long> findOwnedOrganizationIds(@Param("accountId") Long accountId, @Param("status") MembershipStatus status);
 
+    @Query("select distinct m.organizationId from MembershipJpaEntity m where m.accountId = :accountId"
+            + " order by m.organizationId")
+    List<Long> findOrganizationIdsByAccountId(@Param("accountId") Long accountId);
+
     long countByOrganizationIdAndOwnerTrueAndStatus(Long organizationId, MembershipStatus status);
 }

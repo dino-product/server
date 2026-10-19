@@ -26,6 +26,15 @@ public interface MembershipRepository {
      */
     Membership reactivate(Membership membership, boolean unassignCategory);
 
+    /**
+     * {@link Membership#withdraw}로 탈퇴를 반영한 소속의 상태·상태 변경 시각·탈퇴 시각을 저장한다. 직원 유형은 소속 도메인에 없으므로 호출자는 발주사를
+     * 잠근 뒤 읽은 소속을 넘긴다.
+     */
+    Membership withdraw(Membership membership);
+
+    /** 계정의 직원 소속(상태 무관)이 있는 발주사의 식별자, 오름차순. 소속을 적재하지 않는다. */
+    List<OrganizationId> listOrganizationsOf(AccountId accountId);
+
     /** 계정의 그 발주사 활성 직원 소속. */
     Optional<Membership> findActive(OrganizationId organizationId, AccountId accountId);
 

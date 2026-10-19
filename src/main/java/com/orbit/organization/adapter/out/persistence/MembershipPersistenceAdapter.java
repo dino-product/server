@@ -72,6 +72,22 @@ class MembershipPersistenceAdapter implements MembershipRepository {
     }
 
     @Override
+    public Membership withdraw(Membership membership) {
+        MembershipJpaEntity entity = repository
+                .findById(membership.id().orElseThrow().value())
+                .orElseThrow(() -> new IllegalStateException("membership to withdraw must exist"));
+        entity.withdraw(membership);
+        return entity.toDomain();
+    }
+
+    @Override
+    public List<OrganizationId> listOrganizationsOf(AccountId accountId) {
+        return repository.findOrganizationIdsByAccountId(accountId.value()).stream()
+                .map(OrganizationId::new)
+                .toList();
+    }
+
+    @Override
     public int unassignStaffCategory(OrganizationId organizationId, MemberCategoryId categoryId, Instant unassignedAt) {
         return repository.unassignStaffCategory(organizationId.value(), categoryId.value(), unassignedAt);
     }

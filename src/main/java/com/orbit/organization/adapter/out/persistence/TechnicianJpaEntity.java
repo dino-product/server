@@ -53,6 +53,10 @@ class TechnicianJpaEntity extends BaseTimeEntity {
     @Column(name = "status_changed_at", nullable = false)
     private Instant statusChangedAt;
 
+    /** 계정 탈퇴로 비활성화된 시각. NULL이면 탈퇴로 비활성화되지 않았다. 탈퇴 표시가 있는 행은 다시 활성이 되지 않는다. */
+    @Column(name = "withdrawn_at")
+    private Instant withdrawnAt;
+
     protected TechnicianJpaEntity() {}
 
     private TechnicianJpaEntity(Technician technician) {
@@ -61,6 +65,7 @@ class TechnicianJpaEntity extends BaseTimeEntity {
         this.status = technician.status();
         this.joinedAt = technician.joinedAt();
         this.statusChangedAt = technician.statusChangedAt();
+        this.withdrawnAt = technician.withdrawnAt().orElse(null);
     }
 
     static TechnicianJpaEntity from(Technician technician) {
@@ -81,6 +86,15 @@ class TechnicianJpaEntity extends BaseTimeEntity {
         }
     }
 
+    void withdraw(Technician technician) {
+        if (!technician.isWithdrawn()) {
+            throw new IllegalArgumentException("withdrawn technician must have withdrawal time");
+        }
+        this.status = technician.status();
+        this.statusChangedAt = technician.statusChangedAt();
+        this.withdrawnAt = technician.withdrawnAt().orElseThrow();
+    }
+
     Technician toDomain() {
         return Technician.reconstitute(
                 new TechnicianId(id),
@@ -88,6 +102,7 @@ class TechnicianJpaEntity extends BaseTimeEntity {
                 new AccountId(accountId),
                 status,
                 joinedAt,
-                statusChangedAt);
+                statusChangedAt,
+                withdrawnAt);
     }
 }

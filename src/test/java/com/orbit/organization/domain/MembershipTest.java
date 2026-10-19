@@ -172,6 +172,78 @@ class MembershipTest {
         assertThatThrownBy(() -> staff().rejoin(NOW.plusSeconds(3600))).isInstanceOf(IllegalStateException.class);
     }
 
+    @Test
+    @DisplayName("탈퇴하면 활성 소속을 비활성으로 바꾸고 탈퇴 표시를 남기며 총관리자 표시와 참여일은 유지한다")
+    void withdrawsActiveMembership() {
+        Instant withdrawnAt = NOW.plusSeconds(3600);
+        Membership owner = staff().designateAsOwner();
+
+        Membership withdrawn = owner.withdraw(withdrawnAt);
+
+        assertThat(withdrawn.id()).isEqualTo(owner.id());
+        assertThat(withdrawn.status()).isEqualTo(MembershipStatus.DEACTIVATED);
+        assertThat(withdrawn.isOwner()).isTrue();
+        assertThat(withdrawn.joinedAt()).isEqualTo(NOW);
+        assertThat(withdrawn.statusChangedAt()).isEqualTo(withdrawnAt);
+        assertThat(withdrawn.withdrawnAt()).contains(withdrawnAt);
+        assertThat(withdrawn.isWithdrawn()).isTrue();
+        assertThat(withdrawn.isSoleOwner(0)).isFalse();
+    }
+
+    @Test
+    @DisplayName("이미 비활성인 소속이 탈퇴하면 상태와 상태 변경 시각은 그대로 두고 탈퇴 표시만 남긴다")
+    void withdrawsDeactivatedMembershipKeepingStatusChange() {
+        Instant withdrawnAt = NOW.plusSeconds(3600);
+
+        Membership withdrawn = deactivated().withdraw(withdrawnAt);
+
+        assertThat(withdrawn.status()).isEqualTo(MembershipStatus.DEACTIVATED);
+        assertThat(withdrawn.statusChangedAt()).isEqualTo(NOW.plusSeconds(60));
+        assertThat(withdrawn.withdrawnAt()).contains(withdrawnAt);
+    }
+
+    @Test
+    @DisplayName("탈퇴 표시가 있는 소속에 다시 탈퇴를 반영하면 바뀌지 않는다")
+    void withdrawingAgainLeavesMembershipUnchanged() {
+        Membership withdrawn = staff().withdraw(NOW.plusSeconds(3600));
+
+        assertThat(withdrawn.withdraw(NOW.plusSeconds(7200))).isSameAs(withdrawn);
+    }
+
+    @Test
+    @DisplayName("탈퇴로 비활성화된 소속은 다시 활성으로 바꿀 수 없다")
+    void refusesRejoiningWithdrawnMembership() {
+        Membership withdrawn = deactivated().withdraw(NOW.plusSeconds(3600));
+
+        assertThatThrownBy(() -> withdrawn.rejoin(NOW.plusSeconds(7200))).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("탈퇴 표시가 있는 소속은 활성으로 복원할 수 없다")
+    void rejectsRestoringActiveWithdrawnMembership() {
+        assertThatThrownBy(() -> Membership.reconstitute(
+                        new MembershipId(3L),
+                        new OrganizationId(1L),
+                        new AccountId(8L),
+                        false,
+                        MembershipStatus.ACTIVE,
+                        NOW,
+                        NOW,
+                        NOW.plusSeconds(60)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static Membership deactivated() {
+        return Membership.reconstitute(
+                new MembershipId(3L),
+                new OrganizationId(1L),
+                new AccountId(8L),
+                false,
+                MembershipStatus.DEACTIVATED,
+                NOW,
+                NOW.plusSeconds(60));
+    }
+
     private static Membership staff() {
         return Membership.reconstitute(
                 new MembershipId(3L),

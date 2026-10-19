@@ -117,6 +117,28 @@ class InMemoryMembershipRepository implements MembershipRepository {
         return membership;
     }
 
+    /** 탈퇴를 반영한 저장도 저장 횟수에 넣는다. */
+    @Override
+    public Membership withdraw(Membership membership) {
+        MembershipId id = membership.id().orElseThrow();
+        if (!memberships.containsKey(id)) {
+            throw new IllegalArgumentException("membership must be stored");
+        }
+        saveCount++;
+        memberships.put(id, membership);
+        return membership;
+    }
+
+    @Override
+    public List<OrganizationId> listOrganizationsOf(AccountId accountId) {
+        return memberships.values().stream()
+                .filter(membership -> membership.accountId().equals(accountId))
+                .map(Membership::organizationId)
+                .distinct()
+                .sorted(Comparator.comparing(OrganizationId::value))
+                .toList();
+    }
+
     @Override
     public Optional<Membership> findActive(OrganizationId organizationId, AccountId accountId) {
         return memberships.values().stream()

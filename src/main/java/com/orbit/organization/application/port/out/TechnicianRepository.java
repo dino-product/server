@@ -1,6 +1,7 @@
 package com.orbit.organization.application.port.out;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import com.orbit.organization.domain.AccountId;
@@ -22,6 +23,15 @@ public interface TechnicianRepository {
      * 기사 유형은 계약 도메인에 없으므로, 유형 삭제가 해제한 값을 되살리지 않도록 호출자는 발주사를 잠근 뒤 읽은 계약을 넘긴다.
      */
     Technician reactivate(Technician technician, boolean unassignCategory);
+
+    /**
+     * {@link Technician#withdraw}로 탈퇴를 반영한 계약의 상태·상태 변경 시각·탈퇴 시각을 저장한다. 기사 유형은 계약 도메인에 없으므로 호출자는 발주사를
+     * 잠근 뒤 읽은 계약을 넘긴다.
+     */
+    Technician withdraw(Technician technician);
+
+    /** 계정의 기사 계약(상태 무관)이 있는 발주사의 식별자, 오름차순. 계약을 적재하지 않는다. */
+    List<OrganizationId> listOrganizationsOf(AccountId accountId);
 
     /** 그 발주사에서 이 기사 유형이 지정된 모든 기사 계약(상태 무관)을 "유형 없음"으로 바꾸고 바뀐 계약 수를 돌려준다. */
     int unassignTechnicianCategory(OrganizationId organizationId, MemberCategoryId categoryId, Instant unassignedAt);
