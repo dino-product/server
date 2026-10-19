@@ -21,7 +21,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
+import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
@@ -58,6 +60,9 @@ class WorkTypeDeletionIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private WorkTypeLookup workTypeLookup;
+
+    @Autowired
+    private WorkTypeRelease workTypeRelease;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -152,6 +157,58 @@ class WorkTypeDeletionIntegrationTest extends IntegrationTestSupport {
         commitDeletion.countDown();
         deleteRequest.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         assertThat(selectable.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isFalse();
+    }
+
+    @Test
+    @DisplayName("삭제가 롤백되면 schedule이 비운 작업 유형도 함께 롤백된다")
+    void rollsBackReleaseWithDeletion() {
+        long owner = NEXT_OWNER.incrementAndGet();
+        long organizationId = organization(owner);
+        long workType = workType(owner, organizationId, "설치");
+        long work = insertWork(organizationId, workType, "REGISTERED", null);
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            deleteWorkTypeUseCase.delete(new DeleteWorkTypeCommand(owner, organizationId, workType));
+            status.setRollbackOnly();
+        });
+
+        assertThat(jobTypeOf(work)).isEqualTo(workType);
+        assertThat(jdbcTemplate.queryForObject(
+                        "select is_deleted from work_type where id = ?", Boolean.class, workType))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("바깥 트랜잭션 없이 해제를 부르면 유형 삭제와 따로 커밋되므로 거부한다")
+    void rejectsReleaseWithoutCallerTransaction() {
+        long owner = NEXT_OWNER.incrementAndGet();
+        long organizationId = organization(owner);
+        long workType = workType(owner, organizationId, "설치");
+        long work = insertWork(organizationId, workType, "REGISTERED", null);
+
+        assertThatThrownBy(() -> workTypeRelease.releaseForDeletion(organizationId, workType))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(jobTypeOf(work)).isEqualTo(workType);
+    }
+
+    @Test
+    @DisplayName("바깥 트랜잭션이 REPEATABLE READ면 기다린 뒤 커밋된 작업을 못 보므로 해제를 거부한다")
+    void rejectsReleaseInCallerTransactionAboveReadCommitted() {
+        long owner = NEXT_OWNER.incrementAndGet();
+        long organizationId = organization(owner);
+        long workType = workType(owner, organizationId, "설치");
+        long work = insertWork(organizationId, workType, "REGISTERED", null);
+        TransactionTemplate repeatableRead = new TransactionTemplate(transactionManager);
+        repeatableRead.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+
+        assertThatThrownBy(() -> repeatableRead.executeWithoutResult(
+                        status -> workTypeRelease.releaseForDeletion(organizationId, workType)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jobTypeOf(work)).isEqualTo(workType);
+    }
+
+    private Long jobTypeOf(long work) {
+        return jdbcTemplate.queryForObject("select job_type_id from work where id = ?", Long.class, work);
     }
 
     private long organization(long owner) {
