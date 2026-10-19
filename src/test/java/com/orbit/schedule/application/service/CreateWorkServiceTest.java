@@ -13,6 +13,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import org.assertj.core.groups.Tuple;
@@ -36,6 +38,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -59,7 +62,7 @@ class CreateWorkServiceTest {
     @EnumSource(
             value = ActorRole.class,
             names = {"OWNER", "STAFF"})
-    @DisplayName("총관리자·직원은 요청한 조직에 자신을 등록자로 작업을 등록한다")
+    @DisplayName("총관리자·직원은 요청한 조직에 자신을 등록자로, 지금을 등록 시각으로 작업을 등록한다")
     void registersWorkForManager(ActorRole role) {
         fixture.givenManager(role);
 
@@ -69,9 +72,11 @@ class CreateWorkServiceTest {
         assertThat(created.workId()).isEqualTo(saved.id().orElseThrow().value());
         assertThat(saved.organizationId()).isEqualTo(ORGANIZATION_ID);
         assertThat(saved.registrarId()).isEqualTo(new MembershipId(11L));
+        assertThat(saved.registeredAt()).isEqualTo(NOW);
         assertThat(saved.name()).isEqualTo("에어컨 수리");
         assertThat(saved.workType()).contains(new WorkTypeId(2L));
-        assertThat(saved.customerInfo()).isEqualTo(new CustomerInfo("홍길동", "010-1234-5678", "서울시"));
+        assertThat(saved.customerInfo())
+                .isEqualTo(new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress("04043", "서울시", "3층")));
         assertThat(saved.paymentInfo()).isEqualTo(new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         assertThat(saved.status()).isEqualTo(WorkStatus.REGISTERED);
         assertThat(saved.schedule()).isEmpty();
@@ -86,6 +91,9 @@ class CreateWorkServiceTest {
                 ACCOUNT_ID,
                 ORGANIZATION_ID.value(),
                 "에어컨 수리",
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -119,6 +127,9 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
+                        null,
                         false)))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("accountId must not be null");
@@ -129,7 +140,22 @@ class CreateWorkServiceTest {
     void checksOrganizationIdFirst() {
         fixture.assertRejected(
                 () -> service.create(new CreateWorkCommand(
-                        ACCOUNT_ID, 0L, "에어컨 수리", null, null, null, null, null, null, null, null, null, false)),
+                        ACCOUNT_ID,
+                        0L,
+                        "에어컨 수리",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
@@ -162,6 +188,9 @@ class CreateWorkServiceTest {
                         ORGANIZATION_ID.value(),
                         "에어컨 수리",
                         0L,
+                        null,
+                        null,
+                        null,
                         null,
                         null,
                         null,
@@ -214,6 +243,9 @@ class CreateWorkServiceTest {
                             null,
                             null,
                             null,
+                            null,
+                            null,
+                            null,
                             false)),
                     ScheduleErrorCode.WORK_TYPE_NOT_SELECTABLE);
         }
@@ -230,6 +262,9 @@ class CreateWorkServiceTest {
                 ACCOUNT_ID,
                 ORGANIZATION_ID.value(),
                 "에어컨 수리",
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -257,6 +292,7 @@ class CreateWorkServiceTest {
         assertThat(created.scheduleChange().applied()).isTrue();
         assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
+        assertThat(saved.registeredAt()).isEqualTo(NOW);
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
             assertThat(history.assignedAt()).isEqualTo(NOW);
             assertThat(history.assignedBy()).isEqualTo(new MembershipId(11L));
@@ -343,6 +379,9 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
+                        null,
                         TECHNICIAN_ID.value(),
                         null,
                         null,
@@ -417,6 +456,9 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
+                        null,
                         TECHNICIAN_ID.value(),
                         TEN,
                         TWO_HOURS,
@@ -444,11 +486,55 @@ class CreateWorkServiceTest {
         assertThat(fixture.workRepository.saved()).isEmpty();
     }
 
+    @Test
+    @DisplayName("업로드를 마친 현장 사진 식별자를 붙인 순서대로 작업에 남긴다")
+    void keepsSitePhotos() {
+        fixture.givenManager();
+
+        service.create(photoCommand(List.of("photo-1", "photo-2")));
+
+        assertThat(fixture.singleSaved().sitePhotos()).containsExactly("photo-1", "photo-2");
+    }
+
+    @Test
+    @DisplayName("현장 사진이 6장을 넘으면 작업 유형 확인보다 먼저 입력 오류다")
+    void rejectsTooManySitePhotosBeforeWorkTypeCheck() {
+        fixture.givenManager();
+
+        fixture.assertRejected(
+                () -> service.create(photoCommand(Collections.nCopies(7, "photo"))),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        assertThat(fixture.workTypes.checks()).isZero();
+    }
+
+    private static CreateWorkCommand photoCommand(List<String> sitePhotoIds) {
+        return new CreateWorkCommand(
+                ACCOUNT_ID,
+                ORGANIZATION_ID.value(),
+                "에어컨 수리",
+                WORK_TYPE_ID.value(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                sitePhotoIds,
+                null,
+                null,
+                null,
+                false);
+    }
+
     private static CreateWorkCommand scheduled(Long technicianId, Instant start, Duration duration, boolean confirmed) {
         return new CreateWorkCommand(
                 ACCOUNT_ID,
                 ORGANIZATION_ID.value(),
                 "에어컨 수리",
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -469,7 +555,10 @@ class CreateWorkServiceTest {
                 null,
                 name,
                 phone,
+                null,
                 address,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -486,9 +575,12 @@ class CreateWorkServiceTest {
                 2L,
                 "홍길동",
                 "010-1234-5678",
+                "04043",
                 "서울시",
+                "3층",
                 fee,
                 PaymentMethod.ON_SITE_CARD,
+                null,
                 null,
                 null,
                 null,

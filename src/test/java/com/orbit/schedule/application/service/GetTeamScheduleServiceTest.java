@@ -13,17 +13,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetTeamScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.TeamScheduleInfo;
+import com.orbit.schedule.application.port.out.TechnicianProfile;
+import com.orbit.schedule.application.service.fake.FakeTechnicianProfilesPort;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.WorkId;
@@ -37,13 +38,15 @@ class GetTeamScheduleServiceTest {
     private static final TechnicianId UNNAMED_TECHNICIAN_ID = new TechnicianId(5L);
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final List<Set<TechnicianId>> nameLookups = new ArrayList<>();
+    private final FakeTechnicianProfilesPort technicianProfiles = new FakeTechnicianProfilesPort();
     private final GetTeamScheduleService service =
-            new GetTeamScheduleService(fixture.actorPort, fixture.workRepository, (organizationId, technicianIds) -> {
-                assertThat(organizationId).isEqualTo(ORGANIZATION_ID);
-                nameLookups.add(technicianIds);
-                return Map.of(TECHNICIAN_ID, "김기사", OTHER_TECHNICIAN_ID, "이기사");
-            });
+            new GetTeamScheduleService(fixture.actorPort, fixture.workRepository, technicianProfiles);
+
+    @BeforeEach
+    void givenTechnicianNames() {
+        technicianProfiles.given(ORGANIZATION_ID, new TechnicianProfile(TECHNICIAN_ID, "김기사", null));
+        technicianProfiles.given(ORGANIZATION_ID, new TechnicianProfile(OTHER_TECHNICIAN_ID, "이기사", null));
+    }
 
     @Test
     @DisplayName("구간의 조직 작업을 기사·시작시각 순으로 담고, 다른 기사 작업은 시간·기사 이름·상태만, 본인 작업은 작업 식별자·작업명도 담는다")
@@ -96,7 +99,8 @@ class GetTeamScheduleServiceTest {
                                 false,
                                 null,
                                 null));
-        assertThat(nameLookups).containsExactly(Set.of(TECHNICIAN_ID, OTHER_TECHNICIAN_ID, UNNAMED_TECHNICIAN_ID));
+        assertThat(technicianProfiles.lookups())
+                .containsExactly(Set.of(TECHNICIAN_ID, OTHER_TECHNICIAN_ID, UNNAMED_TECHNICIAN_ID));
     }
 
     @Test
@@ -125,7 +129,7 @@ class GetTeamScheduleServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
 
         assertThat(service.get(query(FROM, TO)).slots()).isEmpty();
-        assertThat(nameLookups).isEmpty();
+        assertThat(technicianProfiles.lookups()).isEmpty();
     }
 
     @Test
@@ -142,7 +146,7 @@ class GetTeamScheduleServiceTest {
         fixture.assertRejected(() -> service.get(query(null, null)), ScheduleErrorCode.ACTION_NOT_ALLOWED);
         fixture.givenTechnician(TECHNICIAN_ID);
         fixture.assertRejected(() -> service.get(query(TO, FROM)), ScheduleErrorCode.INVALID_WORK_INPUT);
-        assertThat(nameLookups).isEmpty();
+        assertThat(technicianProfiles.lookups()).isEmpty();
     }
 
     private static GetTeamScheduleQuery query(Instant from, Instant to) {

@@ -57,9 +57,12 @@ class WorkController implements WorkControllerDocs {
                 request.workTypeId(),
                 customer == null ? null : customer.name(),
                 customer == null ? null : customer.phone(),
+                customer == null ? null : customer.postalCode(),
                 customer == null ? null : customer.address(),
+                customer == null ? null : customer.addressDetail(),
                 payment == null ? null : payment.fee(),
                 payment == null ? null : payment.method(),
+                request.sitePhotoIds(),
                 schedule == null ? null : schedule.technicianId(),
                 schedule == null ? null : schedule.startTime(),
                 minutes == null ? null : Duration.ofMinutes(minutes),
@@ -84,9 +87,12 @@ class WorkController implements WorkControllerDocs {
                 request.workTypeId(),
                 customer == null ? null : customer.name(),
                 customer == null ? null : customer.phone(),
+                customer == null ? null : customer.postalCode(),
                 customer == null ? null : customer.address(),
+                customer == null ? null : customer.addressDetail(),
                 payment == null ? null : payment.fee(),
-                payment == null ? null : payment.method()));
+                payment == null ? null : payment.method(),
+                request.sitePhotoIds()));
     }
 
     @Override

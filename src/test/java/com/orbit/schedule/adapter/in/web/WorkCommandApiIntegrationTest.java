@@ -8,37 +8,25 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
-
-import javax.crypto.spec.SecretKeySpec;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.MACSigner;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
-import com.orbit.schedule.application.port.out.TechnicianContractPort;
-import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CustomerInfo;
@@ -48,47 +36,20 @@ import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
-import com.orbit.support.IntegrationTestSupport;
 
-import tools.jackson.databind.ObjectMapper;
-
-/**
- * 작업 변경 API를 공통 응답·보안·트랜잭션·영속성과 함께 확인한다. 발주사는 API로 만들고(생성자가 총관리자), 다른 직원 소속·기사 계약은 참여 승인 기능이 아직 없어
- * 테이블에 직접 넣는다. 다른 API를 검증할 작업은 원하는 상태로 바로 맞추려고 저장소로 준비한다.
- */
-@AutoConfigureMockMvc
+/** 작업 변경 API를 공통 응답·보안·트랜잭션·영속성과 함께 확인한다. 준비물은 {@link ScheduleApiTestSupport}를 따른다. */
 @DisplayName("작업 변경 API")
-class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
+class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
 
-    private static final AtomicLong ACCOUNT_IDS = new AtomicLong(70_000);
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final Instant START = Instant.parse("2030-03-02T01:00:00Z");
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private WorkRepository workRepository;
-
-    // 배정할 기사의 계약 확인. organization 계약 전이라 대체하며, 넣지 않으면 임시 어댑터처럼 거부한다.
-    @MockitoBean
-    private TechnicianContractPort technicianContractPort;
-
-    @Value("${app.auth.jwt.secret}")
-    private String jwtSecret;
-
-    @Value("${app.auth.jwt.issuer}")
-    private String jwtIssuer;
 
     @Nested
     @DisplayName("작업 등록")
@@ -99,13 +60,50 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
         void registersBacklogWork() throws Exception {
             Organization organization = organization();
 
-            long workId = createdId(create(organization.owner(), organization.id(), Map.of("name", "에어컨 수리"))
+            long workId = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of(
+                                    "name",
+                                    "에어컨 수리",
+                                    "customer",
+                                    Map.of("postalCode", "04043", "address", "서울시 마포구 양화로 45", "addressDetail", "3층")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.result.applied").value(true)));
 
             Work saved = stored(organization, workId);
             assertThat(saved.status()).isEqualTo(WorkStatus.REGISTERED);
             assertThat(saved.registrarId()).isEqualTo(new MembershipId(organization.ownerMembership()));
+            assertThat(saved.customerInfo())
+                    .isEqualTo(new CustomerInfo(null, null, new SiteAddress("04043", "서울시 마포구 양화로 45", "3층")));
+        }
+
+        @Test
+        @DisplayName("현장 사진 식별자를 함께 주면 붙인 순서대로 남긴다")
+        void registersWithSitePhotos() throws Exception {
+            Organization organization = organization();
+
+            long workId = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "sitePhotoIds", List.of("photo-1", "photo-2")))
+                    .andExpect(status().isOk()));
+
+            assertThat(stored(organization, workId).sitePhotos()).containsExactly("photo-1", "photo-2");
+        }
+
+        @Test
+        @DisplayName("현장 사진이 6장을 넘으면 400 SCHEDULE-003이고 만들지 않는다")
+        void rejectsTooManySitePhotos() throws Exception {
+            Organization organization = organization();
+
+            create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "sitePhotoIds", Collections.nCopies(7, "photo")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            assertThat(worksIn(organization)).isZero();
         }
 
         @Test
@@ -245,14 +243,27 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                             workId,
                             Map.of(
                                     "name", "보일러 점검",
-                                    "customer", Map.of("name", "김철수", "phone", "010-9876-5432", "address", "부산시"),
-                                    "payment", Map.of("fee", 80_000, "method", "BANK_TRANSFER")))
+                                    "customer",
+                                            Map.of(
+                                                    "name",
+                                                    "김철수",
+                                                    "phone",
+                                                    "010-9876-5432",
+                                                    "postalCode",
+                                                    "48058",
+                                                    "address",
+                                                    "부산시 해운대구 센텀중앙로 79",
+                                                    "addressDetail",
+                                                    "101동 1203호"),
+                                    "payment", Map.of("fee", 80_000, "method", "INVOICE")))
                     .andExpect(status().isNoContent());
 
             Work saved = stored(organization, workId);
             assertThat(saved.name()).isEqualTo("보일러 점검");
-            assertThat(saved.customerInfo()).isEqualTo(new CustomerInfo("김철수", "010-9876-5432", "부산시"));
-            assertThat(saved.paymentInfo()).isEqualTo(new PaymentInfo(new Money(80_000L), PaymentMethod.BANK_TRANSFER));
+            assertThat(saved.customerInfo())
+                    .isEqualTo(new CustomerInfo(
+                            "김철수", "010-9876-5432", new SiteAddress("48058", "부산시 해운대구 센텀중앙로 79", "101동 1203호")));
+            assertThat(saved.paymentInfo()).isEqualTo(new PaymentInfo(new Money(80_000L), PaymentMethod.INVOICE));
 
             update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검"))
                     .andExpect(status().isNoContent());
@@ -268,6 +279,68 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
             update(organization.owner(), organization.id(), workId, Map.of("name", " "))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+        }
+
+        @Test
+        @DisplayName("현장 사진을 보낸 식별자로 교체하고, 6장을 넘으면 400 SCHEDULE-003이며 바꾸지 않는다")
+        void replacesSitePhotos() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+
+            update(
+                            organization.owner(),
+                            organization.id(),
+                            workId,
+                            Map.of("name", "보일러 점검", "sitePhotoIds", List.of("site-2", "site-1")))
+                    .andExpect(status().isNoContent());
+            assertThat(stored(organization, workId).sitePhotos()).containsExactly("site-2", "site-1");
+
+            update(
+                            organization.owner(),
+                            organization.id(),
+                            workId,
+                            Map.of("name", "보일러 점검", "sitePhotoIds", Collections.nCopies(7, "site")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            assertThat(stored(organization, workId).sitePhotos()).containsExactly("site-2", "site-1");
+
+            update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검"))
+                    .andExpect(status().isNoContent());
+            assertThat(stored(organization, workId).sitePhotos()).isEmpty();
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("com.orbit.schedule.adapter.in.web.WorkCommandApiIntegrationTest#malformedAddresses")
+        @DisplayName("우편번호가 숫자 5자리가 아니거나 기본주소 없이 상세주소만 보내면 400 SCHEDULE-003이다")
+        void rejectsMalformedAddress(String name, Map<String, Object> customer) throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+
+            update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검", "customer", customer))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            assertThat(stored(organization, workId).name()).isEqualTo("대기 작업");
+        }
+
+        @Test
+        @DisplayName("작업중 작업의 작업 유형을 바꾸면 유형 확인보다 먼저 409 SCHEDULE-002이고, 유형을 그대로 두면 다른 항목을 고친다")
+        void keepsWorkTypeOfStartedWork() throws Exception {
+            Organization organization = organization();
+            Work work = registered(organization);
+            work.assign(
+                    new WorkSchedule(new TechnicianId(1L), START, Duration.ofHours(2)),
+                    Instant.now().minusSeconds(120),
+                    new MembershipId(organization.ownerMembership()));
+            work.accept(Instant.now().minusSeconds(60));
+            work.start(Instant.now().minusSeconds(30));
+            long workId = save(work);
+
+            update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검", "workTypeId", 3))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-002"));
+            update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검"))
+                    .andExpect(status().isNoContent());
+            assertThat(stored(organization, workId).name()).isEqualTo("보일러 점검");
         }
 
         @Test
@@ -321,6 +394,26 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
         }
 
         @Test
+        @DisplayName("등록자가 아닌 직원이면 403 SCHEDULE-005이고 바꾸지 않으며, 등록자 본인인 직원은 수정한다")
+        void allowsOnlyRegistrarAmongStaff() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+            long staff = account();
+            staffMembership(organization.id(), staff);
+
+            update(staff, organization.id(), workId, Map.of("name", "보일러 점검"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+            assertThat(stored(organization, workId).name()).isEqualTo("대기 작업");
+
+            long ownWorkId = createdId(
+                    create(staff, organization.id(), Map.of("name", "직원 작업")).andExpect(status().isOk()));
+            update(staff, organization.id(), ownWorkId, Map.of("name", "보일러 점검"))
+                    .andExpect(status().isNoContent());
+            assertThat(stored(organization, ownWorkId).name()).isEqualTo("보일러 점검");
+        }
+
+        @Test
         @DisplayName("본문 형식이 깨졌거나 목록에 없는 결제 방식이면 400 COMMON-400이다")
         void rejectsMalformedBody() throws Exception {
             Organization organization = organization();
@@ -347,14 +440,12 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
     class Cancel {
 
         @Test
-        @DisplayName("직원이 배정된 작업을 취소하면 204이고 사유와 함께 취소로 남는다")
+        @DisplayName("등록자 본인이 배정된 작업을 취소하면 204이고 사유와 함께 취소로 남는다")
         void cancelsAssignedWork() throws Exception {
             Organization organization = organization();
-            long staff = account();
-            staffMembership(organization.id(), staff);
             long workId = assignedWork(organization);
 
-            cancel(staff, organization.id(), workId, Map.of("reason", "CUSTOMER_REQUEST"))
+            cancel(organization.owner(), organization.id(), workId, Map.of("reason", "CUSTOMER_REQUEST"))
                     .andExpect(status().isNoContent());
 
             Work saved = stored(organization, workId);
@@ -363,6 +454,20 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 assertThat(cancellation.reason()).isEqualTo(CancellationReason.CUSTOMER_REQUEST);
                 assertThat(cancellation.note()).isNull();
             });
+        }
+
+        @Test
+        @DisplayName("등록자가 아닌 직원이 취소하면 403 SCHEDULE-005이고 취소하지 않는다")
+        void rejectsStaffWhoDidNotRegister() throws Exception {
+            Organization organization = organization();
+            long staff = account();
+            staffMembership(organization.id(), staff);
+            long workId = assignedWork(organization);
+
+            cancel(staff, organization.id(), workId, Map.of("reason", "CUSTOMER_REQUEST"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
         }
 
         @Test
@@ -474,6 +579,53 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
             Work saved = stored(organization, workId);
             assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
             assertThat(saved.schedule()).contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofHours(2)));
+        }
+
+        @Test
+        @DisplayName("대기함 작업은 등록자가 아닌 직원도 배정하지만, 배정된 작업을 옮기거나 해제하면 403 SCHEDULE-005다")
+        void letsStaffAssignBacklogOnly() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+            long staff = account();
+            staffMembership(organization.id(), staff);
+            activeTechnician(organization, 12L);
+
+            change(staff, organization.id(), workId, assignment(12L, START, 120, false))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.applied").value(true));
+
+            change(staff, organization.id(), workId, assignment(12L, START.plus(Duration.ofHours(3)), 120, false))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+            unassign(staff, organization.id(), workId)
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+            assertThat(stored(organization, workId).schedule())
+                    .contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofHours(2)));
+        }
+
+        @Test
+        @DisplayName("화면을 본 뒤 다른 사람이 바꿔 버전이 다르면 409 SCHEDULE-016이고 반영하지 않으며, 버전이 없으면 400 SCHEDULE-003이다")
+        void rejectsStaleOrMissingVersion() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+            activeTechnician(organization, 12L);
+            change(organization.owner(), organization.id(), workId, assignment(12L, START, 120, false))
+                    .andExpect(status().isOk());
+            assertThat(currentVersion(workId)).as("반영하면 버전이 오른다").isEqualTo(1L);
+
+            Map<String, Object> stale = new HashMap<>(assignment(12L, START.plus(Duration.ofHours(3)), 120, false));
+            stale.put("expectedVersion", 0);
+            change(organization.owner(), organization.id(), workId, stale)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-016"));
+            Map<String, Object> missing = new HashMap<>(assignment(12L, START.plus(Duration.ofHours(3)), 120, false));
+            missing.put("expectedVersion", null);
+            change(organization.owner(), organization.id(), workId, missing)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            assertThat(stored(organization, workId).schedule())
+                    .contains(new WorkSchedule(new TechnicianId(12L), START, Duration.ofHours(2)));
         }
 
         @Test
@@ -618,6 +770,21 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
     class Unassign {
 
         @Test
+        @DisplayName("버전이 없으면 400 SCHEDULE-003, 화면을 본 뒤 다른 사람이 바꿔 버전이 다르면 409 SCHEDULE-016이고 해제하지 않는다")
+        void rejectsStaleOrMissingVersion() throws Exception {
+            Organization organization = organization();
+            long workId = assignedWork(organization);
+
+            unassign(organization.owner(), organization.id(), workId, null)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+            unassign(organization.owner(), organization.id(), workId, 1L)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-016"));
+            assertThat(stored(organization, workId).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        }
+
+        @Test
         @DisplayName("배정된 작업의 배정을 풀면 204이고 대기함으로 돌아간다")
         void returnsWorkToBacklog() throws Exception {
             Organization organization = organization();
@@ -711,12 +878,23 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 .content(objectMapper.writeValueAsString(body)));
     }
 
+    /** 요청자가 지금 버전을 본 것으로 보낸다. 본문에 expectedVersion이 있으면 그대로 쓴다. */
     private ResultActions change(long requester, long organizationId, long workId, Map<String, ?> body)
             throws Exception {
+        Map<String, Object> versioned = new HashMap<>(body);
+        if (!body.containsKey("expectedVersion")) {
+            versioned.put("expectedVersion", currentVersion(workId));
+        }
         return mockMvc.perform(put(ASSIGNMENT, organizationId, workId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(requester))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(body)));
+                .content(objectMapper.writeValueAsString(versioned)));
+    }
+
+    /** 저장된 작업 버전. 없는 작업이면 0이다(버전보다 앞선 오류를 보는 요청용). */
+    private long currentVersion(long workId) {
+        return jdbcTemplate.query(
+                "select version from work where id = ?", rs -> rs.next() ? rs.getLong(1) : 0L, workId);
     }
 
     private static Map<String, Object> assignment(long technicianId, Instant start, int minutes, boolean confirmed) {
@@ -732,35 +910,19 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 .willReturn(true);
     }
 
+    /** 요청자가 지금 버전을 본 것으로 보낸다. */
     private ResultActions unassign(long requester, long organizationId, long workId) throws Exception {
-        return mockMvc.perform(
-                delete(ASSIGNMENT, organizationId, workId).header(HttpHeaders.AUTHORIZATION, bearer(requester)));
+        return unassign(requester, organizationId, workId, currentVersion(workId));
     }
 
-    /** 발주사와 그 총관리자. 총관리자의 직원 소속은 작업 등록자로도 쓴다. */
-    private record Organization(long id, long owner, long ownerMembership) {}
-
-    private Organization organization() throws Exception {
-        long owner = account();
-        String body = mockMvc.perform(post("/api/v1/organizations")
-                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("name", "오르빗 설비", "industry", "HVAC"))))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        long organizationId = objectMapper
-                .readTree(body)
-                .path("result")
-                .path("organizationId")
-                .asLong();
-        Long membership = jdbcTemplate.queryForObject(
-                "select id from company_memberships where company_id = ? and member_id = ?",
-                Long.class,
-                organizationId,
-                owner);
-        return new Organization(organizationId, owner, membership);
+    private ResultActions unassign(long requester, long organizationId, long workId, Long expectedVersion)
+            throws Exception {
+        MockHttpServletRequestBuilder request =
+                delete(ASSIGNMENT, organizationId, workId).header(HttpHeaders.AUTHORIZATION, bearer(requester));
+        if (expectedVersion != null) {
+            request.param("expectedVersion", expectedVersion.toString());
+        }
+        return mockMvc.perform(request);
     }
 
     private long registeredWork(Organization organization) {
@@ -791,13 +953,10 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 new OrganizationId(organization.id()),
                 "대기 작업",
                 new MembershipId(organization.ownerMembership()),
+                REGISTERED_AT,
                 null,
-                new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
+                new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시", null)),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
-    }
-
-    private long save(Work work) {
-        return workRepository.save(work).id().orElseThrow().value();
     }
 
     private Work stored(Organization organization, long workId) {
@@ -806,51 +965,10 @@ class WorkCommandApiIntegrationTest extends IntegrationTestSupport {
                 .orElseThrow();
     }
 
-    private void staffMembership(long organizationId, long accountId) {
-        Timestamp now = Timestamp.from(Instant.now());
-        jdbcTemplate.update(
-                "insert into company_memberships"
-                        + " (company_id, member_id, is_owner, status,"
-                        + " joined_at, status_changed_at, created_at, updated_at)"
-                        + " values (?, ?, false, 'ACTIVE', ?, ?, ?, ?)",
-                organizationId,
-                accountId,
-                now,
-                now,
-                now,
-                now);
-    }
-
-    private void technicianContract(long organizationId, long accountId) {
-        Timestamp now = Timestamp.from(Instant.now());
-        jdbcTemplate.update(
-                "insert into technician"
-                        + " (company_id, member_id, status, status_changed_at, joined_at, updated_at, created_at)"
-                        + " values (?, ?, 'ACTIVE', ?, ?, ?, current_timestamp)",
-                organizationId,
-                accountId,
-                now,
-                now,
-                now);
-    }
-
-    private static long account() {
-        return ACCOUNT_IDS.incrementAndGet();
-    }
-
-    private String bearer(long accountId) throws Exception {
-        Instant issuedAt = Instant.now();
-        SignedJWT jwt = new SignedJWT(
-                new JWSHeader(JWSAlgorithm.HS256),
-                new JWTClaimsSet.Builder()
-                        .issuer(jwtIssuer)
-                        .subject(Long.toString(accountId))
-                        .jwtID(UUID.randomUUID().toString())
-                        .issueTime(Date.from(issuedAt))
-                        .expirationTime(Date.from(issuedAt.plusSeconds(600)))
-                        .claim("token_use", "access")
-                        .build());
-        jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
-        return "Bearer " + jwt.serialize();
+    static Stream<Arguments> malformedAddresses() {
+        return Stream.of(
+                Arguments.of("우편번호 4자리", Map.of("postalCode", "4805", "address", "부산시")),
+                Arguments.of("우편번호에 문자", Map.of("postalCode", "48O58", "address", "부산시")),
+                Arguments.of("상세주소만", Map.of("addressDetail", "101동 1203호")));
     }
 }

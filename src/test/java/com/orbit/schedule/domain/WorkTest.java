@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -25,12 +26,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 @DisplayName("작업")
 class WorkTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final MembershipId MANAGER_ID = new MembershipId(99L);
 
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
-    private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
+    private static final CustomerInfo CUSTOMER_INFO =
+            new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시", null));
     private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);
     private static final WorkSchedule FIRST_SCHEDULE =
             new WorkSchedule(new TechnicianId(3L), Instant.parse("2026-09-22T01:00:00Z"), Duration.ofHours(2));
@@ -55,8 +59,8 @@ class WorkTest {
         @Test
         @DisplayName("등록 상태의 작업을 생성한다")
         void registersWork() {
-            Work work =
-                    Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+            Work work = Work.register(
+                    ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
 
             assertThat(work.id()).isEmpty();
             assertThat(work.organizationId()).isEqualTo(ORGANIZATION_ID);
@@ -76,7 +80,8 @@ class WorkTest {
         @ValueSource(strings = {" ", "\t"})
         @DisplayName("작업명이 비어 있으면 거부한다")
         void rejectsBlankName(String name) {
-            assertThatThrownBy(() -> Work.register(ORGANIZATION_ID, name, REGISTRAR_ID, null, null, null))
+            assertThatThrownBy(
+                            () -> Work.register(ORGANIZATION_ID, name, REGISTRAR_ID, REGISTERED_AT, null, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("name must not be blank");
         }
@@ -84,10 +89,11 @@ class WorkTest {
         @Test
         @DisplayName("작업명은 100자까지 받고 넘으면 거부한다")
         void limitsNameLength() {
-            assertThat(Work.register(ORGANIZATION_ID, "가".repeat(100), REGISTRAR_ID, null, null, null)
+            assertThat(Work.register(ORGANIZATION_ID, "가".repeat(100), REGISTRAR_ID, REGISTERED_AT, null, null, null)
                             .name())
                     .hasSize(100);
-            assertThatThrownBy(() -> Work.register(ORGANIZATION_ID, "가".repeat(101), REGISTRAR_ID, null, null, null))
+            assertThatThrownBy(() -> Work.register(
+                            ORGANIZATION_ID, "가".repeat(101), REGISTRAR_ID, REGISTERED_AT, null, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("name must be at most 100 characters");
         }
@@ -95,7 +101,7 @@ class WorkTest {
         @Test
         @DisplayName("조직이 null이면 거부한다")
         void rejectsNullOrganizationId() {
-            assertThatThrownBy(() -> Work.register(null, "에어컨 수리", REGISTRAR_ID, null, null, null))
+            assertThatThrownBy(() -> Work.register(null, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, null, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("organizationId must not be null");
         }
@@ -103,7 +109,7 @@ class WorkTest {
         @Test
         @DisplayName("등록자가 null이면 거부한다")
         void rejectsNullRegistrarId() {
-            assertThatThrownBy(() -> Work.register(ORGANIZATION_ID, "에어컨 수리", null, null, null, null))
+            assertThatThrownBy(() -> Work.register(ORGANIZATION_ID, "에어컨 수리", null, REGISTERED_AT, null, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("registrarId must not be null");
         }
@@ -111,7 +117,7 @@ class WorkTest {
         @Test
         @DisplayName("선택 정보가 null이면 빈 값객체로 정규화한다")
         void normalizesNullOptionalInformation() {
-            Work work = Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, null, null, null);
+            Work work = Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, null, null, null);
 
             assertThat(work.workType()).isEmpty();
             assertThat(work.customerInfo()).isNotNull();
@@ -136,6 +142,7 @@ class WorkTest {
                     ORGANIZATION_ID,
                     "에어컨 수리",
                     REGISTRAR_ID,
+                    REGISTERED_AT,
                     WORK_TYPE_ID,
                     FIRST_SCHEDULE,
                     CUSTOMER_INFO,
@@ -252,6 +259,7 @@ class WorkTest {
                             ORGANIZATION_ID,
                             "에어컨 수리",
                             REGISTRAR_ID,
+                            REGISTERED_AT,
                             null,
                             null,
                             null,
@@ -273,24 +281,26 @@ class WorkTest {
     class ChangeDetails {
 
         private static final WorkTypeId OTHER_WORK_TYPE_ID = new WorkTypeId(9L);
-        private static final CustomerInfo OTHER_CUSTOMER_INFO = new CustomerInfo("김철수", "010-9876-5432", "부산시");
+        private static final CustomerInfo OTHER_CUSTOMER_INFO =
+                new CustomerInfo("김철수", "010-9876-5432", new SiteAddress(null, "부산시", null));
         private static final PaymentInfo OTHER_PAYMENT_INFO =
                 new PaymentInfo(new Money(80_000L), PaymentMethod.BANK_TRANSFER);
 
         @ParameterizedTest
         @EnumSource(
                 value = WorkStatus.class,
-                mode = EnumSource.Mode.EXCLUDE,
-                names = {"COMPLETED", "CANCELLED"})
-        @DisplayName("완료·취소 전 작업의 작업명·유형·고객정보·결제정보를 바꾸고 상태·배정은 그대로 둔다")
+                names = {"REGISTERED", "PENDING_ACCEPTANCE", "ACCEPTED"})
+        @DisplayName("시작 전 작업의 작업명·유형·고객정보·결제정보·현장 사진을 바꾸고 상태·배정은 그대로 둔다")
         void changesDetailsBeforeTermination(WorkStatus status) {
             Work work = workIn(status);
             Optional<WorkSchedule> scheduleBefore = work.schedule();
             List<Tuple> historyBefore = snapshotOf(work.assignmentHistory());
 
-            work.changeDetails("보일러 점검", OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO);
+            work.changeDetails(
+                    "보일러 점검", OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO, List.of("site-2", "site-1"));
 
             assertThat(work.name()).isEqualTo("보일러 점검");
+            assertThat(work.sitePhotos()).containsExactly("site-2", "site-1");
             assertThat(work.workType()).contains(OTHER_WORK_TYPE_ID);
             assertThat(work.customerInfo()).isEqualTo(OTHER_CUSTOMER_INFO);
             assertThat(work.paymentInfo()).isEqualTo(OTHER_PAYMENT_INFO);
@@ -315,10 +325,12 @@ class WorkTest {
         @DisplayName("선택 정보를 비우면 빈 값객체로 정규화한다")
         void normalizesClearedOptionalInformation() {
             Work work = registeredWork();
+            work.replaceSitePhotos(List.of("site-1"));
 
-            work.changeDetails("보일러 점검", null, null, null);
+            work.changeDetails("보일러 점검", null, null, null, null);
 
             assertThat(work.workType()).isEmpty();
+            assertThat(work.sitePhotos()).isEmpty();
             assertThat(work.customerInfo()).isEqualTo(new CustomerInfo(null, null, null));
             assertThat(work.paymentInfo()).isEqualTo(new PaymentInfo(null, null));
         }
@@ -331,7 +343,7 @@ class WorkTest {
         void rejectsTerminatedWork(WorkStatus status) {
             Work work = workIn(status);
 
-            assertThatThrownBy(() -> work.changeDetails("보일러 점검", null, null, null))
+            assertThatThrownBy(() -> work.changeDetails("보일러 점검", null, null, null, null))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Cannot change details when status is " + status);
             assertUnchangedDetails(work);
@@ -342,9 +354,13 @@ class WorkTest {
         void checksInputBeforeState() {
             Work work = workIn(WorkStatus.COMPLETED);
 
-            assertThatThrownBy(() -> work.changeDetails(" ", null, null, null))
+            assertThatThrownBy(() -> work.changeDetails(" ", null, null, null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("name must not be blank");
+            assertThatThrownBy(() -> work.changeDetails(
+                            "보일러 점검", null, null, null, Collections.nCopies(Work.MAX_SITE_PHOTO_COUNT + 1, "site")))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("sitePhotos must be at most " + Work.MAX_SITE_PHOTO_COUNT);
         }
 
         @ParameterizedTest
@@ -354,8 +370,8 @@ class WorkTest {
         void rejectsBlankNameWithoutPartialChange(String name) {
             Work work = registeredWork();
 
-            assertThatThrownBy(
-                            () -> work.changeDetails(name, OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO))
+            assertThatThrownBy(() ->
+                            work.changeDetails(name, OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("name must not be blank");
             assertUnchangedDetails(work);
@@ -367,10 +383,87 @@ class WorkTest {
             Work work = registeredWork();
 
             assertThatThrownBy(() -> work.changeDetails(
-                            "가".repeat(101), OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO))
+                            "가".repeat(101), OTHER_WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("name must be at most 100 characters");
             assertUnchangedDetails(work);
+        }
+
+        @Test
+        @DisplayName("작업중에는 지금 작업 유형을 그대로 주면 다른 항목을 바꾸고, 다른 유형으로 바꾸거나 비우면 거부하고 아무것도 바꾸지 않는다")
+        void keepsWorkTypeOnceStarted() {
+            Work work = inProgressWork();
+            Optional<WorkSchedule> scheduleBefore = work.schedule();
+            List<Tuple> historyBefore = snapshotOf(work.assignmentHistory());
+
+            work.changeDetails("보일러 점검", WORK_TYPE_ID, OTHER_CUSTOMER_INFO, OTHER_PAYMENT_INFO, List.of("site-1"));
+            assertThat(work.name()).isEqualTo("보일러 점검");
+            assertThat(work.workType()).contains(WORK_TYPE_ID);
+            assertThat(work.paymentInfo()).isEqualTo(OTHER_PAYMENT_INFO);
+            assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+            assertThat(work.schedule()).isEqualTo(scheduleBefore);
+            assertThat(snapshotOf(work.assignmentHistory())).isEqualTo(historyBefore);
+
+            for (WorkTypeId other : new WorkTypeId[] {OTHER_WORK_TYPE_ID, null}) {
+                assertThatThrownBy(() -> work.changeDetails("다른 이름", other, null, null, null))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("Cannot change work type when status is IN_PROGRESS");
+            }
+            assertThat(work.name()).isEqualTo("보일러 점검");
+            assertThat(work.workType()).contains(WORK_TYPE_ID);
+            assertThat(work.customerInfo()).isEqualTo(OTHER_CUSTOMER_INFO);
+            assertThat(work.sitePhotos()).containsExactly("site-1");
+            assertThatThrownBy(() -> work.changeDetails(" ", OTHER_WORK_TYPE_ID, null, null, null))
+                    .as("입력 오류가 유형 고정보다 먼저다")
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("name must not be blank");
+        }
+
+        @Test
+        @DisplayName("유형 없는 작업중 작업은 유형 없이 수정할 수 있고 유형을 새로 정할 수는 없다")
+        void keepsMissingWorkTypeOnceStarted() {
+            Work work = Work.register(
+                    ORGANIZATION_ID, "유형 없는 작업", REGISTRAR_ID, REGISTERED_AT, null, CUSTOMER_INFO, PAYMENT_INFO);
+            work.assign(FIRST_SCHEDULE, NOW, MANAGER_ID);
+            work.accept(NOW);
+            work.start(NOW);
+
+            work.changeDetails("보일러 점검", null, null, null, null);
+            assertThat(work.name()).isEqualTo("보일러 점검");
+            assertThatThrownBy(() -> work.changeDetails("보일러 점검", WORK_TYPE_ID, null, null, null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Cannot change work type when status is IN_PROGRESS");
+            assertThat(work.workType()).isEmpty();
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = WorkStatus.class,
+                names = {"PENDING_ACCEPTANCE", "ACCEPTED"})
+        @DisplayName("배정됨·작업전 작업은 작업 유형을 비울 수 있다")
+        void clearsWorkTypeBeforeStart(WorkStatus status) {
+            Work work = workIn(status);
+
+            work.changeDetails("보일러 점검", null, null, null, null);
+
+            assertThat(work.workType()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("현장 사진이 잘못되면 거부하고 아무것도 바꾸지 않는다")
+        void rejectsInvalidSitePhotosWithoutPartialChange() {
+            Work work = registeredWork();
+            work.replaceSitePhotos(List.of("keep"));
+
+            assertThatThrownBy(() -> work.changeDetails(
+                            "보일러 점검",
+                            OTHER_WORK_TYPE_ID,
+                            OTHER_CUSTOMER_INFO,
+                            OTHER_PAYMENT_INFO,
+                            Collections.nCopies(Work.MAX_SITE_PHOTO_COUNT + 1, "site")))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertUnchangedDetails(work);
+            assertThat(work.sitePhotos()).containsExactly("keep");
         }
 
         private static void assertUnchangedDetails(Work work) {
@@ -468,7 +561,7 @@ class WorkTest {
         @Test
         @DisplayName("담당기사, 시작시간, 예상소요시간이 모두 없으면 배정을 거부한다")
         void rejectsAssignWithAllScheduleFieldsMissing() {
-            Work work = Work.register(ORGANIZATION_ID, "필터 교체", REGISTRAR_ID, null, null, null);
+            Work work = Work.register(ORGANIZATION_ID, "필터 교체", REGISTRAR_ID, REGISTERED_AT, null, null, null);
 
             assertThatThrownBy(() -> work.assign(new WorkSchedule(null, null, null), NOW, MANAGER_ID))
                     .isInstanceOf(IllegalArgumentException.class);
@@ -928,7 +1021,8 @@ class WorkTest {
         }
 
         private static Work plannedWork(PlannedSchedule plannedSchedule) {
-            return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, null, null, null, plannedSchedule);
+            return Work.register(
+                    ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, null, null, null, plannedSchedule);
         }
     }
 
@@ -1377,7 +1471,8 @@ class WorkTest {
     }
 
     private static Work registeredWork() {
-        return Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+        return Work.register(
+                ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
     }
 
     private static Work pendingWork() {
@@ -1477,6 +1572,7 @@ class WorkTest {
                 ORGANIZATION_ID,
                 "에어컨 수리",
                 REGISTRAR_ID,
+                REGISTERED_AT,
                 WORK_TYPE_ID,
                 schedule,
                 CUSTOMER_INFO,
@@ -1943,5 +2039,47 @@ class WorkTest {
                 Arguments.of(WorkStatus.IN_PROGRESS),
                 Arguments.of(WorkStatus.COMPLETED),
                 Arguments.of(WorkStatus.CANCELLED));
+    }
+
+    @Test
+    @DisplayName("새 작업의 버전은 0이고 도메인 변경은 버전을 바꾸지 않으며, 본 버전이 지금 버전과 다르면 거부한다")
+    void checksVersionSeenByRequester() {
+        Work work = registeredWork();
+        work.changeDetails("보일러 점검", null, null, null, null);
+
+        assertThat(work.version()).isZero();
+        work.requireVersion(0L);
+        assertThatThrownBy(() -> work.requireVersion(1L))
+                .isInstanceOf(StaleWorkVersionException.class)
+                .hasMessage("work version 1 is stale; current version is 0");
+    }
+
+    @Test
+    @DisplayName("음수 버전으로는 복원하지 않는다")
+    void rejectsNegativeVersionOnRestore() {
+        Work work = registeredWork();
+
+        assertThatThrownBy(() -> Work.reconstitute(
+                        new WorkId(1L),
+                        work.organizationId(),
+                        work.name(),
+                        work.registrarId(),
+                        work.registeredAt(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        WorkStatus.REGISTERED,
+                        List.of(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        List.of(),
+                        List.of(),
+                        -1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("version must not be negative");
     }
 }

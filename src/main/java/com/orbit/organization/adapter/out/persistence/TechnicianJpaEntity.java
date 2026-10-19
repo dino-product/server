@@ -21,7 +21,8 @@ import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 기사 계약. 발주사·계정은 다른 애그리게잇·모듈이므로 ID로만 둔다. 같은 계정·같은 발주사의 기사 계약은 1행이며 다시 활성이 되면 이 행을 재사용한다. 새
- * 계약은 참여 요청 승인이 만들고, 기사 유형은 유형 지정 작업이 도메인과 함께 연결한다(지금은 기사 유형 삭제의 벌크 해제와 재참여 승인의 해제만 한다).
+ * 계약은 참여 요청 승인이 만들고, 기사 유형은 유형 지정 작업이 도메인과 함께 연결한다(지금은 기사 유형 삭제의 벌크 해제와 재참여 승인의 해제만 한다). 활성
+ * 구성원 조회({@link ActiveMemberQueryAdapter})·기사 계약 조회({@link TechnicianContractQueryAdapter})는 이 Entity 대신 SQL로 읽는다.
  */
 @Entity
 @Table(name = "technician", uniqueConstraints = @UniqueConstraint(columnNames = {"company_id", "member_id"}))

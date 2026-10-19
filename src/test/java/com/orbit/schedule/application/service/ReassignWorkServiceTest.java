@@ -7,6 +7,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -29,6 +30,7 @@ import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo.ConflictingWork;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
+import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
@@ -54,7 +56,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 지금 시각으로 회수하고 새 기사의 수락을 기다린다")
     void reassignsPendingWork() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
         ScheduleChangeInfo result =
@@ -79,7 +81,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("수락된 작업을 새 기사에게 넘기면 수락 이력은 두고 새 기사에게 다시 수락받는다")
     void reassignsAcceptedWork() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.ACCEPTED);
 
         service.reassign(command(id.value(), OTHER_TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
@@ -95,7 +97,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("현재 기사가 아닌 새 기사의 활성 작업과 겹치는데 확인하지 않았으면 반영하지 않고, 확인했으면 반영한다")
     void checksConflictsOfNewTechnician() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId newTechnicianWork =
                 fixture.givenWork(ORGANIZATION_ID, "새 기사 작업", WorkStatus.PENDING_ACCEPTANCE, OTHER_TECHNICIAN_ID, TEN);
         fixture.givenWork(ORGANIZATION_ID, "현재 기사의 다른 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
@@ -122,7 +124,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("현재 담당기사에게 다시 넘기면 입력 오류와 구분되는 같은 기사 오류다")
     void rejectsSameTechnician() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
         fixture.assertRejected(
@@ -136,7 +138,7 @@ class ReassignWorkServiceTest {
             names = {"REGISTERED", "IN_PROGRESS", "COMPLETED", "CANCELLED"})
     @DisplayName("수락대기·수락됨이 아니면 현재 기사로 넘기더라도 같은 기사 오류보다 먼저 상태 오류다")
     void rejectsUnchangeableStatus(WorkStatus status) {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(status);
 
         for (long technicianId : new long[] {OTHER_TECHNICIAN_ID.value(), TECHNICIAN_ID.value()}) {
@@ -149,7 +151,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("일정 입력이 잘못되면 상태 오류보다 먼저 입력 오류다")
     void checksInputBeforeState() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
 
         fixture.assertRejected(
@@ -161,7 +163,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("새 기사 식별자·시작시각·소요시간이 잘못되면 입력 오류다")
     void rejectsInvalidScheduleInput() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
 
         fixture.assertRejected(
@@ -179,8 +181,8 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("재배정 시각이 직전 이력의 응답 시각보다 앞서면 입력 오류다")
     void rejectsReassignmentBeforeLatestHistory() {
-        fixture.givenManager();
-        Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, null, null, null);
+        fixture.givenManager(ActorRole.OWNER);
+        Work work = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
         work.accept(NOW.plus(Duration.ofHours(1)));
         WorkId id = fixture.workRepository.store(work);
@@ -193,7 +195,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("새 기사의 앞선 변경을 기다리다 잠금에 실패하면 변경 중 오류다")
     void reportsBusyTechnician() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
         fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
 
@@ -205,7 +207,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("새 기사가 요청 조직의 활성 기사 계약이 아니면 그 기사를 잠근 뒤 일정을 읽거나 저장하지 않고 배정할 수 없는 기사 오류다")
     void rejectsTechnicianWithoutActiveContract() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
         TechnicianId otherOrganizationTechnician = new TechnicianId(5L);
         fixture.technicianContracts.givenActive(OTHER_ORGANIZATION_ID, otherOrganizationTechnician);
@@ -228,7 +230,7 @@ class ReassignWorkServiceTest {
     @Test
     @DisplayName("새 기사 계약은 입력·상태·같은 기사·이력 시각 확인을 통과하고 기사를 잠근 요청만 확인한다")
     void checksTechnicianContractAfterInputStateSameTechnicianAndLock() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
         WorkId pending = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
@@ -244,7 +246,8 @@ class ReassignWorkServiceTest {
         fixture.assertRejected(
                 () -> service.reassign(command(pending.value(), TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
                 ScheduleErrorCode.SAME_TECHNICIAN);
-        Work acceptedLater = Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, null, null, null);
+        Work acceptedLater =
+                Work.register(ORGANIZATION_ID, "나중에 수락된 작업", REGISTRAR_ID, REGISTERED_AT, null, null, null);
         acceptedLater.assign(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS), NOW, MANAGER_ID);
         acceptedLater.accept(NOW.plus(Duration.ofHours(1)));
         WorkId acceptedLaterId = fixture.workRepository.store(acceptedLater);

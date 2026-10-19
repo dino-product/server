@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
+import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
 import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.domain.AssignmentEnding;
@@ -16,6 +17,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.StatusCorrection;
 import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.TechnicianId;
@@ -38,7 +40,9 @@ final class WorkViews {
         return new WorkDetailInfo.Customer(
                 customer.name().orElse(null),
                 customer.phone().orElse(null),
-                customer.address().orElse(null));
+                customer.address().flatMap(SiteAddress::postalCode).orElse(null),
+                customer.address().flatMap(SiteAddress::baseAddress).orElse(null),
+                customer.address().flatMap(SiteAddress::detailAddress).orElse(null));
     }
 
     static WorkDetailInfo.Payment payment(PaymentInfo payment) {
@@ -46,26 +50,25 @@ final class WorkViews {
                 payment.fee().map(Money::won).orElse(null), payment.method().orElse(null));
     }
 
-    static WorkDetailInfo.Schedule schedule(WorkSchedule schedule) {
+    static WorkDetailInfo.Schedule schedule(WorkSchedule schedule, DisplayInfos displayInfos) {
         return new WorkDetailInfo.Schedule(
-                schedule.technicianId().value(), schedule.startTime(), schedule.expectedDuration(), schedule.endTime());
+                displayInfos.assignee(schedule), schedule.startTime(), schedule.expectedDuration(), schedule.endTime());
     }
 
     /** 모든 배정 이력을 순번과 함께 옮긴다. */
-    static List<WorkDetailInfo.Assignment> assignments(Work work) {
-        return assignments(work, null);
+    static List<WorkDetailInfo.Assignment> assignments(Work work, DisplayInfos displayInfos) {
+        return assignments(work, null, displayInfos);
     }
 
     /** 그 기사의 배정만 옮긴다. 순번은 전체 이력 기준 그대로다. */
-    static List<WorkDetailInfo.Assignment> assignmentsOf(Work work, TechnicianId technicianId) {
-        return assignments(work, technicianId);
+    static List<WorkDetailInfo.Assignment> assignmentsOf(
+            Work work, TechnicianId technicianId, DisplayInfos displayInfos) {
+        return assignments(work, technicianId, displayInfos);
     }
 
-    static WorkDetailInfo.PlannedSchedule plannedSchedule(PlannedSchedule planned) {
+    static WorkDetailInfo.PlannedSchedule plannedSchedule(PlannedSchedule planned, DisplayInfos displayInfos) {
         return new WorkDetailInfo.PlannedSchedule(
-                planned.technicianId() == null ? null : planned.technicianId().value(),
-                planned.startTime(),
-                planned.expectedDuration());
+                displayInfos.plannedTechnician(planned), planned.startTime(), planned.expectedDuration());
     }
 
     static WorkDetailInfo.Cancellation cancellation(Cancellation cancellation) {
@@ -93,25 +96,28 @@ final class WorkViews {
                 .toList();
     }
 
-    private static List<CompletionReportInfo.Photo> photos(List<String> photoIds, PhotoUrlPort photoUrlPort) {
+    /** 사진 식별자마다 내려받을 주소를 붙인다. */
+    static List<PhotoInfo> photos(List<String> photoIds, PhotoUrlPort photoUrlPort) {
         return photoIds.stream()
-                .map(photoId -> new CompletionReportInfo.Photo(photoId, photoUrlPort.urlOf(photoId)))
+                .map(photoId -> new PhotoInfo(photoId, photoUrlPort.urlOf(photoId)))
                 .toList();
     }
 
-    private static List<WorkDetailInfo.Assignment> assignments(Work work, TechnicianId technicianId) {
+    private static List<WorkDetailInfo.Assignment> assignments(
+            Work work, TechnicianId technicianId, DisplayInfos displayInfos) {
         List<AssignmentHistory> histories = work.assignmentHistory();
         return IntStream.range(0, histories.size())
                 .filter(index -> technicianId == null
                         || histories.get(index).schedule().technicianId().equals(technicianId))
-                .mapToObj(index -> assignment(index + 1, histories.get(index)))
+                .mapToObj(index -> assignment(index + 1, histories.get(index), displayInfos))
                 .toList();
     }
 
-    private static WorkDetailInfo.Assignment assignment(int number, AssignmentHistory history) {
+    private static WorkDetailInfo.Assignment assignment(
+            int number, AssignmentHistory history, DisplayInfos displayInfos) {
         return new WorkDetailInfo.Assignment(
                 number,
-                schedule(history.schedule()),
+                schedule(history.schedule(), displayInfos),
                 history.assignedAt(),
                 history.assignedBy().value(),
                 history.result(),

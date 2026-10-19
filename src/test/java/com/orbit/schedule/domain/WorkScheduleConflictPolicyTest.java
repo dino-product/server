@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 @DisplayName("일정 겹침·동시 수행 방지 정책")
 class WorkScheduleConflictPolicyTest {
 
+    private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
+
     private static final MembershipId MANAGER_ID = new MembershipId(99L);
 
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(100L);
@@ -21,7 +23,8 @@ class WorkScheduleConflictPolicyTest {
     private static final TechnicianId OTHER_TECHNICIAN_ID = new TechnicianId(4L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
-    private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
+    private static final CustomerInfo CUSTOMER_INFO =
+            new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시", null));
     private static final Instant NOW = Instant.parse("2026-09-21T00:00:00Z");
     private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(null, null, null, null, null, null);
@@ -98,7 +101,7 @@ class WorkScheduleConflictPolicyTest {
             Work apart = pendingWork(scheduleOf(TECHNICIAN_ID, 15, 1));
             Work completed = completedWork(scheduleOf(TECHNICIAN_ID, 10, 2));
             Work cancelled = cancelledWork(scheduleOf(TECHNICIAN_ID, 10, 2));
-            Work unassigned = Work.register(ORGANIZATION_ID, "미배정", REGISTRAR_ID, null, null, null);
+            Work unassigned = Work.register(ORGANIZATION_ID, "미배정", REGISTRAR_ID, REGISTERED_AT, null, null, null);
 
             List<Work> conflicts = WorkScheduleConflictPolicy.findConflictingWorks(
                     scheduleOf(TECHNICIAN_ID, 10, 2), // 10:00~12:00
@@ -245,7 +248,8 @@ class WorkScheduleConflictPolicyTest {
     }
 
     private static Work pendingWork(WorkSchedule schedule) {
-        Work work = Work.register(ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
+        Work work = Work.register(
+                ORGANIZATION_ID, "에어컨 수리", REGISTRAR_ID, REGISTERED_AT, WORK_TYPE_ID, CUSTOMER_INFO, PAYMENT_INFO);
         work.assign(schedule, NOW, MANAGER_ID);
         return work;
     }
@@ -280,6 +284,7 @@ class WorkScheduleConflictPolicyTest {
                 ORGANIZATION_ID,
                 "에어컨 수리",
                 REGISTRAR_ID,
+                REGISTERED_AT,
                 WORK_TYPE_ID,
                 schedule,
                 CUSTOMER_INFO,
@@ -300,6 +305,7 @@ class WorkScheduleConflictPolicyTest {
                 ORGANIZATION_ID,
                 "에어컨 수리",
                 REGISTRAR_ID,
+                REGISTERED_AT,
                 WORK_TYPE_ID,
                 schedule,
                 CUSTOMER_INFO,

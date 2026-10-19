@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
+import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.Cancellation;
@@ -43,7 +44,7 @@ class CancelWorkServiceTest {
             names = {"PENDING_ACCEPTANCE", "ACCEPTED", "IN_PROGRESS"})
     @DisplayName("배정이 있는 작업을 취소하면 지금 시각·처리자·사유를 작업에 남기고 그 배정도 같은 시각·처리자의 취소로 끝낸다")
     void cancelsAssignedWork(WorkStatus status) {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(status);
 
         service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, null));
@@ -60,7 +61,7 @@ class CancelWorkServiceTest {
     @Test
     @DisplayName("대기함 작업을 취소해도 처리자와 사유를 남긴다")
     void cancelsBacklogWork() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
 
         service.cancel(command(id.value(), CancellationReason.DUPLICATE_REGISTRATION, null));
@@ -78,7 +79,7 @@ class CancelWorkServiceTest {
             names = {"COMPLETED", "CANCELLED"})
     @DisplayName("완료됐거나 이미 취소된 작업은 취소할 수 없다")
     void rejectsTerminalWork(WorkStatus status) {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(status);
 
         fixture.assertRejected(
@@ -89,7 +90,7 @@ class CancelWorkServiceTest {
     @Test
     @DisplayName("사유가 없거나, 기타인데 메모가 없거나 255자를 넘거나, 기타가 아닌데 메모가 있으면 완료된 작업이라도 상태보다 먼저 입력 오류다")
     void rejectsInvalidReasonBeforeState() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
         WorkId completed = fixture.givenWork(WorkStatus.COMPLETED);
 
@@ -110,7 +111,7 @@ class CancelWorkServiceTest {
     @Test
     @DisplayName("기타 사유는 메모를 함께 남긴다")
     void keepsNoteOfOtherReason() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
 
         service.cancel(command(id.value(), CancellationReason.OTHER, "고객 연락 두절"));
@@ -122,7 +123,7 @@ class CancelWorkServiceTest {
     @Test
     @DisplayName("취소 시각이 배정 이력의 마지막 시각보다 앞서면(서버 간 시계 차이) 입력 오류이고, 취소할 수 없는 상태면 그보다 먼저 상태 오류다")
     void rejectsCancellationBeforeLatestHistory() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         Work rejectedLater = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
         rejectedLater.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), NOW.plusSeconds(60));
         WorkId backlog = fixture.workRepository.store(rejectedLater);
@@ -151,7 +152,7 @@ class CancelWorkServiceTest {
     @Test
     @DisplayName("작업중에 취소하면 시작 시각을 그대로 남긴다")
     void keepsStartedAtOfInProgressWork() {
-        fixture.givenManager();
+        fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
 
         service.cancel(command(id.value(), CancellationReason.OTHER, "고객 부재"));

@@ -9,11 +9,13 @@ import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.ManagerActor;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianActor;
+import com.orbit.schedule.domain.Work;
 import com.orbit.shared.error.BusinessException;
 
 /**
  * 요청자를 조직·요청자 종류 수준에서 확인하는 공통 절차. 작업 조회와 입력 검증보다 먼저 호출해, 조직의 활성 요청자가 아니거나 종류가 맞지 않는 요청에 작업 존재 여부나
- * 입력 오류가 드러나지 않게 한다. 기사가 그 작업의 담당인지는 작업을 찾은 뒤 따로 확인한다. 확인 순서:
+ * 입력 오류가 드러나지 않게 한다. 기사가 그 작업의 담당인지는 작업을 찾은 뒤 따로 확인한다. 예외로 등록자 본인·총관리자 확인({@link
+ * #requireRegistrarOrOwner})은 작업을 찾은 뒤, 입력 검증 전에 호출한다. 확인 순서:
  *
  * <ol>
  *   <li>accountId 누락은 인증 계층의 프로그래밍 오류다.
@@ -42,6 +44,16 @@ final class OrganizationActors {
             throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
         }
         return manager;
+    }
+
+    /**
+     * 기본정보 수정·취소·리스케줄·재배정·배정 해제는 그 작업의 등록자 본인이나 총관리자만 한다. 다른 직원이면 403(SCHEDULE-005). 작업을 찾은 뒤, 입력·상태
+     * 검증보다 먼저 호출한다(권한이 없는 요청에 입력·상태 오류를 드러내지 않는다).
+     */
+    static void requireRegistrarOrOwner(ManagerActor manager, Work work) {
+        if (manager.role() != ActorRole.OWNER && !work.registrarId().equals(manager.membershipId())) {
+            throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
+        }
     }
 
     /** 수락·거절·시작·완료보고를 요청한 기사. 그 작업의 담당 기사인지는 작업을 찾은 뒤 따로 확인한다. */

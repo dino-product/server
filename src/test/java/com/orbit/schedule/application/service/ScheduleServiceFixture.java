@@ -13,8 +13,11 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.service.fake.FakeLoadActorPort;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort;
+import com.orbit.schedule.application.service.fake.FakeStaffProfilesPort;
 import com.orbit.schedule.application.service.fake.FakeTechnicianContractPort;
+import com.orbit.schedule.application.service.fake.FakeTechnicianProfilesPort;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
+import com.orbit.schedule.application.service.fake.FakeWorkTypeLabelsPort;
 import com.orbit.schedule.application.service.fake.FakeWorkTypePort;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.CancellationReason;
@@ -25,6 +28,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -51,6 +55,12 @@ final class ScheduleServiceFixture {
     static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
 
     static final Instant NOW = Instant.parse("2026-09-24T01:00:00Z");
+    /**
+     * 서비스 테스트가 등록하는 작업의 기본 등록 시각. 테스트가 쓰는 배정·응답 시각(지금부터 몇 시간 전)보다 앞서고, 대기함 방치 기준보다는 가까워 기본으로는
+     * 방치가 아니다. 방치를 볼 때는 시각을 따로 정한다.
+     */
+    static final Instant REGISTERED_AT = NOW.minus(Duration.ofHours(6));
+
     static final Instant ASSIGNED_AT = NOW.minus(Duration.ofHours(2));
     static final Instant ACCEPTED_AT = ASSIGNED_AT.plus(Duration.ofMinutes(30));
     static final Instant TEN = Instant.parse("2026-09-25T01:00:00Z");
@@ -65,6 +75,10 @@ final class ScheduleServiceFixture {
     final FakeTechnicianContractPort technicianContracts = new FakeTechnicianContractPort();
     /** 요청 조직은 {@link #WORK_TYPE_ID}를 선택할 수 있다. */
     final FakeWorkTypePort workTypes = new FakeWorkTypePort();
+    // 조회 화면의 표시 정보(기사·등록자·작업유형). 테스트가 넣지 않으면 찾지 못한다.
+    final FakeTechnicianProfilesPort technicianProfiles = new FakeTechnicianProfilesPort();
+    final FakeStaffProfilesPort staffProfiles = new FakeStaffProfilesPort();
+    final FakeWorkTypeLabelsPort workTypeLabels = new FakeWorkTypeLabelsPort();
 
     ScheduleServiceFixture() {
         technicianContracts.givenActive(ORGANIZATION_ID, TECHNICIAN_ID);
@@ -79,6 +93,11 @@ final class ScheduleServiceFixture {
     /** 요청자를 주어진 역할의 관리자({@link #MANAGER_ID})로 둔다. */
     void givenManager(ActorRole role) {
         actorPort.givenManager(ACCOUNT_ID, ORGANIZATION_ID, MANAGER_ID.value(), role);
+    }
+
+    /** 요청자를 {@link #givenWork} 작업을 등록한 직원({@link #REGISTRAR_ID})으로 둔다. */
+    void givenRegistrarStaff() {
+        actorPort.givenManager(ACCOUNT_ID, ORGANIZATION_ID, REGISTRAR_ID.value(), ActorRole.STAFF);
     }
 
     /** 요청자를 주어진 기사로 둔다. 담당 기사 본인 여부는 기사 식별자로 판단한다. */
@@ -100,8 +119,9 @@ final class ScheduleServiceFixture {
                 organizationId,
                 name,
                 REGISTRAR_ID,
+                REGISTERED_AT,
                 WORK_TYPE_ID,
-                new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
+                new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress("04043", "서울시", "3층")),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         if (status != WorkStatus.REGISTERED) {
             work.assign(new WorkSchedule(technicianId, start, TWO_HOURS), ASSIGNED_AT, SETUP_MANAGER_ID);

@@ -10,5 +10,11 @@ public record WorkCustomerRequest(
         @Schema(description = "고객 연락처(최대 20자)", example = "010-1234-5678")
         String phone,
 
-        @Schema(description = "현장 주소(최대 200자)", example = "서울시 마포구 합정동 123-4")
-        String address) {}
+        @Schema(description = "현장 우편번호(숫자 5자리)", example = "04043")
+        String postalCode,
+
+        @Schema(description = "현장 기본주소(최대 200자)", example = "서울시 마포구 양화로 45")
+        String address,
+
+        @Schema(description = "현장 상세주소(최대 100자). 기본주소 없이 보내면 SCHEDULE-003", example = "3층 302호")
+        String addressDetail) {}
