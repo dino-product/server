@@ -34,6 +34,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.TechnicianWorkRelease;
+import com.orbit.organization.TechnicianWorkReleaseBusyException;
 import com.orbit.organization.TechnicianWorkReleaseResult;
 import com.orbit.organization.WorkReleaseBlocked;
 import com.orbit.organization.WorkReleased;
@@ -233,7 +234,7 @@ class TechnicianWorkReleaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("같은 기사의 앞선 변경이 대기 한도 안에 끝나지 않으면 409로 실패하고 바깥 트랜잭션도 롤백된다")
+    @DisplayName("같은 기사의 앞선 변경이 대기 한도 안에 끝나지 않으면 organization 계약의 대기 초과 예외로 실패하고 바깥 트랜잭션도 롤백된다")
     void failsWhenTechnicianScheduleStaysBusy() throws Exception {
         WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
         CountDownLatch locked = new CountDownLatch(1);
@@ -246,6 +247,8 @@ class TechnicianWorkReleaseIntegrationTest {
 
         assertThatThrownBy(() -> inCallerTransaction(() -> technicianWorkRelease.releaseForDeactivation(
                         organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY)))
+                .isInstanceOf(TechnicianWorkReleaseBusyException.class)
+                .cause()
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY));
         assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);

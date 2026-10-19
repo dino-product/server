@@ -9,12 +9,16 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.orbit.organization.TechnicianWorkReleaseBusyException;
 import com.orbit.organization.WorkReleaseBlocked;
 import com.orbit.organization.WorkReleased;
+import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.ReleaseTechnicianWorksUseCase;
 import com.orbit.schedule.application.port.in.command.dto.ReleaseTechnicianWorksCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReleaseTechnicianWorksCommand.Cause;
 import com.orbit.schedule.application.port.in.command.dto.TechnicianWorkReleaseInfo;
+import com.orbit.shared.error.BusinessException;
+import com.orbit.shared.error.CommonErrorCode;
 
 @DisplayName("organization 대기함 반환 요구 인터페이스 구현")
 class TechnicianWorkReleaseAdapterTest {
@@ -60,14 +64,36 @@ class TechnicianWorkReleaseAdapterTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    @Test
+    @DisplayName("기사 일정 잠금 대기 초과는 organization 계약의 예외로 바꾸고, 그 밖의 오류는 그대로 전파한다")
+    void translatesBusyTechnicianSchedule() {
+        BusinessException busy = new BusinessException(ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY);
+        useCase.failure = busy;
+
+        assertThatThrownBy(() -> adapter.releaseForDeactivation(100L, 3L, 21L))
+                .isInstanceOf(TechnicianWorkReleaseBusyException.class)
+                .hasCause(busy);
+        assertThatThrownBy(() -> adapter.releaseForRoleChange(100L, 3L, 21L))
+                .isInstanceOf(TechnicianWorkReleaseBusyException.class)
+                .hasCause(busy);
+
+        BusinessException other = new BusinessException(CommonErrorCode.BAD_REQUEST);
+        useCase.failure = other;
+        assertThatThrownBy(() -> adapter.releaseForDeactivation(100L, 3L, 21L)).isSameAs(other);
+    }
+
     private static final class RecordingUseCase implements ReleaseTechnicianWorksUseCase {
 
         private final List<ReleaseTechnicianWorksCommand> commands = new ArrayList<>();
         private TechnicianWorkReleaseInfo result;
+        private RuntimeException failure;
 
         @Override
         public TechnicianWorkReleaseInfo release(ReleaseTechnicianWorksCommand command) {
             commands.add(command);
+            if (failure != null) {
+                throw failure;
+            }
             return result;
         }
     }

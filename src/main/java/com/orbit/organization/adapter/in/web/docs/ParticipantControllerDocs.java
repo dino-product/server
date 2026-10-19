@@ -162,7 +162,7 @@ public interface ParticipantControllerDocs {
             summary = "기사 계약 비활성화",
             description = "기사 계약을 비활성화합니다. 계약을 지우지 않고 상태만 바꾸며, 같은 요청에서 그 기사의 배정됨·작업전 작업을 담당기사·시간을 비워 "
                     + "대기함으로 돌립니다(작업중·완료 작업은 그대로). 비활성 기사는 로그인·배정 대상에서 빠집니다. 이미 비활성이면 아무것도 바꾸지 않고 "
-                    + "성공합니다. 같은 기사의 일정 변경을 기다리다 대기 한도를 넘기면 SCHEDULE-006입니다. "
+                    + "성공합니다. 같은 기사의 일정 변경을 기다리다 대기 한도를 넘기면 ORGANIZATION-024입니다. "
                     + TECHNICIAN_TARGET
                     + BUSY
                     + " "
@@ -174,7 +174,13 @@ public interface ParticipantControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = OrganizationErrorCode.class,
-            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "TECHNICIAN_NOT_FOUND", "ORGANIZATION_BUSY"})
+            includes = {
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "TECHNICIAN_NOT_FOUND",
+                "ORGANIZATION_BUSY",
+                "TECHNICIAN_SCHEDULE_BUSY"
+            })
     void deactivateTechnician(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,

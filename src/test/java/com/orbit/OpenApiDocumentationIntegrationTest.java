@@ -721,6 +721,9 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("ORGANIZATION-005"))
                 .andExpect(jsonPath(base + "technicians/{technicianId}/deactivation'].post.summary")
                         .value("기사 계약 비활성화"))
+                .andExpect(jsonPath(base + "technicians/{technicianId}/deactivation'].post.responses['409']"
+                                + ".content['application/json'].examples['ORGANIZATION-024'].value.code")
+                        .value("ORGANIZATION-024"))
                 .andExpect(jsonPath(base + "staff-memberships/{membershipId}/reactivation'].post.summary")
                         .value("직원 소속 재활성화"))
                 .andExpect(jsonPath(reactivateTechnician + ".summary").value("기사 계약 재활성화"))

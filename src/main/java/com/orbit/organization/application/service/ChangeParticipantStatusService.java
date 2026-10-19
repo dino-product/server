@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.organization.TechnicianWorkRelease;
+import com.orbit.organization.TechnicianWorkReleaseBusyException;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.DeactivateParticipantUseCase;
 import com.orbit.organization.application.port.in.command.ReactivateParticipantUseCase;
@@ -33,7 +34,8 @@ import com.orbit.shared.error.BusinessException;
  *   <li>비활성화는 상태만 바꾸고 세부 유형·참여일은 남긴다. 총관리자 소속은 총관리자 표시를 떼며, 활성 총관리자 수를 잠근 뒤 세어 마지막 1명이면 409
  *       (ORGANIZATION-005)로 거부한다. 요청자 자신도 대상이 될 수 있다.
  *   <li>기사 계약 비활성화는 같은 트랜잭션에서 {@link TechnicianWorkRelease}로 그 기사의 배정됨·작업전 작업을 대기함으로 돌린다([스케줄·배정] §9). 반환은
- *       요청자 소속을 처리자로 남기며, 반환이 실패하면 예외를 그대로 전파해 비활성화도 롤백한다.
+ *       요청자 소속을 처리자로 남기며, 반환이 실패하면 비활성화도 롤백한다. 기사 일정 대기 초과는 409(ORGANIZATION-024)로 바꾸고 그 밖의 예외는 그대로
+ *       전파한다.
  *   <li>재활성화는 같은 계정이 그 발주사에서 다른 역할로 활성이면 409(ORGANIZATION-022)로, 목록에 보이는 마지막 역할 행이 아니면(역할이 바뀌기 전 행)
  *       409(ORGANIZATION-023)로 거부한다. 역할은 재활성화로 바꾸지 않으므로 세부 유형은 유지한다.
  * </ul>
@@ -78,10 +80,7 @@ public class ChangeParticipantStatusService implements DeactivateParticipantUseC
         Membership requester = lock(command, organizationId);
         Technician target = Participants.requireTechnicianOf(technicianRepository, organizationId, technicianId);
         if (target.status() == TechnicianStatus.ACTIVE) {
-            technicianWorkRelease.releaseForDeactivation(
-                    organizationId.value(),
-                    technicianId.value(),
-                    requester.id().orElseThrow().value());
+            releaseWorks(organizationId, technicianId, requester);
             technicianRepository.deactivate(target.deactivate(clock.instant()));
         }
     }
@@ -119,6 +118,17 @@ public class ChangeParticipantStatusService implements DeactivateParticipantUseC
     private Membership lock(ChangeParticipantStatusCommand command, OrganizationId organizationId) {
         return OrganizationOwners.lockAndRequireOwner(
                 organizationRepository, membershipRepository, command.accountId(), organizationId);
+    }
+
+    private void releaseWorks(OrganizationId organizationId, TechnicianId technicianId, Membership requester) {
+        try {
+            technicianWorkRelease.releaseForDeactivation(
+                    organizationId.value(),
+                    technicianId.value(),
+                    requester.id().orElseThrow().value());
+        } catch (TechnicianWorkReleaseBusyException exception) {
+            throw new BusinessException(OrganizationErrorCode.TECHNICIAN_SCHEDULE_BUSY, exception);
+        }
     }
 
     private Membership deactivated(Membership target, long activeOwners) {

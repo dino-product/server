@@ -28,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbit.organization.TechnicianWorkRelease;
+import com.orbit.organization.TechnicianWorkReleaseBusyException;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.dto.ChangeParticipantStatusCommand;
 import com.orbit.organization.application.port.out.MembershipRepository;
@@ -186,6 +187,22 @@ class ChangeParticipantStatusServiceTest {
 
         assertThatThrownBy(() -> service.deactivate(command(ParticipationType.TECHNICIAN, TECHNICIAN_ID.value())))
                 .isSameAs(busy);
+        verify(technicianRepository, never()).deactivate(any());
+    }
+
+    @Test
+    @DisplayName("기사 일정이 바빠 대기함 반환이 대기 한도를 넘기면 409 ORGANIZATION-024로 바꾸고 기사 계약을 저장하지 않는다")
+    void translatesBusyWorkRelease() {
+        givenRequesterIsOwner();
+        givenTechnician(TechnicianStatus.ACTIVE);
+        TechnicianWorkReleaseBusyException busy = new TechnicianWorkReleaseBusyException(null);
+        doThrow(busy).when(technicianWorkRelease).releaseForDeactivation(anyLong(), anyLong(), anyLong());
+
+        assertThatThrownBy(() -> service.deactivate(command(ParticipationType.TECHNICIAN, TECHNICIAN_ID.value())))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(OrganizationErrorCode.TECHNICIAN_SCHEDULE_BUSY);
+                    assertThat(exception.getCause()).isSameAs(busy);
+                });
         verify(technicianRepository, never()).deactivate(any());
     }
 
