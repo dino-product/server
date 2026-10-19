@@ -210,6 +210,28 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsWorkTypeOperations() throws Exception {
+        String collection = "$.paths['/api/v1/organizations/{organizationId}/work-types']";
+        String item = "$.paths['/api/v1/organizations/{organizationId}/work-types/{workTypeId}']";
+        String schemas = "#/components/schemas/com.orbit.organization.adapter.in.web.";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(collection + ".get.summary").value("작업 유형 목록 조회"))
+                .andExpect(jsonPath(collection + ".get.responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "WorkTypesResponse"))
+                .andExpect(jsonPath(collection + ".post.summary").value("작업 유형 생성"))
+                .andExpect(jsonPath(collection + ".post.responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-009'].value.code")
+                        .value("ORGANIZATION-009"))
+                .andExpect(jsonPath(item + ".put.summary").value("작업 유형 수정"))
+                .andExpect(jsonPath(item + ".put.parameters[*].name").value(contains("organizationId", "workTypeId")))
+                .andExpect(jsonPath(item + ".put.responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-008'].value.code")
+                        .value("ORGANIZATION-008"));
+    }
+
+    @Test
     void documentsCompanyCodeReadAsOwnerOnlyOperation() throws Exception {
         String operation = "$.paths['/api/v1/organizations/{organizationId}/company-code'].get";
         String forbidden = operation + ".responses['403'].content['application/json'].examples";
