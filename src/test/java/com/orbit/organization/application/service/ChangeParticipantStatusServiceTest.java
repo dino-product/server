@@ -120,6 +120,30 @@ class ChangeParticipantStatusServiceTest {
     }
 
     @Test
+    @DisplayName("다른 총관리자가 남아 있으면 요청자는 자기 총관리자 소속도 비활성화할 수 있다")
+    void deactivatesOwnMembershipWhileAnotherOwnerRemains() {
+        givenRequesterIsOwner();
+        when(membershipRepository.findById(REQUESTER_MEMBERSHIP_ID))
+                .thenReturn(Optional.of(Membership.reconstitute(
+                        REQUESTER_MEMBERSHIP_ID,
+                        ORGANIZATION_ID,
+                        REQUESTER,
+                        true,
+                        MembershipStatus.ACTIVE,
+                        JOINED_AT,
+                        JOINED_AT)));
+        when(membershipRepository.countActiveOwners(ORGANIZATION_ID)).thenReturn(2L);
+
+        service.deactivate(command(ParticipationType.STAFF, REQUESTER_MEMBERSHIP_ID.value()));
+
+        ArgumentCaptor<Membership> saved = ArgumentCaptor.forClass(Membership.class);
+        verify(membershipRepository).deactivate(saved.capture());
+        assertThat(saved.getValue().id()).contains(REQUESTER_MEMBERSHIP_ID);
+        assertThat(saved.getValue().isOwner()).isFalse();
+        assertThat(saved.getValue().status()).isEqualTo(MembershipStatus.DEACTIVATED);
+    }
+
+    @Test
     @DisplayName("유일한 활성 총관리자는 비활성화할 수 없다")
     void rejectsDeactivatingLastOwner() {
         givenRequesterIsOwner();
