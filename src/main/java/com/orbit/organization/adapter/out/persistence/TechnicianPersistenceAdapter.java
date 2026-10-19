@@ -48,6 +48,14 @@ class TechnicianPersistenceAdapter implements TechnicianRepository {
     }
 
     @Override
+    public void deactivate(Technician technician) {
+        repository
+                .findById(technician.id().orElseThrow().value())
+                .orElseThrow(() -> new IllegalStateException("technician to deactivate must exist"))
+                .deactivate(technician);
+    }
+
+    @Override
     public void changeTechnicianCategory(TechnicianId id, MemberCategoryId categoryId) {
         repository
                 .findById(id.value())

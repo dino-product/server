@@ -57,6 +57,14 @@ class MembershipPersistenceAdapter implements MembershipRepository {
     }
 
     @Override
+    public void deactivate(Membership membership) {
+        repository
+                .findById(membership.id().orElseThrow().value())
+                .orElseThrow(() -> new IllegalStateException("membership to deactivate must exist"))
+                .deactivate(membership);
+    }
+
+    @Override
     public Optional<Membership> findActive(OrganizationId organizationId, AccountId accountId) {
         return repository
                 .findByOrganizationIdAndAccountIdAndStatus(

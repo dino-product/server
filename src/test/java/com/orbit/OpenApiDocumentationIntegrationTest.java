@@ -708,6 +708,31 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsParticipantDeactivationAndReactivation() throws Exception {
+        String base = "$.paths['/api/v1/organizations/{organizationId}/";
+        String deactivateStaff = base + "staff-memberships/{membershipId}/deactivation'].post";
+        String reactivateTechnician = base + "technicians/{technicianId}/reactivation'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(deactivateStaff + ".summary").value("직원 소속 비활성화"))
+                .andExpect(jsonPath(deactivateStaff + ".responses['204']").exists())
+                .andExpect(jsonPath(deactivateStaff + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-005'].value.code")
+                        .value("ORGANIZATION-005"))
+                .andExpect(jsonPath(base + "technicians/{technicianId}/deactivation'].post.summary")
+                        .value("기사 계약 비활성화"))
+                .andExpect(jsonPath(base + "staff-memberships/{membershipId}/reactivation'].post.summary")
+                        .value("직원 소속 재활성화"))
+                .andExpect(jsonPath(reactivateTechnician + ".summary").value("기사 계약 재활성화"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-020'].value.code")
+                        .value("ORGANIZATION-020"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-022'].value.code")
+                        .value("ORGANIZATION-022"));
+    }
+
+    @Test
     void documentsParticipationRequestApprovalAndRejectionAsBatches() throws Exception {
         String base = "$.paths['/api/v1/organizations/{organizationId}/participation-requests";
         String approve = base + "/approvals'].post";

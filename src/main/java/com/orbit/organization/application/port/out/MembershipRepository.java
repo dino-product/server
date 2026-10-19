@@ -20,10 +20,13 @@ public interface MembershipRepository {
     Optional<Membership> find(OrganizationId organizationId, AccountId accountId);
 
     /**
-     * {@link Membership#rejoin}으로 다시 활성이 된 소속의 상태·상태 변경 시각·총관리자 표시를 저장한다. {@code unassignCategory}이면 직원 유형도 "유형
+     * {@link Membership#reactivate}으로 다시 활성이 된 소속의 상태·상태 변경 시각·총관리자 표시를 저장한다. {@code unassignCategory}이면 직원 유형도 "유형
      * 없음"으로 바꾼다. 직원 유형은 소속 도메인에 없으므로, 유형 삭제가 해제한 값을 되살리지 않도록 호출자는 발주사를 잠근 뒤 읽은 소속을 넘긴다.
      */
     Membership reactivate(Membership membership, boolean unassignCategory);
+
+    /** {@link Membership#deactivate}로 비활성이 된 소속의 상태·상태 변경 시각·총관리자 표시를 저장한다. 직원 유형은 그대로 둔다. */
+    void deactivate(Membership membership);
 
     /** 계정의 그 발주사 활성 직원 소속. */
     Optional<Membership> findActive(OrganizationId organizationId, AccountId accountId);

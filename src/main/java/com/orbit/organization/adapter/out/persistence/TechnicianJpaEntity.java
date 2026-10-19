@@ -85,6 +85,14 @@ class TechnicianJpaEntity extends BaseTimeEntity {
         }
     }
 
+    void deactivate(Technician technician) {
+        if (technician.status() != TechnicianStatus.DEACTIVATED) {
+            throw new IllegalArgumentException("deactivated technician must be deactivated");
+        }
+        this.status = technician.status();
+        this.statusChangedAt = technician.statusChangedAt();
+    }
+
     Technician toDomain() {
         return Technician.reconstitute(
                 new TechnicianId(id),

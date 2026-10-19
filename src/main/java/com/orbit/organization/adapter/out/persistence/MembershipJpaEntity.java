@@ -89,6 +89,15 @@ class MembershipJpaEntity extends BaseTimeEntity {
         }
     }
 
+    void deactivate(Membership membership) {
+        if (membership.status() != MembershipStatus.DEACTIVATED) {
+            throw new IllegalArgumentException("deactivated membership must be deactivated");
+        }
+        this.owner = membership.isOwner();
+        this.status = membership.status();
+        this.statusChangedAt = membership.statusChangedAt();
+    }
+
     Membership toDomain() {
         return Membership.reconstitute(
                 new MembershipId(id),

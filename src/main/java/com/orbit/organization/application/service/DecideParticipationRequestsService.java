@@ -231,9 +231,9 @@ public class DecideParticipationRequestsService
         ParticipationType lastRole = lastRole(staff, technician);
         boolean unassignCategory = confirmedType != lastRole;
         if (confirmedType == ParticipationType.STAFF && staff.isPresent()) {
-            membershipRepository.reactivate(staff.get().rejoin(now), unassignCategory);
+            membershipRepository.reactivate(staff.get().reactivate(now), unassignCategory);
         } else if (confirmedType == ParticipationType.TECHNICIAN && technician.isPresent()) {
-            technicianRepository.reactivate(technician.get().rejoin(now), unassignCategory);
+            technicianRepository.reactivate(technician.get().reactivate(now), unassignCategory);
         } else {
             Instant joinedAt = lastRole == ParticipationType.STAFF
                     ? staff.orElseThrow().joinedAt()

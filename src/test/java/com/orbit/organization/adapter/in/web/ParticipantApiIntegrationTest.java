@@ -1,5 +1,6 @@
 package com.orbit.organization.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -221,6 +222,128 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("ORGANIZATION-003"));
     }
 
+    @Test
+    @DisplayName("직원을 비활성화하면 목록에 비활성으로 남고 그 직원은 발주사 기능을 쓸 수 없으며, 재활성화하면 다시 활성이다")
+    void deactivatesAndReactivatesStaff() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "직원 비활성화 발주사");
+        long staff = ACCOUNT_IDS.incrementAndGet();
+        long membershipId = join(company, owner, staff, "STAFF");
+        long category = createCategory(owner, company.organizationId(), "staff-categories", "정규직");
+        assignCategory(owner, company.organizationId(), "staff-memberships", membershipId, category)
+                .andExpect(status().isNoContent());
+
+        changeStatus(owner, company.organizationId(), "staff-memberships", membershipId, "deactivation")
+                .andExpect(status().isNoContent());
+        changeStatus(owner, company.organizationId(), "staff-memberships", membershipId, "deactivation")
+                .andExpect(status().isNoContent());
+
+        listParticipants(owner, company.organizationId(), "STAFF", null)
+                .andExpect(jsonPath("$.result.counts.staff").value(2))
+                .andExpect(jsonPath("$.result.participants[?(@.memberId == " + membershipId + ")].status")
+                        .value("DEACTIVATED"));
+        mockMvc.perform(get("/api/v1/organizations/{organizationId}/staff-categories", company.organizationId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(staff)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-002"));
+        assignCategory(owner, company.organizationId(), "staff-memberships", membershipId, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-021"));
+
+        changeStatus(owner, company.organizationId(), "staff-memberships", membershipId, "reactivation")
+                .andExpect(status().isNoContent());
+        listParticipants(owner, company.organizationId(), "STAFF", null)
+                .andExpect(jsonPath("$.result.participants[?(@.memberId == " + membershipId + ")].status")
+                        .value("ACTIVE"))
+                .andExpect(jsonPath("$.result.participants[?(@.memberId == " + membershipId + ")].category.name")
+                        .value("정규직"));
+    }
+
+    @Test
+    @DisplayName("다른 총관리자는 비활성화하면 총관리자 표시가 떨어져 직원으로 돌아오고, 남은 유일한 총관리자는 409 ORGANIZATION-005다")
+    void deactivatesOtherOwnerButNotLastOwner() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "총관리자 비활성화 발주사");
+        long secondOwner = ACCOUNT_IDS.incrementAndGet();
+        long secondMembershipId = join(company, owner, secondOwner, "STAFF");
+        long ownerMembershipId = jdbcTemplate.queryForObject(
+                "select id from company_memberships where company_id = ? and member_id = ?",
+                Long.class,
+                company.organizationId(),
+                owner);
+        mockMvc.perform(put(
+                                "/api/v1/organizations/{organizationId}/owners/{membershipId}",
+                                company.organizationId(),
+                                secondMembershipId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(owner)))
+                .andExpect(status().isNoContent());
+
+        changeStatus(owner, company.organizationId(), "staff-memberships", secondMembershipId, "deactivation")
+                .andExpect(status().isNoContent());
+        changeStatus(owner, company.organizationId(), "staff-memberships", ownerMembershipId, "deactivation")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-005"));
+
+        changeStatus(owner, company.organizationId(), "staff-memberships", secondMembershipId, "reactivation")
+                .andExpect(status().isNoContent());
+        listParticipants(owner, company.organizationId(), null, null)
+                .andExpect(jsonPath("$.result.participants[?(@.memberId == " + secondMembershipId + ")].role")
+                        .value("STAFF"))
+                .andExpect(jsonPath("$.result.participants[?(@.memberId == " + ownerMembershipId + ")].status")
+                        .value("ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("기사를 비활성화하면 배정됨 작업이 대기함으로 돌아가고, 재활성화하면 같은 계약으로 돌아온다")
+    void deactivatingTechnicianReturnsAssignedWorkToBacklog() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "기사 비활성화 발주사");
+        long technician = ACCOUNT_IDS.incrementAndGet();
+        long technicianId = join(company, owner, technician, "TECHNICIAN");
+        long workId = registerAssignedWork(owner, company.organizationId(), technicianId);
+        assertThat(workStatus(workId)).isEqualTo("PENDING_ACCEPTANCE");
+
+        changeStatus(owner, company.organizationId(), "technicians", technicianId, "deactivation")
+                .andExpect(status().isNoContent());
+
+        assertThat(workStatus(workId)).isEqualTo("REGISTERED");
+        listParticipants(owner, company.organizationId(), "TECHNICIAN", null)
+                .andExpect(jsonPath("$.result.participants[0].status").value("DEACTIVATED"));
+        mockMvc.perform(get("/api/v1/memberships")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(technician)))
+                .andExpect(jsonPath("$.result.memberships[0].status").value("DEACTIVATED"));
+
+        changeStatus(owner, company.organizationId(), "technicians", technicianId, "reactivation")
+                .andExpect(status().isNoContent());
+        listParticipants(owner, company.organizationId(), "TECHNICIAN", null)
+                .andExpect(jsonPath("$.result.participants[0].memberId").value(technicianId))
+                .andExpect(jsonPath("$.result.participants[0].status").value("ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("비활성 직원이 기사로 다시 승인되어 활성이면 직원 소속은 재활성화할 수 없고(409 ORGANIZATION-022), 다른 발주사의 대상은 404다")
+    void refusesReactivationWhileOtherRoleIsActive() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "역할 충돌 발주사");
+        long otherOwner = ACCOUNT_IDS.incrementAndGet();
+        Company otherCompany = createCompany(otherOwner, "다른 상태 발주사");
+        long member = ACCOUNT_IDS.incrementAndGet();
+        long membershipId = join(company, owner, member, "STAFF");
+        changeStatus(owner, company.organizationId(), "staff-memberships", membershipId, "deactivation")
+                .andExpect(status().isNoContent());
+        long technicianId = join(company, owner, member, "TECHNICIAN");
+
+        changeStatus(owner, company.organizationId(), "staff-memberships", membershipId, "reactivation")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-022"));
+        changeStatus(otherOwner, otherCompany.organizationId(), "technicians", technicianId, "deactivation")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-020"));
+        changeStatus(member, company.organizationId(), "technicians", technicianId, "deactivation")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-002"));
+    }
+
     private ResultActions listParticipants(long accountId, long organizationId, String type, String name)
             throws Exception {
         MockHttpServletRequestBuilder request = get(
@@ -284,6 +407,38 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(body)));
+    }
+
+    private ResultActions changeStatus(
+            long accountId, long organizationId, String collection, long memberId, String change) throws Exception {
+        return mockMvc.perform(post(
+                        "/api/v1/organizations/{organizationId}/" + collection + "/{memberId}/" + change,
+                        organizationId,
+                        memberId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId)));
+    }
+
+    private long registerAssignedWork(long owner, long organizationId, long technicianId) throws Exception {
+        return result(mockMvc.perform(post("/api/v1/organizations/{organizationId}/works", organizationId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name",
+                                "에어컨 설치",
+                                "schedule",
+                                Map.of(
+                                        "technicianId",
+                                        technicianId,
+                                        "startTime",
+                                        "2030-03-02T01:00:00Z",
+                                        "expectedDurationMinutes",
+                                        60))))))
+                .path("workId")
+                .asLong();
+    }
+
+    private String workStatus(long workId) {
+        return jdbcTemplate.queryForObject("select status from work where id = ?", String.class, workId);
     }
 
     private void rename(long accountId, String name) {
