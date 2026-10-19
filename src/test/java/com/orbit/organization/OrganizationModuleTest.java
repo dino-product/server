@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
@@ -25,6 +26,10 @@ import com.orbit.support.TestcontainersConfiguration;
 @Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 class OrganizationModuleTest {
+
+    // schedule이 구현하는 요구 인터페이스. 독립 모듈 조립에는 구현이 없어 대체한다.
+    @MockitoBean
+    private WorkTypeRelease workTypeRelease;
 
     @Autowired
     private CreateOrganizationUseCase useCase;

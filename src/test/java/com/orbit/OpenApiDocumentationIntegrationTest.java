@@ -228,7 +228,16 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(item + ".put.parameters[*].name").value(contains("organizationId", "workTypeId")))
                 .andExpect(jsonPath(item + ".put.responses['404'].content['application/json']"
                                 + ".examples['ORGANIZATION-008'].value.code")
-                        .value("ORGANIZATION-008"));
+                        .value("ORGANIZATION-008"))
+                .andExpect(jsonPath(item + ".delete.summary").value("작업 유형 삭제"))
+                .andExpect(jsonPath(item + ".delete.responses['204']").exists())
+                .andExpect(jsonPath(item + ".delete.responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-010'].value.code")
+                        .value("ORGANIZATION-010"))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations/{organizationId}/work-types/{workTypeId}"
+                                + "/deletion-impact'].get.responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "WorkTypeDeletionImpactResponse"));
     }
 
     @Test

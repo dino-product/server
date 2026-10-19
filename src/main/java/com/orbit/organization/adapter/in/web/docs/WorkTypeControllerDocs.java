@@ -1,6 +1,7 @@
 package com.orbit.organization.adapter.in.web.docs;
 
 import com.orbit.auth.AccountPrincipal;
+import com.orbit.organization.adapter.in.web.WorkTypeDeletionImpactResponse;
 import com.orbit.organization.adapter.in.web.WorkTypeRequest;
 import com.orbit.organization.adapter.in.web.WorkTypeResponse;
 import com.orbit.organization.adapter.in.web.WorkTypesResponse;
@@ -99,4 +100,47 @@ public interface WorkTypeControllerDocs {
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
             @Parameter(description = "작업 유형 식별자", example = "1", required = true) Long workTypeId,
             WorkTypeRequest request);
+
+    @Operation(
+            summary = "작업 유형 삭제 영향 건수 조회",
+            description = "삭제 확인 창에 보일 건수입니다. 삭제하면 유형 없음이 될 등록·배정됨·작업전 작업 수와, 삭제된 유형의 이름·색상을 그대로 "
+                    + "유지할 작업중·완료·취소 작업 수를 돌려줍니다. 조회 시점의 안내이며 삭제 전에 작업 상태가 바뀔 수 있습니다. "
+                    + "그 발주사의 활성 총관리자만 볼 수 있습니다. 다른 발주사의 작업 유형·삭제된 작업 유형은 ORGANIZATION-008입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkTypeDeletionImpactResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED"})
+    @ApiErrorCodes(
+            enumClass = OrganizationErrorCode.class,
+            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "CATEGORY_NOT_FOUND"})
+    WorkTypeDeletionImpactResponse getDeletionImpact(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
+            @Parameter(description = "작업 유형 식별자", example = "1", required = true) Long workTypeId);
+
+    @Operation(
+            summary = "작업 유형 삭제",
+            description = "작업 유형을 소프트 삭제합니다. 그 발주사의 활성 총관리자만 지울 수 있고 복구할 수 없습니다. "
+                    + "등록·배정됨·작업전 작업은 유형 없음이 되고 배정됨·작업전 작업의 담당 기사에게 알립니다. 작업중·완료·취소 작업은 "
+                    + "삭제된 유형의 이름·색상을 그대로 보여 줍니다. 삭제된 유형은 목록·선택지에서 빠집니다. 이미 삭제된 작업 유형을 다시 지워도 "
+                    + "성공합니다. 다른 발주사의 작업 유형은 ORGANIZATION-008입니다. " + BUSY,
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(responseCode = "204", description = "삭제 성공(이미 삭제된 작업 유형 포함)")
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED"})
+    @ApiErrorCodes(
+            enumClass = OrganizationErrorCode.class,
+            includes = {"NOT_ORGANIZATION_MEMBER", "OWNER_ONLY", "CATEGORY_NOT_FOUND", "ORGANIZATION_BUSY"})
+    void deleteWorkType(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
+            @Parameter(description = "작업 유형 식별자", example = "1", required = true) Long workTypeId);
 }

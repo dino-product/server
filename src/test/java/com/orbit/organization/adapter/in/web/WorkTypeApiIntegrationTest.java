@@ -2,6 +2,8 @@ package com.orbit.organization.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -216,6 +218,108 @@ class WorkTypeApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("TC-28: 삭제 영향은 시작 전 작업과 시작한 작업으로 나뉘고, 삭제하면 시작 전 작업만 유형 없음이 되며 유형은 목록에서 빠진다")
+    void deletesWorkTypeReleasingOnlyWorksBeforeStart() throws Exception {
+        long organizationId = organizationOfNewOwner();
+        long workType = createWorkType(organizationId, "설치", "#3B82F6");
+        long kept = createWorkType(organizationId, "수리", "#EF4444");
+        long registered = insertWork(organizationId, workType, "REGISTERED", null);
+        long pending = insertWork(organizationId, workType, "PENDING_ACCEPTANCE", 21L);
+        long accepted = insertWork(organizationId, workType, "ACCEPTED", 22L);
+        long inProgress = insertWork(organizationId, workType, "IN_PROGRESS", 23L);
+        long completed = insertWork(organizationId, workType, "COMPLETED", 24L);
+        long cancelled = insertWork(organizationId, workType, "CANCELLED", null);
+        long otherType = insertWork(organizationId, kept, "REGISTERED", null);
+
+        deletionImpact(organizationId, workType)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.releasedCount").value(3))
+                .andExpect(jsonPath("$.result.keptCount").value(3));
+        remove(organizationId, workType).andExpect(status().isNoContent());
+
+        for (long work : new long[] {registered, pending, accepted}) {
+            assertThat(workTypeOf(work)).isNull();
+        }
+        for (long work : new long[] {inProgress, completed, cancelled}) {
+            assertThat(workTypeOf(work)).isEqualTo(workType);
+        }
+        assertThat(workTypeOf(otherType)).isEqualTo(kept);
+        assertThat(jdbcTemplate.queryForMap("select name, color, is_deleted from work_type where id = ?", workType))
+                .containsEntry("name", "설치")
+                .containsEntry("color", "#3B82F6")
+                .containsEntry("is_deleted", true);
+        list(organizationId)
+                .andExpect(jsonPath("$.result.workTypes[*].workTypeId").value(contains((int) kept)));
+    }
+
+    @Test
+    @DisplayName("삭제는 다시 해도 성공하고, 삭제된 작업 유형의 수정·영향 조회는 404다")
+    void softDeletesIdempotently() throws Exception {
+        long organizationId = organizationOfNewOwner();
+        long workType = createWorkType(organizationId, "설치", "#3B82F6");
+
+        remove(organizationId, workType).andExpect(status().isNoContent());
+        remove(organizationId, workType).andExpect(status().isNoContent());
+
+        list(organizationId).andExpect(jsonPath("$.result.workTypes", empty()));
+        update(organizationId, workType, "수리", "#3B82F6")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-008"));
+        deletionImpact(organizationId, workType)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-008"));
+    }
+
+    @Test
+    @DisplayName("EC-20: 삭제된 작업 유형과 같은 이름은 새 유형으로 만들고, 삭제된 유형을 쓰던 작업은 옮기지 않는다")
+    void recreatesSameNameAsNewWorkType() throws Exception {
+        long organizationId = organizationOfNewOwner();
+        long original = createWorkType(organizationId, "설치", "#3B82F6");
+        long completed = insertWork(organizationId, original, "COMPLETED", 21L);
+        remove(organizationId, original).andExpect(status().isNoContent());
+
+        long recreated = createWorkType(organizationId, "설치", "#EF4444");
+
+        assertThat(recreated).isNotEqualTo(original);
+        assertThat(workTypeOf(completed)).isEqualTo(original);
+        list(organizationId)
+                .andExpect(jsonPath("$.result.workTypes[*].workTypeId").value(contains((int) recreated)));
+    }
+
+    @Test
+    @DisplayName("총관리자가 아닌 직원은 작업 유형의 삭제 영향을 보거나 지울 수 없다")
+    void staffCannotDeleteWorkType() throws Exception {
+        long organizationId = organizationOfNewOwner();
+        long workType = createWorkType(organizationId, "설치", "#3B82F6");
+        joinAsStaff(organizationId, requester());
+
+        deletionImpact(organizationId, workType)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-003"));
+        remove(organizationId, workType)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-003"));
+        assertThat(jdbcTemplate.queryForObject(
+                        "select is_deleted from work_type where id = ?", Boolean.class, workType))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("다른 발주사 경로로 지우면 없는 유형과 같은 404이고 삭제되지 않는다")
+    void rejectsDeletingWorkTypeOfOtherOrganization() throws Exception {
+        long organizationId = organizationOfNewOwner();
+        long workType = createWorkType(organizationId, "설치", "#3B82F6");
+        long otherOrganizationId = organizationOfNewOwner();
+
+        remove(otherOrganizationId, workType)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-008"));
+        assertThat(jdbcTemplate.queryForObject(
+                        "select is_deleted from work_type where id = ?", Boolean.class, workType))
+                .isFalse();
+    }
+
+    @Test
     @DisplayName("인증하지 않은 요청은 401로 거부한다")
     void rejectsUnauthenticatedRequest() throws Exception {
         mockMvc.perform(get("/api/v1/organizations/1/work-types"))
@@ -291,6 +395,40 @@ class WorkTypeApiIntegrationTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("name", name, "color", color))));
+    }
+
+    /** schedule의 작업 등록·배정 흐름 대신 작업 행을 직접 넣는다. 유형 해제는 작업 행만 보므로 배정 이력은 두지 않는다. */
+    private long insertWork(long organizationId, long workTypeId, String status, Long technicianId) {
+        Timestamp at = Timestamp.from(Instant.parse("2026-10-06T00:00:00Z"));
+        jdbcTemplate.update(
+                "insert into work (version, company_id, created_by, registered_at, job_type_id, name, status,"
+                        + " technician_id, created_at, updated_at) values (0, ?, 1, ?, ?, '작업', ?, ?, ?, ?)",
+                organizationId,
+                at,
+                workTypeId,
+                status,
+                technicianId,
+                at,
+                at);
+        return jdbcTemplate.queryForObject("select max(id) from work where company_id = ?", Long.class, organizationId);
+    }
+
+    private Long workTypeOf(long workId) {
+        return jdbcTemplate.queryForObject("select job_type_id from work where id = ?", Long.class, workId);
+    }
+
+    private ResultActions deletionImpact(long organizationId, long workTypeId) throws Exception {
+        return mockMvc.perform(get(
+                        "/api/v1/organizations/{organizationId}/work-types/{workTypeId}/deletion-impact",
+                        organizationId,
+                        workTypeId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken()));
+    }
+
+    private ResultActions remove(long organizationId, long workTypeId) throws Exception {
+        return mockMvc.perform(
+                delete("/api/v1/organizations/{organizationId}/work-types/{workTypeId}", organizationId, workTypeId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken()));
     }
 
     private long requester() {
