@@ -9,6 +9,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETU
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.UNKNOWN_WORK_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.Test;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
+import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.Rejection;
@@ -30,10 +33,10 @@ class RejectWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final RejectWorkService service =
-            new RejectWorkService(fixture.actorPort, fixture.workRepository, fixture.clock);
+            new RejectWorkService(fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.clock);
 
     @Test
-    @DisplayName("담당 기사가 최신 배정을 사유와 함께 거절하면 지금 시각으로 거절을 기록하고 대기함으로 돌린다")
+    @DisplayName("담당 기사가 최신 배정을 사유와 함께 거절하면 지금 시각으로 거절을 기록하고 대기함으로 돌리며, 기사를 잠그되 다른 작업은 읽지 않는다")
     void rejectsCurrentAssignment() {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
@@ -49,7 +52,39 @@ class RejectWorkServiceTest {
             assertThat(history.decidedAt()).contains(NOW);
             assertThat(history.ending()).isEmpty();
         });
-        assertThat(fixture.scheduleLock.locks()).isEmpty();
+        assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
+        assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("기사 잠금을 기다리는 동안 대기함 반환이 먼저 커밋되면 반환된 작업을 보고 찾을 수 없음이다")
+    void seesReleaseCommittedWhileWaitingForLock() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+        fixture.scheduleLock.whileWaiting(() -> {
+            Work released = fixture.stored(id);
+            released.unassign(NOW, SETUP_MANAGER_ID);
+            fixture.workRepository.store(released);
+        });
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.reject(command(id.value(), 1, RejectionReason.LOCATION_TOO_FAR, null)),
+                ScheduleErrorCode.WORK_NOT_FOUND);
+        Work stored = fixture.stored(id);
+        assertThat(stored.status()).isEqualTo(WorkStatus.REGISTERED);
+        assertThat(stored.assignmentHistory().getLast().rejection()).isEmpty();
+        assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
+    }
+
+    @Test
+    @DisplayName("기사 잠금 대기 한도를 넘기면 작업을 찾기 전에 잠시 후 다시 시도하라는 오류다")
+    void reportsBusyTechnicianBeforeReadingWork() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.reject(command(UNKNOWN_WORK_ID, 1, RejectionReason.LOCATION_TOO_FAR, null)),
+                ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY);
     }
 
     @Test
@@ -73,13 +108,13 @@ class RejectWorkServiceTest {
         cancelled.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         WorkId cancelledInBacklog = fixture.workRepository.store(cancelled);
 
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(rejected.value(), 1, RejectionReason.OTHER, "차량 고장")),
                 ScheduleErrorCode.WORK_NOT_FOUND);
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(rejected.value(), 1, RejectionReason.LOCATION_TOO_FAR, null)),
                 ScheduleErrorCode.WORK_NOT_FOUND);
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(cancelledInBacklog.value(), 1, RejectionReason.SCHEDULE_CONFLICT, null)),
                 ScheduleErrorCode.WORK_NOT_FOUND);
     }
@@ -105,7 +140,7 @@ class RejectWorkServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId accepted = fixture.givenWork(WorkStatus.ACCEPTED);
 
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(accepted.value(), 1, RejectionReason.LOCATION_TOO_FAR, null)),
                 ScheduleErrorCode.INVALID_WORK_STATE);
     }
@@ -116,15 +151,15 @@ class RejectWorkServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(id.value(), 1, null, null)), ScheduleErrorCode.INVALID_WORK_INPUT);
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(id.value(), 1, RejectionReason.OTHER, " ")),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(id.value(), 1, RejectionReason.SCOPE_MISMATCH, "메모")),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(id.value(), 1, RejectionReason.OTHER, "가".repeat(256))),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
     }
@@ -140,13 +175,13 @@ class RejectWorkServiceTest {
         WorkId rescheduledId = rescheduledAfterNow();
         WorkId accepted = fixture.givenWork(WorkStatus.ACCEPTED);
 
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(reassignedId.value(), 1, null, null)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(rescheduledId.value(), 1, null, null)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(accepted.value(), 1, null, null)), ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
@@ -156,7 +191,7 @@ class RejectWorkServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = rescheduledAfterNow();
 
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(id.value(), 2, RejectionReason.SCHEDULE_CONFLICT, null)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
     }
@@ -169,7 +204,7 @@ class RejectWorkServiceTest {
         work.cancel(NOW.plusSeconds(120), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         WorkId id = fixture.workRepository.store(work);
 
-        fixture.assertRejected(
+        fixture.assertRejectedWithoutSaving(
                 () -> service.reject(command(id.value(), 2, RejectionReason.SCHEDULE_CONFLICT, null)),
                 ScheduleErrorCode.INVALID_WORK_STATE);
     }

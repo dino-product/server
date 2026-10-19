@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +26,8 @@ import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
+import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.Rejection;
@@ -35,9 +38,10 @@ import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 기사가 요청하는 배정 수락·거절·작업 시작·완료보고가 schedule 지침의 기사 유즈케이스 오류 순서 — 계정 → 조직 식별자 → 구성원 → 요청자 종류(기사) → 작업 식별자 →
- * 작업 조회 → 기사가 볼 수 있는 작업 → 배정 순번 형식 → 담당 기사 본인 → 최신 배정 → 처리할 수 있는 상태 — 를 같게 지키는지 확인한다. 거절 입력(사유·메모)과
- * 완료보고 입력의 순서는 각 서비스 테스트가 다룬다.
+ * 기사가 요청하는 배정 수락·거절·작업 시작·완료보고가 schedule 지침의 기사 유즈케이스 오류 순서 — 계정 → 조직 식별자 → 구성원 → 요청자 종류(기사) → 작업 식별자
+ * 형식 → 기사 잠금(수락·거절·시작) → 작업 조회 → 기사가 볼 수 있는 작업 → 배정 순번 형식 → 담당 기사 본인 → 최신 배정 → 처리할 수 있는 상태 — 를 같게
+ * 지키는지 확인한다. 작업 식별자 형식까지의 거부는 기사를 잠그지 않고, 작업 조회부터의 거부는 수락·거절·시작이면 요청한 기사를 정확히 한 번 잠근 뒤(완료보고는
+ * 잠그지 않음)임을 함께 본다. 대기 한도 초과, 거절 입력(사유·메모)과 완료보고 입력의 순서는 각 서비스 테스트가 다룬다.
  */
 @DisplayName("기사 유즈케이스 공통 오류 순서")
 class TechnicianWorkCommandRulesTest {
@@ -46,13 +50,15 @@ class TechnicianWorkCommandRulesTest {
 
     static Stream<UseCase> useCases() {
         return Stream.of(
-                new UseCase("수락", (f, request) -> new AcceptWorkService(f.actorPort, f.workRepository, f.clock)
+                new UseCase("수락", true, (f, request) -> new AcceptWorkService(
+                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
                         .accept(new AcceptWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),
                                 request.assignmentNumber()))),
-                new UseCase("거절", (f, request) -> new RejectWorkService(f.actorPort, f.workRepository, f.clock)
+                new UseCase("거절", true, (f, request) -> new RejectWorkService(
+                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
                         .reject(new RejectWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -60,13 +66,14 @@ class TechnicianWorkCommandRulesTest {
                                 request.assignmentNumber(),
                                 RejectionReason.SCHEDULE_CONFLICT,
                                 null))),
-                new UseCase("시작", (f, request) -> new StartWorkService(f.actorPort, f.workRepository, f.clock)
+                new UseCase("시작", true, (f, request) -> new StartWorkService(
+                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
                         .start(new StartWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),
                                 request.assignmentNumber()))),
-                new UseCase("완료보고", (f, request) -> new SubmitCompletionReportService(
+                new UseCase("완료보고", false, (f, request) -> new SubmitCompletionReportService(
                                 f.actorPort, f.workRepository, f.clock)
                         .submit(new SubmitCompletionReportCommand(
                                 request.accountId(),
@@ -92,6 +99,7 @@ class TechnicianWorkCommandRulesTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("accountId must not be null");
         assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.scheduleLock.locks()).isEmpty();
     }
 
     @ParameterizedTest
@@ -147,9 +155,24 @@ class TechnicianWorkCommandRulesTest {
                     ScheduleErrorCode.INVALID_WORK_INPUT);
         }
         for (long workId : new long[] {otherOrganizationWork.value(), UNKNOWN_WORK_ID}) {
-            fixture.assertRejected(
-                    () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), workId, 0)),
+            assertRejectedAfterLookup(
+                    useCase,
+                    new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), workId, 0),
                     ScheduleErrorCode.WORK_NOT_FOUND);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("useCases")
+    @DisplayName("작업 식별자 형식이 틀리면 기사 잠금이 대기 한도를 넘기는 중이어도 잠그기 전에 입력 오류다")
+    void checksWorkIdFormatBeforeLock(UseCase useCase) {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
+
+        for (Long workId : new Long[] {0L, null}) {
+            fixture.assertRejected(
+                    () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), workId, 1)),
+                    ScheduleErrorCode.INVALID_WORK_INPUT);
         }
     }
 
@@ -183,9 +206,9 @@ class TechnicianWorkCommandRulesTest {
             fixture.workRepository.store(unassignedAccepted)
         }) {
             for (Integer number : new Integer[] {1, 0}) {
-                fixture.assertRejected(
-                        () -> useCase.invoke(
-                                fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), number)),
+                assertRejectedAfterLookup(
+                        useCase,
+                        new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), number),
                         ScheduleErrorCode.WORK_NOT_FOUND);
             }
         }
@@ -199,8 +222,9 @@ class TechnicianWorkCommandRulesTest {
         WorkId id = reassignedInWork();
 
         for (Integer number : new Integer[] {null, 0, -1}) {
-            fixture.assertRejected(
-                    () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), number)),
+            assertRejectedAfterLookup(
+                    useCase,
+                    new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), number),
                     ScheduleErrorCode.INVALID_WORK_INPUT);
         }
     }
@@ -217,9 +241,9 @@ class TechnicianWorkCommandRulesTest {
 
         for (WorkId id : new WorkId[] {pending, accepted}) {
             for (int number : new int[] {1, 3}) {
-                fixture.assertRejected(
-                        () -> useCase.invoke(
-                                fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), number)),
+                assertRejectedAfterLookup(
+                        useCase,
+                        new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), number),
                         ScheduleErrorCode.NOT_ASSIGNED_TECHNICIAN);
             }
         }
@@ -239,8 +263,9 @@ class TechnicianWorkCommandRulesTest {
         WorkId returnedAcceptedId = fixture.workRepository.store(returnedAccepted);
 
         for (WorkId id : new WorkId[] {rescheduledId, returnedId, returnedAcceptedId}) {
-            fixture.assertRejected(
-                    () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), 1)),
+            assertRejectedAfterLookup(
+                    useCase,
+                    new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), 1),
                     ScheduleErrorCode.ASSIGNMENT_CHANGED);
         }
     }
@@ -257,10 +282,26 @@ class TechnicianWorkCommandRulesTest {
         for (WorkId id :
                 new WorkId[] {fixture.givenWork(WorkStatus.CANCELED), fixture.workRepository.store(cancelledAccepted)
                 }) {
-            fixture.assertRejected(
-                    () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), 1)),
+            assertRejectedAfterLookup(
+                    useCase,
+                    new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), 1),
                     ScheduleErrorCode.INVALID_WORK_STATE);
         }
+    }
+
+    /**
+     * 작업 조회부터의 단계에서 거부되는지 본다. 저장하지 않았고, 기사를 잠그는 유즈케이스는 이 요청에서 요청한 기사를 정확히 한 번(기사의 다른 작업은 읽기 전에)
+     * 잠갔으며 완료보고는 잠그지 않았는지 확인한다.
+     */
+    private void assertRejectedAfterLookup(UseCase useCase, Request request, ScheduleErrorCode expected) {
+        int locksBefore = fixture.scheduleLock.locks().size();
+
+        fixture.assertRejectedWithoutSaving(() -> useCase.invoke(fixture, request), expected);
+
+        List<Lock> locks = fixture.scheduleLock.locks();
+        List<Lock> expectedLocks =
+                useCase.locksTechnician() ? List.of(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0)) : List.of();
+        assertThat(locks.subList(locksBefore, locks.size())).isEqualTo(expectedLocks);
     }
 
     /** 기사 {@link ScheduleServiceFixture#TECHNICIAN_ID}에게 배정됐다가(1번) 다른 기사에게 재배정된(2번, 수락대기) 작업. */
@@ -300,7 +341,8 @@ class TechnicianWorkCommandRulesTest {
         void invoke(ScheduleServiceFixture fixture, Request request);
     }
 
-    record UseCase(String name, Invocation invocation) {
+    /** {@code locksTechnician}: 작업을 읽기 전에 요청한 기사를 잠그는 유즈케이스(수락·거절·시작)인지. */
+    record UseCase(String name, boolean locksTechnician, Invocation invocation) {
 
         void invoke(ScheduleServiceFixture fixture, Request request) {
             invocation.invoke(fixture, request);

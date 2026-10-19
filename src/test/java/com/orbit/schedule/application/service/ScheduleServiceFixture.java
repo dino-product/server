@@ -150,6 +150,16 @@ final class ScheduleServiceFixture {
         return workRepository.saved().getFirst();
     }
 
+    /**
+     * 오류 코드로 실패하고 저장하지 않았는지 확인한다. 작업을 읽기 전에 기사를 잠그는 유즈케이스(수락·거절·시작)처럼 잠근 뒤에 거부할 수 있는 경우에 쓴다. 잠금 여부는
+     * 호출한 쪽이 확인한다.
+     */
+    void assertRejectedWithoutSaving(ThrowingCallable call, ScheduleErrorCode expected) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                .isEqualTo(expected));
+        assertThat(workRepository.saved()).isEmpty();
+    }
+
     /** 오류 코드로 실패하고, 저장하지도 기사를 잠그지도 않았는지 확인한다. */
     void assertRejected(ThrowingCallable call, ScheduleErrorCode expected) {
         assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())

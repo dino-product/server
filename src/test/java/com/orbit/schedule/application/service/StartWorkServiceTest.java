@@ -8,6 +8,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETU
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.UNKNOWN_WORK_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
@@ -20,6 +21,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
+import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
+import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort.Lock;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -30,10 +33,10 @@ class StartWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final StartWorkService service =
-            new StartWorkService(fixture.actorPort, fixture.workRepository, fixture.clock);
+            new StartWorkService(fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.clock);
 
     @Test
-    @DisplayName("담당 기사가 수락한 최신 배정의 작업을 시작하면 지금 시각을 시작 시각으로 남기고, 기사의 다른 작업은 읽지도 잠그지도 않는다")
+    @DisplayName("담당 기사가 수락한 최신 배정의 작업을 시작하면 지금 시각을 시작 시각으로 남기고, 기사를 잠그되 기사의 다른 작업은 읽지 않는다")
     void startsAcceptedWork() {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = acceptedWorkStartingAt(NOW);
@@ -43,8 +46,51 @@ class StartWorkServiceTest {
         Work saved = fixture.singleSaved();
         assertThat(saved.status()).isEqualTo(WorkStatus.IN_PROGRESS);
         assertThat(saved.startedAt()).contains(NOW);
-        assertThat(fixture.scheduleLock.locks()).isEmpty();
+        assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("기사 잠금을 기다리는 동안 대기함 반환이 먼저 커밋되면 반환된 작업을 보고 찾을 수 없음이다")
+    void seesReleaseCommittedWhileWaitingForLock() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = acceptedWorkStartingAt(NOW);
+        fixture.scheduleLock.whileWaiting(() -> {
+            Work released = fixture.stored(id);
+            released.unassign(NOW, SETUP_MANAGER_ID);
+            fixture.workRepository.store(released);
+        });
+
+        fixture.assertRejectedWithoutSaving(() -> service.start(command(id.value())), ScheduleErrorCode.WORK_NOT_FOUND);
+        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.REGISTERED);
+    }
+
+    @Test
+    @DisplayName("기사 잠금을 기다리는 동안 같은 작업의 시작이 먼저 커밋되면 중복 전송으로 보고 바꾸지 않고 성공한다")
+    void seesStartCommittedWhileWaitingForLock() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = acceptedWorkStartingAt(NOW);
+        Instant firstStartedAt = NOW.minusSeconds(1);
+        fixture.scheduleLock.whileWaiting(() -> {
+            Work started = fixture.stored(id);
+            started.start(firstStartedAt);
+            fixture.workRepository.store(started);
+        });
+
+        service.start(command(id.value()));
+
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.stored(id).startedAt()).contains(firstStartedAt);
+    }
+
+    @Test
+    @DisplayName("기사 잠금 대기 한도를 넘기면 작업을 찾기 전에 잠시 후 다시 시도하라는 오류다")
+    void reportsBusyTechnicianBeforeReadingWork() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.start(command(UNKNOWN_WORK_ID)), ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY);
     }
 
     @Test
@@ -82,7 +128,8 @@ class StartWorkServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = acceptedWorkStartingAt(NOW.plus(Duration.ofMinutes(10)).plusNanos(1_000));
 
-        fixture.assertRejected(() -> service.start(command(id.value())), ScheduleErrorCode.TOO_EARLY_TO_START);
+        fixture.assertRejectedWithoutSaving(
+                () -> service.start(command(id.value())), ScheduleErrorCode.TOO_EARLY_TO_START);
         assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.ACCEPTED);
         assertThat(fixture.stored(id).startedAt()).isEmpty();
     }
@@ -93,7 +140,8 @@ class StartWorkServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = acceptedWorkStartingAt(NOW.minus(TWO_HOURS).minusNanos(1_000));
 
-        fixture.assertRejected(() -> service.start(command(id.value())), ScheduleErrorCode.START_TIME_PASSED);
+        fixture.assertRejectedWithoutSaving(
+                () -> service.start(command(id.value())), ScheduleErrorCode.START_TIME_PASSED);
         assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.ACCEPTED);
         assertThat(fixture.stored(id).startedAt()).isEmpty();
     }
@@ -110,7 +158,6 @@ class StartWorkServiceTest {
         service.start(command(id.value()));
 
         assertThat(fixture.workRepository.saved()).isEmpty();
-        assertThat(fixture.scheduleLock.locks()).isEmpty();
         assertThat(fixture.stored(id).startedAt()).contains(ACCEPTED_AT);
     }
 
@@ -122,7 +169,8 @@ class StartWorkServiceTest {
         work.cancel(ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         WorkId id = fixture.workRepository.store(work);
 
-        fixture.assertRejected(() -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);
+        fixture.assertRejectedWithoutSaving(
+                () -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);
     }
 
     @Test
@@ -131,7 +179,8 @@ class StartWorkServiceTest {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
-        fixture.assertRejected(() -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);
+        fixture.assertRejectedWithoutSaving(
+                () -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);
     }
 
     @Test
@@ -142,7 +191,8 @@ class StartWorkServiceTest {
         work.accept(NOW.plusSeconds(60));
         WorkId id = fixture.workRepository.store(work);
 
-        fixture.assertRejected(() -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejectedWithoutSaving(
+                () -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
     /** 기사 {@link ScheduleServiceFixture#TECHNICIAN_ID}가 수락한, 주어진 시각에 시작하는 2시간 일정의 작업. */
