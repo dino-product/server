@@ -25,7 +25,7 @@ public record PendingParticipationRequestsResponse(
             @Schema(description = "신청자 계정 식별자", example = "42")
             Long accountId,
 
-            @Schema(description = "신청자 이름. 가입을 마치지 않았거나 프로필이 없으면 없음", example = "홍길동", nullable = true)
+            @Schema(description = "신청자 이름. 가입을 마치지 않았거나 프로필이 없으면 null", example = "홍길동")
             String applicantName,
 
             @Schema(description = "희망 유형. 확정 유형의 기본값. STAFF 직원, TECHNICIAN 기사", example = "TECHNICIAN")
