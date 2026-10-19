@@ -41,6 +41,9 @@ class OrganizationModuleTest {
     @Autowired
     private WorkTypeLookup workTypeLookup;
 
+    @Autowired
+    private MemberDirectory memberDirectory;
+
     @Test
     void createsOrganizationWithinStandaloneModule() {
         CreatedOrganizationInfo created =
@@ -90,5 +93,18 @@ class OrganizationModuleTest {
                 .isTrue();
         assertThat(workTypeLookup.findLabels(created.organizationId(), Set.of(workType.workTypeId())))
                 .containsExactly(new WorkTypeLabel(workType.workTypeId(), "설치", "#3B82F6", false));
+    }
+
+    @Test
+    void publicMemberDirectoryFindsFounderAsOwnerWithoutCategory() {
+        CreatedOrganizationInfo created =
+                useCase.create(new CreateOrganizationCommand(13L, "구성원 표시 발주사", Industry.APPLIANCE_SERVICE));
+        StaffMember founder = (StaffMember)
+                memberLookup.findActiveMember(13L, created.organizationId()).orElseThrow();
+
+        assertThat(memberDirectory.findStaff(created.organizationId(), Set.of(founder.membershipId())))
+                .containsExactly(new StaffDirectoryEntry(founder.membershipId(), 13L, true, null));
+        assertThat(memberDirectory.listActiveTechnicians(created.organizationId()))
+                .isEmpty();
     }
 }
