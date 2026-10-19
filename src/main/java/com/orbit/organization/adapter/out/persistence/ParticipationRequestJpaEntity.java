@@ -19,6 +19,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
@@ -49,6 +50,10 @@ class ParticipationRequestJpaEntity extends BaseTimeEntity {
     private ParticipationType desiredType;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "request_channel", nullable = false, length = 16)
+    private RequestChannel requestChannel;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "confirmed_type", length = 16)
     private ParticipationType confirmedType;
 
@@ -74,6 +79,7 @@ class ParticipationRequestJpaEntity extends BaseTimeEntity {
         this.organizationId = request.organizationId().value();
         this.accountId = request.accountId().value();
         this.desiredType = request.desiredType();
+        this.requestChannel = request.requestChannel();
         this.requestedAt = request.requestedAt();
         update(request);
     }
@@ -85,7 +91,7 @@ class ParticipationRequestJpaEntity extends BaseTimeEntity {
         return new ParticipationRequestJpaEntity(request);
     }
 
-    /** 요청자·발주사·희망 유형·요청 시각은 바뀌지 않으므로 상태와 처리 결과만 옮긴다. */
+    /** 요청자·발주사·희망 유형·요청 경로·요청 시각은 바뀌지 않으므로 상태와 처리 결과만 옮긴다. */
     void update(ParticipationRequest request) {
         this.confirmedType = request.confirmedType().orElse(null);
         this.status = request.status();
@@ -101,6 +107,7 @@ class ParticipationRequestJpaEntity extends BaseTimeEntity {
                 new OrganizationId(organizationId),
                 new AccountId(accountId),
                 desiredType,
+                requestChannel,
                 confirmedType,
                 status,
                 rejectReason,

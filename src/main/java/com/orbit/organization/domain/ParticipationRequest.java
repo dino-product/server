@@ -14,6 +14,7 @@ public final class ParticipationRequest {
     private final OrganizationId organizationId;
     private final AccountId accountId;
     private final ParticipationType desiredType;
+    private final RequestChannel requestChannel;
     private ParticipationType confirmedType;
     private ParticipationRequestStatus status;
     private String rejectReason;
@@ -26,6 +27,7 @@ public final class ParticipationRequest {
             OrganizationId organizationId,
             AccountId accountId,
             ParticipationType desiredType,
+            RequestChannel requestChannel,
             ParticipationType confirmedType,
             ParticipationRequestStatus status,
             String rejectReason,
@@ -36,6 +38,7 @@ public final class ParticipationRequest {
         this.organizationId = Objects.requireNonNull(organizationId, "organizationId must not be null");
         this.accountId = Objects.requireNonNull(accountId, "accountId must not be null");
         this.desiredType = Objects.requireNonNull(desiredType, "desiredType must not be null");
+        this.requestChannel = Objects.requireNonNull(requestChannel, "requestChannel must not be null");
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.requestedAt = Objects.requireNonNull(requestedAt, "requestedAt must not be null");
         boolean decided =
@@ -56,14 +59,19 @@ public final class ParticipationRequest {
         this.decidedBy = decidedBy;
     }
 
-    /** 승인 대기 요청을 새로 만든다. */
+    /** 요청자가 회사를 찾은 경로와 함께 승인 대기 요청을 새로 만든다. */
     public static ParticipationRequest request(
-            OrganizationId organizationId, AccountId accountId, ParticipationType desiredType, Instant requestedAt) {
+            OrganizationId organizationId,
+            AccountId accountId,
+            ParticipationType desiredType,
+            RequestChannel requestChannel,
+            Instant requestedAt) {
         return new ParticipationRequest(
                 null,
                 organizationId,
                 accountId,
                 desiredType,
+                requestChannel,
                 null,
                 ParticipationRequestStatus.PENDING,
                 null,
@@ -77,6 +85,7 @@ public final class ParticipationRequest {
             OrganizationId organizationId,
             AccountId accountId,
             ParticipationType desiredType,
+            RequestChannel requestChannel,
             ParticipationType confirmedType,
             ParticipationRequestStatus status,
             String rejectReason,
@@ -88,6 +97,7 @@ public final class ParticipationRequest {
                 organizationId,
                 accountId,
                 desiredType,
+                requestChannel,
                 confirmedType,
                 status,
                 rejectReason,
@@ -174,6 +184,10 @@ public final class ParticipationRequest {
 
     public ParticipationType desiredType() {
         return desiredType;
+    }
+
+    public RequestChannel requestChannel() {
+        return requestChannel;
     }
 
     public Optional<ParticipationType> confirmedType() {

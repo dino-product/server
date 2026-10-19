@@ -23,6 +23,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
 import com.orbit.organization.domain.RejectReason;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.support.PersistenceTestConfiguration;
 
 /** 승인·거절 유즈케이스가 아직 없어 처리된 요청 행은 SQL로 넣는다. */
@@ -58,14 +59,15 @@ class ParticipationRequestPersistenceAdapterTest {
     @Test
     @DisplayName("새 요청을 저장하면 식별자와 함께 승인 대기 상태로 복원된다")
     void savesAndRestoresPendingRequest() {
-        ParticipationRequest saved = adapter.save(
-                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, REQUESTED_AT));
+        ParticipationRequest saved = adapter.save(ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, RequestChannel.QR_CODE, REQUESTED_AT));
         repository.flush();
         entityManager.clear();
 
         assertThat(adapter.findPending(ORGANIZATION_ID, ACCOUNT_ID)).hasValueSatisfying(found -> {
             assertThat(found.id()).isEqualTo(saved.id()).isPresent();
             assertThat(found.desiredType()).isEqualTo(ParticipationType.TECHNICIAN);
+            assertThat(found.requestChannel()).isEqualTo(RequestChannel.QR_CODE);
             assertThat(found.status()).isEqualTo(ParticipationRequestStatus.PENDING);
             assertThat(found.confirmedType()).isEmpty();
             assertThat(found.decidedAt()).isEmpty();
@@ -77,10 +79,10 @@ class ParticipationRequestPersistenceAdapterTest {
     @DisplayName("승인 대기 요청은 그 계정·발주사의 것만 찾고 처리된 요청은 보지 않는다")
     void findsOnlyPendingRequestOfAccountInOrganization() {
         insertDecided(ORGANIZATION_ID, ACCOUNT_ID, "REJECTED");
-        adapter.save(
-                ParticipationRequest.request(OTHER_ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT));
-        adapter.save(
-                ParticipationRequest.request(ORGANIZATION_ID, OTHER_ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT));
+        adapter.save(ParticipationRequest.request(
+                OTHER_ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, REQUESTED_AT));
+        adapter.save(ParticipationRequest.request(
+                ORGANIZATION_ID, OTHER_ACCOUNT_ID, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, REQUESTED_AT));
 
         assertThat(adapter.findPending(ORGANIZATION_ID, ACCOUNT_ID)).isEmpty();
         assertThat(adapter.findPending(OTHER_ORGANIZATION_ID, ACCOUNT_ID)).isPresent();
@@ -89,8 +91,8 @@ class ParticipationRequestPersistenceAdapterTest {
     @Test
     @DisplayName("잠가 읽은 요청을 취소해 저장하면 상태만 바뀌고 요청 시각은 그대로다")
     void savesCanceledRequest() {
-        ParticipationRequest saved = adapter.save(
-                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT));
+        ParticipationRequest saved = adapter.save(ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, REQUESTED_AT));
         repository.flush();
         entityManager.clear();
 
@@ -112,8 +114,8 @@ class ParticipationRequestPersistenceAdapterTest {
     @Test
     @DisplayName("희망과 다르게 승인한 요청을 저장하면 확정 유형·처리자·처리 시각이 복원된다")
     void savesApprovedRequestWithDecider() {
-        ParticipationRequest saved = adapter.save(
-                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, REQUESTED_AT));
+        ParticipationRequest saved = adapter.save(ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, RequestChannel.COMPANY_CODE, REQUESTED_AT));
         repository.flush();
         entityManager.clear();
 
@@ -137,8 +139,8 @@ class ParticipationRequestPersistenceAdapterTest {
     @Test
     @DisplayName("사유와 함께 거절한 요청을 저장하면 사유·처리자가 복원된다")
     void savesRejectedRequestWithReason() {
-        ParticipationRequest saved = adapter.save(
-                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT));
+        ParticipationRequest saved = adapter.save(ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, REQUESTED_AT));
         repository.flush();
         entityManager.clear();
 
@@ -162,9 +164,9 @@ class ParticipationRequestPersistenceAdapterTest {
         entityManager
                 .createNativeQuery("""
                         insert into participation_requests
-                            (company_id, member_id, desired_type, status,
+                            (request_channel, company_id, member_id, desired_type, status,
                              requested_at, decided_at, decided_by_membership_id, created_at, updated_at)
-                        values (?, ?, 'STAFF', ?, ?, ?, 3, ?, ?)
+                        values ('COMPANY_CODE', ?, ?, 'STAFF', ?, ?, ?, 3, ?, ?)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())

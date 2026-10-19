@@ -25,6 +25,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.shared.error.BaseCode;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.error.CommonErrorCode;
@@ -66,8 +67,10 @@ class ListPendingParticipationRequestsServiceTest {
 
         assertThat(result)
                 .containsExactly(
-                        new PendingParticipationRequestInfo(31L, 7L, ParticipationType.TECHNICIAN, FIRST),
-                        new PendingParticipationRequestInfo(32L, 8L, ParticipationType.STAFF, SECOND));
+                        new PendingParticipationRequestInfo(
+                                31L, 7L, ParticipationType.TECHNICIAN, RequestChannel.COMPANY_CODE, FIRST),
+                        new PendingParticipationRequestInfo(
+                                32L, 8L, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, SECOND));
     }
 
     @Test
@@ -102,6 +105,7 @@ class ListPendingParticipationRequestsServiceTest {
                 ORGANIZATION_ID,
                 new AccountId(accountId),
                 desiredType,
+                RequestChannel.COMPANY_CODE,
                 null,
                 ParticipationRequestStatus.PENDING,
                 null,

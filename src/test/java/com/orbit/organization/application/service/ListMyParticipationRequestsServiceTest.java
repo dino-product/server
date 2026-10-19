@@ -24,6 +24,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("내 신청 현황 조회")
@@ -144,6 +145,7 @@ class ListMyParticipationRequestsServiceTest {
                         new OrganizationId(10L),
                         ACCOUNT_ID,
                         desiredType,
+                        RequestChannel.COMPANY_CODE,
                         confirmedType,
                         status,
                         rejectReason,

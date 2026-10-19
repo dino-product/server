@@ -77,8 +77,8 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
         long firstApplicant = ACCOUNT_IDS.incrementAndGet();
         long secondApplicant = ACCOUNT_IDS.incrementAndGet();
         long canceledApplicant = ACCOUNT_IDS.incrementAndGet();
-        long first = requestParticipation(firstApplicant, company.code(), "TECHNICIAN");
-        long second = requestParticipation(secondApplicant, company.code(), "STAFF");
+        long first = requestParticipation(firstApplicant, company.code(), "TECHNICIAN", "QR_CODE");
+        long second = requestParticipation(secondApplicant, company.code(), "STAFF", "JOIN_LINK");
         cancel(canceledApplicant, requestParticipation(canceledApplicant, company.code(), "STAFF"));
         requestParticipation(ACCOUNT_IDS.incrementAndGet(), otherCompany.code(), "STAFF");
 
@@ -90,9 +90,11 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
                 .andExpect(jsonPath("$.result.requests[0].requestId").value(first))
                 .andExpect(jsonPath("$.result.requests[0].accountId").value(firstApplicant))
                 .andExpect(jsonPath("$.result.requests[0].desiredType").value("TECHNICIAN"))
+                .andExpect(jsonPath("$.result.requests[0].requestChannel").value("QR_CODE"))
                 .andExpect(jsonPath("$.result.requests[0].requestedAt").exists())
                 .andExpect(jsonPath("$.result.requests[1].requestId").value(second))
-                .andExpect(jsonPath("$.result.requests[1].desiredType").value("STAFF"));
+                .andExpect(jsonPath("$.result.requests[1].desiredType").value("STAFF"))
+                .andExpect(jsonPath("$.result.requests[1].requestChannel").value("JOIN_LINK"));
     }
 
     @Test
@@ -439,11 +441,21 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
     }
 
     private long requestParticipation(long accountId, String companyCode, String desiredType) throws Exception {
+        return requestParticipation(accountId, companyCode, desiredType, "COMPANY_CODE");
+    }
+
+    private long requestParticipation(long accountId, String companyCode, String desiredType, String requestChannel)
+            throws Exception {
         return result(mockMvc.perform(post("/api/v1/participation-requests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
-                                Map.of("companyCode", companyCode, "desiredType", desiredType)))))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "companyCode",
+                                companyCode,
+                                "desiredType",
+                                desiredType,
+                                "requestChannel",
+                                requestChannel)))))
                 .path("requestId")
                 .asLong();
     }

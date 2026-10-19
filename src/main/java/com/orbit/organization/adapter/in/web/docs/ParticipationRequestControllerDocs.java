@@ -38,8 +38,9 @@ public interface ParticipationRequestControllerDocs {
 
     @Operation(
             summary = "참여 요청",
-            description = "회사 코드로 확인한 발주사에 희망 유형(직원/기사)으로 승인 대기 요청을 보냅니다. 요청 경로(코드·링크·QR)는 받지 "
-                    + "않습니다. 다른 발주사에는 동시에 요청할 수 있습니다. 없는 코드 ORGANIZATION-011, 이전 코드 ORGANIZATION-012, "
+            description = "회사 코드로 확인한 발주사에 희망 유형(직원/기사)으로 승인 대기 요청을 보냅니다. "
+                    + "요청 경로(회사 코드·참여 링크·QR)를 함께 받아 기록하고 승인 대기 목록에 보여 줍니다. "
+                    + "다른 발주사에는 동시에 요청할 수 있습니다. 없는 코드 ORGANIZATION-011, 이전 코드 ORGANIZATION-012, "
                     + "이미 참여 중 ORGANIZATION-013, 같은 발주사에 승인 대기 요청이 있으면 ORGANIZATION-014(새로 만들지 않음), "
                     + "같은 발주사의 앞선 변경이 잠금 대기 한도 안에 끝나지 않으면 "
                     + "ORGANIZATION-010입니다. 없는 코드 실패는 회사 확인과 함께 세어 한도를 넘으면 "

@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.orbit.organization.application.port.in.query.dto.PendingParticipationRequestInfo;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -27,11 +28,15 @@ public record PendingParticipationRequestsResponse(
             @Schema(description = "희망 유형. 확정 유형의 기본값. STAFF 직원, TECHNICIAN 기사", example = "TECHNICIAN")
             ParticipationType desiredType,
 
+            @Schema(description = "요청 경로. COMPANY_CODE 회사 코드, JOIN_LINK 참여 링크, QR_CODE QR 코드", example = "COMPANY_CODE")
+            RequestChannel requestChannel,
+
             @Schema(description = "요청 일시(UTC)", example = "2026-10-10T00:00:00Z")
             Instant requestedAt) {
 
         static Request from(PendingParticipationRequestInfo info) {
-            return new Request(info.requestId(), info.accountId(), info.desiredType(), info.requestedAt());
+            return new Request(
+                    info.requestId(), info.accountId(), info.desiredType(), info.requestChannel(), info.requestedAt());
         }
     }
 }

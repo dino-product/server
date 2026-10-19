@@ -279,7 +279,7 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("희망 유형이나 회사 코드가 없으면 400, 인증하지 않으면 401로 거부한다")
+    @DisplayName("희망 유형·요청 경로·회사 코드가 없거나 목록에 없는 값이면 400, 인증하지 않으면 401로 거부한다")
     void rejectsInvalidBodyAndUnauthenticatedRequest() throws Exception {
         long requester = ACCOUNT_IDS.incrementAndGet();
         mockMvc.perform(post("/api/v1/participation-requests")
@@ -292,6 +292,18 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(requester))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"desiredType\":\"OWNER\",\"companyCode\":\"7K2M9X\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(post("/api/v1/participation-requests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(requester))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"desiredType\":\"STAFF\",\"companyCode\":\"7K2M9X\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(post("/api/v1/participation-requests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(requester))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"desiredType\":\"STAFF\",\"companyCode\":\"7K2M9X\",\"requestChannel\":\"SMS\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON-400"));
         mockMvc.perform(post("/api/v1/participation-requests")
@@ -430,8 +442,8 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
         return mockMvc.perform(post("/api/v1/participation-requests")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(
-                        Map.of("companyCode", companyCode, "desiredType", desiredType))));
+                .content(objectMapper.writeValueAsString(Map.of(
+                        "companyCode", companyCode, "desiredType", desiredType, "requestChannel", "COMPANY_CODE"))));
     }
 
     private ResultActions check(long accountId, String companyCode) throws Exception {

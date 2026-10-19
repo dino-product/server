@@ -43,6 +43,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.shared.error.BaseCode;
 import com.orbit.shared.error.BusinessException;
 
@@ -206,6 +207,7 @@ class CheckCompanyServiceTest {
                 ORGANIZATION_ID,
                 ACCOUNT_ID,
                 ParticipationType.TECHNICIAN,
+                RequestChannel.COMPANY_CODE,
                 null,
                 ParticipationRequestStatus.PENDING,
                 null,

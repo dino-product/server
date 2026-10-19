@@ -20,17 +20,26 @@ class ParticipationRequestTest {
     private static final MembershipId DECIDER = new MembershipId(3L);
 
     @Test
-    @DisplayName("새 요청은 희망 유형을 가진 승인 대기 요청이며 확정 유형·처리 시각·거절 사유가 없다")
+    @DisplayName("새 요청은 희망 유형·요청 경로를 가진 승인 대기 요청이며 확정 유형·처리 시각·거절 사유가 없다")
     void createsPendingRequest() {
-        ParticipationRequest request =
-                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, REQUESTED_AT);
+        ParticipationRequest request = ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, RequestChannel.QR_CODE, REQUESTED_AT);
 
         assertThat(request.id()).isEmpty();
         assertThat(request.isPending()).isTrue();
         assertThat(request.desiredType()).isEqualTo(ParticipationType.TECHNICIAN);
+        assertThat(request.requestChannel()).isEqualTo(RequestChannel.QR_CODE);
         assertThat(request.confirmedType()).isEmpty();
         assertThat(request.decidedAt()).isEmpty();
         assertThat(request.rejectReason()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("요청 경로 없이는 요청을 만들 수 없다")
+    void requiresRequestChannel() {
+        assertThatThrownBy(() -> ParticipationRequest.request(
+                        ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, null, REQUESTED_AT))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -78,8 +87,8 @@ class ParticipationRequestTest {
     @Test
     @DisplayName("승인 대기 요청을 취소하면 처리 시각 없이 취소 상태가 된다")
     void cancelsPendingRequest() {
-        ParticipationRequest request =
-                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT);
+        ParticipationRequest request = ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, REQUESTED_AT);
 
         request.cancel();
 
@@ -107,6 +116,7 @@ class ParticipationRequestTest {
                         ORGANIZATION_ID,
                         ACCOUNT_ID,
                         ParticipationType.STAFF,
+                        RequestChannel.COMPANY_CODE,
                         null,
                         ParticipationRequestStatus.REJECTED,
                         null,
@@ -119,6 +129,7 @@ class ParticipationRequestTest {
                         ORGANIZATION_ID,
                         ACCOUNT_ID,
                         ParticipationType.STAFF,
+                        RequestChannel.COMPANY_CODE,
                         null,
                         ParticipationRequestStatus.CANCELED,
                         null,
@@ -208,8 +219,8 @@ class ParticipationRequestTest {
     @Test
     @DisplayName("요청한 계정인지 확인한다")
     void checksRequester() {
-        ParticipationRequest request =
-                ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, REQUESTED_AT);
+        ParticipationRequest request = ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, REQUESTED_AT);
 
         assertThat(request.isRequestedBy(ACCOUNT_ID)).isTrue();
         assertThat(request.isRequestedBy(new AccountId(8L))).isFalse();
@@ -225,6 +236,7 @@ class ParticipationRequestTest {
                 ORGANIZATION_ID,
                 ACCOUNT_ID,
                 ParticipationType.TECHNICIAN,
+                RequestChannel.COMPANY_CODE,
                 confirmedType,
                 status,
                 rejectReason,
@@ -234,6 +246,7 @@ class ParticipationRequestTest {
     }
 
     private static ParticipationRequest pending() {
-        return ParticipationRequest.request(ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, REQUESTED_AT);
+        return ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, RequestChannel.COMPANY_CODE, REQUESTED_AT);
     }
 }

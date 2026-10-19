@@ -46,6 +46,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.shared.error.BaseCode;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.error.CommonErrorCode;
@@ -94,8 +95,8 @@ class RequestParticipationServiceTest {
         when(requestRepository.save(any(ParticipationRequest.class)))
                 .thenAnswer(invocation -> saved(invocation.getArgument(0)));
 
-        ParticipationRequestInfo result =
-                service.request(new RequestParticipationCommand(7L, "7k2m-9x", ParticipationType.TECHNICIAN));
+        ParticipationRequestInfo result = service.request(
+                new RequestParticipationCommand(7L, "7k2m-9x", ParticipationType.TECHNICIAN, RequestChannel.JOIN_LINK));
 
         assertThat(result)
                 .isEqualTo(new ParticipationRequestInfo(
@@ -111,6 +112,7 @@ class RequestParticipationServiceTest {
         assertThat(request.getValue().accountId()).isEqualTo(ACCOUNT_ID);
         assertThat(request.getValue().organizationId()).isEqualTo(ORGANIZATION_ID);
         assertThat(request.getValue().isPending()).isTrue();
+        assertThat(request.getValue().requestChannel()).isEqualTo(RequestChannel.JOIN_LINK);
     }
 
     @Test
@@ -188,8 +190,8 @@ class RequestParticipationServiceTest {
         when(requestRepository.save(any(ParticipationRequest.class)))
                 .thenAnswer(invocation -> saved(invocation.getArgument(0)));
 
-        ParticipationRequestInfo result =
-                service.request(new RequestParticipationCommand(7L, "7K2M9X", ParticipationType.STAFF));
+        ParticipationRequestInfo result = service.request(
+                new RequestParticipationCommand(7L, "7K2M9X", ParticipationType.STAFF, RequestChannel.COMPANY_CODE));
 
         assertThat(result.status()).isEqualTo(ParticipationRequestStatus.PENDING);
         verify(requestRepository).save(any());
@@ -202,7 +204,11 @@ class RequestParticipationServiceTest {
         when(membershipQueryPort.listMemberships(ACCOUNT_ID)).thenReturn(List.of());
         when(requestRepository.findPending(ORGANIZATION_ID, ACCOUNT_ID))
                 .thenReturn(Optional.of(saved(ParticipationRequest.request(
-                        ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, CREATED_AT))));
+                        ORGANIZATION_ID,
+                        ACCOUNT_ID,
+                        ParticipationType.STAFF,
+                        RequestChannel.COMPANY_CODE,
+                        CREATED_AT))));
 
         assertRejected("7K2M9X", OrganizationErrorCode.PENDING_REQUEST_EXISTS);
         verify(requestRepository, never()).save(any());
@@ -211,7 +217,12 @@ class RequestParticipationServiceTest {
     @Test
     @DisplayName("희망 유형이 없으면 발주사를 찾지 않고 거부한다")
     void rejectsMissingDesiredType() {
-        assertThatThrownBy(() -> service.request(new RequestParticipationCommand(7L, "7K2M9X", null)))
+        assertThatThrownBy(() -> service.request(
+                        new RequestParticipationCommand(7L, "7K2M9X", null, RequestChannel.COMPANY_CODE)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(CommonErrorCode.BAD_REQUEST));
+        assertThatThrownBy(() ->
+                        service.request(new RequestParticipationCommand(7L, "7K2M9X", ParticipationType.STAFF, null)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(CommonErrorCode.BAD_REQUEST));
         verifyNoInteractions(organizationRepository, membershipQueryPort, requestRepository, attemptLimiter);
@@ -222,8 +233,8 @@ class RequestParticipationServiceTest {
     }
 
     private void assertRejected(String companyCode, BaseCode errorCode) {
-        assertThatThrownBy(() ->
-                        service.request(new RequestParticipationCommand(7L, companyCode, ParticipationType.STAFF)))
+        assertThatThrownBy(() -> service.request(new RequestParticipationCommand(
+                        7L, companyCode, ParticipationType.STAFF, RequestChannel.COMPANY_CODE)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(errorCode));
     }
@@ -234,6 +245,7 @@ class RequestParticipationServiceTest {
                 request.organizationId(),
                 request.accountId(),
                 request.desiredType(),
+                RequestChannel.COMPANY_CODE,
                 null,
                 request.status(),
                 null,

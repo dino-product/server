@@ -33,6 +33,7 @@ import com.orbit.organization.application.port.in.command.dto.RejectParticipatio
 import com.orbit.organization.application.port.in.command.dto.RequestParticipationCommand;
 import com.orbit.organization.domain.Industry;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.support.IntegrationTestSupport;
 
 /**
@@ -130,7 +131,8 @@ class ParticipationRequestEventIntegrationTest extends IntegrationTestSupport {
 
     private long request(long applicant, ParticipationType desiredType) {
         return requestParticipationUseCase
-                .request(new RequestParticipationCommand(applicant, organization.companyCode(), desiredType))
+                .request(new RequestParticipationCommand(
+                        applicant, organization.companyCode(), desiredType, RequestChannel.COMPANY_CODE))
                 .requestId();
     }
 

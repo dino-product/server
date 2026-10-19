@@ -631,7 +631,11 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.components.schemas"
                                 + "['com.orbit.organization.adapter.in.web.RequestParticipationRequest']"
                                 + ".properties.desiredType.enum.length()")
-                        .value(2));
+                        .value(2))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.RequestParticipationRequest']"
+                                + ".properties.requestChannel.enum.length()")
+                        .value(3));
     }
 
     @Test

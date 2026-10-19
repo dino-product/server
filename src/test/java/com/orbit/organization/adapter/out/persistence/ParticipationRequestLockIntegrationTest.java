@@ -43,6 +43,7 @@ import com.orbit.organization.domain.Industry;
 import com.orbit.organization.domain.MemberCategoryKind;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.support.IntegrationTestSupport;
 
@@ -95,8 +96,8 @@ class ParticipationRequestLockIntegrationTest extends IntegrationTestSupport {
     void secondRequestWaitsAndLeavesSinglePendingRequest() throws Exception {
         var created =
                 createOrganizationUseCase.create(new CreateOrganizationCommand(OWNER, "동시 요청 발주사", Industry.HVAC));
-        RequestParticipationCommand command =
-                new RequestParticipationCommand(REQUESTER, created.companyCode(), ParticipationType.TECHNICIAN);
+        RequestParticipationCommand command = new RequestParticipationCommand(
+                REQUESTER, created.companyCode(), ParticipationType.TECHNICIAN, RequestChannel.COMPANY_CODE);
 
         CountDownLatch requested = new CountDownLatch(1);
         CountDownLatch commitFirst = new CountDownLatch(1);
@@ -240,8 +241,8 @@ class ParticipationRequestLockIntegrationTest extends IntegrationTestSupport {
                 """, created.organizationId(), applicant, categoryId);
         Long requestId = jdbcTemplate.queryForObject("""
                 insert into participation_requests
-                    (company_id, member_id, desired_type, status, requested_at, created_at, updated_at)
-                values (?, ?, 'TECHNICIAN', 'PENDING', now(), now(), now())
+                    (request_channel, company_id, member_id, desired_type, status, requested_at, created_at, updated_at)
+                values ('COMPANY_CODE', ?, ?, 'TECHNICIAN', 'PENDING', now(), now(), now())
                 returning id
                 """, Long.class, created.organizationId(), applicant);
 
@@ -288,8 +289,8 @@ class ParticipationRequestLockIntegrationTest extends IntegrationTestSupport {
                     (company_id, member_id, is_owner, status, joined_at, status_changed_at, created_at, updated_at)
                 values (?, ?, true, 'ACTIVE', now(), now(), now(), now())
                 """, created.organizationId(), secondOwner);
-        ParticipationRequestInfo request = requestParticipationUseCase.request(
-                new RequestParticipationCommand(applicant, created.companyCode(), ParticipationType.TECHNICIAN));
+        ParticipationRequestInfo request = requestParticipationUseCase.request(new RequestParticipationCommand(
+                applicant, created.companyCode(), ParticipationType.TECHNICIAN, RequestChannel.COMPANY_CODE));
         return new Pending(created.organizationId(), owner, secondOwner, applicant, request.requestId());
     }
 

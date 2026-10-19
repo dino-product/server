@@ -54,6 +54,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.organization.domain.Technician;
 import com.orbit.organization.domain.TechnicianId;
 import com.orbit.organization.domain.TechnicianStatus;
@@ -272,6 +273,7 @@ class DecideParticipationRequestsServiceTest {
                         OTHER_ORGANIZATION_ID,
                         new AccountId(8L),
                         ParticipationType.STAFF,
+                        RequestChannel.COMPANY_CODE,
                         null,
                         ParticipationRequestStatus.PENDING,
                         null,
@@ -591,6 +593,7 @@ class DecideParticipationRequestsServiceTest {
                         ORGANIZATION_ID,
                         new AccountId(accountId),
                         desiredType,
+                        RequestChannel.COMPANY_CODE,
                         null,
                         ParticipationRequestStatus.PENDING,
                         null,
@@ -608,6 +611,7 @@ class DecideParticipationRequestsServiceTest {
                         ORGANIZATION_ID,
                         new AccountId(accountId),
                         ParticipationType.STAFF,
+                        RequestChannel.COMPANY_CODE,
                         null,
                         status,
                         null,

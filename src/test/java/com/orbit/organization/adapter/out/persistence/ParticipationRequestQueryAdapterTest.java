@@ -141,9 +141,9 @@ class ParticipationRequestQueryAdapterTest {
         entityManager
                 .createNativeQuery("""
                         insert into participation_requests
-                            (company_id, member_id, desired_type, confirmed_type, status, reject_reason,
-                             requested_at, decided_at, decided_by_membership_id, created_at, updated_at)
-                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            (request_channel, company_id, member_id, desired_type, confirmed_type, status,
+                             reject_reason, requested_at, decided_at, decided_by_membership_id, created_at, updated_at)
+                        values ('COMPANY_CODE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())
