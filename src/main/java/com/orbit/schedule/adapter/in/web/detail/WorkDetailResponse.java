@@ -20,7 +20,7 @@ import com.orbit.schedule.domain.WorkStatus;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "작업 상세. 등록자는 관리자에게만 담는다. 기사가 지금 담당이 아니면 작업명·상태와 자기 배정 이력만 담고 나머지는 null(지연은 false, 현장 사진은 빈 목록)이다")
+@Schema(description = "작업 상세. 등록자는 관리자에게만 담는다. 기사는 지금 자기에게 배정된 작업과 취소 당시 자기가 담당이던 취소 작업만 받는다")
 public record WorkDetailResponse(
         @Schema(description = "작업 식별자", example = "10") Long workId,
 
@@ -28,8 +28,8 @@ public record WorkDetailResponse(
         String name,
 
         @Schema(
-                description = "작업 상태. REGISTERED(등록), PENDING_ACCEPTANCE(배정됨), ACCEPTED(작업전), "
-                        + "IN_PROGRESS(작업중), COMPLETED(완료), CANCELLED(취소)",
+                description = "작업 상태. REGISTERED(등록), PENDING_ACCEPT(배정됨), ACCEPTED(작업전), "
+                        + "IN_PROGRESS(작업중), COMPLETED(완료), CANCELED(취소)",
                 example = "ACCEPTED")
         WorkStatus status,
 
@@ -49,7 +49,7 @@ public record WorkDetailResponse(
         @Schema(description = "대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간. 없으면 null")
         PlannedSchedule plannedSchedule,
 
-        @Schema(description = "배정 이력(상태 변경 이력의 배정·수락·거절·종료 시각). 기사에게는 자기 배정만 원래 순번 그대로 담는다")
+        @Schema(description = "배정 이력(상태 변경 이력의 배정·수락·거절·종료 시각). 기사에게는 지금 자기 배정 하나만 원래 순번 그대로 담는다")
         List<Assignment> assignments,
 
         @Schema(description = "작업 시작 시각. 없으면 null", example = "2026-10-21T00:05:00Z")
@@ -61,8 +61,7 @@ public record WorkDetailResponse(
         @Schema(description = "취소 기록. 없으면 null") Cancellation cancellation,
         @Schema(description = "완료보고. 없으면 null") CompletionReport completionReport,
 
-        @Schema(description = "등록·수정 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록")
-        List<Photo> sitePhotos,
+        @Schema(description = "등록·수정 때 붙인 현장 사진(첨부 파일)") List<Photo> sitePhotos,
 
         @Schema(description = "작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다", example = "3")
         long version) {

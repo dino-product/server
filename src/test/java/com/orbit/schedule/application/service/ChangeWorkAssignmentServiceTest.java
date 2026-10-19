@@ -57,7 +57,7 @@ class ChangeWorkAssignmentServiceTest {
 
         assertThat(result.applied()).isTrue();
         Work saved = fixture.singleSaved();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
             assertThat(history.assignedBy()).isEqualTo(MANAGER_ID);
@@ -77,7 +77,7 @@ class ChangeWorkAssignmentServiceTest {
 
         assertThat(result.applied()).isTrue();
         Work saved = fixture.singleSaved();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(OTHER_TECHNICIAN_ID, ELEVEN, TWO_HOURS));
         assertThat(saved.assignmentHistory().getFirst().ending())
                 .contains(new AssignmentEnding(NOW, MANAGER_ID, AssignmentEndReason.REASSIGNED));
@@ -90,7 +90,7 @@ class ChangeWorkAssignmentServiceTest {
     void reschedulesForSameTechnician() {
         fixture.givenManager(ActorRole.OWNER);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         ScheduleChangeInfo result = service.change(command(id, TECHNICIAN_ID.value(), ELEVEN, TWO_HOURS, false));
 
@@ -106,7 +106,7 @@ class ChangeWorkAssignmentServiceTest {
     @DisplayName("같은 기사·같은 시간이면 바꿀 것이 없어 같은 일정 오류다")
     void rejectsUnchangedSchedule() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         fixture.assertRejected(
                 () -> service.change(command(id, TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
@@ -119,7 +119,7 @@ class ChangeWorkAssignmentServiceTest {
         fixture.givenManager(ActorRole.OWNER);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
         WorkId backlog = fixture.givenWork(WorkStatus.REGISTERED);
-        WorkId assigned = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId assigned = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         for (WorkId id : new WorkId[] {backlog, assigned}) {
             assertThatThrownBy(() -> service.change(command(id, OTHER_TECHNICIAN_ID.value(), ELEVEN, TWO_HOURS, true)))
@@ -135,7 +135,7 @@ class ChangeWorkAssignmentServiceTest {
     void withholdsUnconfirmedConflict() {
         fixture.givenManager(ActorRole.OWNER);
         WorkId existing =
-                fixture.givenWork(ORGANIZATION_ID, "기존 작업", WorkStatus.PENDING_ACCEPTANCE, OTHER_TECHNICIAN_ID, ELEVEN);
+                fixture.givenWork(ORGANIZATION_ID, "기존 작업", WorkStatus.PENDING_ACCEPT, OTHER_TECHNICIAN_ID, ELEVEN);
         WorkId target = fixture.givenWork(WorkStatus.REGISTERED);
 
         ScheduleChangeInfo result =
@@ -149,7 +149,7 @@ class ChangeWorkAssignmentServiceTest {
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
-            names = {"IN_PROGRESS", "COMPLETED", "CANCELLED"})
+            names = {"IN_PROGRESS", "COMPLETED", "CANCELED"})
     @DisplayName("작업중·완료·취소된 작업은 기사·시간과 관계없이 상태 오류다")
     void rejectsUnchangeableStatus(WorkStatus status) {
         fixture.givenManager(ActorRole.OWNER);
@@ -183,7 +183,7 @@ class ChangeWorkAssignmentServiceTest {
     @DisplayName("요청자가 본 버전이 지금 버전과 다르면 입력보다 먼저 변경된 정보 오류, 음수면 입력 오류이고 잠그거나 저장하지 않는다")
     void rejectsStaleVersionBeforeInput() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         fixture.assertRejected(() -> service.change(versioned(id, 0L, TEN, 1L)), ScheduleErrorCode.WORK_CHANGED);
         fixture.assertRejected(

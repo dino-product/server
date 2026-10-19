@@ -28,7 +28,6 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
-import com.orbit.schedule.application.port.in.command.CorrectWorkStatusUseCase;
 import com.orbit.schedule.application.port.in.command.CreateWorkUseCase;
 import com.orbit.schedule.application.port.in.command.ReassignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RejectWorkUseCase;
@@ -40,7 +39,6 @@ import com.orbit.schedule.application.port.in.command.UpdateWorkDetailsUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
-import com.orbit.schedule.application.port.in.command.dto.CorrectWorkStatusCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
@@ -52,7 +50,6 @@ import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsComma
 import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.query.GetMyScheduleUseCase;
 import com.orbit.schedule.application.port.in.query.GetProgressBoardUseCase;
-import com.orbit.schedule.application.port.in.query.GetTeamScheduleUseCase;
 import com.orbit.schedule.application.port.in.query.GetTimetableUseCase;
 import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
 import com.orbit.schedule.application.port.in.query.GetWorkHistoryUseCase;
@@ -60,7 +57,6 @@ import com.orbit.schedule.application.port.in.query.SearchWorksUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
-import com.orbit.schedule.application.port.in.query.dto.GetTeamScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetTimetableQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkHistoryQuery;
@@ -82,7 +78,6 @@ import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
-import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.schedule.domain.WorkTypeId;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.support.TestcontainersConfiguration;
@@ -142,9 +137,6 @@ class ScheduleModuleTest {
     private CancelWorkUseCase cancelWorkUseCase;
 
     @Autowired
-    private CorrectWorkStatusUseCase correctWorkStatusUseCase;
-
-    @Autowired
     private AcceptWorkUseCase acceptWorkUseCase;
 
     @Autowired
@@ -173,9 +165,6 @@ class ScheduleModuleTest {
 
     @Autowired
     private GetMyScheduleUseCase getMyScheduleUseCase;
-
-    @Autowired
-    private GetTeamScheduleUseCase getTeamScheduleUseCase;
 
     @Autowired
     private GetWorkHistoryUseCase getWorkHistoryUseCase;
@@ -281,8 +270,6 @@ class ScheduleModuleTest {
         assertDenied(() -> unassignWorkUseCase.unassign(new UnassignWorkCommand(1L, ORGANIZATION_ID.value(), 1L, 0L)));
         assertDenied(() -> cancelWorkUseCase.cancel(
                 new CancelWorkCommand(1L, ORGANIZATION_ID.value(), 1L, CancellationReason.CUSTOMER_REQUEST, null)));
-        assertDenied(() -> correctWorkStatusUseCase.correct(
-                new CorrectWorkStatusCommand(1L, ORGANIZATION_ID.value(), 1L, WorkStatus.IN_PROGRESS, "잘못 완료")));
     }
 
     @Test
@@ -309,8 +296,6 @@ class ScheduleModuleTest {
                 new GetProgressBoardQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
         assertDenied(() -> getMyScheduleUseCase.get(
                 new GetMyScheduleQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
-        assertDenied(() -> getTeamScheduleUseCase.get(
-                new GetTeamScheduleQuery(1L, ORGANIZATION_ID.value(), from, from.plus(Duration.ofDays(1)))));
         assertDenied(() -> getWorkHistoryUseCase.get(
                 new GetWorkHistoryQuery(1L, ORGANIZATION_ID.value(), 3L, from, from.plus(Duration.ofDays(1)))));
     }

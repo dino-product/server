@@ -15,6 +15,9 @@ public record WorkSchedule(TechnicianId technicianId, Instant startTime, Duratio
     /** 한 작업의 예상소요시간 상한. 하루를 넘는 작업은 없다고 본다. */
     public static final Duration MAX_EXPECTED_DURATION = Duration.ofHours(24);
 
+    /** 예정 시작보다 이만큼 앞서서부터 기사가 작업을 시작할 수 있다. */
+    public static final Duration START_LEAD_TIME = Duration.ofMinutes(10);
+
     public WorkSchedule {
         if (technicianId == null) {
             throw new IllegalArgumentException("technicianId must not be null");
@@ -52,5 +55,25 @@ public record WorkSchedule(TechnicianId technicianId, Instant startTime, Duratio
 
     public Instant endTime() {
         return startTime.plus(expectedDuration);
+    }
+
+    /**
+     * 기사가 이 일정의 작업을 시작하기에 이른지 판정한다. 예정 시작 {@link #START_LEAD_TIME} 전 정각부터 시작할 수 있다([현장 수행] §5). 시작할 수 있는지는
+     * 이 메서드와 {@link #isTooLateToStart}가 모두 거짓일 때다.
+     */
+    public boolean isTooEarlyToStart(Instant at) {
+        if (at == null) {
+            throw new IllegalArgumentException("at must not be null");
+        }
+        // 시작시각에서 빼지 않고 간격을 비교해, 표현 범위 끝의 시작시각에서도 계산이 넘치지 않게 한다.
+        return Duration.between(at, startTime).compareTo(START_LEAD_TIME) > 0;
+    }
+
+    /** 기사가 이 일정의 작업을 시작하기에 늦었는지 판정한다. 예정 종료 정각까지는 시작할 수 있다([현장 수행] §5). */
+    public boolean isTooLateToStart(Instant at) {
+        if (at == null) {
+            throw new IllegalArgumentException("at must not be null");
+        }
+        return at.isAfter(endTime());
     }
 }

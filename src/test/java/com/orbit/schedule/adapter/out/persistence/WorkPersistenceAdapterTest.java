@@ -127,9 +127,7 @@ class WorkPersistenceAdapterTest {
         return Stream.of(
                 Arguments.of("대기함(등록)", (Consumer<Work>) work -> {}, WorkStatus.REGISTERED),
                 Arguments.of(
-                        "배정됨",
-                        (Consumer<Work>) work -> work.assign(SCHEDULE, NOW, MANAGER),
-                        WorkStatus.PENDING_ACCEPTANCE),
+                        "배정됨", (Consumer<Work>) work -> work.assign(SCHEDULE, NOW, MANAGER), WorkStatus.PENDING_ACCEPT),
                 Arguments.of(
                         "작업전(수락)",
                         (Consumer<Work>) work -> {
@@ -175,15 +173,15 @@ class WorkPersistenceAdapterTest {
                             work.releaseForWithdrawal(NOW.plusSeconds(10));
                             work.assign(SCHEDULE, NOW.plusSeconds(20), MANAGER);
                         },
-                        WorkStatus.PENDING_ACCEPTANCE),
+                        WorkStatus.PENDING_ACCEPT),
                 Arguments.of(
                         "취소(대기함에서)",
                         (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.CUSTOMER_REQUEST, null),
-                        WorkStatus.CANCELLED),
+                        WorkStatus.CANCELED),
                 Arguments.of(
                         "취소(대기함에서, 기타 사유 메모)",
                         (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.OTHER, "고객 연락 두절"),
-                        WorkStatus.CANCELLED),
+                        WorkStatus.CANCELED),
                 Arguments.of(
                         "취소(작업중에서)",
                         (Consumer<Work>) work -> {
@@ -192,7 +190,7 @@ class WorkPersistenceAdapterTest {
                             work.start(NOW.plusSeconds(20));
                             work.cancel(NOW.plusSeconds(30), MANAGER, CancellationReason.TECHNICIAN_ISSUE, null);
                         },
-                        WorkStatus.CANCELLED));
+                        WorkStatus.CANCELED));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -492,8 +490,7 @@ class WorkPersistenceAdapterTest {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
 
         assertThatThrownBy(() -> inTx(() -> adapter().save(unknown)))
                 .isInstanceOf(IllegalStateException.class)
@@ -519,8 +516,7 @@ class WorkPersistenceAdapterTest {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
 
         assertThatThrownBy(() -> inTx(() -> adapter().save(sameIdOtherOrganization)))
                 .isInstanceOf(IllegalStateException.class)
@@ -538,22 +534,8 @@ class WorkPersistenceAdapterTest {
         adapter().save(saved);
 
         Work found = adapter().findInOrganization(organization, id).orElseThrow();
-        assertThat(found.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(found.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(found.assignmentHistory()).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("상태 정정 기록이 있는 작업은 저장할 자리가 없어 거부한다")
-    void rejectsWorkWithStatusCorrections() {
-        OrganizationId organization = organization();
-        Work work = registered(organization, "정정된 작업");
-        work.assign(SCHEDULE, NOW, MANAGER);
-        work.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
-        work.correctStatus(WorkStatus.REGISTERED, NOW.plusSeconds(20), MANAGER, "잘못 취소");
-
-        assertThatThrownBy(() -> inTx(() -> adapter().save(work)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("S-11");
     }
 
     @Test
@@ -591,7 +573,7 @@ class WorkPersistenceAdapterTest {
         });
 
         Work reloaded = find(organization, id);
-        assertThat(reloaded.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(reloaded.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(reloaded.assignmentHistory()).singleElement().satisfies(history -> assertThat(history.result())
                 .isEqualTo(AssignmentResult.PENDING));
     }
