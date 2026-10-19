@@ -3,6 +3,7 @@ package com.orbit.organization.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -12,7 +13,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -153,6 +156,31 @@ class DeactivateWithdrawnAccountServiceTest {
     }
 
     @Test
+    @DisplayName("잠금을 기다리는 사이 승인으로 생긴 소속도 잠근 뒤의 시각으로 비활성화한다")
+    void deactivatesMembershipApprovedWhileWaitingForLock() {
+        MutableClock clock = new MutableClock(NOW);
+        service = new DeactivateWithdrawnAccountService(
+                organizationRepository, memberships, technicians, requests, clock);
+        when(requests.listOrganizationsWithPending(WITHDRAWN)).thenReturn(List.of(FIRST));
+        doAnswer(invocation -> {
+                    clock.advance(Duration.ofSeconds(1));
+                    memberships.save(Membership.join(FIRST, WITHDRAWN, clock.instant()));
+                    clock.advance(Duration.ofSeconds(1));
+                    return null;
+                })
+                .when(organizationRepository)
+                .lock(FIRST);
+
+        deactivate();
+
+        assertThat(memberships.find(FIRST, WITHDRAWN).orElseThrow()).satisfies(withdrawn -> {
+            assertThat(withdrawn.status()).isEqualTo(MembershipStatus.DEACTIVATED);
+            assertThat(withdrawn.statusChangedAt()).isEqualTo(NOW.plusSeconds(2));
+            assertThat(withdrawn.withdrawnAt()).contains(NOW.plusSeconds(2));
+        });
+    }
+
+    @Test
     @DisplayName("다른 계정의 소속·계약은 바꾸지 않는다")
     void leavesOtherAccountsUntouched() {
         memberships.given(FIRST, WITHDRAWN, false);
@@ -203,6 +231,34 @@ class DeactivateWithdrawnAccountServiceTest {
                 NOW.minusSeconds(3600),
                 null,
                 null);
+    }
+
+    private static final class MutableClock extends Clock {
+
+        private Instant now;
+
+        private MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advance(Duration duration) {
+            now = now.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 
     private void deactivate() {

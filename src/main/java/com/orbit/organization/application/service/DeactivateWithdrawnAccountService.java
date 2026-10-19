@@ -55,9 +55,10 @@ public class DeactivateWithdrawnAccountService implements DeactivateWithdrawnAcc
     @Transactional
     public void deactivate(DeactivateWithdrawnAccountCommand command) {
         AccountId accountId = new AccountId(command.accountId());
-        Instant now = clock.instant();
         for (OrganizationId organizationId : organizationsOf(accountId)) {
             OrganizationLocks.lock(organizationRepository, organizationId);
+            // 잠금을 기다리는 사이 승인으로 생긴 행의 참여일보다 앞서지 않도록 시각은 잠근 뒤에 읽는다.
+            Instant now = clock.instant();
             membershipRepository
                     .find(organizationId, accountId)
                     .filter(membership -> !membership.isWithdrawn())
