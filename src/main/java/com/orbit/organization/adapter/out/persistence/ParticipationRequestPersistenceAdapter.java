@@ -1,5 +1,6 @@
 package com.orbit.organization.adapter.out.persistence;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
@@ -43,5 +44,14 @@ class ParticipationRequestPersistenceAdapter implements ParticipationRequestRepo
                 .findByOrganizationIdAndAccountIdAndStatus(
                         organizationId.value(), accountId.value(), ParticipationRequestStatus.PENDING)
                 .map(ParticipationRequestJpaEntity::toDomain);
+    }
+
+    @Override
+    public List<OrganizationId> listOrganizationsWithPending(AccountId accountId) {
+        return repository
+                .findOrganizationIdsByAccountIdAndStatus(accountId.value(), ParticipationRequestStatus.PENDING)
+                .stream()
+                .map(OrganizationId::new)
+                .toList();
     }
 }

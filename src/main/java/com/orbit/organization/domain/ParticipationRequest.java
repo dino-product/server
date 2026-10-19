@@ -106,7 +106,7 @@ public final class ParticipationRequest {
                 decidedBy);
     }
 
-    /** 요청자가 승인 대기 중인 요청을 거둬들인다. 처리 시각은 승인·거절에만 쓰므로 남기지 않는다. */
+    /** 요청자가 승인 대기 중인 요청을 거둬들이거나, 요청자가 탈퇴해 요청을 닫는다. 처리 시각은 승인·거절에만 쓰므로 남기지 않는다. */
     public void cancel() {
         if (!isPending()) {
             throw new IllegalStateException("only pending requests can be canceled");

@@ -1,5 +1,6 @@
 package com.orbit.organization.adapter.out.persistence;
 
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
@@ -19,4 +20,9 @@ interface SpringDataParticipationRequestRepository extends JpaRepository<Partici
 
     Optional<ParticipationRequestJpaEntity> findByOrganizationIdAndAccountIdAndStatus(
             Long organizationId, Long accountId, ParticipationRequestStatus status);
+
+    @Query("select distinct r.organizationId from ParticipationRequestJpaEntity r"
+            + " where r.accountId = :accountId and r.status = :status order by r.organizationId")
+    List<Long> findOrganizationIdsByAccountIdAndStatus(
+            @Param("accountId") Long accountId, @Param("status") ParticipationRequestStatus status);
 }

@@ -9,10 +9,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,10 +26,16 @@ import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.dto.DeactivateWithdrawnAccountCommand;
 import com.orbit.organization.application.port.out.OrganizationBusyException;
 import com.orbit.organization.application.port.out.OrganizationRepository;
+import com.orbit.organization.application.port.out.ParticipationRequestRepository;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
+import com.orbit.organization.domain.ParticipationRequest;
+import com.orbit.organization.domain.ParticipationRequestId;
+import com.orbit.organization.domain.ParticipationRequestStatus;
+import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.organization.domain.Technician;
 import com.orbit.organization.domain.TechnicianStatus;
 import com.orbit.shared.error.BusinessException;
@@ -44,13 +53,14 @@ class DeactivateWithdrawnAccountServiceTest {
     private final OrganizationRepository organizationRepository = mock(OrganizationRepository.class);
     private final InMemoryMembershipRepository memberships = new InMemoryMembershipRepository();
     private final InMemoryTechnicianRepository technicians = new InMemoryTechnicianRepository();
+    private final ParticipationRequestRepository requests = mock(ParticipationRequestRepository.class);
 
     private DeactivateWithdrawnAccountService service;
 
     @BeforeEach
     void setUp() {
         service = new DeactivateWithdrawnAccountService(
-                organizationRepository, memberships, technicians, Clock.fixed(NOW, ZoneOffset.UTC));
+                organizationRepository, memberships, technicians, requests, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -124,6 +134,25 @@ class DeactivateWithdrawnAccountServiceTest {
     }
 
     @Test
+    @DisplayName("승인 대기 참여 요청은 소속이 없는 발주사의 것까지 발주사를 잠근 뒤 취소한다")
+    void cancelsPendingRequestsUnderOrganizationLock() {
+        memberships.given(SECOND, WITHDRAWN, false);
+        ParticipationRequest pending = pending(FIRST);
+        when(requests.listOrganizationsWithPending(WITHDRAWN)).thenReturn(List.of(FIRST, THIRD));
+        when(requests.findPending(FIRST, WITHDRAWN)).thenReturn(Optional.of(pending));
+
+        deactivate();
+
+        InOrder order = inOrder(organizationRepository, requests);
+        order.verify(organizationRepository).lock(FIRST);
+        order.verify(requests).findPending(FIRST, WITHDRAWN);
+        order.verify(requests).save(pending);
+        order.verify(organizationRepository).lock(SECOND);
+        order.verify(organizationRepository).lock(THIRD);
+        assertThat(pending.status()).isEqualTo(ParticipationRequestStatus.CANCELED);
+    }
+
+    @Test
     @DisplayName("다른 계정의 소속·계약은 바꾸지 않는다")
     void leavesOtherAccountsUntouched() {
         memberships.given(FIRST, WITHDRAWN, false);
@@ -159,6 +188,21 @@ class DeactivateWithdrawnAccountServiceTest {
         assertThatThrownBy(this::deactivate)
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(OrganizationErrorCode.ORGANIZATION_BUSY));
+    }
+
+    private static ParticipationRequest pending(OrganizationId organizationId) {
+        return ParticipationRequest.reconstitute(
+                new ParticipationRequestId(31L),
+                organizationId,
+                WITHDRAWN,
+                ParticipationType.STAFF,
+                RequestChannel.COMPANY_CODE,
+                null,
+                ParticipationRequestStatus.PENDING,
+                null,
+                NOW.minusSeconds(3600),
+                null,
+                null);
     }
 
     private void deactivate() {
