@@ -89,6 +89,7 @@ class OrganizationParticipationRequestApiIntegrationTest extends IntegrationTest
                 .andExpect(jsonPath("$.result.requests.length()").value(2))
                 .andExpect(jsonPath("$.result.requests[0].requestId").value(first))
                 .andExpect(jsonPath("$.result.requests[0].accountId").value(firstApplicant))
+                .andExpect(jsonPath("$.result.requests[0].applicantName").value("테스트"))
                 .andExpect(jsonPath("$.result.requests[0].desiredType").value("TECHNICIAN"))
                 .andExpect(jsonPath("$.result.requests[0].requestChannel").value("QR_CODE"))
                 .andExpect(jsonPath("$.result.requests[0].requestedAt").exists())

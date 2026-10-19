@@ -78,7 +78,7 @@ Authorization: Bearer {accessToken} → /api/** (허용 목록 제외)
 
 ## 공개 계약
 
-- `ProfileLookup#findNames(Set<Long>)`: 계정 ID별 표시 이름. 가입을 마친 계정만 돌려주고, 가입 미완료·프로필 없는 계정은 결과에 키가 없어 소비자가 표시 방식을 정한다. 아직 소비 모듈은 없다.
+- `ProfileLookup#findNames(Set<Long>)`: 계정 ID별 표시 이름. 가입을 마친 계정만 돌려주고, 가입 미완료·프로필 없는 계정은 결과에 키가 없어 소비자가 표시 방식을 정한다. 소비 모듈은 organization(승인 대기 목록의 신청자 이름, 이름이 없으면 비워 둠)이다.
 
 가입 공통 검사는 공개 계약 없이 웹 계층에서 다른 모듈 API에 적용된다.
 

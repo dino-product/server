@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.query.dto.ListPendingParticipationRequestsQuery;
 import com.orbit.organization.application.port.in.query.dto.PendingParticipationRequestInfo;
+import com.orbit.organization.application.port.out.AccountNamesPort;
 import com.orbit.organization.application.port.out.ParticipationRequestQueryPort;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.OrganizationId;
@@ -43,6 +46,9 @@ class ListPendingParticipationRequestsServiceTest {
     @Mock
     private ParticipationRequestQueryPort queryPort;
 
+    @Mock
+    private AccountNamesPort accountNames;
+
     private InMemoryMembershipRepository membershipRepository;
     private ListPendingParticipationRequestsService service;
 
@@ -51,16 +57,18 @@ class ListPendingParticipationRequestsServiceTest {
         membershipRepository = new InMemoryMembershipRepository();
         membershipRepository.given(ORGANIZATION_ID, OWNER, true);
         membershipRepository.given(ORGANIZATION_ID, STAFF, false);
-        service = new ListPendingParticipationRequestsService(membershipRepository, queryPort);
+        service = new ListPendingParticipationRequestsService(membershipRepository, queryPort, accountNames);
     }
 
     @Test
-    @DisplayName("총관리자는 그 발주사의 승인 대기 요청을 저장소 순서대로 신청자·희망 유형·요청 일시와 함께 받는다")
+    @DisplayName("총관리자는 그 발주사의 승인 대기 요청을 저장소 순서대로 신청자 이름·희망 유형·요청 경로·요청 일시와 함께 받고, 이름이 없는 신청자는 이름 없이 받는다")
     void ownerListsPendingRequests() {
         when(queryPort.listPending(ORGANIZATION_ID))
                 .thenReturn(List.of(
                         pending(31L, 7L, ParticipationType.TECHNICIAN, FIRST),
                         pending(32L, 8L, ParticipationType.STAFF, SECOND)));
+        when(accountNames.findNames(Set.of(new AccountId(7L), new AccountId(8L))))
+                .thenReturn(Map.of(new AccountId(7L), "홍길동"));
 
         List<PendingParticipationRequestInfo> result =
                 service.list(new ListPendingParticipationRequestsQuery(OWNER.value(), ORGANIZATION_ID.value()));
@@ -68,9 +76,19 @@ class ListPendingParticipationRequestsServiceTest {
         assertThat(result)
                 .containsExactly(
                         new PendingParticipationRequestInfo(
-                                31L, 7L, ParticipationType.TECHNICIAN, RequestChannel.COMPANY_CODE, FIRST),
+                                31L, 7L, "홍길동", ParticipationType.TECHNICIAN, RequestChannel.COMPANY_CODE, FIRST),
                         new PendingParticipationRequestInfo(
-                                32L, 8L, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, SECOND));
+                                32L, 8L, null, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, SECOND));
+    }
+
+    @Test
+    @DisplayName("승인 대기 요청이 없으면 이름을 찾지 않는다")
+    void skipsNameLookupWithoutRequests() {
+        when(queryPort.listPending(ORGANIZATION_ID)).thenReturn(List.of());
+
+        assertThat(service.list(new ListPendingParticipationRequestsQuery(OWNER.value(), ORGANIZATION_ID.value())))
+                .isEmpty();
+        verifyNoInteractions(accountNames);
     }
 
     @Test
