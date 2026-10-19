@@ -315,6 +315,30 @@ class OrganizationPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("계정이 활성 총관리자인 발주사만 식별자 오름차순으로 찾는다")
+    void listsOrganizationsOwnedByAccountInIdOrder() {
+        OrganizationId first = organizations.save(organization("X1Y2Z3")).id().orElseThrow();
+        OrganizationId second = organizations.save(organization("A2B3C4")).id().orElseThrow();
+        OrganizationId staffOnly =
+                organizations.save(organization("D5E6F7")).id().orElseThrow();
+        OrganizationId deactivated =
+                organizations.save(organization("G8H9J2")).id().orElseThrow();
+        memberships.save(Membership.founder(second, new AccountId(7L), NOW));
+        memberships.save(Membership.founder(first, new AccountId(7L), NOW));
+        memberships.save(Membership.founder(first, new AccountId(8L), NOW));
+        staffMembership(staffOnly, 7L);
+        MembershipId deactivatedOwner = memberships
+                .save(Membership.founder(deactivated, new AccountId(7L), NOW))
+                .id()
+                .orElseThrow();
+        jdbcTemplate.update(
+                "update company_memberships set status = 'DEACTIVATED' where id = ?", deactivatedOwner.value());
+
+        assertThat(memberships.listOwnedOrganizations(new AccountId(7L))).containsExactly(first, second);
+        assertThat(memberships.listOwnedOrganizations(new AccountId(9L))).isEmpty();
+    }
+
+    @Test
     @DisplayName("발주사가 없어도 잠금 요청은 실패하지 않는다")
     void lockingMissingOrganizationDoesNotFail() {
         organizations.lock(new OrganizationId(Long.MAX_VALUE));

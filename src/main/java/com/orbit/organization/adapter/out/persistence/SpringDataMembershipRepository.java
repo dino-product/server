@@ -1,6 +1,7 @@
 package com.orbit.organization.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,6 +27,10 @@ interface SpringDataMembershipRepository extends JpaRepository<MembershipJpaEnti
             @Param("organizationId") Long organizationId,
             @Param("categoryId") Long categoryId,
             @Param("at") Instant at);
+
+    @Query("select m.organizationId from MembershipJpaEntity m"
+            + " where m.accountId = :accountId and m.owner = true and m.status = :status order by m.organizationId")
+    List<Long> findOwnedOrganizationIds(@Param("accountId") Long accountId, @Param("status") MembershipStatus status);
 
     long countByOrganizationIdAndOwnerTrueAndStatus(Long organizationId, MembershipStatus status);
 }

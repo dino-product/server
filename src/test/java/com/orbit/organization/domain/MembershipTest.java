@@ -107,6 +107,31 @@ class MembershipTest {
     }
 
     @Test
+    @DisplayName("다른 활성 총관리자가 없는 활성 총관리자만 유일한 총관리자다")
+    void soleOwnerIsActiveOwnerWithoutOtherActiveOwner() {
+        Membership owner = staff().designateAsOwner();
+
+        assertThat(owner.isSoleOwner(1)).isTrue();
+        assertThat(owner.isSoleOwner(2)).isFalse();
+        assertThat(staff().isSoleOwner(1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("비활성 소속은 총관리자 표시가 남아 있어도 유일한 총관리자가 아니다")
+    void deactivatedOwnerIsNotSoleOwner() {
+        Membership deactivatedOwner = Membership.reconstitute(
+                new MembershipId(3L),
+                new OrganizationId(1L),
+                new AccountId(8L),
+                true,
+                MembershipStatus.DEACTIVATED,
+                NOW,
+                NOW.plusSeconds(60));
+
+        assertThat(deactivatedOwner.isSoleOwner(0)).isFalse();
+    }
+
+    @Test
     @DisplayName("다른 역할로 있던 회원이 직원으로 다시 참여하면 이전 참여일을 이어받고 상태 변경 시각은 승인 시각이다")
     void joinedMembershipKeepsEarlierJoinDate() {
         Instant rejoinedAt = NOW.plusSeconds(3600);

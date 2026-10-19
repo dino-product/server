@@ -2,6 +2,7 @@ package com.orbit.organization.application.service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,6 +138,17 @@ class InMemoryMembershipRepository implements MembershipRepository {
                 .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
                 .filter(Membership::isOwner)
                 .count();
+    }
+
+    @Override
+    public List<OrganizationId> listOwnedOrganizations(AccountId accountId) {
+        return memberships.values().stream()
+                .filter(membership -> membership.accountId().equals(accountId))
+                .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
+                .filter(Membership::isOwner)
+                .map(Membership::organizationId)
+                .sorted(Comparator.comparing(OrganizationId::value))
+                .toList();
     }
 
     /** 직원 유형은 소속 도메인에 없어 이 fake로는 다루지 않는다. 유형 삭제 테스트는 저장소 mock을 쓴다. */

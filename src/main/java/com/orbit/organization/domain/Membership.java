@@ -103,6 +103,15 @@ public final class Membership {
     }
 
     /**
+     * 이 소속이 발주사의 유일한 활성 총관리자인지. 비활성 소속은 총관리자 표시가 남아 있어도 아니다.
+     *
+     * @param activeOwners 이 소속을 포함한 같은 발주사의 활성 총관리자 수
+     */
+    public boolean isSoleOwner(long activeOwners) {
+        return status == MembershipStatus.ACTIVE && owner && activeOwners <= 1;
+    }
+
+    /**
      * 비활성 소속을 참여 요청 승인으로 다시 활성으로 바꾼다. 참여일은 유지하고, 승인으로 받는 역할은 직원이므로 총관리자 표시는 끈다([조직·계정] §6).
      *
      * @throws IllegalStateException 활성 소속일 때

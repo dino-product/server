@@ -1,6 +1,7 @@
 package com.orbit.organization.application.port.out;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import com.orbit.organization.domain.AccountId;
@@ -36,6 +37,12 @@ public interface MembershipRepository {
 
     /** 그 발주사에서 이 직원 유형이 지정된 모든 직원 소속(상태 무관)을 "유형 없음"으로 바꾸고 바뀐 소속 수를 돌려준다. */
     int unassignStaffCategory(OrganizationId organizationId, MemberCategoryId categoryId, Instant unassignedAt);
+
+    /**
+     * 계정이 활성 총관리자인 발주사의 식별자, 오름차순. 소속을 적재하지 않아, 같은 트랜잭션에서 발주사를 잠근 뒤 부르는 {@link #findActive}가 그 사이 커밋된
+     * 값을 읽게 한다.
+     */
+    List<OrganizationId> listOwnedOrganizations(AccountId accountId);
 
     /** 그 발주사의 활성 직원 소속 중 총관리자 수. */
     long countActiveOwners(OrganizationId organizationId);
