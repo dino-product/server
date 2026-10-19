@@ -2,9 +2,11 @@ package com.orbit.organization.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +26,7 @@ import com.orbit.organization.domain.CategoryColor;
 import com.orbit.organization.domain.CategoryName;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.WorkType;
+import com.orbit.organization.domain.WorkTypeId;
 import com.orbit.support.PersistenceTestConfiguration;
 
 @DataJpaTest
@@ -157,6 +160,48 @@ class WorkTypePersistenceAdapterTest {
         assertThat(workTypes.listUndeleted(ORGANIZATION))
                 .extracting(workType -> workType.name().value())
                 .containsExactly("점검", "설치");
+    }
+
+    @Test
+    @DisplayName("선택 가능 확인은 그 발주사의 삭제되지 않은 작업 유형만 참이다")
+    void locksOnlyUndeletedWorkTypeOfOrganization() {
+        WorkType selectable = workTypes.save(workType(ORGANIZATION, "설치"));
+        WorkType deleted = workTypes.save(workType(ORGANIZATION, "수리"));
+        deleted.delete(LATER);
+        workTypes.save(deleted);
+        WorkType other = workTypes.save(workType(OTHER_ORGANIZATION, "점검"));
+        clear();
+
+        assertThat(workTypes.lockIfSelectable(ORGANIZATION, selectable.id().orElseThrow()))
+                .isTrue();
+        assertThat(workTypes.lockIfSelectable(ORGANIZATION, deleted.id().orElseThrow()))
+                .isFalse();
+        assertThat(workTypes.lockIfSelectable(ORGANIZATION, other.id().orElseThrow()))
+                .isFalse();
+        assertThat(workTypes.lockIfSelectable(
+                        ORGANIZATION, new WorkTypeId(other.id().orElseThrow().value() + 1_000)))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("식별자로 찾기는 삭제된 작업 유형도 담고 다른 발주사·없는 유형은 뺀다")
+    void listsByIdsIncludingDeleted() {
+        WorkType kept = workTypes.save(workType(ORGANIZATION, "설치"));
+        WorkType deleted = workTypes.save(workType(ORGANIZATION, "수리"));
+        deleted.delete(LATER);
+        workTypes.save(deleted);
+        WorkType other = workTypes.save(workType(OTHER_ORGANIZATION, "점검"));
+        clear();
+
+        assertThat(workTypes.listByIds(
+                        ORGANIZATION,
+                        Set.of(
+                                kept.id().orElseThrow(),
+                                deleted.id().orElseThrow(),
+                                other.id().orElseThrow(),
+                                new WorkTypeId(other.id().orElseThrow().value() + 1_000))))
+                .extracting(workType -> workType.name().value(), WorkType::isDeleted)
+                .containsExactlyInAnyOrder(tuple("설치", false), tuple("수리", true));
     }
 
     /** 저장소를 거치지 않고 행을 넣어 DB 제약만 확인한다. 실패하면 그 문장만 되돌린다. */

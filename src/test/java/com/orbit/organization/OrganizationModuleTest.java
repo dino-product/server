@@ -2,6 +2,8 @@ package com.orbit.organization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Set;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -10,8 +12,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
+import com.orbit.organization.application.port.in.command.CreateWorkTypeUseCase;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
+import com.orbit.organization.application.port.in.command.dto.CreateWorkTypeCommand;
 import com.orbit.organization.application.port.in.command.dto.CreatedOrganizationInfo;
+import com.orbit.organization.application.port.in.query.dto.WorkTypeInfo;
 import com.orbit.organization.domain.Industry;
 import com.orbit.support.TestcontainersConfiguration;
 
@@ -29,6 +34,12 @@ class OrganizationModuleTest {
 
     @Autowired
     private TechnicianContractLookup technicianContractLookup;
+
+    @Autowired
+    private CreateWorkTypeUseCase createWorkTypeUseCase;
+
+    @Autowired
+    private WorkTypeLookup workTypeLookup;
 
     @Test
     void createsOrganizationWithinStandaloneModule() {
@@ -66,5 +77,18 @@ class OrganizationModuleTest {
 
         assertThat(technicianContractLookup.existsActive(created.organizationId(), 999_999L))
                 .isFalse();
+    }
+
+    @Test
+    void publicWorkTypeLookupSelectsAndLabelsCreatedWorkType() {
+        CreatedOrganizationInfo created =
+                useCase.create(new CreateOrganizationCommand(12L, "작업 유형 발주사", Industry.APPLIANCE_SERVICE));
+        WorkTypeInfo workType =
+                createWorkTypeUseCase.create(new CreateWorkTypeCommand(12L, created.organizationId(), "설치", "#3B82F6"));
+
+        assertThat(workTypeLookup.isSelectable(created.organizationId(), workType.workTypeId()))
+                .isTrue();
+        assertThat(workTypeLookup.findLabels(created.organizationId(), Set.of(workType.workTypeId())))
+                .containsExactly(new WorkTypeLabel(workType.workTypeId(), "설치", "#3B82F6", false));
     }
 }

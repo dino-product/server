@@ -2,6 +2,7 @@ package com.orbit.organization.adapter.out.persistence;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -52,6 +53,22 @@ class WorkTypePersistenceAdapter implements WorkTypeRepository {
     @Override
     public List<WorkType> listUndeleted(OrganizationId organizationId) {
         return repository.findByOrganizationIdAndDeletedFalseOrderByCreatedAtAscIdAsc(organizationId.value()).stream()
+                .map(WorkTypeJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public boolean lockIfSelectable(OrganizationId organizationId, WorkTypeId id) {
+        return repository.lockUndeleted(organizationId.value(), id.value()).isPresent();
+    }
+
+    @Override
+    public List<WorkType> listByIds(OrganizationId organizationId, Set<WorkTypeId> ids) {
+        return repository
+                .findByOrganizationIdAndIdIn(
+                        organizationId.value(),
+                        ids.stream().map(WorkTypeId::value).toList())
+                .stream()
                 .map(WorkTypeJpaEntity::toDomain)
                 .toList();
     }
