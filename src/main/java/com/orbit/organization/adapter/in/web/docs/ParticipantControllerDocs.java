@@ -25,7 +25,7 @@ public interface ParticipantControllerDocs {
     String STAFF_TARGET = "대상 직원 소속이 없거나 다른 발주사 소속이면 ORGANIZATION-004입니다. ";
     String TECHNICIAN_TARGET = "대상 기사 계약이 없거나 다른 발주사 계약이면 ORGANIZATION-020입니다. ";
     String REACTIVATE = "비활성 구성원을 다시 활성으로 바꿉니다. 참여일·세부 유형은 그대로이고, 이미 활성이면 아무것도 바꾸지 않고 성공합니다. "
-            + "같은 계정이 이 발주사에서 다른 역할로 활성이면 ORGANIZATION-022입니다. ";
+            + "같은 계정이 이 발주사에서 다른 역할로 활성이면 ORGANIZATION-022, 역할이 바뀌기 전 행이라 목록에 보이지 않으면 ORGANIZATION-023입니다. ";
     String ASSIGN = "세부 유형을 지정하거나 categoryId를 비워 \"유형 없음\"으로 바꿉니다. 같은 유형을 다시 지정해도 성공합니다. "
             + "유형이 없거나 삭제됐거나 다른 발주사의 유형이면 ORGANIZATION-008, 대상이 비활성이면 ORGANIZATION-021입니다. " + BUSY + " "
             + OWNER_ONLY;
@@ -149,6 +149,7 @@ public interface ParticipantControllerDocs {
                 "OWNER_ONLY",
                 "MEMBERSHIP_NOT_FOUND",
                 "ACTIVE_IN_OTHER_ROLE",
+                "NOT_LAST_ROLE",
                 "ORGANIZATION_BUSY"
             })
     void reactivateStaff(
@@ -196,6 +197,7 @@ public interface ParticipantControllerDocs {
                 "OWNER_ONLY",
                 "TECHNICIAN_NOT_FOUND",
                 "ACTIVE_IN_OTHER_ROLE",
+                "NOT_LAST_ROLE",
                 "ORGANIZATION_BUSY"
             })
     void reactivateTechnician(

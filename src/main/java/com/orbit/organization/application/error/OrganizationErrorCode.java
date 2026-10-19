@@ -32,7 +32,8 @@ public enum OrganizationErrorCode implements BaseCode {
     INVALID_REJECT_REASON(HttpStatus.BAD_REQUEST, "ORGANIZATION-019", "거절 사유가 올바르지 않습니다."),
     TECHNICIAN_NOT_FOUND(HttpStatus.NOT_FOUND, "ORGANIZATION-020", "기사 계약을 찾을 수 없습니다."),
     INACTIVE_MEMBER(HttpStatus.CONFLICT, "ORGANIZATION-021", "비활성 구성원의 세부 유형은 바꿀 수 없습니다."),
-    ACTIVE_IN_OTHER_ROLE(HttpStatus.CONFLICT, "ORGANIZATION-022", "다른 역할로 활성 상태인 구성원은 다시 활성화할 수 없습니다.");
+    ACTIVE_IN_OTHER_ROLE(HttpStatus.CONFLICT, "ORGANIZATION-022", "다른 역할로 활성 상태인 구성원은 다시 활성화할 수 없습니다."),
+    NOT_LAST_ROLE(HttpStatus.CONFLICT, "ORGANIZATION-023", "역할이 바뀌기 전의 소속은 다시 활성화할 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

@@ -248,6 +248,46 @@ class ChangeParticipantStatusServiceTest {
     }
 
     @Test
+    @DisplayName("다른 역할 행이 더 늦게 비활성이 됐으면 목록에 보이지 않는 이전 역할 행은 재활성화할 수 없다")
+    void rejectsReactivatingRoleBeforeLastRoleChange() {
+        givenRequesterIsOwner();
+        givenStaff(false, MembershipStatus.DEACTIVATED);
+        Technician deactivatedLater = Technician.reconstitute(
+                TECHNICIAN_ID,
+                ORGANIZATION_ID,
+                MEMBER_ACCOUNT,
+                TechnicianStatus.DEACTIVATED,
+                JOINED_AT,
+                JOINED_AT.plusSeconds(60));
+        when(technicianRepository.findById(TECHNICIAN_ID)).thenReturn(Optional.of(deactivatedLater));
+        when(technicianRepository.find(ORGANIZATION_ID, MEMBER_ACCOUNT)).thenReturn(Optional.of(deactivatedLater));
+        when(membershipRepository.find(ORGANIZATION_ID, MEMBER_ACCOUNT))
+                .thenReturn(Optional.of(staff(false, MembershipStatus.DEACTIVATED)));
+
+        assertRejected(
+                () -> service.reactivate(command(ParticipationType.STAFF, MEMBERSHIP_ID.value())),
+                OrganizationErrorCode.NOT_LAST_ROLE);
+        service.reactivate(command(ParticipationType.TECHNICIAN, TECHNICIAN_ID.value()));
+
+        verify(membershipRepository, never()).reactivate(any(), anyBoolean());
+        verify(technicianRepository).reactivate(any(), eq(false));
+    }
+
+    @Test
+    @DisplayName("직원 소속과 기사 계약이 같은 시각에 비활성이 됐으면 직원 소속이 마지막 역할이라 기사 계약은 재활성화할 수 없다")
+    void treatsStaffAsLastRoleOnSameStatusChange() {
+        givenRequesterIsOwner();
+        givenTechnician(TechnicianStatus.DEACTIVATED);
+        when(membershipRepository.find(ORGANIZATION_ID, MEMBER_ACCOUNT))
+                .thenReturn(Optional.of(staff(false, MembershipStatus.DEACTIVATED)));
+
+        assertRejected(
+                () -> service.reactivate(command(ParticipationType.TECHNICIAN, TECHNICIAN_ID.value())),
+                OrganizationErrorCode.NOT_LAST_ROLE);
+        verify(technicianRepository, never()).reactivate(any(), anyBoolean());
+    }
+
+    @Test
     @DisplayName("이미 활성이면 저장하지 않고 성공한다")
     void reactivatingActiveSucceedsWithoutChanges() {
         givenRequesterIsOwner();

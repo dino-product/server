@@ -345,6 +345,32 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("ORGANIZATION-002"));
     }
 
+    @Test
+    @DisplayName("직원에서 기사로 바뀐 뒤 기사 계약까지 비활성이면 목록에 보이는 기사 계약만 재활성화되고 이전 직원 소속은 409 ORGANIZATION-023이다")
+    void reactivatesOnlyLastRole() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "마지막 역할 발주사");
+        long member = ACCOUNT_IDS.incrementAndGet();
+        long membershipId = join(company, owner, member, "STAFF");
+        changeStatus(owner, company.organizationId(), "staff-memberships", membershipId, "deactivation")
+                .andExpect(status().isNoContent());
+        long technicianId = join(company, owner, member, "TECHNICIAN");
+        changeStatus(owner, company.organizationId(), "technicians", technicianId, "deactivation")
+                .andExpect(status().isNoContent());
+
+        changeStatus(owner, company.organizationId(), "staff-memberships", membershipId, "reactivation")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-023"));
+        changeStatus(owner, company.organizationId(), "technicians", technicianId, "reactivation")
+                .andExpect(status().isNoContent());
+
+        listParticipants(owner, company.organizationId(), "TECHNICIAN", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.participants.length()").value(1))
+                .andExpect(jsonPath("$.result.participants[0].memberId").value(technicianId))
+                .andExpect(jsonPath("$.result.participants[0].status").value("ACTIVE"));
+    }
+
     private ResultActions listParticipants(long accountId, long organizationId, String type, String name)
             throws Exception {
         MockHttpServletRequestBuilder request = get(

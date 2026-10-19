@@ -729,7 +729,10 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("ORGANIZATION-020"))
                 .andExpect(jsonPath(reactivateTechnician + ".responses['409'].content['application/json']"
                                 + ".examples['ORGANIZATION-022'].value.code")
-                        .value("ORGANIZATION-022"));
+                        .value("ORGANIZATION-022"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-023'].value.code")
+                        .value("ORGANIZATION-023"));
     }
 
     @Test

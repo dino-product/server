@@ -1,6 +1,7 @@
 package com.orbit.organization.application.service;
 
 import java.time.Clock;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +34,8 @@ import com.orbit.shared.error.BusinessException;
  *       (ORGANIZATION-005)로 거부한다. 요청자 자신도 대상이 될 수 있다.
  *   <li>기사 계약 비활성화는 같은 트랜잭션에서 {@link TechnicianWorkRelease}로 그 기사의 배정됨·작업전 작업을 대기함으로 돌린다([스케줄·배정] §9). 반환은
  *       요청자 소속을 처리자로 남기며, 반환이 실패하면 예외를 그대로 전파해 비활성화도 롤백한다.
- *   <li>재활성화는 같은 계정이 그 발주사에서 다른 역할로 활성이면 409(ORGANIZATION-022)로 거부한다. 세부 유형은 유지한다.
+ *   <li>재활성화는 같은 계정이 그 발주사에서 다른 역할로 활성이면 409(ORGANIZATION-022)로, 목록에 보이는 마지막 역할 행이 아니면(역할이 바뀌기 전 행)
+ *       409(ORGANIZATION-023)로 거부한다. 역할은 재활성화로 바꾸지 않으므로 세부 유형은 유지한다.
  * </ul>
  */
 @Service
@@ -93,10 +95,11 @@ public class ChangeParticipantStatusService implements DeactivateParticipantUseC
             lock(command, organizationId);
             Membership target = Participants.requireMembershipOf(membershipRepository, organizationId, membershipId);
             if (target.status() == MembershipStatus.DEACTIVATED) {
-                requireNoOtherActiveRole(technicianRepository
-                        .find(organizationId, target.accountId())
-                        .filter(technician -> technician.status() == TechnicianStatus.ACTIVE)
+                Optional<Technician> technician = technicianRepository.find(organizationId, target.accountId());
+                requireNoOtherActiveRole(technician
+                        .filter(other -> other.status() == TechnicianStatus.ACTIVE)
                         .isPresent());
+                requireLastRole(Participants.lastRole(Optional.of(target), technician) == ParticipationType.STAFF);
                 membershipRepository.reactivate(target.reactivate(clock.instant()), false);
             }
             return;
@@ -105,10 +108,10 @@ public class ChangeParticipantStatusService implements DeactivateParticipantUseC
         lock(command, organizationId);
         Technician target = Participants.requireTechnicianOf(technicianRepository, organizationId, technicianId);
         if (target.status() == TechnicianStatus.DEACTIVATED) {
-            requireNoOtherActiveRole(membershipRepository
-                    .find(organizationId, target.accountId())
-                    .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
+            Optional<Membership> staff = membershipRepository.find(organizationId, target.accountId());
+            requireNoOtherActiveRole(staff.filter(other -> other.status() == MembershipStatus.ACTIVE)
                     .isPresent());
+            requireLastRole(Participants.lastRole(staff, Optional.of(target)) == ParticipationType.TECHNICIAN);
             technicianRepository.reactivate(target.reactivate(clock.instant()), false);
         }
     }
@@ -129,6 +132,12 @@ public class ChangeParticipantStatusService implements DeactivateParticipantUseC
     private static void requireNoOtherActiveRole(boolean activeInOtherRole) {
         if (activeInOtherRole) {
             throw new BusinessException(OrganizationErrorCode.ACTIVE_IN_OTHER_ROLE);
+        }
+    }
+
+    private static void requireLastRole(boolean lastRole) {
+        if (!lastRole) {
+            throw new BusinessException(OrganizationErrorCode.NOT_LAST_ROLE);
         }
     }
 }
