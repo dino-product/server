@@ -12,6 +12,11 @@ spring:
     compose:
       enabled: ${SPRING_DOCKER_COMPOSE_ENABLED:false}
       lifecycle-management: start-and-stop
+  profiles:
+    # 배포 환경(dev·prod)은 공통 설정 deployed를 함께 켠다.
+    group:
+      dev: deployed
+      prod: deployed
   datasource:
     driver-class-name: org.postgresql.Driver
     hikari:

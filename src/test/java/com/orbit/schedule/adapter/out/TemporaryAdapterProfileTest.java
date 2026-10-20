@@ -23,9 +23,10 @@ class TemporaryAdapterProfileTest {
             new ApplicationContextRunner().withUserConfiguration(ScanTemporaryAdapters.class);
 
     @ParameterizedTest
-    @ValueSource(strings = {"local", "test"})
-    @DisplayName("로컬·테스트 프로필에서만 등록한다")
-    void registersOnlyInLocalAndTest(String profile) {
+    // dev는 프로필 그룹으로 deployed와 함께 켜진다(application.yml).
+    @ValueSource(strings = {"local", "test", "dev", "dev,deployed"})
+    @DisplayName("로컬·테스트·개발 서버 프로필에서만 등록한다")
+    void registersOnlyInLocalTestAndDev(String profile) {
         runner.withPropertyValues("spring.profiles.active=" + profile).run(context -> {
             assertThat(context).hasSingleBean(LoadTechnicianProfilesPort.class);
             assertThat(context).hasSingleBean(LoadStaffProfilesPort.class);
@@ -36,7 +37,7 @@ class TemporaryAdapterProfileTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"prod", "prod,local", "prod,test", "staging", ""})
+    @ValueSource(strings = {"prod", "prod,deployed", "prod,dev", "prod,local", "prod,test", "deployed", "staging", ""})
     @DisplayName("운영과 이름 없는·그 밖의 환경에서는 등록하지 않는다")
     void doesNotRegisterElsewhere(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles).run(context -> {
