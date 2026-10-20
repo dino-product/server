@@ -27,6 +27,7 @@ import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
+import com.orbit.schedule.domain.CompletionReportRequest;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
@@ -123,6 +124,18 @@ class WorkPersistenceAdapterTest extends PersistenceAdapterTestSupport {
                         (Consumer<Work>) work -> {
                             work.assign(SCHEDULE, NOW, MANAGER);
                             work.accept(NOW.plusSeconds(10));
+                        },
+                        WorkStatus.ACCEPTED),
+                Arguments.of(
+                        "작업전(수락 뒤 일정 변경으로 수락을 이은 배정)",
+                        (Consumer<Work>) work -> {
+                            work.assign(SCHEDULE, NOW, MANAGER);
+                            work.accept(NOW.plusSeconds(10));
+                            work.reschedule(
+                                    SCHEDULE.startTime().plusSeconds(3_600),
+                                    SCHEDULE.expectedDuration(),
+                                    NOW.plusSeconds(20),
+                                    MANAGER);
                         },
                         WorkStatus.ACCEPTED),
                 Arguments.of(
@@ -641,6 +654,77 @@ class WorkPersistenceAdapterTest extends PersistenceAdapterTestSupport {
         replaced.replaceSitePhotos(null);
         inTx(() -> adapter().save(replaced));
         assertThat(find(organization, id).sitePhotos()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("완료보고 요청을 요청 순서대로 저장·복원하고 새 요청만 덧붙이며, 요청만 더해도 버전과 최근 수정 시각을 올린다")
+    void roundTripsCompletionReportRequestsAndBumpsVersion() {
+        OrganizationId organization = organization();
+        Work work = registered(organization, "늦은 작업");
+        work.assign(SCHEDULE, NOW, MANAGER);
+        work.accept(NOW.plusSeconds(10));
+        work.start(NOW.plusSeconds(20));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+        Instant end = SCHEDULE.endTime();
+        Instant firstRequestedAt = end.plusNanos(123_456_000);
+        long versionBefore = find(organization, id).version();
+        Instant updatedBefore = entity(id).updatedAt();
+
+        Work first = inTx(() -> {
+            Work loaded = find(organization, id);
+            loaded.requestCompletionReport(end.plusNanos(123_456_789), MANAGER);
+            return adapter().save(loaded);
+        });
+        Long firstRowId =
+                inTx(() -> entity(id).completionReportRequests().getFirst().id());
+        inTx(() -> {
+            Work loaded = find(organization, id);
+            loaded.requestCompletionReport(firstRequestedAt.plus(Work.COMPLETION_REPORT_REQUEST_INTERVAL), REGISTRAR);
+            return adapter().save(loaded);
+        });
+
+        assertThat(first.version()).isEqualTo(versionBefore + 1);
+        assertThat(entity(id).updatedAt()).isAfter(updatedBefore);
+        Work found = find(organization, id);
+        assertThat(found.version()).isEqualTo(versionBefore + 2);
+        assertThat(found.completionReportRequests())
+                .containsExactly(
+                        new CompletionReportRequest(firstRequestedAt, MANAGER),
+                        new CompletionReportRequest(firstRequestedAt.plus(Duration.ofMinutes(30)), REGISTRAR));
+        assertThat(inTx(() -> entity(id).completionReportRequests().stream()
+                        .map(WorkCompletionReportRequestJpaEntity::id)
+                        .toList()))
+                .hasSize(2)
+                .startsWith(firstRowId);
+    }
+
+    @Test
+    @DisplayName("같은 작업을 읽은 두 요청이 함께 완료보고를 요청하면 뒤에 저장하는 쪽이 동시 변경으로 거부된다")
+    void detectsConcurrentCompletionReportRequests() {
+        OrganizationId organization = organization();
+        Work work = registered(organization, "늦은 작업");
+        work.assign(SCHEDULE, NOW, MANAGER);
+        work.accept(NOW.plusSeconds(10));
+        work.start(NOW.plusSeconds(20));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+        Instant end = SCHEDULE.endTime();
+        TransactionTemplate requiresNew = new TransactionTemplate(transactionManager);
+        requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        assertThatThrownBy(() -> inTx(() -> {
+                    Work loaded = adapter().findInOrganization(organization, id).orElseThrow();
+                    requiresNew.execute(status -> {
+                        Work other =
+                                adapter().findInOrganization(organization, id).orElseThrow();
+                        other.requestCompletionReport(end, REGISTRAR);
+                        return adapter().save(other);
+                    });
+                    loaded.requestCompletionReport(end, MANAGER);
+                    return adapter().save(loaded);
+                }))
+                .isInstanceOf(ConcurrentWorkChangeException.class);
+        assertThat(find(organization, id).completionReportRequests())
+                .containsExactly(new CompletionReportRequest(end, REGISTRAR));
     }
 
     private Work find(OrganizationId organization, WorkId id) {

@@ -61,7 +61,7 @@ class ManagedWorkCommandRulesTest {
                                 null,
                                 null))),
                 new UseCase("배정", (f, request) -> new AssignWorkService(
-                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.events, f.clock)
                         .assign(new AssignWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -71,7 +71,7 @@ class ManagedWorkCommandRulesTest {
                                 request.validInput() ? TWO_HOURS : Duration.ZERO,
                                 false))),
                 new UseCase("재배정", (f, request) -> new ReassignWorkService(
-                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.events, f.clock)
                         .reassign(new ReassignWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -81,7 +81,7 @@ class ManagedWorkCommandRulesTest {
                                 request.validInput() ? TWO_HOURS : Duration.ZERO,
                                 false))),
                 new UseCase("배정 변경(통합)", (f, request) -> new ChangeWorkAssignmentService(
-                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.events, f.clock)
                         .change(new ChangeWorkAssignmentCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -92,7 +92,7 @@ class ManagedWorkCommandRulesTest {
                                 false,
                                 request.validInput() ? 0L : null))),
                 new UseCase("일정 변경", (f, request) -> new RescheduleWorkService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.scheduleLock, f.events, f.clock)
                         .reschedule(new RescheduleWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -106,13 +106,14 @@ class ManagedWorkCommandRulesTest {
                                 request.organizationId(),
                                 request.workId(),
                                 request.validInput() ? 0L : null))),
-                new UseCase("취소", (f, request) -> new CancelWorkService(f.actorPort, f.workRepository, f.clock)
-                        .cancel(new CancelWorkCommand(
-                                request.accountId(),
-                                request.organizationId(),
-                                request.workId(),
-                                request.validInput() ? CancellationReason.CUSTOMER_REQUEST : null,
-                                null))));
+                new UseCase(
+                        "취소", (f, request) -> new CancelWorkService(f.actorPort, f.workRepository, f.events, f.clock)
+                                .cancel(new CancelWorkCommand(
+                                        request.accountId(),
+                                        request.organizationId(),
+                                        request.workId(),
+                                        request.validInput() ? CancellationReason.CUSTOMER_REQUEST : null,
+                                        null))));
     }
 
     /** 등록자 본인·총관리자만 하는 변경. 배정된 작업(수락대기)이면 배정 변경(통합)도 재배정·일정 변경이라 여기에 든다. */

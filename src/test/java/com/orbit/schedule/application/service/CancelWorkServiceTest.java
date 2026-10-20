@@ -6,7 +6,10 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.MANA
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETUP_MANAGER_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkCancelled;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.domain.ActorRole;
@@ -24,6 +28,7 @@ import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.Cancellation;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
+import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -36,13 +41,13 @@ class CancelWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final CancelWorkService service =
-            new CancelWorkService(fixture.actorPort, fixture.workRepository, fixture.clock);
+            new CancelWorkService(fixture.actorPort, fixture.workRepository, fixture.events, fixture.clock);
 
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
             names = {"PENDING_ACCEPT", "ACCEPTED", "IN_PROGRESS"})
-    @DisplayName("배정이 있는 작업을 취소하면 지금 시각·처리자·사유를 작업에 남기고 그 배정도 같은 시각·처리자의 취소로 끝낸다")
+    @DisplayName("배정이 있는 작업을 취소하면 지금 시각·처리자·사유를 작업에 남기고 그 배정도 같은 시각·처리자의 취소로 끝내며, 저장한 뒤 담당 기사와 함께 취소를 발행한다")
     void cancelsAssignedWork(WorkStatus status) {
         fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(status);
@@ -56,10 +61,13 @@ class CancelWorkServiceTest {
         assertThat(saved.assignmentHistory().getLast().ending())
                 .contains(new AssignmentEnding(NOW, MANAGER_ID, AssignmentEndReason.CANCELLED));
         assertThat(fixture.scheduleLock.locks()).isEmpty();
+        assertThat(fixture.events.published())
+                .containsExactly(
+                        new WorkCancelled(id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", NOW));
     }
 
     @Test
-    @DisplayName("대기함 작업을 취소해도 처리자와 사유를 남긴다")
+    @DisplayName("대기함 작업을 취소해도 처리자와 사유를 남기고, 담당 기사 없이 취소를 발행한다")
     void cancelsBacklogWork() {
         fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
@@ -71,6 +79,35 @@ class CancelWorkServiceTest {
         assertThat(saved.cancellation())
                 .contains(new Cancellation(NOW, MANAGER_ID, CancellationReason.DUPLICATE_REGISTRATION, null));
         assertThat(saved.assignmentHistory()).isEmpty();
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkCancelled(id.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW));
+    }
+
+    @Test
+    @DisplayName("미리 입력한 담당기사가 있거나 거절로 돌아온 대기함 작업의 취소는 그 기사를 담당 기사로 담지 않는다")
+    void publishesBacklogCancellationWithoutTechnician() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId planned = fixture.workRepository.store(Work.register(
+                ORGANIZATION_ID,
+                "미리 입력한 작업",
+                REGISTRAR_ID,
+                REGISTERED_AT,
+                null,
+                null,
+                null,
+                new PlannedSchedule(TECHNICIAN_ID, TEN, null)));
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        WorkId returned = fixture.workRepository.store(rejected);
+
+        service.cancel(command(planned.value(), CancellationReason.CUSTOMER_REQUEST, null));
+        service.cancel(command(returned.value(), CancellationReason.CUSTOMER_REQUEST, null));
+
+        assertThat(fixture.workRepository.saved()).hasSize(2);
+        assertThat(fixture.events.published())
+                .containsExactly(
+                        new WorkCancelled(planned.value(), ORGANIZATION_ID.value(), null, "미리 입력한 작업", NOW),
+                        new WorkCancelled(returned.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW));
     }
 
     @ParameterizedTest

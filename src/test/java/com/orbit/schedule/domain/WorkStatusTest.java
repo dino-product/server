@@ -84,7 +84,7 @@ class WorkStatusTest {
                 // 거절·배정 해제로 대기함 복귀
                 Arguments.of(WorkStatus.PENDING_ACCEPT, WorkStatus.REGISTERED),
                 Arguments.of(WorkStatus.ACCEPTED, WorkStatus.REGISTERED),
-                // 수락 이후 재배정·일정 변경은 재수락
+                // 수락 이후 재배정은 새 기사의 재수락(일정 변경은 수락됨 유지)
                 Arguments.of(WorkStatus.ACCEPTED, WorkStatus.PENDING_ACCEPT),
                 // 시작·완료보고
                 Arguments.of(WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS),

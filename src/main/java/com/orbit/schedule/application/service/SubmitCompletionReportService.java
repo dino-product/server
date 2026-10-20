@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,11 +29,17 @@ public class SubmitCompletionReportService implements SubmitCompletionReportUseC
 
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    public SubmitCompletionReportService(LoadActorPort loadActorPort, WorkRepository workRepository, Clock clock) {
+    public SubmitCompletionReportService(
+            LoadActorPort loadActorPort,
+            WorkRepository workRepository,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -54,6 +61,7 @@ public class SubmitCompletionReportService implements SubmitCompletionReportUseC
         DomainRuleViolations.run(() -> work.submitCompletionReport(report, now));
 
         workRepository.save(work);
+        eventPublisher.publishEvent(WorkEvents.completionReportSubmitted(work, technician.technicianId(), now));
     }
 
     private static CompletionReport toReport(SubmitCompletionReportCommand command) {

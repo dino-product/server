@@ -309,6 +309,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 work.completedAt().orElse(null),
                 work.cancellation().orElse(null),
                 work.sitePhotos(),
+                work.completionReportRequests(),
                 version);
     }
 }

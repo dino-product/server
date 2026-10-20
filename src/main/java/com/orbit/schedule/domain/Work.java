@@ -30,6 +30,9 @@ public final class Work {
      */
     public static final Duration BACKLOG_STALE_AFTER = Duration.ofDays(3);
 
+    /** 같은 작업에 완료보고를 다시 요청하려면 마지막 요청 뒤 이만큼 지나야 한다. 기사에게 같은 요청 알림이 몰리지 않게 한다. */
+    public static final Duration COMPLETION_REPORT_REQUEST_INTERVAL = Duration.ofMinutes(30);
+
     /** 대기함 작업의 마지막 배정이 관리자 조치나 탈퇴로 끝났을 때 허용하는 방식. 재배정·일정 변경 뒤에는 새 배정이 남고, 취소로 끝났으면 취소 상태다. */
     private static final Set<AssignmentEndReason> REGISTERED_ENDINGS =
             Set.of(AssignmentEndReason.UNASSIGNED, AssignmentEndReason.ACCOUNT_WITHDRAWN);
@@ -55,6 +58,7 @@ public final class Work {
     private Cancellation cancellation;
     private PlannedSchedule plannedSchedule;
     private List<String> sitePhotos = List.of();
+    private List<CompletionReportRequest> completionReportRequests = List.of();
     private long version;
 
     private Work(
@@ -310,6 +314,53 @@ public final class Work {
         return work;
     }
 
+    /**
+     * 완료보고 요청 기록까지 복원한다. 요청 기록은 요청한 순서(시간순)이고 등록 시각보다 앞서지 않는다. 요청한 뒤 작업이 완료·취소될 수 있으므로 지금 상태와는
+     * 맞춰 보지 않는다. 두 요청 사이의 간격도 보지 않는다(간격 규칙이 바뀌어도 이미 남은 기록은 복원한다).
+     */
+    public static Work reconstitute(
+            WorkId id,
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            Instant registeredAt,
+            WorkTypeId workType,
+            WorkSchedule schedule,
+            PlannedSchedule plannedSchedule,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            WorkStatus status,
+            List<AssignmentHistory> assignmentHistory,
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt,
+            Cancellation cancellation,
+            List<String> sitePhotos,
+            List<CompletionReportRequest> completionReportRequests,
+            long version) {
+        Work work = reconstitute(
+                id,
+                organizationId,
+                name,
+                registrarId,
+                registeredAt,
+                workType,
+                schedule,
+                plannedSchedule,
+                customerInfo,
+                paymentInfo,
+                status,
+                assignmentHistory,
+                completionReport,
+                startedAt,
+                completedAt,
+                cancellation,
+                sitePhotos,
+                version);
+        work.completionReportRequests = work.requireRecordedCompletionReportRequests(completionReportRequests);
+        return work;
+    }
+
     public Optional<WorkId> id() {
         return Optional.ofNullable(id);
     }
@@ -397,6 +448,11 @@ public final class Work {
     /** 작업을 취소한 기록(시각·처리자·사유). 취소된 작업에만 있다. */
     public Optional<Cancellation> cancellation() {
         return Optional.ofNullable(cancellation);
+    }
+
+    /** 사무실이 담당 기사에게 완료보고를 요청한 기록. 오래된 것부터 쌓인다. */
+    public List<CompletionReportRequest> completionReportRequests() {
+        return completionReportRequests;
     }
 
     /**
@@ -498,8 +554,9 @@ public final class Work {
     }
 
     /**
-     * 담당기사는 그대로 두고 시작시각·예상소요시간을 바꾼다. 기사가 수락한 것은 원래 시간이므로 다시 수락받는다. 현재 기사로 일정을 만들어야 하므로 상태를 시간 입력보다
-     * 먼저 확인한다. 입력을 상태보다 먼저 거르려면 호출자가 {@link WorkSchedule#requireValidTime}으로 미리 검증한다.
+     * 담당기사는 그대로 두고 시작시각·예상소요시간을 바꾼다. 수락 전이면 바뀐 시간으로 다시 수락을 기다리고, 이미 수락한 작업은 다시 수락받지 않고 작업전(수락됨)을
+     * 유지한다(기사에게는 일정 변경 알림만 간다). 어느 쪽이든 지금 배정을 일정 변경으로 끝내고 바뀐 시간의 새 배정을 잇는다. 현재 기사로 일정을 만들어야 하므로
+     * 상태를 시간 입력보다 먼저 확인한다. 입력을 상태보다 먼저 거르려면 호출자가 {@link WorkSchedule#requireValidTime}으로 미리 검증한다.
      */
     public void reschedule(
             Instant newStartTime, Duration newExpectedDuration, Instant changedAt, MembershipId changedBy) {
@@ -615,6 +672,57 @@ public final class Work {
     }
 
     /**
+     * 주어진 시각에 담당 기사에게 완료보고를 요청할 수 있는지({@link #requestCompletionReport}의 상태·종료 시각·요청 간격 조건). 작업 상세가 요청 버튼을
+     * 보여 줄지 정할 때 쓴다.
+     */
+    public boolean canRequestCompletionReportAt(Instant now) {
+        Objects.requireNonNull(now, "now must not be null");
+        Instant at = truncateToMicros(now);
+        return status == WorkStatus.IN_PROGRESS
+                && !at.isBefore(schedule.endTime())
+                && nextCompletionReportRequestableAt()
+                        .map(next -> !at.isBefore(next))
+                        .orElse(true);
+    }
+
+    /**
+     * 담당 기사에게 완료보고를 요청하고 요청 시각·요청한 관리자를 남긴다. 작업중인 작업(작업중이면 완료보고는 아직 없다)이고 예정 종료시각이 요청 시각이거나 이미
+     * 지났어야 하며({@link #isDelayedAt}과 같은 경계) 아니면 상태 오류다. 요청 시각은 시작 시각·마지막 요청보다 앞설 수 없다. 마지막 요청 뒤
+     * {@link #COMPLETION_REPORT_REQUEST_INTERVAL}이 지나지 않았으면 {@link CompletionReportRequestTooSoonException}이다.
+     * 입력 → 상태 → 시각 순서 → 요청 간격 순서로 확인하고, 모두 통과한 뒤에만 남긴다.
+     */
+    public CompletionReportRequest requestCompletionReport(Instant requestedAt, MembershipId requestedBy) {
+        CompletionReportRequest request = new CompletionReportRequest(requestedAt, requestedBy);
+        requireStatus(WorkStatus.IN_PROGRESS, "request completion report");
+        Instant at = request.requestedAt();
+        if (at.isBefore(schedule.endTime())) {
+            throw new IllegalStateException("Cannot request a completion report before the scheduled end");
+        }
+        requireNotBeforeStart(at, "requestedAt");
+        if (!completionReportRequests.isEmpty()
+                && at.isBefore(completionReportRequests.getLast().requestedAt())) {
+            throw new IllegalArgumentException("requestedAt must not be before the latest completion report request");
+        }
+        Optional<Instant> next = nextCompletionReportRequestableAt();
+        if (next.isPresent() && at.isBefore(next.get())) {
+            throw new CompletionReportRequestTooSoonException(next.get());
+        }
+        List<CompletionReportRequest> requests = new ArrayList<>(completionReportRequests);
+        requests.add(request);
+        completionReportRequests = List.copyOf(requests);
+        return request;
+    }
+
+    /** 마지막 완료보고 요청 뒤 다시 요청할 수 있는 가장 이른 시각. 요청한 적이 없으면 비어 있다. */
+    private Optional<Instant> nextCompletionReportRequestableAt() {
+        if (completionReportRequests.isEmpty()) {
+            return Optional.empty();
+        }
+        Instant latest = completionReportRequests.getLast().requestedAt();
+        return Optional.of(latest.plus(COMPLETION_REPORT_REQUEST_INTERVAL));
+    }
+
+    /**
      * 완료 전 작업을 취소하고 취소 시각·처리자·사유(기타면 메모)를 작업에 남긴다. 현재 배정이 있으면(수락대기·수락됨·작업중) 같은 시각·처리자를 그 배정의 종료로도 남겨,
      * 배정이 왜 끝났는지 이력에서 알 수 있게 한다. 작업중이던 작업은 시작 시각을 그대로 둔다. 취소 시각은 배정 이력의 마지막 시각과 시작 시각보다 앞설 수
      * 없다. 입력(사유 등)을 상태보다 먼저 검증한다.
@@ -651,14 +759,28 @@ public final class Work {
         status = nextStatus;
     }
 
-    /** 현재 배정을 끝내고(응답 전이면 회수, 수락됐으면 결과를 둔 채 종료만) 새 배정을 추가해 다시 수락받는다. */
+    /**
+     * 현재 배정을 끝내고(응답 전이면 회수, 수락됐으면 결과를 둔 채 종료만) 새 배정을 추가한다. 새 배정은 다시 수락을 기다리되, 수락한 작업의 일정 변경이면 변경
+     * 시각에 수락된 채로 잇는다.
+     *
+     * <p>수락을 이은 배정도 지금 배정의 일정을 바꾸지 않고 새 이력으로 남기는 이유: 배정 이력은 추가만 하고 일정·결과를 바꾸지 않으므로 이전 시간이 이력에 남고, 배정
+     * 순번이 바뀌어 기사가 바뀌기 전 시간을 보고 보낸 시작·완료보고가 낡은 배정(SCHEDULE-010)으로 걸러지며, 복원 검증(일정 변경 종료 뒤에는 같은 시각·처리자의
+     * 같은 기사 새 배정, 수락됨 작업의 최신 배정은 수락)과 저장 모양을 그대로 쓴다. 이은 수락의 응답 시각은 변경 시각이며, 기사가 응답하지 않은 회수 결과의 응답
+     * 시각이 종료 시각인 것과 같이 기록상의 시각이다.
+     */
     private void changeAssignment(
             WorkSchedule newSchedule, Instant changedAt, MembershipId changedBy, AssignmentEndReason reason) {
         // 새 배정 이력과 종료 기록을 먼저 만들어 입력·시각을 검증한 뒤 반영해, 예외가 나도 작업이 부분적으로 바뀌지 않게 한다.
         AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, changedAt, changedBy);
         AssignmentEnding ending = new AssignmentEnding(changedAt, changedBy, reason);
         requireNotBeforeLatestAssignment(changedAt, "assignedAt");
-        WorkStatus nextStatus = status == WorkStatus.ACCEPTED ? status.transitionTo(WorkStatus.PENDING_ACCEPT) : status;
+        boolean keepsAcceptance = status == WorkStatus.ACCEPTED && reason == AssignmentEndReason.RESCHEDULED;
+        WorkStatus nextStatus = status == WorkStatus.ACCEPTED && !keepsAcceptance
+                ? status.transitionTo(WorkStatus.PENDING_ACCEPT)
+                : status;
+        if (keepsAcceptance) {
+            newAssignment.accept(changedAt);
+        }
         latestAssignment().end(ending);
         schedule = newSchedule;
         assignmentHistory.add(newAssignment);
@@ -880,6 +1002,26 @@ public final class Work {
         if (status != requiredStatus) {
             throw new IllegalStateException("Cannot " + action + " when status is " + status);
         }
+    }
+
+    /** 저장된 완료보고 요청 기록은 시간순이고 등록 시각보다 앞서지 않는다. null이면 기록이 없다. */
+    private List<CompletionReportRequest> requireRecordedCompletionReportRequests(
+            List<CompletionReportRequest> requests) {
+        if (requests == null) {
+            return List.of();
+        }
+        Instant previous = registeredAt;
+        for (CompletionReportRequest request : requests) {
+            if (request == null) {
+                throw new IllegalArgumentException("completion report requests must not contain null");
+            }
+            if (request.requestedAt().isBefore(previous)) {
+                throw new IllegalArgumentException(
+                        "completion report requests must be in chronological order after the registration");
+            }
+            previous = request.requestedAt();
+        }
+        return List.copyOf(requests);
     }
 
     private static List<String> requireSitePhotos(List<String> photoIds) {
