@@ -12,7 +12,6 @@ import java.util.Optional;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.AssertablePublishedEvents;
 import org.springframework.test.context.ActiveProfiles;
@@ -82,13 +81,12 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkTypeId;
 import com.orbit.shared.error.BusinessException;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-class ScheduleModuleTest {
+class ScheduleModuleTest implements SharedContainers {
 
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
 

@@ -21,7 +21,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,7 +37,6 @@ import com.orbit.support.IntegrationTestSupport;
 import tools.jackson.databind.ObjectMapper;
 
 /** 발주사는 API로 만들고(생성자가 첫 총관리자), 다른 직원 소속은 참여 승인 기능이 아직 없어 테이블에 직접 넣는다. */
-@AutoConfigureMockMvc
 @DisplayName("총관리자 지정·해제 API")
 class OrganizationOwnerApiIntegrationTest extends IntegrationTestSupport {
 

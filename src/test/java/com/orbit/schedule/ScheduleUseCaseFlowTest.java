@@ -68,7 +68,7 @@ import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 /**
  * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. 계정별 요청자를 간단히 정하려고 행위자 포트만 테스트 구현(@Primary)으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
@@ -76,9 +76,9 @@ import com.orbit.support.TestcontainersConfiguration;
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, ScheduleUseCaseFlowTest.ActorsByAccount.class})
+@Import(ScheduleUseCaseFlowTest.ActorsByAccount.class)
 @Testcontainers(disabledWithoutDocker = true)
-class ScheduleUseCaseFlowTest {
+class ScheduleUseCaseFlowTest implements SharedContainers {
 
     // 요청자는 계정별로 정한 LoadActorPort(@Primary)가 정하므로, organization 계약은 실제 어댑터의 의존성만 채운다.
     @MockitoBean

@@ -11,15 +11,11 @@ import java.util.UUID;
 
 import jakarta.servlet.http.Cookie;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -31,17 +27,14 @@ import com.orbit.auth.application.port.out.AppleRefreshTokenRepository;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.HashedNonce;
 import com.orbit.support.AppleAuthStub;
-import com.orbit.support.IntegrationTestSupport;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** 웹·Android Apple 로그인. Apple 엔드포인트는 로컬 스텁이고 state·Redis·PostgreSQL·토큰 교환 경로는 실제 구현을 지난다. 실제 Apple E2E는 아니다. */
-@AutoConfigureMockMvc
 @DisplayName("Apple 웹·Android 로그인 API")
-class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
+class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
 
-    private static final AppleAuthStub APPLE = AppleAuthStub.start();
     // RFC 7636 부록 B의 code_verifier와 그 S256 challenge
     private static final String VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     private static final String CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
@@ -57,19 +50,6 @@ class AppleWebLoginApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private AppleRefreshTokenRepository refreshTokens;
-
-    @DynamicPropertySource
-    static void appleEndpoints(DynamicPropertyRegistry registry) {
-        registry.add("app.auth.apple.jwk-set-uri", APPLE::jwkSetUri);
-        registry.add("app.auth.apple.token-api.token-uri", APPLE::tokenUri);
-        registry.add("app.auth.apple.token-api.revoke-uri", APPLE::revokeUri);
-        registry.add("app.auth.apple.client-secret.private-key", APPLE::clientSecretPrivateKeyPem);
-    }
-
-    @AfterAll
-    static void stopStub() {
-        APPLE.close();
-    }
 
     @Test
     @DisplayName("시작하면 Apple 인가 주소로 302 보내고 콜백 경로에만 쓰는 연결 쿠키를 남긴다")

@@ -12,7 +12,6 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.Scenario;
 import org.springframework.test.context.ActiveProfiles;
@@ -30,7 +29,7 @@ import com.orbit.organization.OrganizationAccountLookup;
 import com.orbit.schedule.WorkAssigned;
 import com.orbit.schedule.WorkReassigned;
 import com.orbit.schedule.WorkRejected;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 /**
  * notification만 띄워 schedule 이벤트가 커밋 뒤 알림이 되는지 확인한다. 계정 식별자를 테스트마다 달리해 같은 DB의 다른 테스트 행과 섞이지 않게 한다.
@@ -38,9 +37,8 @@ import com.orbit.support.TestcontainersConfiguration;
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-class NotificationModuleTest {
+class NotificationModuleTest implements SharedContainers {
 
     private static final Instant START = Instant.parse("2026-10-21T00:00:00Z");
     private static final Instant OCCURRED_AT = Instant.parse("2026-10-19T01:00:00Z");

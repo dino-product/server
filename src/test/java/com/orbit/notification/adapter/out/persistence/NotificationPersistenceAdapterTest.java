@@ -9,36 +9,26 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.notification.application.port.out.NotificationQueryPort.VisibleNotifications;
 import com.orbit.notification.domain.Notification;
 import com.orbit.notification.domain.NotificationStatus;
 import com.orbit.notification.domain.NotificationType;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /**
  * 실제 PostgreSQL에 저장·조회하며 NotificationRepository·NotificationQueryPort 계약을 확인한다. 클래스 트랜잭션을 끄고 조작마다 트랜잭션을 열어
  * 커밋하므로 "저장하지 않은 변경은 커밋돼도 남지 않는다"와 동시 수정을 실제 커밋 경계에서 본다. 커밋한 행이 남으므로 계정 식별자를 테스트마다 달리해(9_0xx)
  * 같은 DB를 쓰는 다른 테스트의 행과 섞이지 않게 한다.
  */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PersistenceTestConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DisplayName("알림 저장·조회")
-class NotificationPersistenceAdapterTest {
+class NotificationPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant NOTIFIED_AT = Instant.parse("2026-10-19T01:00:00.123456Z");
 

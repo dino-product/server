@@ -18,7 +18,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,7 +35,6 @@ import com.orbit.support.IntegrationTestSupport;
  * 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻는다. 알림은 schedule 이벤트로 만들어지므로 여기서는 행을 SQL로 넣고 알림센터
  * API만 본다. 계정 식별자를 테스트마다 달리해 같은 DB의 다른 테스트 행과 섞이지 않게 한다.
  */
-@AutoConfigureMockMvc
 @DisplayName("알림센터·알림 설정 API")
 class NotificationApiIntegrationTest extends IntegrationTestSupport {
 

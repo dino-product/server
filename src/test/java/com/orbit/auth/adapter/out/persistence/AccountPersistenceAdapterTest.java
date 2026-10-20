@@ -10,11 +10,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.DuplicateIdentityException;
@@ -22,16 +17,11 @@ import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
 import com.orbit.auth.domain.OAuthProvider;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** saveNew는 별도 트랜잭션으로 확정되므로 테스트마다 다른 외부 식별을 쓴다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({TestcontainersConfiguration.class, AccountPersistenceAdapter.class})
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("계정 저장소")
-class AccountPersistenceAdapterTest {
+class AccountPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2026-09-27T01:00:00Z");
 
