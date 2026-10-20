@@ -1,6 +1,8 @@
 package com.orbit.auth.adapter.in.web.docs;
 
 import com.orbit.auth.adapter.in.web.AuthenticatedAccountResponse;
+import com.orbit.auth.adapter.in.web.RefreshTokensRequest;
+import com.orbit.auth.adapter.in.web.RefreshedTokensResponse;
 import com.orbit.auth.adapter.in.web.security.AuthenticatedAccount;
 import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.shared.error.CommonErrorCode;
@@ -14,7 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Auth session", description = "현재 Access Token의 계정과 로그아웃")
+@Tag(name = "Auth session", description = "현재 Access Token의 계정, 토큰 재발급과 로그아웃")
 public interface AuthSessionControllerDocs {
 
     @Operation(
@@ -44,4 +46,22 @@ public interface AuthSessionControllerDocs {
             enumClass = CommonErrorCode.class,
             includes = {"UNAUTHORIZED", "NOT_FOUND"})
     void logout(@Parameter(hidden = true) AuthenticatedAccount account);
+
+    @Operation(
+            summary = "토큰 재발급",
+            description = "refresh token으로 같은 기기 세션의 새 Access Token과 다음 refresh token을 발급합니다. 보낸 refresh token은 더 쓸 수"
+                    + " 없으니 응답의 값으로 바꿔 보관합니다. 같은 refresh token으로 거의 동시에(30초 안) 다시 보내면 같은 다음 refresh token을"
+                    + " 돌려줍니다. 그 뒤에 이미 쓴 refresh token이 오면 탈취로 보고 그 기기 세션을 끝내 최신 refresh token도 쓸 수 없게 됩니다."
+                    + " 형식 오류·만료·로그아웃·재사용을 구분하지 않고 AUTH-009를 돌려주며, 이때는 다시 로그인합니다. 만료된 Access Token이"
+                    + " 함께 와도 검사하지 않습니다.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "재발급 성공",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = RefreshedTokensResponse.class)))
+    @ApiErrorCodes(enumClass = CommonErrorCode.class, includes = "BAD_REQUEST")
+    @ApiErrorCodes(enumClass = AuthErrorCode.class, includes = "INVALID_REFRESH_TOKEN")
+    RefreshedTokensResponse refresh(RefreshTokensRequest request);
 }

@@ -118,6 +118,20 @@ class AccessTokenAuthenticationFilterTest {
     }
 
     @Test
+    @DisplayName("토큰 재발급 경로는 만료된 토큰이 붙어 있어도 검사하지 않고 넘긴다")
+    void skipsRefreshPathEvenWithToken() throws Exception {
+        MockFilterChain chain = new MockFilterChain();
+        MockHttpServletRequest request = request("Bearer expired");
+        request.setRequestURI("/api/v1/auth/refresh");
+        request.setMethod("POST");
+
+        filter().doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(useCase, never()).authenticate(any());
+    }
+
+    @Test
     @DisplayName("인증 처리 중 실패하면 공통 실패 봉투의 500으로 끝낸다")
     void endsRequestWithServerErrorEnvelopeOnFailure() throws Exception {
         when(useCase.authenticate(any())).thenThrow(new IllegalStateException("redis down"));
