@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -40,27 +39,9 @@ class WorkStatusTest {
     }
 
     @ParameterizedTest
-    @EnumSource(WorkStatus.class)
-    @DisplayName("강제 정정은 완료 → 작업중, 작업중 → 수락됨, 취소 → 대기함의 한 단계 되돌리기만 허용한다")
-    void correctsOnlyOneStepBack(WorkStatus from) {
-        List<WorkStatus> targets = Arrays.stream(WorkStatus.values())
-                .filter(from::canBeCorrectedTo)
-                .toList();
-
-        assertThat(targets)
-                .isEqualTo(
-                        switch (from) {
-                            case COMPLETED -> List.of(WorkStatus.IN_PROGRESS);
-                            case IN_PROGRESS -> List.of(WorkStatus.ACCEPTED);
-                            case CANCELLED -> List.of(WorkStatus.REGISTERED);
-                            case REGISTERED, PENDING_ACCEPTANCE, ACCEPTED -> List.of();
-                        });
-    }
-
-    @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
-            names = {"PENDING_ACCEPTANCE", "ACCEPTED", "IN_PROGRESS"})
+            names = {"PENDING_ACCEPT", "ACCEPTED", "IN_PROGRESS"})
     @DisplayName("수락대기·수락됨·작업중은 일정을 점유하는 활성 상태다")
     void activeStatusesOccupySchedule(WorkStatus status) {
         assertThat(status.isActive()).isTrue();
@@ -70,7 +51,7 @@ class WorkStatusTest {
     @EnumSource(
             value = WorkStatus.class,
             mode = EnumSource.Mode.EXCLUDE,
-            names = {"PENDING_ACCEPTANCE", "ACCEPTED", "IN_PROGRESS"})
+            names = {"PENDING_ACCEPT", "ACCEPTED", "IN_PROGRESS"})
     @DisplayName("그 밖의 상태(등록·완료·취소)는 일정을 점유하지 않는다")
     void inactiveStatusesDoNotOccupySchedule(WorkStatus status) {
         assertThat(status.isActive()).isFalse();
@@ -97,22 +78,22 @@ class WorkStatusTest {
     private static Stream<Arguments> allowedTransitions() {
         return Stream.of(
                 // 배정
-                Arguments.of(WorkStatus.REGISTERED, WorkStatus.PENDING_ACCEPTANCE),
+                Arguments.of(WorkStatus.REGISTERED, WorkStatus.PENDING_ACCEPT),
                 // 수락
-                Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.ACCEPTED),
+                Arguments.of(WorkStatus.PENDING_ACCEPT, WorkStatus.ACCEPTED),
                 // 거절·배정 해제로 대기함 복귀
-                Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.REGISTERED),
+                Arguments.of(WorkStatus.PENDING_ACCEPT, WorkStatus.REGISTERED),
                 Arguments.of(WorkStatus.ACCEPTED, WorkStatus.REGISTERED),
                 // 수락 이후 재배정은 새 기사의 재수락(일정 변경은 수락됨 유지)
-                Arguments.of(WorkStatus.ACCEPTED, WorkStatus.PENDING_ACCEPTANCE),
+                Arguments.of(WorkStatus.ACCEPTED, WorkStatus.PENDING_ACCEPT),
                 // 시작·완료보고
                 Arguments.of(WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS),
                 Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.COMPLETED),
                 // 취소는 완료 전까지
-                Arguments.of(WorkStatus.REGISTERED, WorkStatus.CANCELLED),
-                Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.CANCELLED),
-                Arguments.of(WorkStatus.ACCEPTED, WorkStatus.CANCELLED),
-                Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.CANCELLED));
+                Arguments.of(WorkStatus.REGISTERED, WorkStatus.CANCELED),
+                Arguments.of(WorkStatus.PENDING_ACCEPT, WorkStatus.CANCELED),
+                Arguments.of(WorkStatus.ACCEPTED, WorkStatus.CANCELED),
+                Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.CANCELED));
     }
 
     private static Stream<Arguments> disallowedTransitions() {
@@ -120,15 +101,15 @@ class WorkStatusTest {
                 Arguments.of(WorkStatus.REGISTERED, WorkStatus.ACCEPTED),
                 Arguments.of(WorkStatus.REGISTERED, WorkStatus.IN_PROGRESS),
                 Arguments.of(WorkStatus.REGISTERED, WorkStatus.COMPLETED),
-                Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.IN_PROGRESS),
-                Arguments.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.COMPLETED),
+                Arguments.of(WorkStatus.PENDING_ACCEPT, WorkStatus.IN_PROGRESS),
+                Arguments.of(WorkStatus.PENDING_ACCEPT, WorkStatus.COMPLETED),
                 Arguments.of(WorkStatus.ACCEPTED, WorkStatus.COMPLETED),
                 Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.REGISTERED),
-                Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.PENDING_ACCEPTANCE),
+                Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.PENDING_ACCEPT),
                 Arguments.of(WorkStatus.IN_PROGRESS, WorkStatus.ACCEPTED),
                 Arguments.of(WorkStatus.COMPLETED, WorkStatus.IN_PROGRESS),
-                Arguments.of(WorkStatus.COMPLETED, WorkStatus.CANCELLED),
-                Arguments.of(WorkStatus.CANCELLED, WorkStatus.REGISTERED),
-                Arguments.of(WorkStatus.CANCELLED, WorkStatus.PENDING_ACCEPTANCE));
+                Arguments.of(WorkStatus.COMPLETED, WorkStatus.CANCELED),
+                Arguments.of(WorkStatus.CANCELED, WorkStatus.REGISTERED),
+                Arguments.of(WorkStatus.CANCELED, WorkStatus.PENDING_ACCEPT));
     }
 }

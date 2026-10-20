@@ -125,11 +125,11 @@ final class WorkExportWorkbook {
     private static String statusLabel(WorkStatus status) {
         return switch (status) {
             case REGISTERED -> "등록";
-            case PENDING_ACCEPTANCE -> "배정됨";
+            case PENDING_ACCEPT -> "배정됨";
             case ACCEPTED -> "작업전";
             case IN_PROGRESS -> "작업중";
             case COMPLETED -> "완료";
-            case CANCELLED -> "취소";
+            case CANCELED -> "취소";
         };
     }
 

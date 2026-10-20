@@ -24,7 +24,7 @@
 - **거절 사유 문구**: `WorkRejected`는 사유 코드(schedule 거절 사유 이름)와 메모만 담고, 표시 문구는 notification이 `NotificationMessage`에서 정한다(Figma 135:1753, [현장 수행] §4 FLD-005). 기타와 모르는 코드는 메모를, 메모가 없으면 "기타"를 쓰며 코드를 그대로 보이지 않는다. schedule이 사유를 추가하면 `NotificationMessage`의 사유 표도 함께 고친다.
 - **알림 시각**: 알림 시각은 이벤트의 발생 시각(`occurredAt`)이다. 거절하면 그 기사가 그 작업에 대해 거절 시각까지 받은 기사 대상 알림을 숨겨([현장 수행] §4), 이후 같은 작업을 다시 배정받아 생긴 알림은 보인다. 직원에서 기사로 역할이 바뀐 계정이 그 작업에 대해 받은 사무실 알림은 숨기지 않는다. 이벤트는 따로 처리돼 순서가 보장되지 않으므로, 배정 알림 처리가 그 뒤의 거절 처리보다 늦게 커밋되면 그 배정 알림은 숨기지 못한다. 거절한 기사의 계약이 리스너 처리 전에 비활성화되면 계정을 찾지 못해 숨김을 건너뛴다.
 - **받는 계정**: 기사 대상은 활성 기사 계약, 사무실 대상은 등록자의 활성 직원 소속의 계정이다. 없으면(비활성·없는 계약·소속) 알림을 만들지 않는다.
-- **푸시**: 출력 포트 `PushNotificationPort`. 지금은 `local`·`test` 전용 임시 어댑터(`FakePushNotificationAdapter`, 알림 id·계정·종류만 기록)만 있어 그 밖의 프로필은 Bean 부재로 기동하지 않는다(schedule 임시 어댑터와 같은 상태). 실제 발송 어댑터(N-21)를 추가할 때 이 어댑터를 지우고 커밋 뒤 발송한다.
+- **푸시**: 출력 포트 `PushNotificationPort`. 지금은 `local`·`test`·`dev` 전용 임시 어댑터(`FakePushNotificationAdapter`, 알림 id·계정·종류만 기록)만 있어 운영(`prod`)과 프로필 없는 실행은 Bean 부재로 기동하지 않는다(schedule 임시 어댑터와 같은 상태). 실제 발송 어댑터(N-21)를 추가할 때 이 어댑터를 지우고 커밋 뒤 발송한다.
 - **전달 보장**: 이벤트 발행 기록 저장소가 없어 리스너 실패·재시작 때 다시 처리하지 않고, 같은 이벤트가 두 번 오면 알림도 두 번 생긴다([ADR-001](../adr/001-backend-architecture.md#모듈-간-통신)). 리스너 실패는 schedule 커밋을 되돌리지 않는다.
 - **동시 수정**: 읽음 처리와 거절 숨김이 같은 행을 고칠 수 있어 바뀐 컬럼만 갱신한다(`@DynamicUpdate`). 한쪽이 읽고 있는 사이 다른 쪽이 커밋해도 읽음과 숨김이 함께 남는지 실제 커밋으로 확인한다(`NotificationPersistenceAdapterTest`).
 - **테이블(ERD 반영용)**: `notifications`는 수신 계정(`member_id`)·발주사(`company_id`)·작업(`work_id`)을 ID로만 두고 인덱스 `(member_id, notified_at)`(목록), `(member_id, status)`(안 읽은 수), `(member_id, work_id)`(거절 숨김 대상)를 둔다. `notification_settings`는 `member_id` 유일 제약으로 계정당 한 행이다.

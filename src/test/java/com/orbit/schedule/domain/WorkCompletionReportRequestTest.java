@@ -208,7 +208,6 @@ class WorkCompletionReportRequestTest {
                 source.startedAt().orElse(null),
                 source.completedAt().orElse(null),
                 source.cancellation().orElse(null),
-                source.statusCorrections(),
                 source.sitePhotos(),
                 requests,
                 3L);

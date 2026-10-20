@@ -3,6 +3,7 @@ package com.orbit.schedule;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -143,6 +144,10 @@ class ScheduleUseCaseFlowTest {
     @Autowired
     private WorkRepository workRepository;
 
+    // 기사가 시작할 작업은 시작 가능 시간 안이 되도록 지금 시작하는 일정으로 배정한다.
+    @Autowired
+    private Clock clock;
+
     // 테스트 인스턴스를 테스트끼리 공유해도 테스트마다 새 조직을 쓰도록 필드 초기화가 아니라 매 테스트 전에 정한다.
     @BeforeEach
     void useNewOrganization() {
@@ -226,7 +231,7 @@ class ScheduleUseCaseFlowTest {
     void assembledTechnicianAcceptsStartsAndCompletesTheAssignmentTheySaw() {
         long workId = create("수행할 작업");
         assignWorkUseCase.assign(new AssignWorkCommand(
-                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
+                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, clock.instant(), TWO_HOURS, false));
 
         acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1));
         startWorkUseCase.start(new StartWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1));
@@ -255,7 +260,7 @@ class ScheduleUseCaseFlowTest {
         Work stored = workRepository
                 .findInOrganization(organizationId, new WorkId(workId))
                 .orElseThrow();
-        assertThat(stored.status()).isEqualTo(WorkStatus.CANCELLED);
+        assertThat(stored.status()).isEqualTo(WorkStatus.CANCELED);
         assertThat(stored.cancellation()).hasValueSatisfying(cancellation -> {
             assertThat(cancellation.cancelledBy()).isEqualTo(MANAGER);
             assertThat(cancellation.reason()).isEqualTo(CancellationReason.CUSTOMER_REQUEST);
@@ -286,7 +291,7 @@ class ScheduleUseCaseFlowTest {
                 organizationId.value(),
                 inProgress,
                 ACCEPTING_TECHNICIAN,
-                TEN.plus(Duration.ofHours(6)),
+                clock.instant(),
                 TWO_HOURS,
                 false));
         acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), inProgress, 1));

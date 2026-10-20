@@ -125,7 +125,7 @@ class CreateWorkNotificationServiceTest {
                         NotificationType.WORK_ASSIGNED,
                         NotificationType.WORK_RESCHEDULED,
                         NotificationType.WORK_REASSIGNED_AWAY,
-                        NotificationType.WORK_CANCELLED);
+                        NotificationType.WORK_CANCELED);
         assertThat(push.sent()).isEmpty();
     }
 

@@ -81,7 +81,7 @@ class RequestCompletionReportServiceTest {
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
-            names = {"REGISTERED", "PENDING_ACCEPTANCE", "ACCEPTED", "COMPLETED", "CANCELLED"})
+            names = {"REGISTERED", "PENDING_ACCEPT", "ACCEPTED", "COMPLETED", "CANCELED"})
     @DisplayName("작업중이 아닌 작업은 예정 종료가 지났어도 409 SCHEDULE-002다")
     void rejectsWorkNotInProgress(WorkStatus status) {
         fixture.givenManager();

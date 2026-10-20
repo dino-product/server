@@ -61,7 +61,7 @@ class NotificationApiIntegrationTest extends IntegrationTestSupport {
         long accountId = ACCOUNT_IDS.incrementAndGet();
         long otherAccountId = ACCOUNT_IDS.incrementAndGet();
         long oldest = insert(accountId, "WORK_ASSIGNED", 10L, NOTIFIED_AT, false, false);
-        long read = insert(accountId, "WORK_CANCELLED", 11L, NOTIFIED_AT.plusSeconds(60), true, false);
+        long read = insert(accountId, "WORK_CANCELED", 11L, NOTIFIED_AT.plusSeconds(60), true, false);
         insert(accountId, "WORK_RESCHEDULED", 12L, NOTIFIED_AT.plusSeconds(120), false, true);
         long newest = insert(accountId, "WORK_ACCEPTED", 13L, NOTIFIED_AT.plusSeconds(180), false, false);
         insert(otherAccountId, "WORK_ASSIGNED", 10L, NOTIFIED_AT.plusSeconds(240), false, false);
@@ -109,7 +109,7 @@ class NotificationApiIntegrationTest extends IntegrationTestSupport {
     void readsOwnNotificationIdempotently() throws Exception {
         long accountId = ACCOUNT_IDS.incrementAndGet();
         long first = insert(accountId, "WORK_ASSIGNED", 10L, NOTIFIED_AT, false, false);
-        insert(accountId, "WORK_CANCELLED", 11L, NOTIFIED_AT.plusSeconds(60), false, false);
+        insert(accountId, "WORK_CANCELED", 11L, NOTIFIED_AT.plusSeconds(60), false, false);
         insert(accountId, "WORK_RESCHEDULED", 12L, NOTIFIED_AT.plusSeconds(120), false, true);
 
         mockMvc.perform(authorized(get("/api/v1/notifications/unread-count"), accountId))

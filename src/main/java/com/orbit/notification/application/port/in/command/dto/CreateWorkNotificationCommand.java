@@ -89,7 +89,7 @@ public record CreateWorkNotificationCommand(
     public static CreateWorkNotificationCommand workCancelled(
             Long organizationId, Long workId, String workName, Long technicianId, Instant occurredAt) {
         return toTechnician(
-                NotificationType.WORK_CANCELLED,
+                NotificationType.WORK_CANCELED,
                 organizationId,
                 workId,
                 workName,

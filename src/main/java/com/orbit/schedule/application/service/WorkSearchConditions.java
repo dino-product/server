@@ -1,6 +1,7 @@
 package com.orbit.schedule.application.service;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -13,6 +14,7 @@ import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.ShownSchedule;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
+import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.schedule.domain.WorkTypeId;
 import com.orbit.shared.error.BusinessException;
 
@@ -21,11 +23,14 @@ final class WorkSearchConditions {
 
     static final int MAX_KEYWORD_LENGTH = 100;
 
+    /** 상태 조건을 비웠을 때 보는 상태. 기본 목록에는 취소 작업을 담지 않고, 취소를 골라야 담는다(JOB-001). */
+    static final Set<WorkStatus> DEFAULT_STATUSES = Set.copyOf(EnumSet.complementOf(EnumSet.of(WorkStatus.CANCELED)));
+
     private WorkSearchConditions() {}
 
     /**
-     * 조건이 틀리면 400(SCHEDULE-003). 지연만 보기는 now로 판정한다. 쪽은 첫 쪽 한 건으로 채우며, 쪽을 나누는 호출자가 범위를 확인하고
-     * {@link WorkSearchCriteria#withPage}로 정한다.
+     * 조건이 틀리면 400(SCHEDULE-003). 상태 조건을 비우면 {@link #DEFAULT_STATUSES}로 채운다. 지연만 보기는 now로 판정한다. 쪽은 첫 쪽
+     * 한 건으로 채우며, 쪽을 나누는 호출자가 범위를 확인하고 {@link WorkSearchCriteria#withPage}로 정한다.
      */
     static WorkSearchCriteria criteria(WorkSearchFilter filter, Instant now) {
         WorkSearchFilter conditions = filter == null ? WorkSearchFilter.none() : filter;
@@ -51,7 +56,9 @@ final class WorkSearchConditions {
         }
         return new WorkSearchCriteria(
                 keyword == null || keyword.isEmpty() ? null : keyword,
-                conditions.statuses() == null ? Set.of() : conditions.statuses(),
+                conditions.statuses() == null || conditions.statuses().isEmpty()
+                        ? DEFAULT_STATUSES
+                        : conditions.statuses(),
                 technicianId,
                 workTypeId,
                 registrarId,

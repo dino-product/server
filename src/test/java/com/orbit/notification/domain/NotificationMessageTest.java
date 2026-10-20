@@ -37,7 +37,7 @@ class NotificationMessageTest {
     @DisplayName("시각이 없는 종류의 문구를 만든다")
     void composesMessagesWithoutTime() {
         assertThat(compose(NotificationType.WORK_REASSIGNED_AWAY)).isEqualTo("[보일러 점검] 작업이 다른 기사에게 넘어갔습니다.");
-        assertThat(compose(NotificationType.WORK_CANCELLED)).isEqualTo("[보일러 점검] 작업이 취소되었습니다.");
+        assertThat(compose(NotificationType.WORK_CANCELED)).isEqualTo("[보일러 점검] 작업이 취소되었습니다.");
         assertThat(compose(NotificationType.COMPLETION_REPORT_REQUESTED)).isEqualTo("[보일러 점검] 작업의 완료보고를 올려 주세요.");
         assertThat(compose(NotificationType.WORK_ACCEPTED)).isEqualTo("담당 기사가 [보일러 점검] 작업을 수락했습니다.");
         assertThat(compose(NotificationType.COMPLETION_REPORT_SUBMITTED)).isEqualTo("[보일러 점검] 완료 보고가 제출되었습니다.");
@@ -86,7 +86,7 @@ class NotificationMessageTest {
     @ValueSource(strings = " ")
     @DisplayName("작업명이 비어 있으면 만들지 않는다")
     void rejectsBlankWorkName(String blank) {
-        assertThatThrownBy(() -> NotificationMessage.compose(NotificationType.WORK_CANCELLED, blank, null, null, null))
+        assertThatThrownBy(() -> NotificationMessage.compose(NotificationType.WORK_CANCELED, blank, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -50,7 +50,7 @@ public final class NotificationMessage {
             case WORK_ASSIGNED -> displayTime(scheduledStartAt) + " " + work + " 작업이 배정되었습니다.";
             case WORK_RESCHEDULED -> work + " 작업 시간이 " + displayTime(scheduledStartAt) + "으로 변경되었습니다.";
             case WORK_REASSIGNED_AWAY -> work + " 작업이 다른 기사에게 넘어갔습니다.";
-            case WORK_CANCELLED -> work + " 작업이 취소되었습니다.";
+            case WORK_CANCELED -> work + " 작업이 취소되었습니다.";
             case COMPLETION_REPORT_REQUESTED -> work + " 작업의 완료보고를 올려 주세요.";
             case WORK_ACCEPTED -> "담당 기사가 " + work + " 작업을 수락했습니다.";
             case WORK_REJECTED ->

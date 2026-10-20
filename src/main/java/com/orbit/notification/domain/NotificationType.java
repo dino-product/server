@@ -7,7 +7,7 @@ public enum NotificationType {
     WORK_ASSIGNED(NotificationAudience.TECHNICIAN, NotificationCategory.WORK_ASSIGNMENT, false),
     WORK_RESCHEDULED(NotificationAudience.TECHNICIAN, NotificationCategory.SCHEDULE_CHANGE, true),
     WORK_REASSIGNED_AWAY(NotificationAudience.TECHNICIAN, NotificationCategory.SCHEDULE_CHANGE, true),
-    WORK_CANCELLED(NotificationAudience.TECHNICIAN, NotificationCategory.WORK_CANCELLATION, false),
+    WORK_CANCELED(NotificationAudience.TECHNICIAN, NotificationCategory.WORK_CANCELLATION, false),
     COMPLETION_REPORT_REQUESTED(NotificationAudience.TECHNICIAN, null, false),
     WORK_ACCEPTED(NotificationAudience.OFFICE, null, false),
     WORK_REJECTED(NotificationAudience.OFFICE, null, false),

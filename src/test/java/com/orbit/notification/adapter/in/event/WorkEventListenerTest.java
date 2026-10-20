@@ -48,7 +48,7 @@ class WorkEventListenerTest {
 
         verify(useCase).create(command(NotificationType.WORK_ASSIGNED, 3L, false, START));
         verify(useCase).create(command(NotificationType.WORK_RESCHEDULED, 3L, true, START));
-        verify(useCase).create(command(NotificationType.WORK_CANCELLED, null, false, null));
+        verify(useCase).create(command(NotificationType.WORK_CANCELED, null, false, null));
         verify(useCase).create(command(NotificationType.COMPLETION_REPORT_REQUESTED, 3L, false, null));
     }
 

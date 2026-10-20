@@ -42,7 +42,7 @@ class UpdateWorkDetailsServiceTest {
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
-            names = {"REGISTERED", "PENDING_ACCEPTANCE", "ACCEPTED"})
+            names = {"REGISTERED", "PENDING_ACCEPT", "ACCEPTED"})
     @DisplayName("시작 전 작업의 기본정보를 교체하고 조직·등록자·상태·배정·이력은 그대로 둔다")
     void changesDetailsBeforeTermination(WorkStatus status) {
         fixture.givenManager(ActorRole.OWNER);
@@ -153,7 +153,7 @@ class UpdateWorkDetailsServiceTest {
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
-            names = {"COMPLETED", "CANCELLED"})
+            names = {"COMPLETED", "CANCELED"})
     @DisplayName("완료·취소된 작업은 상태 오류다")
     void rejectsTerminatedWork(WorkStatus status) {
         fixture.givenManager(ActorRole.OWNER);

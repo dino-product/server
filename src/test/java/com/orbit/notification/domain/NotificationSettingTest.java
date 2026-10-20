@@ -34,7 +34,7 @@ class NotificationSettingTest {
         assertThat(setting.allowsPush(NotificationType.WORK_ASSIGNED)).isTrue();
         assertThat(setting.allowsPush(NotificationType.WORK_RESCHEDULED)).isFalse();
         assertThat(setting.allowsPush(NotificationType.WORK_REASSIGNED_AWAY)).isFalse();
-        assertThat(setting.allowsPush(NotificationType.WORK_CANCELLED)).isTrue();
+        assertThat(setting.allowsPush(NotificationType.WORK_CANCELED)).isTrue();
     }
 
     @Test
@@ -47,7 +47,7 @@ class NotificationSettingTest {
         assertThat(setting.allowsPush(NotificationType.COMPLETION_REPORT_REQUESTED))
                 .isTrue();
         assertThat(setting.allowsPush(NotificationType.WORK_ASSIGNED)).isFalse();
-        assertThat(setting.allowsPush(NotificationType.WORK_CANCELLED)).isFalse();
+        assertThat(setting.allowsPush(NotificationType.WORK_CANCELED)).isFalse();
     }
 
     @ParameterizedTest

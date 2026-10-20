@@ -63,7 +63,7 @@ class AssignWorkServiceTest {
         assertThat(result.applied()).isTrue();
         assertThat(result.conflicts()).isEmpty();
         Work saved = fixture.singleSaved();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
             assertThat(history.assignedAt()).isEqualTo(NOW);
@@ -134,7 +134,7 @@ class AssignWorkServiceTest {
         assertThat(result.applied()).isTrue();
         assertThat(result.conflicts()).extracting(ConflictingWork::workId).containsExactly(existing.value());
         Work saved = fixture.singleSaved();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(fixture.events.published())
                 .containsExactly(new WorkAssigned(
@@ -145,7 +145,7 @@ class AssignWorkServiceTest {
     @DisplayName("다른 조직에서 같은 기사 식별자로 잡힌 작업은 겹침으로 보지 않는다")
     void ignoresWorksOfOtherOrganization() {
         fixture.givenManager();
-        fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
+        fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN);
         WorkId target = fixture.givenWork(WorkStatus.REGISTERED);
 
         ScheduleChangeInfo result =
@@ -293,7 +293,7 @@ class AssignWorkServiceTest {
     }
 
     private WorkId activeWork(String name, Instant start) {
-        return fixture.givenWork(ORGANIZATION_ID, name, WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, start);
+        return fixture.givenWork(ORGANIZATION_ID, name, WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, start);
     }
 
     private WorkId rejectedWork(Instant rejectedAt) {

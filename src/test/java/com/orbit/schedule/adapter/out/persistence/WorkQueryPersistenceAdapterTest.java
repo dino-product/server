@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -346,6 +347,26 @@ class WorkQueryPersistenceAdapterTest {
         }
 
         @Test
+        @DisplayName("상태 조건은 검색·전체 수·셈·한꺼번에 읽기에 똑같이 걸린다: 취소를 빼면 취소 작업은 어디에도 없고, 취소를 고르면 담긴다")
+        void appliesStatusesAlikeToSearchCountAndListing() {
+            OrganizationId organization = organization();
+            WorkId registered = save(registered(organization, "대기함"));
+            WorkId completed = save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T00:00:00Z", 60)));
+            WorkId cancelled =
+                    save(cancelled(organization, "배정 중 취소", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));
+            WorkId cancelledInBacklog = save(cancelledInBacklog(organization, "대기함 취소"));
+
+            assertReadsAlike(
+                    organization,
+                    EnumSet.complementOf(EnumSet.of(WorkStatus.CANCELED)),
+                    List.of(registered, completed));
+            assertReadsAlike(
+                    organization,
+                    Set.of(WorkStatus.CANCELED, WorkStatus.COMPLETED),
+                    List.of(completed, cancelled, cancelledInBacklog));
+        }
+
+        @Test
         @DisplayName("거절 반환 조건은 마지막 배정이 거절인 대기함 작업만 담는다")
         void filtersReturnedByRejection() {
             OrganizationId organization = organization();
@@ -599,6 +620,21 @@ class WorkQueryPersistenceAdapterTest {
                 .findFirst()
                 .orElseThrow()
                 .lastModifiedAt();
+    }
+
+    /** 그 상태 조건의 검색 쪽·전체 수·셈·한꺼번에 읽기가 모두 expected 작업만 담는지 확인한다. */
+    private void assertReadsAlike(OrganizationId organization, Set<WorkStatus> statuses, List<WorkId> expected) {
+        WorkSearchCriteria criteria = criteria().statuses(statuses).build();
+        WorkSearchResult searched = inTx(() -> adapter.search(organization, criteria));
+
+        assertThat(searched.works())
+                .extracting(work -> work.work().id().orElseThrow())
+                .containsExactlyInAnyOrderElementsOf(expected);
+        assertThat(searched.totalCount()).isEqualTo(expected.size());
+        assertThat(inTx(() -> adapter.count(organization, criteria))).isEqualTo(expected.size());
+        assertThat(adapter.listMatching(organization, criteria, WorkSearchCriteria.MAX_SIZE))
+                .extracting(work -> work.work().id().orElseThrow())
+                .containsExactlyInAnyOrderElementsOf(expected);
     }
 
     private List<WorkId> searchIds(OrganizationId organization, CriteriaBuilder builder) {

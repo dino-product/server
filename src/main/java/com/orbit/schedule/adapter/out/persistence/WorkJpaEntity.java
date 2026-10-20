@@ -38,7 +38,7 @@ import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 작업(Work) 애그리게잇 루트의 JPA Entity. 테이블 구조는 팀 ERD의 {@code Work}를 따르고 매핑 결정(일정 컬럼에 담는 보일 일정: 현재 일정
- * 비정규화, 대기함의 미리 입력한 일정이나 마지막 배정 일정, 완료보고 인라인·사진 분리, 현장 사진, 완료보고 요청, 배정 순번, 정정 기록 미저장)은
+ * 비정규화, 대기함의 미리 입력한 일정이나 마지막 배정 일정, 완료보고 인라인·사진 분리, 현장 사진, 완료보고 요청, 배정 순번)은
  * {@link WorkMapper}가 원본이다. 값 검증은 Domain이 하며 이 Entity는 컬럼 제약만 선언한다.
  *
  * <p>이 Entity와 자식 Entity는 모두 {@code BaseTimeEntity}를 상속한다. 다음은 ERD에 빠져 있어 Entity 기준으로 ERD에 추가한다(운영은
@@ -346,7 +346,7 @@ class WorkJpaEntity extends BaseTimeEntity {
         this.expectedDuration = newExpectedDuration;
     }
 
-    /** 시작·완료·취소 기록. 정정으로 치워진 값은 null로 넘어온다. */
+    /** 시작·완료·취소 기록. 없는 값은 null로 넘어온다. */
     void updateProgress(
             Instant newStartedAt,
             Instant newCompletedAt,

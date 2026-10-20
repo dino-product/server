@@ -292,7 +292,7 @@ class CreateWorkServiceTest {
         Work saved = fixture.singleSaved();
         assertThat(created.workId()).isEqualTo(saved.id().orElseThrow().value());
         assertThat(created.scheduleChange().applied()).isTrue();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(saved.registeredAt()).isEqualTo(NOW);
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
@@ -415,7 +415,7 @@ class CreateWorkServiceTest {
     @DisplayName("같은 기사의 활성 작업과 겹치는데 확인하지 않았으면 작업을 만들지 않고 겹친 작업을 돌려준다")
     void doesNotCreateWhenConflictUnconfirmed() {
         fixture.givenManager();
-        WorkId existing = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId existing = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         CreatedWorkInfo created = service.create(scheduled(TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
 
@@ -430,14 +430,14 @@ class CreateWorkServiceTest {
 
         assertThat(confirmed.workId()).isNotNull();
         assertThat(confirmed.scheduleChange().applied()).isTrue();
-        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
     @DisplayName("겹침을 확인하지 않아 작업을 만들지 않았으면 발행하지 않고, 확인해 만든 뒤에만 배정 하나를 발행한다")
     void publishesAssignmentOnlyWhenCreated() {
         fixture.givenManager();
-        fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         service.create(scheduled(TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
 

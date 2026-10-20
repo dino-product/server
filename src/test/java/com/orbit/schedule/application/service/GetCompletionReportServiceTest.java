@@ -24,7 +24,6 @@ import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkCompletionReportInfo;
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.CompletionReport;
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -92,8 +91,8 @@ class GetCompletionReportServiceTest {
     }
 
     @Test
-    @DisplayName("다른 기사로 바뀌었거나 해제돼 대기함으로 돌아간 작업의 이전 기사는 담당이 아니라 권한 오류다")
-    void rejectsFormerTechnician() {
+    @DisplayName("다른 기사로 바뀌었거나 해제돼 대기함으로 돌아간 작업은 이전 기사가 볼 수 없어 찾을 수 없음이다")
+    void hidesWorkFromFormerTechnician() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Work reassigned = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
         reassigned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
@@ -102,10 +101,8 @@ class GetCompletionReportServiceTest {
         unassigned.unassign(NOW, SETUP_MANAGER_ID);
         WorkId unassignedId = fixture.workRepository.store(unassigned);
 
-        fixture.assertRejected(
-                () -> service.get(query(reassignedId.value())), ScheduleErrorCode.NOT_ASSIGNED_TECHNICIAN);
-        fixture.assertRejected(
-                () -> service.get(query(unassignedId.value())), ScheduleErrorCode.NOT_ASSIGNED_TECHNICIAN);
+        fixture.assertRejected(() -> service.get(query(reassignedId.value())), ScheduleErrorCode.WORK_NOT_FOUND);
+        fixture.assertRejected(() -> service.get(query(unassignedId.value())), ScheduleErrorCode.WORK_NOT_FOUND);
     }
 
     @ParameterizedTest
@@ -117,17 +114,6 @@ class GetCompletionReportServiceTest {
     void rejectsWorkWithoutReport(WorkStatus status) {
         fixture.givenManager();
         WorkId id = fixture.givenWork(status);
-
-        fixture.assertRejected(() -> service.get(query(id.value())), ScheduleErrorCode.COMPLETION_REPORT_NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("강제 변경으로 작업중에 되돌린 작업은 치운 보고를 돌려주지 않는다")
-    void rejectsReopenedWork() {
-        fixture.givenManager();
-        Work work = fixture.stored(givenCompletedWork(REPORT));
-        work.correctStatus(WorkStatus.IN_PROGRESS, NOW, new MembershipId(13L), "사진 누락");
-        WorkId id = fixture.workRepository.store(work);
 
         fixture.assertRejected(() -> service.get(query(id.value())), ScheduleErrorCode.COMPLETION_REPORT_NOT_FOUND);
     }
