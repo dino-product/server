@@ -30,6 +30,7 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
 
     static final Tag EXPIRED_TAG = Tag.builder().key("status").value("expired").build();
     private static final int NOT_FOUND = 404;
+    private static final int FORBIDDEN = 403;
 
     private final S3Client s3;
     private final S3Presigner presigner;
@@ -58,6 +59,10 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
         return new PresignedUpload(presigned.url().toString(), headers, presigned.expiration());
     }
 
+    /**
+     * 없는 객체는 404 대신 403으로 올 수 있다. S3는 ListBucket 권한이 없으면 없는 키의 HeadObject를 403으로 답하는데, 앱 권한의 ListBucket은 접두사 조건으로
+     * 제한돼 있어 HeadObject 요청에는 적용되지 않을 수 있다. 있는 객체는 GetObject 권한으로 읽히므로 403도 "아직 올라오지 않음"으로 본다.
+     */
     @Override
     public Optional<StoredObject> find(String key) {
         try {
@@ -65,7 +70,7 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
                     s3.headObject(request -> request.bucket(properties.bucket()).key(key));
             return Optional.of(new StoredObject(head.contentLength(), head.contentType()));
         } catch (S3Exception exception) {
-            if (exception.statusCode() == NOT_FOUND) {
+            if (exception.statusCode() == NOT_FOUND || exception.statusCode() == FORBIDDEN) {
                 return Optional.empty();
             }
             throw new ObjectStorageUnavailableException(exception);
