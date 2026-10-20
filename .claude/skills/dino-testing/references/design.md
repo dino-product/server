@@ -33,4 +33,4 @@ Spring 테스트 시간은 테스트 본문보다 컨텍스트 생성이 좌우�
 - **격리는 클래스 단위입니다.** 최상위 테스트 클래스가 시작할 때 DB의 모든 테이블(`flyway_schema_history` 제외)과 Redis가 비워집니다. `@Nested` 클래스는 바깥 클래스의 데이터를 이어 쓰고, Redis는 Redis Bean이 있는 컨텍스트에서만 비웁니다. 같은 클래스 안의 테스트끼리는 고유 값을 쓰거나 직접 정리합니다.
 - **컨텍스트를 새로 만드는 설정은 꼭 필요할 때만 씁니다.** 클래스마다 다른 `@Import`·`@MockitoBean`·`@TestPropertySource`·`@DynamicPropertySource`·프로필은 새 컨텍스트를 만듭니다. 여러 클래스가 같은 대체가 필요하면 공통 베이스로 올리고, 대체 범위가 다른 테스트의 의도를 바꾸면 따로 둡니다.
 - **`@DirtiesContext`를 쓰지 않습니다.** 테스트 프로필이 `create-drop`인 동안 닫히는 컨텍스트가 공유 DB의 테이블을 drop해 다른 컨텍스트의 테스트를 깨뜨립니다.
-- **테스트는 CPU 코어 수의 절반, 최대 2개의 JVM으로 나눠 실행됩니다**(`gradle/testing.gradle.kts`의 `maxParallelForks`, CI 러너에서 2개). fork마다 컨테이너와 컨텍스트가 따로 뜨므로, JVM 전역 상태(static 필드·시스템 속성)에 기대는 테스트는 fork 배정과 실행 순서에 의존하지 않게 씁니다.
+- **로컬에서는 테스트를 CPU 코어 수의 절반, 최대 2개의 JVM으로 나눠 실행합니다**(`gradle/testing.gradle.kts`의 `maxParallelForks`). CI 러너(4코어)는 JVM끼리 CPU를 나눠 쓰면 더 느려 1개로 실행합니다. fork마다 컨테이너와 컨텍스트가 따로 뜨므로, JVM 전역 상태(static 필드·시스템 속성)에 기대는 테스트는 fork 배정과 실행 순서에 의존하지 않게 씁니다.
