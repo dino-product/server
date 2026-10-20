@@ -5,7 +5,7 @@ server:
 
 spring:
   application:
-    name: spring-settings
+    name: orbit-server
   lifecycle:
     timeout-per-shutdown-phase: 30s
   docker:
