@@ -167,7 +167,7 @@ P2~P4의 포함 여부·시점은 제품 결정이며 각 정책서의 MVP 제�
 | --- | --- | --- |
 | BC-002 | 참여 요청(MembershipRequest)을 `organization`에서 분리할 시점 | 현재는 승인·소속 생성의 원자성 때문에 `organization`에 둠 — 요청 생명주기가 복잡해지면 분리 검토 |
 
-개인 계정·프로필 관리(마이페이지, 탈퇴)의 소유 컨텍스트(구 BC-001)는 2026-10-07 `auth`가 아닌 새 모듈로 정하고 2026-10-10 이름을 `profile`로 확정해 닫았다. `member`는 schedule의 조직 구성원 용어·organization의 `Membership`과, `account`는 auth의 `Account`와 겹쳐 쓰지 않았다. 결정 배경은 [ADR-001 인증과 계정](../adr/001-backend-architecture.md#인증과-계정), 모듈 내용은 [Profile](profile.md#profile)에 있다. 정산 포함 여부(구 BC-004)는 [작업] §13에서 MVP 제외로 정해졌고 탈퇴 차단 조건([조직·계정] §5.1)에도 정산이 없어 닫았다. 조직 간 일정 충돌(구 BC-005)은 제품 결정이라 [schedule 차이·공백](schedule.md#schedule-gaps)의 S-31로 옮겼다.
+개인 계정·프로필 관리(마이페이지, 탈퇴)의 소유 컨텍스트(구 BC-001)는 2026-10-07 `auth`가 아닌 새 모듈로 정하고 2026-10-10 이름을 `profile`로 확정해 닫았다. `member`는 schedule의 조직 구성원 용어·organization의 `Membership`과, `account`는 auth의 `Account`와 겹쳐 쓰지 않았다. 결정 배경은 [ADR-001 인증과 계정](../adr/001-backend-architecture.md#인증과-계정), 모듈 내용은 [Profile](profile.md#profile)에 있다. 정산 포함 여부(구 BC-004)는 [작업] §13에서 MVP 제외로 정해졌고 탈퇴 차단 조건([조직·계정] §5.1)에도 정산이 없어 닫았다. 조직 간 일정 충돌(구 BC-005)은 제품 결정이라 schedule 차이(S-31)로 옮겼고, [스케줄·배정] §8(SCH-011)이 같은 발주사 안에서만 판정하기로 정해 닫았다.
 
 ---
 

@@ -172,6 +172,7 @@ public class GetTimetableService implements GetTimetableUseCase {
                 work.isDelayedAt(now),
                 conflicting,
                 displayInfos.workType(work),
-                displayInfos.registrar(work));
+                displayInfos.registrar(work),
+                work.version());
     }
 }

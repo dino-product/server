@@ -16,6 +16,7 @@ import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.ShownSchedule;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -32,7 +33,7 @@ import com.orbit.schedule.domain.WorkTypeId;
  *       때 일부만 입력한 미리 입력한 일정({@code PlannedSchedule})이고, 배정됐다 돌아온 작업은 마지막 배정 일정의 사본이라 목록·출력 조회가 같은 컬럼으로
  *       거르고 정렬한다. 읽을 때는 등록 상태이고 배정 이력이 없을 때만 미리 입력한 일정으로 해석한다. 일정을 기준으로 거르는 조회는 상태 조건을 함께
  *       걸어야 한다.
- *   <li>등록 때 붙인 현장 사진은 {@code work_site_images}에 붙인 순서(id 순)로 둔다. 바뀌었을 때만 모두 지우고 다시 넣는다. Domain이 완전한
+ *   <li>등록·수정 때 붙인 현장 사진은 {@code work_site_images}에 붙인 순서(id 순)로 둔다. 바뀌었을 때만 모두 지우고 다시 넣는다. Domain이 완전한
  *       애그리게잇이라 모든 복원에서 현장 사진 컬렉션을 일괄 조회({@code @BatchSize})로 함께 읽으며, 목록·출력 조회에서 50건마다 조회가 하나 느는 비용을
  *       감수한다.
  *   <li>완료보고는 ERD대로 {@code work} 컬럼에 인라인이고 사진만 {@code work_execution_images}로 나뉜다. 작업 상태가 완료일 때만 복원하며, 항목이 모두
@@ -40,10 +41,9 @@ import com.orbit.schedule.domain.WorkTypeId;
  *   <li>배정 이력의 순번은 부모 컬렉션의 {@code id} 순서다(ERD에 순번 컬럼이 없음). 기존 저장은 i번째 행을 i번째 이력으로 갱신하고 새 이력만 추가한다
  *       (이력은 추가 전용).
  *   <li>배정 종료의 처리자({@code ended_by})는 기사의 탈퇴로 끝난 배정이면 비어 있다. 처리자와 종료 방식의 짝은 Domain이 복원할 때 검증한다.
- *   <li>상태 정정 기록({@code StatusCorrection})은 ERD에 자리가 없어 저장하지 않으며 복원 시 빈 목록이다. 정정 기록이 있는 작업은 어댑터가 저장을
- *       거부한다(S-11).
- *   <li>작업 목록의 최근 수정 시각은 감사 컬럼 {@code updated_at}이다. 루트 행이 바뀔 때만 갱신되므로, 모든 변경이 상태·일정 같은 루트 컬럼이나 자식
- *       행의 추가·삭제를 함께 일으킨다는 전제에 기댄다. 기존 자식 행만 고치는 변경(거절 사유 정정 등)을 더하면 루트도 함께 갱신되게 한다.
+ *   <li>작업 목록의 최근 수정 시각은 감사 컬럼 {@code updated_at}이다. 루트 행이 바뀔 때만 갱신된다. mappedBy 자식 컬렉션의 변경은 기본으로 루트를
+ *       갱신하지 않으므로, 루트 컬럼을 바꾸지 않을 수 있는 현장 사진 교체는 컬렉션에 낙관적 잠금을 켜 루트를 함께 갱신한다. 배정 이력·완료보고 사진의
+ *       변경은 상태·일정 같은 루트 컬럼을 함께 바꾼다. 기존 자식 행만 고치는 변경(거절 사유 수정 등)을 더하면 루트도 함께 갱신되게 한다.
  *   <li>복원({@link #toDomain})은 {@link Work#reconstitute}를 거치므로 저장값의 정합성 검증은 Domain이 한다. 검증 실패는 그대로 전파한다.
  * </ul>
  */
@@ -76,7 +76,9 @@ final class WorkMapper {
                 work.workType().map(WorkTypeId::value).orElse(null),
                 customer.name().orElse(null),
                 customer.phone().orElse(null),
-                customer.address().orElse(null),
+                customer.address().flatMap(SiteAddress::postalCode).orElse(null),
+                customer.address().flatMap(SiteAddress::baseAddress).orElse(null),
+                customer.address().flatMap(SiteAddress::detailAddress).orElse(null),
                 payment.method().orElse(null),
                 payment.fee().map(Money::won).orElse(null));
         // 대기함 작업은 일정 대신 미리 입력한 값이나 마지막 배정 일정을 같은 컬럼에 담는다.
@@ -149,7 +151,11 @@ final class WorkMapper {
                 entity.jobTypeId() == null ? null : new WorkTypeId(entity.jobTypeId()),
                 schedule,
                 planned,
-                new CustomerInfo(entity.customerName(), entity.customerPhone(), entity.customerAddress()),
+                new CustomerInfo(
+                        entity.customerName(),
+                        entity.customerPhone(),
+                        new SiteAddress(
+                                entity.customerPostalCode(), entity.customerAddress(), entity.customerAddressDetail())),
                 new PaymentInfo(entity.fee() == null ? null : new Money(entity.fee()), entity.paymentMethod()),
                 entity.status(),
                 histories,
@@ -157,10 +163,10 @@ final class WorkMapper {
                 entity.startedAt(),
                 entity.completedAt(),
                 cancellation,
-                List.of(),
                 entity.siteImages().stream()
                         .map(WorkSiteImageJpaEntity::imageUrl)
-                        .toList());
+                        .toList(),
+                entity.version());
     }
 
     private static void applyAssignments(WorkJpaEntity entity, List<AssignmentHistory> histories) {

@@ -36,9 +36,9 @@ public record WorkSearchResponse(
             @Schema(description = "작업명", example = "배관 설치") String name,
 
             @Schema(
-                    description = "작업 상태. REGISTERED(등록), PENDING_ACCEPTANCE(배정됨), ACCEPTED(작업전), "
-                            + "IN_PROGRESS(작업중), COMPLETED(완료), CANCELLED(취소)",
-                    example = "PENDING_ACCEPTANCE")
+                    description = "작업 상태. REGISTERED(등록), PENDING_ACCEPT(배정됨), ACCEPTED(작업전), "
+                            + "IN_PROGRESS(작업중), COMPLETED(완료), CANCELED(취소)",
+                    example = "PENDING_ACCEPT")
             WorkStatus status,
 
             @Schema(

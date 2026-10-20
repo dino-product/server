@@ -17,9 +17,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
-import com.orbit.schedule.domain.StatusCorrection;
-import com.orbit.schedule.domain.TechnicianActor;
-import com.orbit.schedule.domain.TechnicianId;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
 
@@ -28,18 +26,13 @@ final class WorkViews {
 
     private WorkViews() {}
 
-    /** 기사가 지금 그 작업의 담당(현재 일정의 기사)인지. 대기함으로 돌아가 일정이 없으면 담당이 아니다. */
-    static boolean isCurrentAssignee(Work work, TechnicianActor technician) {
-        return work.schedule()
-                .map(schedule -> schedule.technicianId().equals(technician.technicianId()))
-                .orElse(false);
-    }
-
     static WorkDetailInfo.Customer customer(CustomerInfo customer) {
         return new WorkDetailInfo.Customer(
                 customer.name().orElse(null),
                 customer.phone().orElse(null),
-                customer.address().orElse(null));
+                customer.address().flatMap(SiteAddress::postalCode).orElse(null),
+                customer.address().flatMap(SiteAddress::baseAddress).orElse(null),
+                customer.address().flatMap(SiteAddress::detailAddress).orElse(null));
     }
 
     static WorkDetailInfo.Payment payment(PaymentInfo payment) {
@@ -54,13 +47,20 @@ final class WorkViews {
 
     /** 모든 배정 이력을 순번과 함께 옮긴다. */
     static List<WorkDetailInfo.Assignment> assignments(Work work, DisplayInfos displayInfos) {
-        return assignments(work, null, displayInfos);
+        List<AssignmentHistory> histories = work.assignmentHistory();
+        return IntStream.range(0, histories.size())
+                .mapToObj(index -> assignment(index + 1, histories.get(index), displayInfos))
+                .toList();
     }
 
-    /** 그 기사의 배정만 옮긴다. 순번은 전체 이력 기준 그대로다. */
-    static List<WorkDetailInfo.Assignment> assignmentsOf(
-            Work work, TechnicianId technicianId, DisplayInfos displayInfos) {
-        return assignments(work, technicianId, displayInfos);
+    /**
+     * 최신 배정 하나만 옮긴다. 기사에게는 지금 자기 배정만 보이고, 같은 작업을 다시 배정받기 전의 거절 같은 지난 배정은 보이지 않는다([현장 수행] §4). 순번은
+     * 전체 이력 기준 그대로다.
+     */
+    static List<WorkDetailInfo.Assignment> currentAssignment(Work work, DisplayInfos displayInfos) {
+        List<AssignmentHistory> histories = work.assignmentHistory();
+        int last = histories.size() - 1;
+        return List.of(assignment(last + 1, histories.get(last), displayInfos));
     }
 
     static WorkDetailInfo.PlannedSchedule plannedSchedule(PlannedSchedule planned, DisplayInfos displayInfos) {
@@ -87,26 +87,10 @@ final class WorkViews {
                 report.actualPaymentMethod().orElse(null));
     }
 
-    static List<WorkDetailInfo.StatusCorrection> statusCorrections(Work work, PhotoUrlPort photoUrlPort) {
-        return work.statusCorrections().stream()
-                .map(correction -> statusCorrection(correction, photoUrlPort))
-                .toList();
-    }
-
     /** 사진 식별자마다 내려받을 주소를 붙인다. */
     static List<PhotoInfo> photos(List<String> photoIds, PhotoUrlPort photoUrlPort) {
         return photoIds.stream()
                 .map(photoId -> new PhotoInfo(photoId, photoUrlPort.urlOf(photoId)))
-                .toList();
-    }
-
-    private static List<WorkDetailInfo.Assignment> assignments(
-            Work work, TechnicianId technicianId, DisplayInfos displayInfos) {
-        List<AssignmentHistory> histories = work.assignmentHistory();
-        return IntStream.range(0, histories.size())
-                .filter(index -> technicianId == null
-                        || histories.get(index).schedule().technicianId().equals(technicianId))
-                .mapToObj(index -> assignment(index + 1, histories.get(index), displayInfos))
                 .toList();
     }
 
@@ -127,20 +111,5 @@ final class WorkViews {
                         .map(AssignmentEnding::endedBy)
                         .map(MembershipId::value)
                         .orElse(null));
-    }
-
-    private static WorkDetailInfo.StatusCorrection statusCorrection(
-            StatusCorrection correction, PhotoUrlPort photoUrlPort) {
-        return new WorkDetailInfo.StatusCorrection(
-                correction.from(),
-                correction.to(),
-                correction.correctedAt(),
-                correction.correctedBy().value(),
-                correction.reason(),
-                correction.retiredReport() == null ? null : completionReport(correction.retiredReport(), photoUrlPort),
-                correction.retiredCompletedAt(),
-                correction.retiredStartedAt(),
-                correction.retiredCancellation() == null ? null : cancellation(correction.retiredCancellation()),
-                correction.restoredAssignmentNumber());
     }
 }

@@ -21,11 +21,13 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.schedule.application.port.out.ConcurrentWorkChangeException;
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CancellationReason;
@@ -39,6 +41,7 @@ import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -124,9 +127,7 @@ class WorkPersistenceAdapterTest {
         return Stream.of(
                 Arguments.of("대기함(등록)", (Consumer<Work>) work -> {}, WorkStatus.REGISTERED),
                 Arguments.of(
-                        "배정됨",
-                        (Consumer<Work>) work -> work.assign(SCHEDULE, NOW, MANAGER),
-                        WorkStatus.PENDING_ACCEPTANCE),
+                        "배정됨", (Consumer<Work>) work -> work.assign(SCHEDULE, NOW, MANAGER), WorkStatus.PENDING_ACCEPT),
                 Arguments.of(
                         "작업전(수락)",
                         (Consumer<Work>) work -> {
@@ -172,15 +173,15 @@ class WorkPersistenceAdapterTest {
                             work.releaseForWithdrawal(NOW.plusSeconds(10));
                             work.assign(SCHEDULE, NOW.plusSeconds(20), MANAGER);
                         },
-                        WorkStatus.PENDING_ACCEPTANCE),
+                        WorkStatus.PENDING_ACCEPT),
                 Arguments.of(
                         "취소(대기함에서)",
                         (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.CUSTOMER_REQUEST, null),
-                        WorkStatus.CANCELLED),
+                        WorkStatus.CANCELED),
                 Arguments.of(
                         "취소(대기함에서, 기타 사유 메모)",
                         (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.OTHER, "고객 연락 두절"),
-                        WorkStatus.CANCELLED),
+                        WorkStatus.CANCELED),
                 Arguments.of(
                         "취소(작업중에서)",
                         (Consumer<Work>) work -> {
@@ -189,7 +190,7 @@ class WorkPersistenceAdapterTest {
                             work.start(NOW.plusSeconds(20));
                             work.cancel(NOW.plusSeconds(30), MANAGER, CancellationReason.TECHNICIAN_ISSUE, null);
                         },
-                        WorkStatus.CANCELLED));
+                        WorkStatus.CANCELED));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -367,7 +368,7 @@ class WorkPersistenceAdapterTest {
                         "필터 1개",
                         "교체 완료",
                         new Money(150_000L),
-                        ActualPaymentMethod.CREDIT_CARD),
+                        ActualPaymentMethod.INVOICE),
                 NOW.plusSeconds(80));
     }
 
@@ -443,6 +444,35 @@ class WorkPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("저장할 때마다 버전을 올리고, 읽은 뒤 다른 트랜잭션이 먼저 바꾼 작업은 저장 자리에서 동시 변경으로 거부한다")
+    void detectsConcurrentChangeAtSave() {
+        OrganizationId organization = organization();
+        WorkId id = inTx(() -> adapter().save(registered(organization, "버전 작업")))
+                .id()
+                .orElseThrow();
+        assertThat(find(organization, id).version()).isZero();
+        TransactionTemplate requiresNew = new TransactionTemplate(transactionManager);
+        requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        assertThatThrownBy(() -> inTx(() -> {
+                    Work mine = adapter().findInOrganization(organization, id).orElseThrow();
+                    requiresNew.executeWithoutResult(status -> {
+                        Work theirs =
+                                adapter().findInOrganization(organization, id).orElseThrow();
+                        theirs.changeDetails("먼저 바꾼 작업", null, null, null, null);
+                        assertThat(adapter().save(theirs).version()).isEqualTo(1L);
+                    });
+                    mine.changeDetails("나중에 바꾼 작업", null, null, null, null);
+                    return adapter().save(mine);
+                }))
+                .isInstanceOf(ConcurrentWorkChangeException.class);
+
+        Work stored = find(organization, id);
+        assertThat(stored.name()).isEqualTo("먼저 바꾼 작업");
+        assertThat(stored.version()).isEqualTo(1L);
+    }
+
+    @Test
     @DisplayName("식별자가 있는데 저장소에 없는 작업은 저장하지 않는다")
     void rejectsSavingUnknownWork() {
         Work unknown = Work.reconstitute(
@@ -460,8 +490,7 @@ class WorkPersistenceAdapterTest {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
 
         assertThatThrownBy(() -> inTx(() -> adapter().save(unknown)))
                 .isInstanceOf(IllegalStateException.class)
@@ -487,8 +516,7 @@ class WorkPersistenceAdapterTest {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
 
         assertThatThrownBy(() -> inTx(() -> adapter().save(sameIdOtherOrganization)))
                 .isInstanceOf(IllegalStateException.class)
@@ -506,22 +534,8 @@ class WorkPersistenceAdapterTest {
         adapter().save(saved);
 
         Work found = adapter().findInOrganization(organization, id).orElseThrow();
-        assertThat(found.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(found.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(found.assignmentHistory()).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("상태 정정 기록이 있는 작업은 저장할 자리가 없어 거부한다")
-    void rejectsWorkWithStatusCorrections() {
-        OrganizationId organization = organization();
-        Work work = registered(organization, "정정된 작업");
-        work.assign(SCHEDULE, NOW, MANAGER);
-        work.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
-        work.correctStatus(WorkStatus.REGISTERED, NOW.plusSeconds(20), MANAGER, "잘못 취소");
-
-        assertThatThrownBy(() -> inTx(() -> adapter().save(work)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("S-11");
     }
 
     @Test
@@ -559,7 +573,7 @@ class WorkPersistenceAdapterTest {
         });
 
         Work reloaded = find(organization, id);
-        assertThat(reloaded.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(reloaded.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(reloaded.assignmentHistory()).singleElement().satisfies(history -> assertThat(history.result())
                 .isEqualTo(AssignmentResult.PENDING));
     }
@@ -658,7 +672,7 @@ class WorkPersistenceAdapterTest {
                 REGISTRAR,
                 REGISTERED_AT,
                 new WorkTypeId(2L),
-                new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
+                new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress("04043", "서울시", "3층")),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
     }
 

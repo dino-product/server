@@ -4,14 +4,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * 작업 등록부터 배정, 수행, 완료까지의 생애주기를 관리하는 애그리게잇 루트. 시작·완료 시각은 담당 기사의 실제 수행 기록이며, 다른 기록 시각처럼 저장소 정밀도인
@@ -22,7 +18,7 @@ public final class Work {
     /** 작업명 최대 길이. 목록·타임테이블 카드에 보이는 짧은 제목이다. */
     public static final int MAX_NAME_LENGTH = 100;
 
-    /** 등록 때 붙일 수 있는 현장 사진 수. */
+    /** 작업에 붙일 수 있는 현장 사진 수. */
     public static final int MAX_SITE_PHOTO_COUNT = 6;
 
     /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한, HM-238). */
@@ -34,8 +30,12 @@ public final class Work {
      */
     public static final Duration BACKLOG_STALE_AFTER = Duration.ofDays(3);
 
-    /** 현재 배정이 없는 작업(등록·취소)의 마지막 배정이 관리자 조치나 탈퇴로 끝났을 때 허용하는 방식. 재배정·일정 변경 뒤에는 새 배정이 남는다. */
-    private static final Set<AssignmentEndReason> BACKLOG_ENDINGS = Set.of(
+    /** 대기함 작업의 마지막 배정이 관리자 조치나 탈퇴로 끝났을 때 허용하는 방식. 재배정·일정 변경 뒤에는 새 배정이 남고, 취소로 끝났으면 취소 상태다. */
+    private static final Set<AssignmentEndReason> REGISTERED_ENDINGS =
+            Set.of(AssignmentEndReason.UNASSIGNED, AssignmentEndReason.ACCOUNT_WITHDRAWN);
+
+    /** 취소된 작업의 마지막 배정이 끝난 방식. 배정 중 취소면 취소로, 대기함에서 취소했으면 그 전의 해제·탈퇴 반환으로 끝나 있다. */
+    private static final Set<AssignmentEndReason> CANCELED_ENDINGS = Set.of(
             AssignmentEndReason.UNASSIGNED, AssignmentEndReason.CANCELLED, AssignmentEndReason.ACCOUNT_WITHDRAWN);
 
     private final WorkId id;
@@ -53,9 +53,9 @@ public final class Work {
     private Instant startedAt;
     private Instant completedAt;
     private Cancellation cancellation;
-    private final List<StatusCorrection> statusCorrections;
     private PlannedSchedule plannedSchedule;
     private List<String> sitePhotos = List.of();
+    private long version;
 
     private Work(
             WorkId id,
@@ -72,8 +72,7 @@ public final class Work {
             CompletionReport completionReport,
             Instant startedAt,
             Instant completedAt,
-            Cancellation cancellation,
-            List<StatusCorrection> statusCorrections) {
+            Cancellation cancellation) {
         if (organizationId == null) {
             throw new IllegalArgumentException("organizationId must not be null");
         }
@@ -102,7 +101,6 @@ public final class Work {
         this.startedAt = truncateToMicros(startedAt);
         this.completedAt = truncateToMicros(completedAt);
         this.cancellation = cancellation;
-        this.statusCorrections = statusCorrections == null ? new ArrayList<>() : new ArrayList<>(statusCorrections);
     }
 
     /** 작업을 대기함에 등록한다. 등록 시각 뒤로만 배정·취소 같은 기록을 남길 수 있다. */
@@ -129,8 +127,7 @@ public final class Work {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
     }
 
     /** 등록 때 담당기사·시간을 일부만 입력했으면 그 값을 미리 입력한 일정으로 남겨 대기함에 둔다. 없으면 {@code null}이다. */
@@ -163,8 +160,7 @@ public final class Work {
             CompletionReport completionReport,
             Instant startedAt,
             Instant completedAt,
-            Cancellation cancellation,
-            List<StatusCorrection> statusCorrections) {
+            Cancellation cancellation) {
         Work work = new Work(
                 Objects.requireNonNull(id, "id must not be null"),
                 organizationId,
@@ -180,8 +176,7 @@ public final class Work {
                 completionReport,
                 startedAt,
                 completedAt,
-                cancellation,
-                statusCorrections);
+                cancellation);
         work.requireConsistentState();
         return work;
     }
@@ -203,8 +198,7 @@ public final class Work {
             CompletionReport completionReport,
             Instant startedAt,
             Instant completedAt,
-            Cancellation cancellation,
-            List<StatusCorrection> statusCorrections) {
+            Cancellation cancellation) {
         Work work = reconstitute(
                 id,
                 organizationId,
@@ -220,8 +214,7 @@ public final class Work {
                 completionReport,
                 startedAt,
                 completedAt,
-                cancellation,
-                statusCorrections);
+                cancellation);
         if (plannedSchedule != null && status != WorkStatus.REGISTERED) {
             throw new IllegalArgumentException("Only a REGISTERED work can have a planned schedule");
         }
@@ -232,7 +225,7 @@ public final class Work {
         return work;
     }
 
-    /** 등록 때 붙인 현장 사진까지 복원한다. */
+    /** 등록·수정 때 붙인 현장 사진까지 복원한다. */
     public static Work reconstitute(
             WorkId id,
             OrganizationId organizationId,
@@ -250,7 +243,6 @@ public final class Work {
             Instant startedAt,
             Instant completedAt,
             Cancellation cancellation,
-            List<StatusCorrection> statusCorrections,
             List<String> sitePhotos) {
         Work work = reconstitute(
                 id,
@@ -268,9 +260,53 @@ public final class Work {
                 completionReport,
                 startedAt,
                 completedAt,
-                cancellation,
-                statusCorrections);
+                cancellation);
         work.sitePhotos = requireSitePhotos(sitePhotos);
+        return work;
+    }
+
+    /** 저장소가 매긴 버전까지 복원한다. */
+    public static Work reconstitute(
+            WorkId id,
+            OrganizationId organizationId,
+            String name,
+            MembershipId registrarId,
+            Instant registeredAt,
+            WorkTypeId workType,
+            WorkSchedule schedule,
+            PlannedSchedule plannedSchedule,
+            CustomerInfo customerInfo,
+            PaymentInfo paymentInfo,
+            WorkStatus status,
+            List<AssignmentHistory> assignmentHistory,
+            CompletionReport completionReport,
+            Instant startedAt,
+            Instant completedAt,
+            Cancellation cancellation,
+            List<String> sitePhotos,
+            long version) {
+        if (version < 0) {
+            throw new IllegalArgumentException("version must not be negative");
+        }
+        Work work = reconstitute(
+                id,
+                organizationId,
+                name,
+                registrarId,
+                registeredAt,
+                workType,
+                schedule,
+                plannedSchedule,
+                customerInfo,
+                paymentInfo,
+                status,
+                assignmentHistory,
+                completionReport,
+                startedAt,
+                completedAt,
+                cancellation,
+                sitePhotos);
+        work.version = version;
         return work;
     }
 
@@ -306,9 +342,21 @@ public final class Work {
         return Optional.ofNullable(plannedSchedule);
     }
 
-    /** 등록 때 붙인 현장 사진 식별자. 붙인 순서다. */
+    /** 등록·수정 때 붙인 현장 사진 식별자. 붙인 순서다. */
     public List<String> sitePhotos() {
         return sitePhotos;
+    }
+
+    /** 저장소가 매긴 버전. 새 작업은 0이고 저장소가 저장할 때마다 올린다. 도메인 변경은 버전을 바꾸지 않는다. */
+    public long version() {
+        return version;
+    }
+
+    /** 요청자가 본 버전이 지금 버전과 같은지 확인한다. 다르면 그 사이 다른 변경이 저장된 것이다. */
+    public void requireVersion(long expectedVersion) {
+        if (expectedVersion != version) {
+            throw new StaleWorkVersionException(expectedVersion, version);
+        }
     }
 
     public CustomerInfo customerInfo() {
@@ -351,15 +399,10 @@ public final class Work {
         return Optional.ofNullable(cancellation);
     }
 
-    /** 총관리자가 상태를 되돌린 기록. 오래된 것부터 쌓인다. */
-    public List<StatusCorrection> statusCorrections() {
-        return List.copyOf(statusCorrections);
-    }
-
     /**
      * 작업 목록·출력의 담당기사·예정시간 칸과 진행 보드 카드에 보일 일정. 지금 일정이 있으면 그 일정이다. 대기함 작업은 등록 때 미리 입력한 값(일부일 수 있다)이거나,
-     * 배정됐다 거절·배정 해제·기사 반환(·취소를 대기함으로 되돌린 정정)으로 돌아온 작업이면 마지막 배정의 일정이다. 반환한 기사가 비활성·탈퇴했어도
-     * 그대로다. 미리 입력한 값은 배정한 적 없는 작업에만 있으므로 둘은 겹치지 않는다. 일정이 없는 취소 작업(배정 전에 취소)은 비어 있다.
+     * 배정됐다 거절·배정 해제·기사 반환으로 돌아온 작업이면 마지막 배정의 일정이다. 반환한 기사가 비활성·탈퇴했어도 그대로다. 미리 입력한 값은 배정한 적
+     * 없는 작업에만 있으므로 둘은 겹치지 않는다. 일정이 없는 취소 작업(배정 전에 취소)은 비어 있다.
      */
     public Optional<ShownSchedule> shownSchedule() {
         if (schedule != null) {
@@ -390,14 +433,14 @@ public final class Work {
     public boolean isDelayedAt(Instant now) {
         Objects.requireNonNull(now, "now must not be null");
         return switch (status) {
-            case PENDING_ACCEPTANCE, ACCEPTED, IN_PROGRESS -> !now.isBefore(schedule.endTime());
+            case PENDING_ACCEPT, ACCEPTED, IN_PROGRESS -> !now.isBefore(schedule.endTime());
             case COMPLETED -> !completedAt.isBefore(schedule.endTime());
             case REGISTERED ->
                 shownSchedule()
                         .flatMap(ShownSchedule::endTime)
                         .map(endTime -> !now.isBefore(endTime))
                         .orElse(false);
-            case CANCELLED -> false;
+            case CANCELED -> false;
         };
     }
 
@@ -421,8 +464,7 @@ public final class Work {
         // 검증을 모두 마친 뒤 반영해, 예외가 나도 작업이 부분적으로 바뀌지 않게 한다.
         AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, assignedAt, assignedBy);
         requireNotBeforeLatestAssignment(assignedAt, "assignedAt");
-        requireNotBeforeLatestCorrection(assignedAt, "assignedAt");
-        WorkStatus nextStatus = status.transitionTo(WorkStatus.PENDING_ACCEPTANCE);
+        WorkStatus nextStatus = status.transitionTo(WorkStatus.PENDING_ACCEPT);
         schedule = newSchedule;
         plannedSchedule = null;
         assignmentHistory.add(newAssignment);
@@ -430,7 +472,7 @@ public final class Work {
     }
 
     public void accept(Instant decidedAt) {
-        requireStatus(WorkStatus.PENDING_ACCEPTANCE, "accept");
+        requireStatus(WorkStatus.PENDING_ACCEPT, "accept");
         // 전이를 먼저 계산해, 이력을 바꾼 뒤 전이가 실패해 둘이 어긋나는 일이 없게 한다.
         WorkStatus nextStatus = status.transitionTo(WorkStatus.ACCEPTED);
         latestAssignment().accept(decidedAt);
@@ -438,7 +480,7 @@ public final class Work {
     }
 
     public void reject(Rejection rejection, Instant decidedAt) {
-        requireStatus(WorkStatus.PENDING_ACCEPTANCE, "reject");
+        requireStatus(WorkStatus.PENDING_ACCEPT, "reject");
         WorkStatus nextStatus = status.transitionTo(WorkStatus.REGISTERED);
         latestAssignment().reject(rejection, decidedAt);
         schedule = null;
@@ -510,22 +552,35 @@ public final class Work {
     }
 
     /**
-     * 작업명·작업 유형·고객정보·결제정보 네 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된 작업은 바꿀 수
-     * 없고, 상태·배정은 그대로 둔다. 서비스의 공통 오류 순서(입력 → 상태)에 맞춰 작업명을 상태보다 먼저 검증한다.
+     * 작업명·작업 유형·고객정보·결제정보·현장 사진 다섯 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된
+     * 작업은 바꿀 수 없고, 상태·배정은 그대로 둔다. 작업 유형은 시작 전까지만 바꾸거나 비울 수 있고 작업중에는 지금 유형을 그대로 줘야 한다. 서비스의 공통 오류
+     * 순서(입력 → 상태)에 맞춰 작업명·현장 사진을 상태보다 먼저 검증한다.
      */
     public void changeDetails(
-            String newName, WorkTypeId newWorkType, CustomerInfo newCustomerInfo, PaymentInfo newPaymentInfo) {
+            String newName,
+            WorkTypeId newWorkType,
+            CustomerInfo newCustomerInfo,
+            PaymentInfo newPaymentInfo,
+            List<String> newSitePhotoIds) {
         requireName(newName);
+        List<String> photos = requireSitePhotos(newSitePhotoIds);
         if (status.isTerminal()) {
             throw new IllegalStateException("Cannot change details when status is " + status);
+        }
+        if (status == WorkStatus.IN_PROGRESS && !Objects.equals(workType, newWorkType)) {
+            throw new IllegalStateException("Cannot change work type when status is " + status);
         }
         name = newName;
         workType = newWorkType;
         customerInfo = orEmpty(newCustomerInfo);
         paymentInfo = orEmpty(newPaymentInfo);
+        sitePhotos = photos;
     }
 
-    /** 수락된 작업을 시작해 작업중으로 바꾸고 시작 시각을 남긴다. 시작 시각은 수락 시각보다 앞설 수 없다. 예정 시작시각과는 관계없이 시작할 수 있다. */
+    /**
+     * 수락된 작업을 시작해 작업중으로 바꾸고 시작 시각을 남긴다. 시작 시각은 수락 시각보다 앞설 수 없다. 예정 시간에 비춘 시작 가능 시간은 여기서 보지 않고, 기사의
+     * 시작 요청을 받는 유즈케이스가 {@link WorkSchedule#isTooEarlyToStart}·{@link WorkSchedule#isTooLateToStart}로 확인해 각각의 오류로 알린다.
+     */
     public void start(Instant startedAt) {
         requireStatus(WorkStatus.ACCEPTED, "start");
         if (startedAt == null) {
@@ -535,7 +590,6 @@ public final class Work {
         if (storedStartedAt.isBefore(latestAssignment().lastMoment())) {
             throw new IllegalArgumentException("startedAt must not be before the assignment was accepted");
         }
-        requireNotBeforeLatestCorrection(storedStartedAt, "startedAt");
         WorkStatus nextStatus = status.transitionTo(WorkStatus.IN_PROGRESS);
         this.startedAt = storedStartedAt;
         status = nextStatus;
@@ -554,7 +608,6 @@ public final class Work {
         if (storedCompletedAt.isBefore(startedAt)) {
             throw new IllegalArgumentException("completedAt must not be before startedAt");
         }
-        requireNotBeforeLatestCorrection(storedCompletedAt, "completedAt");
         WorkStatus nextStatus = status.transitionTo(WorkStatus.COMPLETED);
         completionReport = report;
         this.completedAt = storedCompletedAt;
@@ -563,16 +616,15 @@ public final class Work {
 
     /**
      * 완료 전 작업을 취소하고 취소 시각·처리자·사유(기타면 메모)를 작업에 남긴다. 현재 배정이 있으면(수락대기·수락됨·작업중) 같은 시각·처리자를 그 배정의 종료로도 남겨,
-     * 배정이 왜 끝났는지 이력에서 알 수 있게 한다. 작업중이던 작업은 시작 시각을 그대로 둔다. 취소 시각은 배정 이력의 마지막 시각, 시작 시각과 마지막
-     * 상태 정정 시각보다 앞설 수 없다. 입력(사유 등)을 상태보다 먼저 검증한다.
+     * 배정이 왜 끝났는지 이력에서 알 수 있게 한다. 작업중이던 작업은 시작 시각을 그대로 둔다. 취소 시각은 배정 이력의 마지막 시각과 시작 시각보다 앞설 수
+     * 없다. 입력(사유 등)을 상태보다 먼저 검증한다.
      */
     public void cancel(Instant cancelledAt, MembershipId cancelledBy, CancellationReason reason, String note) {
         Cancellation newCancellation = new Cancellation(cancelledAt, cancelledBy, reason, note);
-        WorkStatus cancelled = status.transitionTo(WorkStatus.CANCELLED);
+        WorkStatus cancelled = status.transitionTo(WorkStatus.CANCELED);
         requireNotBeforeStart(newCancellation.cancelledAt(), "cancelledAt");
         // 현재 배정이 있어도 없어도 같은 이름(cancelledAt)으로 알리도록, 배정 종료의 하한보다 먼저 확인한다.
         requireNotBeforeLatestAssignment(newCancellation.cancelledAt(), "cancelledAt");
-        requireNotBeforeLatestCorrection(newCancellation.cancelledAt(), "cancelledAt");
         if (status != WorkStatus.REGISTERED) {
             latestAssignment()
                     .end(new AssignmentEnding(
@@ -585,77 +637,8 @@ public final class Work {
         status = cancelled;
     }
 
-    /**
-     * 총관리자가 작업 상태를 한 단계 되돌린다(완료 → 작업중, 작업중 → 수락됨, 취소 → 대기함). 도착 상태에 맞지 않는 데이터(완료보고·완료 시각, 시작 시각,
-     * 취소 기록·일정)는 작업에서 치워 정정 기록에 보관한다. 배정 이력은 그대로 둔다. 입력 → 상태 → 시각 순서로 확인하고, 모두 통과한 뒤에만 바꾼다. 정정
-     * 시각은 작업에 남은 가장 늦은 기록보다 앞설 수 없다.
-     */
-    public void correctStatus(WorkStatus target, Instant correctedAt, MembershipId correctedBy, String reason) {
-        StatusCorrection.requireValidInput(target, correctedAt, correctedBy, reason);
-        if (!status.canBeCorrectedTo(target)) {
-            throw new IllegalStateException("Cannot correct status from " + status + " to " + target);
-        }
-        Instant at = truncateToMicros(correctedAt);
-        if (at.isBefore(latestRecordedMoment())) {
-            throw new IllegalArgumentException("correctedAt must not be before the latest record");
-        }
-        boolean fromCompleted = status == WorkStatus.COMPLETED;
-        boolean fromCancelled = status == WorkStatus.CANCELLED;
-        Integer restoredAssignmentNumber =
-                fromCancelled && currentCancelledAssignment().isPresent() ? assignmentHistory.size() : null;
-        StatusCorrection correction = new StatusCorrection(
-                status,
-                target,
-                at,
-                correctedBy,
-                reason,
-                fromCompleted ? completionReport : null,
-                fromCompleted ? completedAt : null,
-                fromCompleted ? null : startedAt,
-                fromCancelled ? cancellation : null,
-                restoredAssignmentNumber);
-        if (fromCompleted) {
-            completionReport = null;
-            completedAt = null;
-        } else {
-            startedAt = null;
-        }
-        if (fromCancelled) {
-            cancellation = null;
-            schedule = null;
-        }
-        statusCorrections.add(correction);
-        status = target;
-    }
-
-    /** 작업에 남은 가장 늦은 기록 시각(등록 시각, 배정 이력의 마지막 시각, 시작·완료·취소·정정 시각). */
-    private Instant latestRecordedMoment() {
-        return Stream.of(
-                        registeredAt,
-                        assignmentHistory.isEmpty()
-                                ? null
-                                : assignmentHistory.getLast().lastMoment(),
-                        statusCorrections.isEmpty()
-                                ? null
-                                : statusCorrections.getLast().correctedAt(),
-                        startedAt,
-                        completedAt,
-                        cancellation == null ? null : cancellation.cancelledAt())
-                .filter(Objects::nonNull)
-                .max(Comparator.naturalOrder())
-                .orElseThrow();
-    }
-
-    /** 정정 뒤에 기록하는 시각(배정·시작·완료·해제·취소)이 마지막 정정 시각보다 앞서지 않게 한다. field는 오류 메시지에 쓸 시각 이름이다. */
-    private void requireNotBeforeLatestCorrection(Instant at, String field) {
-        if (!statusCorrections.isEmpty()
-                && at.isBefore(statusCorrections.getLast().correctedAt())) {
-            throw new IllegalArgumentException(field + " must not be before the latest status correction");
-        }
-    }
-
     private void requireChangeableAssignment(String action) {
-        if (status != WorkStatus.PENDING_ACCEPTANCE && status != WorkStatus.ACCEPTED) {
+        if (status != WorkStatus.PENDING_ACCEPT && status != WorkStatus.ACCEPTED) {
             throw new IllegalStateException("Cannot " + action + " when status is " + status);
         }
     }
@@ -663,7 +646,6 @@ public final class Work {
     /** 현재 배정을 주어진 종료로 끝내고 일정을 비워 대기함으로 돌린다. 상태 확인은 호출자가 먼저 한다. */
     private void returnToBacklog(AssignmentEnding ending) {
         WorkStatus nextStatus = status.transitionTo(WorkStatus.REGISTERED);
-        requireNotBeforeLatestCorrection(ending.endedAt(), "endedAt");
         latestAssignment().end(ending);
         schedule = null;
         status = nextStatus;
@@ -676,9 +658,7 @@ public final class Work {
         AssignmentHistory newAssignment = new AssignmentHistory(newSchedule, changedAt, changedBy);
         AssignmentEnding ending = new AssignmentEnding(changedAt, changedBy, reason);
         requireNotBeforeLatestAssignment(changedAt, "assignedAt");
-        requireNotBeforeLatestCorrection(changedAt, "assignedAt");
-        WorkStatus nextStatus =
-                status == WorkStatus.ACCEPTED ? status.transitionTo(WorkStatus.PENDING_ACCEPTANCE) : status;
+        WorkStatus nextStatus = status == WorkStatus.ACCEPTED ? status.transitionTo(WorkStatus.PENDING_ACCEPT) : status;
         latestAssignment().end(ending);
         schedule = newSchedule;
         assignmentHistory.add(newAssignment);
@@ -706,7 +686,7 @@ public final class Work {
         }
     }
 
-    /** 저장값 복원 시 등록 시각·상태와 일정·배정 이력·완료보고·시작·완료 시각·취소 기록·상태 정정 기록이 서로 맞는지 검증한다. */
+    /** 저장값 복원 시 등록 시각·상태와 일정·배정 이력·완료보고·시작·완료 시각·취소 기록이 서로 맞는지 검증한다. */
     private void requireConsistentState() {
         requireNotBeforeRegistration();
         for (int i = 0; i < assignmentHistory.size() - 1; i++) {
@@ -718,10 +698,8 @@ public final class Work {
                 throw new IllegalArgumentException("Only the latest assignment history can be current");
             }
             AssignmentHistory next = assignmentHistory.get(i + 1);
-            int previousNumber = i + 1;
             if (previous.ending()
                     .filter(ending -> ending.reason() == AssignmentEndReason.CANCELLED)
-                    .filter(ending -> !restoredAssignmentNumbers().contains(previousNumber))
                     .isPresent()) {
                 throw new IllegalArgumentException("Only the latest assignment history can end by cancellation");
             }
@@ -735,15 +713,11 @@ public final class Work {
             throw new IllegalArgumentException("REGISTERED work must not have a schedule");
         }
         if (status == WorkStatus.REGISTERED) {
-            // 대기함으로 되돌린 취소 종료만 허용한다(되돌리지 않은 취소 종료가 남아 있으면 취소 상태여야 한다).
-            if (currentCancelledAssignment().isPresent()) {
-                throw new IllegalArgumentException("REGISTERED work must not have an assignment ended by CANCELLED");
-            }
-            requireOverAssignment(latest, BACKLOG_ENDINGS);
-        } else if (status == WorkStatus.CANCELLED) {
-            requireOverAssignment(latest, BACKLOG_ENDINGS);
+            requireOverAssignment(latest, REGISTERED_ENDINGS);
+        } else if (status == WorkStatus.CANCELED) {
+            requireOverAssignment(latest, CANCELED_ENDINGS);
             requireScheduleOfCancelledAssignment(latest);
-        } else if (status == WorkStatus.PENDING_ACCEPTANCE) {
+        } else if (status == WorkStatus.PENDING_ACCEPT) {
             requireAssignedSchedule(latest, AssignmentResult.PENDING);
         } else {
             requireAssignedSchedule(latest, AssignmentResult.ACCEPTED);
@@ -756,10 +730,9 @@ public final class Work {
         }
         requireConsistentProgressTimes(latest);
         requireConsistentCancellation(latest);
-        requireConsistentCorrections();
     }
 
-    /** 저장된 배정·취소·정정 기록은 등록 시각보다 앞서지 않는다. 그 뒤의 기록 순서는 각 기록의 검증이 맡는다. */
+    /** 저장된 배정·취소 기록은 등록 시각보다 앞서지 않는다. 그 뒤의 기록 순서는 각 기록의 검증이 맡는다. */
     private void requireNotBeforeRegistration() {
         if (!assignmentHistory.isEmpty()
                 && assignmentHistory.getFirst().assignedAt().isBefore(registeredAt)) {
@@ -768,97 +741,27 @@ public final class Work {
         if (cancellation != null && cancellation.cancelledAt().isBefore(registeredAt)) {
             throw new IllegalArgumentException("cancelledAt must not precede the registration");
         }
-        if (!statusCorrections.isEmpty()
-                && statusCorrections.getFirst().correctedAt().isBefore(registeredAt)) {
-            throw new IllegalArgumentException("status corrections must not precede the registration");
-        }
     }
 
-    /** 대기함으로 되돌린 정정이 가리키는 배정 순번들. */
-    private Set<Integer> restoredAssignmentNumbers() {
-        return statusCorrections.stream()
-                .map(StatusCorrection::restoredAssignmentNumber)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-    }
-
-    /** 최신 배정의 취소 종료 중 아직 대기함으로 되돌리지 않은 것. 되돌린 취소 종료는 배정이 왜 끝났는지의 흔적으로만 남는다. */
-    private Optional<AssignmentEnding> currentCancelledAssignment() {
-        if (assignmentHistory.isEmpty() || restoredAssignmentNumbers().contains(assignmentHistory.size())) {
+    /** 최신 배정이 작업 취소로 끝났으면 그 종료. 배정이 있던 채로 취소된 작업에만 있다. */
+    private Optional<AssignmentEnding> cancelledAssignment() {
+        if (assignmentHistory.isEmpty()) {
             return Optional.empty();
         }
         return assignmentHistory.getLast().ending().filter(ending -> ending.reason() == AssignmentEndReason.CANCELLED);
     }
 
-    /**
-     * 정정 기록을 작업의 나머지 기록과 맞춰 본다. 정정은 시간 순서로 쌓이고, 대기함으로 되돌린 정정이 가리키는 배정은 그 정정의 취소 기록과 같은 시각·처리자의
-     * 취소로 끝났으며, 한 배정의 취소는 한 번만 되돌린다. 되돌린 뒤 이어지는 배정과 정정 뒤에 남은 시작·완료·취소 시각은 정정보다 앞서지 않는다.
-     *
-     * <p>정정 기록은 정정 당시 배정 이력의 위치를 담지 않으므로, 배정 이력과의 전후는 되돌린 취소 배정 바로 뒤의 배정만 비교한다. 대기함 취소를 되돌린 정정이나
-     * 작업중 → 수락됨 정정과 그 앞뒤 배정 사이의 시간 역전은 여기서 거르지 못한다. 도메인 메서드로는 이런 저장값을 만들 수 없으므로, 저장소가 기록 순서를 그대로
-     * 보존하는 것에 기댄다.
-     */
-    private void requireConsistentCorrections() {
-        Set<Integer> restored = new HashSet<>();
-        for (int i = 0; i < statusCorrections.size(); i++) {
-            StatusCorrection correction = statusCorrections.get(i);
-            if (i > 0
-                    && correction
-                            .correctedAt()
-                            .isBefore(statusCorrections.get(i - 1).correctedAt())) {
-                throw new IllegalArgumentException("status corrections must be in chronological order");
-            }
-            Integer number = correction.restoredAssignmentNumber();
-            if (number == null) {
-                continue;
-            }
-            if (!restored.add(number) || number > assignmentHistory.size()) {
-                throw new IllegalArgumentException("status correction must restore an existing assignment once");
-            }
-            AssignmentHistory history = assignmentHistory.get(number - 1);
-            Cancellation retired = correction.retiredCancellation();
-            boolean matches = history.ending()
-                    .filter(ending -> ending.reason() == AssignmentEndReason.CANCELLED)
-                    .filter(ending -> ending.endedAt().equals(retired.cancelledAt()))
-                    .filter(ending -> ending.endedBy().equals(retired.cancelledBy()))
-                    .isPresent();
-            if (!matches) {
-                throw new IllegalArgumentException("status correction must match the cancelled assignment it restores");
-            }
-            if (number < assignmentHistory.size()
-                    && assignmentHistory.get(number).assignedAt().isBefore(correction.correctedAt())) {
-                throw new IllegalArgumentException("assignment after a restoration must not precede the correction");
-            }
-        }
-        if (statusCorrections.isEmpty()) {
-            return;
-        }
-        Instant lastCorrection = statusCorrections.getLast().correctedAt();
-        if (completedAt != null && completedAt.isBefore(lastCorrection)) {
-            throw new IllegalArgumentException("completedAt must not be before the latest status correction");
-        }
-        if (cancellation != null && cancellation.cancelledAt().isBefore(lastCorrection)) {
-            throw new IllegalArgumentException("cancelledAt must not be before the latest status correction");
-        }
-        boolean startedAfterReset = statusCorrections.stream()
-                .filter(correction -> correction.to() != WorkStatus.IN_PROGRESS)
-                .allMatch(correction -> startedAt == null || !startedAt.isBefore(correction.correctedAt()));
-        if (!startedAfterReset) {
-            throw new IllegalArgumentException("startedAt must not be before the status correction that cleared it");
-        }
-    }
-
     private void requireConsistentCancellation(AssignmentHistory latest) {
-        if (status == WorkStatus.CANCELLED && cancellation == null) {
-            throw new IllegalArgumentException("CANCELLED work must have a cancellation");
+        if (status == WorkStatus.CANCELED && cancellation == null) {
+            throw new IllegalArgumentException("CANCELED work must have a cancellation");
         }
-        if (status != WorkStatus.CANCELLED && cancellation != null) {
+        if (status != WorkStatus.CANCELED && cancellation != null) {
             throw new IllegalArgumentException(status + " work must not have a cancellation");
         }
         if (cancellation == null || latest == null) {
             return;
         }
-        Optional<AssignmentEnding> cancelledAssignment = currentCancelledAssignment();
+        Optional<AssignmentEnding> cancelledAssignment = cancelledAssignment();
         if (cancelledAssignment.isPresent()) {
             AssignmentEnding ending = cancelledAssignment.get();
             if (!ending.endedAt().equals(cancellation.cancelledAt())
@@ -876,10 +779,10 @@ public final class Work {
      */
     private void requireConsistentProgressTimes(AssignmentHistory latest) {
         boolean started = status == WorkStatus.IN_PROGRESS || status == WorkStatus.COMPLETED;
-        boolean cancelledAfterAcceptance = status == WorkStatus.CANCELLED
+        boolean cancelledAfterAcceptance = status == WorkStatus.CANCELED
                 && latest != null
                 && latest.result() == AssignmentResult.ACCEPTED
-                && currentCancelledAssignment().isPresent();
+                && cancelledAssignment().isPresent();
         if (started && startedAt == null) {
             throw new IllegalArgumentException(status + " work must have startedAt");
         }
@@ -945,12 +848,12 @@ public final class Work {
 
     /** 배정이 있던 채로 취소된 작업만 그 배정의 일정을 남긴다. 대기함에서 취소된 작업은 일정이 없다. */
     private void requireScheduleOfCancelledAssignment(AssignmentHistory latest) {
-        boolean cancelledWhileAssigned = currentCancelledAssignment().isPresent();
+        boolean cancelledWhileAssigned = cancelledAssignment().isPresent();
         if (cancelledWhileAssigned && !latest.schedule().equals(schedule)) {
-            throw new IllegalArgumentException("CANCELLED work must keep the schedule of the cancelled assignment");
+            throw new IllegalArgumentException("CANCELED work must keep the schedule of the cancelled assignment");
         }
         if (!cancelledWhileAssigned && schedule != null) {
-            throw new IllegalArgumentException("CANCELLED work from the backlog must not have a schedule");
+            throw new IllegalArgumentException("CANCELED work from the backlog must not have a schedule");
         }
     }
 

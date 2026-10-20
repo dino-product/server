@@ -45,7 +45,7 @@ class GetMyScheduleServiceTest {
     void listsOwnWorks() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Instant pastStart = NOW.minus(Duration.ofHours(3));
-        WorkId pending = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId pending = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
         Work rescheduled = fixture.stored(
                 fixture.givenWork(ORGANIZATION_ID, "시간 바뀐 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, pastStart));
         rescheduled.reschedule(pastStart.minusSeconds(60), TWO_HOURS, NOW, SETUP_MANAGER_ID);
@@ -53,7 +53,7 @@ class GetMyScheduleServiceTest {
         WorkId completed =
                 fixture.givenWork(ORGANIZATION_ID, "끝난 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, TEN.plus(TWO_HOURS));
         fixture.givenWork(ORGANIZATION_ID, "다른 기사 작업", WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, TEN);
-        fixture.givenWork(ORGANIZATION_ID, "취소 작업", WorkStatus.CANCELLED, TECHNICIAN_ID, TEN);
+        fixture.givenWork(ORGANIZATION_ID, "취소 작업", WorkStatus.CANCELED, TECHNICIAN_ID, TEN);
         Work reassigned = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
         reassigned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
         fixture.workRepository.store(reassigned);
@@ -65,7 +65,7 @@ class GetMyScheduleServiceTest {
         reassignedBack.reassign(new WorkSchedule(TECHNICIAN_ID, TEN.plus(TWO_HOURS), TWO_HOURS), NOW, SETUP_MANAGER_ID);
         reassignedBack.accept(NOW);
         WorkId reassignedBackId = fixture.workRepository.store(reassignedBack);
-        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), NOW);
         fixture.workRepository.store(rejected);
 
@@ -78,8 +78,8 @@ class GetMyScheduleServiceTest {
                         MyScheduleInfo.ScheduledWork::assignmentNumber,
                         MyScheduleInfo.ScheduledWork::delayed)
                 .containsExactly(
-                        tuple(rescheduledId.value(), WorkStatus.PENDING_ACCEPTANCE, 2, true),
-                        tuple(pending.value(), WorkStatus.PENDING_ACCEPTANCE, 1, false),
+                        tuple(rescheduledId.value(), WorkStatus.PENDING_ACCEPT, 2, true),
+                        tuple(pending.value(), WorkStatus.PENDING_ACCEPT, 1, false),
                         tuple(inProgress.value(), WorkStatus.IN_PROGRESS, 1, false),
                         tuple(completed.value(), WorkStatus.COMPLETED, 1, false),
                         tuple(reassignedBackId.value(), WorkStatus.ACCEPTED, 3, false));
@@ -87,11 +87,12 @@ class GetMyScheduleServiceTest {
                 .isEqualTo(new MyScheduleInfo.ScheduledWork(
                         pending.value(),
                         "대상 작업",
-                        WorkStatus.PENDING_ACCEPTANCE,
+                        WorkStatus.PENDING_ACCEPT,
                         1,
                         TEN,
                         TEN.plus(TWO_HOURS),
                         "서울시",
+                        "3층",
                         false));
     }
 

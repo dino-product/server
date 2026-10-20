@@ -35,7 +35,7 @@ class WorkExportWorkbookTest {
         WorkExportInfo.Row assigned = new WorkExportInfo.Row(
                 summary(
                         "배관 설치",
-                        WorkStatus.PENDING_ACCEPTANCE,
+                        WorkStatus.PENDING_ACCEPT,
                         new TechnicianInfo(3L, "김기사", null),
                         Instant.parse("2026-10-21T00:00:00Z"),
                         Instant.parse("2026-10-21T02:00:00Z"),
@@ -80,7 +80,7 @@ class WorkExportWorkbookTest {
                         new StaffInfo(1L, "김운영", false, null),
                         null),
                 null,
-                null);
+                PaymentMethod.INVOICE);
 
         List<Row> rows = read(WorkExportWorkbook.write(
                 new WorkExportInfo(List.of(assigned, overnight, backlog, startOnly), EXPORTED_AT), SEOUL));
@@ -118,7 +118,16 @@ class WorkExportWorkbookTest {
         assertThat(texts(rows.get(4)))
                 .as("끝을 모르는 대기함 작업은 시작만 쓴다")
                 .containsExactly(
-                        "시작만 정한 작업", "등록", "김기사", "", "2026-10-21 09:00 ~", "김운영", "2026-10-21 00:30", "", "", "");
+                        "시작만 정한 작업",
+                        "등록",
+                        "김기사",
+                        "",
+                        "2026-10-21 09:00 ~",
+                        "김운영",
+                        "2026-10-21 00:30",
+                        "",
+                        "",
+                        "청구서 발행(후불)");
         assertThat(rows).hasSize(5);
     }
 

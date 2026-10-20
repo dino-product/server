@@ -21,11 +21,14 @@ public enum ScheduleErrorCode implements BaseCode {
     SCHEDULE_UNCHANGED(HttpStatus.CONFLICT, "SCHEDULE-008", "이미 같은 일정입니다."),
     NOT_ASSIGNED_TECHNICIAN(HttpStatus.FORBIDDEN, "SCHEDULE-009", "담당 기사가 아닙니다."),
     ASSIGNMENT_CHANGED(HttpStatus.CONFLICT, "SCHEDULE-010", "배정이 바뀌었습니다. 최신 배정을 확인해 주세요."),
-    TECHNICIAN_ALREADY_WORKING(HttpStatus.CONFLICT, "SCHEDULE-011", "이미 작업중인 다른 작업이 있습니다. 그 작업을 마친 뒤 시작해 주세요."),
+    // SCHEDULE-011(같은 기사의 다른 작업이 작업중이라 시작 거부)은 동시 작업중 허용으로 폐기했다. 번호를 재사용하지 않는다.
     COMPLETION_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE-012", "완료보고가 없습니다."),
     TECHNICIAN_NOT_ASSIGNABLE(HttpStatus.BAD_REQUEST, "SCHEDULE-013", "배정할 수 없는 기사입니다. 다른 기사를 선택해 주세요."),
     WORK_TYPE_NOT_SELECTABLE(HttpStatus.BAD_REQUEST, "SCHEDULE-014", "선택할 수 없는 작업 유형입니다. 다른 유형을 선택해 주세요."),
-    EXPORT_TOO_LARGE(HttpStatus.BAD_REQUEST, "SCHEDULE-015", "출력할 작업이 너무 많습니다. 조건을 좁혀 다시 시도해 주세요.");
+    EXPORT_TOO_LARGE(HttpStatus.BAD_REQUEST, "SCHEDULE-015", "출력할 작업이 너무 많습니다. 조건을 좁혀 다시 시도해 주세요."),
+    WORK_CHANGED(HttpStatus.CONFLICT, "SCHEDULE-016", "변경된 정보입니다. 최신 정보를 확인해 주세요."),
+    TOO_EARLY_TO_START(HttpStatus.CONFLICT, "SCHEDULE-017", "아직 작업을 시작할 수 없습니다."),
+    START_TIME_PASSED(HttpStatus.CONFLICT, "SCHEDULE-018", "예정 시간이 지나 시작할 수 없습니다. 사무실에 일정 변경을 요청해 주세요.");
 
     private final HttpStatus httpStatus;
     private final String code;

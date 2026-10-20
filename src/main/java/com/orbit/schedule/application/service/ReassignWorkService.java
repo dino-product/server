@@ -51,6 +51,7 @@ public class ReassignWorkService implements ReassignWorkUseCase {
         ManagerActor actor =
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
+        OrganizationActors.requireRegistrarOrOwner(actor, work);
         WorkSchedule schedule = DomainRuleViolations.call(() -> new WorkSchedule(
                 new TechnicianId(command.technicianId()), command.startTime(), command.expectedDuration()));
 

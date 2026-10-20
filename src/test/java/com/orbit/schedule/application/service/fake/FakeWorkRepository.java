@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+import com.orbit.schedule.application.port.out.ConcurrentWorkChangeException;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.application.port.out.WorkSearchCriteria;
@@ -31,6 +32,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private final Map<Long, Work> store = new LinkedHashMap<>();
     private final List<Work> saved = new ArrayList<>();
     private long sequence;
+    private boolean failNextSave;
     private int activeByTechnicianQueryCount;
     private final List<WorkSearchCriteria> searches = new ArrayList<>();
     private WorkSearchResult searchResult;
@@ -38,16 +40,26 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private final List<Listing> listings = new ArrayList<>();
     private final Map<Predicate<WorkSearchCriteria>, Long> givenCounts = new LinkedHashMap<>();
 
+    /** 다음 저장을, 읽은 뒤 다른 트랜잭션이 먼저 바꾼 것처럼 실패시킨다. */
+    public void failNextSaveWithConcurrentChange() {
+        failNextSave = true;
+    }
+
+    /** 실제 저장소처럼 기존 작업을 저장할 때마다 버전을 하나 올린다. */
     @Override
     public Work save(Work work) {
-        Work stored = put(work);
+        if (failNextSave) {
+            failNextSave = false;
+            throw new ConcurrentWorkChangeException(new IllegalStateException("simulated concurrent change"));
+        }
+        Work stored = put(work, work.id().isPresent() ? work.version() + 1 : 0L);
         saved.add(copyOf(stored, stored.id().orElseThrow()));
         return stored;
     }
 
-    /** 테스트 준비용 저장. 서비스의 저장 기록({@link #saved()})에는 남기지 않는다. */
+    /** 테스트 준비용 저장. 버전을 올리지 않고, 서비스의 저장 기록({@link #saved()})에는 남기지 않는다. */
     public WorkId store(Work work) {
-        return put(work).id().orElseThrow();
+        return put(work, work.version()).id().orElseThrow();
     }
 
     @Override
@@ -91,7 +103,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
         Objects.requireNonNull(from, "from must not be null");
         Objects.requireNonNull(to, "to must not be null");
         return inOrganization(organizationId).stream()
-                .filter(work -> work.status() != WorkStatus.CANCELLED)
+                .filter(work -> work.status() != WorkStatus.CANCELED)
                 .filter(work -> work.schedule()
                         .map(schedule -> schedule.startTime().isBefore(to)
                                 && schedule.endTime().isAfter(from))
@@ -105,7 +117,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
         Objects.requireNonNull(from, "from must not be null");
         Objects.requireNonNull(to, "to must not be null");
         return inOrganization(organizationId).stream()
-                .filter(work -> work.status() != WorkStatus.CANCELLED)
+                .filter(work -> work.status() != WorkStatus.CANCELED)
                 .filter(work -> work.shownSchedule()
                         .filter(shown ->
                                 shown.startTime() != null && shown.startTime().isBefore(to))
@@ -255,16 +267,20 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 .reversed();
     }
 
-    private Work put(Work work) {
+    private Work put(Work work, long version) {
         WorkId id = work.id().orElseGet(() -> new WorkId(++sequence));
         if (work.id().isPresent() && !store.containsKey(id.value())) {
             throw new IllegalStateException("Cannot save unknown work: " + id.value());
         }
-        store.put(id.value(), copyOf(work, id));
-        return copyOf(work, id);
+        store.put(id.value(), copyOf(work, id, version));
+        return copyOf(work, id, version);
     }
 
     private static Work copyOf(Work work, WorkId id) {
+        return copyOf(work, id, work.version());
+    }
+
+    private static Work copyOf(Work work, WorkId id, long version) {
         List<AssignmentHistory> histories = work.assignmentHistory().stream()
                 .map(history -> AssignmentHistory.restore(
                         history.schedule(),
@@ -292,7 +308,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
                 work.startedAt().orElse(null),
                 work.completedAt().orElse(null),
                 work.cancellation().orElse(null),
-                work.statusCorrections(),
-                work.sitePhotos());
+                work.sitePhotos(),
+                version);
     }
 }

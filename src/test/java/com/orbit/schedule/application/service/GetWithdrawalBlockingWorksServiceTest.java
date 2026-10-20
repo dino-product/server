@@ -36,8 +36,8 @@ class GetWithdrawalBlockingWorksServiceTest {
         contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
         contracts.givenActive(ACCOUNT_ID, OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
         givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.IN_PROGRESS, 0);
-        givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.PENDING_ACCEPTANCE, 4);
-        givenWork(OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID, WorkStatus.PENDING_ACCEPTANCE, 0);
+        givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.PENDING_ACCEPT, 4);
+        givenWork(OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID, WorkStatus.PENDING_ACCEPT, 0);
 
         WithdrawalBlockingWorksInfo info = service.get(query());
 
@@ -50,7 +50,7 @@ class GetWithdrawalBlockingWorksServiceTest {
         contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
         givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.ACCEPTED, 0);
         givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.COMPLETED, 4);
-        givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.CANCELLED, 8);
+        givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.CANCELED, 8);
         givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.REGISTERED, 12);
 
         assertThat(service.get(query())).isEqualTo(new WithdrawalBlockingWorksInfo(0, 0));
@@ -77,7 +77,7 @@ class GetWithdrawalBlockingWorksServiceTest {
     @DisplayName("판정만 하고 작업을 저장하거나 기사를 잠그지 않는다")
     void neitherSavesNorLocks() {
         contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
-        givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.PENDING_ACCEPTANCE, 0);
+        givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.PENDING_ACCEPT, 0);
 
         service.get(query());
 

@@ -12,6 +12,7 @@ import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.MyScheduleInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -64,7 +65,11 @@ public class GetMyScheduleService implements GetMyScheduleUseCase {
                 work.currentAssignmentNumber(),
                 schedule.startTime(),
                 schedule.endTime(),
-                work.customerInfo().address().orElse(null),
+                work.customerInfo().address().flatMap(SiteAddress::baseAddress).orElse(null),
+                work.customerInfo()
+                        .address()
+                        .flatMap(SiteAddress::detailAddress)
+                        .orElse(null),
                 work.isDelayedAt(now));
     }
 }
