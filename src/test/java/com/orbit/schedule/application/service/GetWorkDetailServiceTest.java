@@ -54,7 +54,7 @@ class GetWorkDetailServiceTest {
     private final GetWorkDetailService service = new GetWorkDetailService(
             fixture.actorPort,
             fixture.workRepository,
-            photoId -> "url/" + photoId,
+            fixture.mediaFiles,
             fixture.technicianProfiles,
             fixture.staffProfiles,
             fixture.workTypeLabels,
@@ -97,7 +97,8 @@ class GetWorkDetailServiceTest {
         assertThat(detail.startedAt()).isEqualTo(ACCEPTED_AT);
         assertThat(detail.completedAt()).isEqualTo(NOW);
         assertThat(detail.completionReport().workNote()).isEqualTo("첫 보고");
-        assertThat(detail.completionReport().beforePhotos()).containsExactly(new PhotoInfo("before-1", "url/before-1"));
+        assertThat(detail.completionReport().beforePhotos())
+                .containsExactly(new PhotoInfo("before-1", "url/100/before-1"));
     }
 
     @Test
@@ -197,12 +198,13 @@ class GetWorkDetailServiceTest {
         assertThat(detail.startedAt()).isEqualTo(ACCEPTED_AT);
         assertThat(detail.completedAt()).isEqualTo(NOW);
         assertThat(detail.completionReport().workNote()).isEqualTo("다시 보고");
-        assertThat(detail.completionReport().afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/after-1"));
+        assertThat(detail.completionReport().afterPhotos())
+                .containsExactly(new PhotoInfo("after-1", "url/100/after-1"));
         assertThat(detail.registrar()).as("등록자는 관리자에게만 보인다").isNull();
         assertThat(fixture.staffProfiles.lookups())
                 .as("기사에게 보이지 않는 등록자는 찾지 않는다")
                 .isEmpty();
-        assertThat(detail.sitePhotos()).containsExactly(new PhotoInfo("site-1", "url/site-1"));
+        assertThat(detail.sitePhotos()).containsExactly(new PhotoInfo("site-1", "url/100/site-1"));
     }
 
     @Test

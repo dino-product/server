@@ -3,10 +3,10 @@ package com.orbit.schedule.application.service;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import com.orbit.media.MediaFiles;
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
 import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
-import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.Cancellation;
@@ -77,20 +77,24 @@ final class WorkViews {
     }
 
     /** 사진은 식별자와 함께 내려받을 주소를 담는다. */
-    static CompletionReportInfo completionReport(CompletionReport report, PhotoUrlPort photoUrlPort) {
+    static CompletionReportInfo completionReport(Work work, CompletionReport report, MediaFiles mediaFiles) {
         return new CompletionReportInfo(
-                photos(report.beforePhotos(), photoUrlPort),
-                photos(report.afterPhotos(), photoUrlPort),
+                photos(work, report.beforePhotos(), mediaFiles),
+                photos(work, report.afterPhotos(), mediaFiles),
                 report.usedParts().orElse(null),
                 report.workNote().orElse(null),
                 report.actualFee().map(Money::won).orElse(null),
                 report.actualPaymentMethod().orElse(null));
     }
 
-    /** 사진 식별자마다 내려받을 주소를 붙인다. */
-    static List<PhotoInfo> photos(List<String> photoIds, PhotoUrlPort photoUrlPort) {
+    /**
+     * 사진 식별자마다 내려받을 시간 제한 주소를 붙인다. 호출한 조회가 이미 그 작업의 열람 권한을 확인했으므로 여기서 다시 확인하지 않는다. 주소는 서명만 해 저장소를 부르지
+     * 않는다(ADR-006).
+     */
+    static List<PhotoInfo> photos(Work work, List<String> photoIds, MediaFiles mediaFiles) {
+        Long organizationId = work.organizationId().value();
         return photoIds.stream()
-                .map(photoId -> new PhotoInfo(photoId, photoUrlPort.urlOf(photoId)))
+                .map(photoId -> new PhotoInfo(photoId, mediaFiles.downloadUrl(organizationId, photoId)))
                 .toList();
     }
 

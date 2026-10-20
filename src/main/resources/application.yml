@@ -123,6 +123,9 @@ app:
   schedule:
     technician-lock:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
+    # 현장 사진 장당 용량(바이트). 기획 미정(JOB-003)이라 비우면 저장소 한도(5GiB)만 적용한다.
+    site-photo:
+      max-bytes: ${SCHEDULE_SITE_PHOTO_MAX_BYTES:}
   media:
     # 이미지 시그니처로 확인할 수 있는 형식만 둘 수 있다(ImageFormat).
     image-content-types: ${MEDIA_IMAGE_CONTENT_TYPES:image/jpeg,image/png,image/webp,image/heic,image/heif}

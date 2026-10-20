@@ -51,14 +51,7 @@ import com.orbit.shared.error.BusinessException;
 class CreateWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final CreateWorkService service = new CreateWorkService(
-            fixture.actorPort,
-            fixture.workRepository,
-            fixture.workTypes,
-            fixture.technicianContracts,
-            fixture.scheduleLock,
-            fixture.events,
-            fixture.clock);
+    private final CreateWorkService service = fixture.createWorkService();
 
     @ParameterizedTest
     @EnumSource(
@@ -495,14 +488,7 @@ class CreateWorkServiceTest {
     void failsFastWhenActorBelongsToOtherOrganization() {
         LoadActorPort misbehavingPort = (accountId, organizationId) ->
                 Optional.of(new ManagerActor(new MembershipId(11L), OTHER_ORGANIZATION_ID, ActorRole.OWNER));
-        CreateWorkService serviceWithMisbehavingPort = new CreateWorkService(
-                misbehavingPort,
-                fixture.workRepository,
-                fixture.workTypes,
-                fixture.technicianContracts,
-                fixture.scheduleLock,
-                fixture.events,
-                fixture.clock);
+        CreateWorkService serviceWithMisbehavingPort = fixture.createWorkService(misbehavingPort);
 
         assertThatThrownBy(() -> serviceWithMisbehavingPort.create(command("에어컨 수리", null)))
                 .isInstanceOf(IllegalStateException.class)

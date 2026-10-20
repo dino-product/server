@@ -17,7 +17,7 @@
 | 소유 애그리게잇 | **Work**(Root) — 소속 조직(Organization ID 참조), 작업명, 등록자(Membership ID 참조)·담당기사(Technician ID 참조), 시간, 상태<br>├ AssignmentHistory(내부 엔티티) — 배정 시도마다 일정·배정한 관리자·배정/응답 시각·결과·관리자 조치로 끝난 기록, 최신 이력이 현재 배정<br>├ CompletionReport(내부 엔티티) — 완료보고(사진·메모·실제 결제), Work와 생명주기 완전히 묶임<br>├ 현장 사진 — 등록·기본정보 수정 때 붙인 업로드 파일 식별자 목록(최대 6장), Work와 생명주기 완전히 묶임<br>└ WorkSchedule/CustomerInfo/SiteAddress/PaymentInfo/Money/Cancellation(VO) — 담당기사·시작시각·예상소요시간 / 고객정보 / 현장 주소(우편번호·기본·상세) / 결제정보 / 원 단위 금액 / 취소 시각·처리자·사유 |
 | 상태 흐름 | 등록(대기함) → 배정됨 → 작업전 → 작업중 → 완료, 별도 종점 취소. 표시값·전이 조건·권한은 [제품 규칙 참조](#schedule-product), 코드값은 [구현 결정](#schedule-implementation) |
 | 읽기 모델 | Timetable/Backlog/ProgressBoard — **애그리게잇 아님.** Work를 기사×시간 축이나 상태별로 투영한 조회 결과일 뿐, 자체 쓰기 불변식이 없음 |
-| 관계 | `organization` → 참조(ID) (등록자가 Work의 조직에 속한 활성 Membership인지, 담당기사가 그 조직의 활성 기사 계약인지, 작업 유형이 같은 조직의 WorkType인지 확인, ACL — organization의 소속·기사 계약을 schedule의 요청자(`Actor`)로 번역해 역할별 규칙을 적용하기 때문. 도메인은 ID만 보유하므로 Application이 등록·기본정보 수정·배정·재배정 때 검증. 작업 유형은 등록이면 유형을 줬을 때, 기본정보 수정이면 유형이 바뀌고 비우지 않았을 때만 확인. 요청자는 organization 공개 계약 `OrganizationMemberLookup`으로 확인하고, 담당기사는 schedule 출력 포트 `TechnicianContractPort`로 organization 공개 계약 `TechnicianContractLookup`에 묻고, 작업 유형은 `WorkTypePort`로 확인하며 organization 계약(HM-295)이 생기기 전에는 임시 어댑터가 거부한다. 담당기사를 잠근 뒤 확인하는 규칙은 구현 결정의 동시성을 따른다. 일정 변경은 현재 담당기사를 다시 확인하지 않는다(비활성화·역할 변경은 `TechnicianWorkRelease`로 배정을 풀기 때문. 탈퇴는 S-21). 탈퇴 판정·반환은 계정의 기사 계약을 ACL 출력 포트 `AccountTechnicianContractsPort`(계정 → 비활성 포함 기사 계약)로 같은 `TechnicianContractLookup`에서 찾는다. 조회 화면의 표시 정보(기사 계약·소속·유형)도 ACL 출력 포트 `LoadTechnicianProfilesPort`·`LoadStaffProfilesPort`·`LoadWorkTypeLabelsPort`로 찾으며, 계약 전에는 빈 결과를 돌려주는 임시 어댑터를 둔다) · `profile` → 예정: 이름 조회 `ProfileLookup` 사용(HM-305, 표시 정보 포트의 계정 이름 — 실제 어댑터를 붙일 때 `allowedDependencies`에 `profile` 추가), HM-308 병합 뒤: 요구 인터페이스 `WithdrawalBlocker` 구현(탈퇴 차단, [조직·계정] §5.1)과 이벤트 `AccountWithdrawn` 구독(대기함 반환, [조직·계정] §5.1·[스케줄·배정] §9) · `notification` ← 이벤트 발행(루트 공개 record `WorkAssigned`·`WorkRescheduled`·`WorkReassigned`·`WorkCancelled`·`WorkAccepted`·`WorkRejected`·`CompletionReportSubmitted`·`CompletionReportRequested`, [구현 결정](#schedule-implementation)의 작업 이벤트) |
+| 관계 | `media` → 참조 (사진 업로드 주소 발급·확인·연결·조회 주소, 서비스가 공개 계약 `MediaFiles`를 직접 주입받는 Conformist — 사진 식별자 문자열만 오가 번역할 모델이 없음, [ADR-006](../adr/006-file-storage.md)) · `organization` → 참조(ID) (등록자가 Work의 조직에 속한 활성 Membership인지, 담당기사가 그 조직의 활성 기사 계약인지, 작업 유형이 같은 조직의 WorkType인지 확인, ACL — organization의 소속·기사 계약을 schedule의 요청자(`Actor`)로 번역해 역할별 규칙을 적용하기 때문. 도메인은 ID만 보유하므로 Application이 등록·기본정보 수정·배정·재배정 때 검증. 작업 유형은 등록이면 유형을 줬을 때, 기본정보 수정이면 유형이 바뀌고 비우지 않았을 때만 확인. 요청자는 organization 공개 계약 `OrganizationMemberLookup`으로 확인하고, 담당기사는 schedule 출력 포트 `TechnicianContractPort`로 organization 공개 계약 `TechnicianContractLookup`에 묻고, 작업 유형은 `WorkTypePort`로 확인하며 organization 계약(HM-295)이 생기기 전에는 임시 어댑터가 거부한다. 담당기사를 잠근 뒤 확인하는 규칙은 구현 결정의 동시성을 따른다. 일정 변경은 현재 담당기사를 다시 확인하지 않는다(비활성화·역할 변경은 `TechnicianWorkRelease`로 배정을 풀기 때문. 탈퇴는 S-21). 탈퇴 판정·반환은 계정의 기사 계약을 ACL 출력 포트 `AccountTechnicianContractsPort`(계정 → 비활성 포함 기사 계약)로 같은 `TechnicianContractLookup`에서 찾는다. 조회 화면의 표시 정보(기사 계약·소속·유형)도 ACL 출력 포트 `LoadTechnicianProfilesPort`·`LoadStaffProfilesPort`·`LoadWorkTypeLabelsPort`로 찾으며, 계약 전에는 빈 결과를 돌려주는 임시 어댑터를 둔다) · `profile` → 예정: 이름 조회 `ProfileLookup` 사용(HM-305, 표시 정보 포트의 계정 이름 — 실제 어댑터를 붙일 때 `allowedDependencies`에 `profile` 추가), HM-308 병합 뒤: 요구 인터페이스 `WithdrawalBlocker` 구현(탈퇴 차단, [조직·계정] §5.1)과 이벤트 `AccountWithdrawn` 구독(대기함 반환, [조직·계정] §5.1·[스케줄·배정] §9) · `notification` ← 이벤트 발행(루트 공개 record `WorkAssigned`·`WorkRescheduled`·`WorkReassigned`·`WorkCancelled`·`WorkAccepted`·`WorkRejected`·`CompletionReportSubmitted`·`CompletionReportRequested`, [구현 결정](#schedule-implementation)의 작업 이벤트) |
 
 > **명명 정정**: 기획 문서에서는 이 애그리게잇을 "Job"이라 부르지만, 레포는 `*WorkUseCase` 명명을 먼저 써 왔으므로 **애그리게잇명은 "Work"로 통일**한다. 이후 모든 코드·레포 문서에서 Job이라는 이름은 쓰지 않는다.
 >
@@ -36,7 +36,7 @@
 | 취소 가능 상태·사유·복구 불가 | [작업] §1·§5·§9 (JOB-007, JOB-001) | — |
 | 결제 방식·금액 | [작업] §1 (JOB-002) | — |
 | 현장 주소 (우편번호·기본주소·상세주소) | [작업] 기능명세 §5 | — |
-| 현장 사진 | [작업] §4·§11 (JOB-003) | S-06, S-35 |
+| 현장 사진 | [작업] §4·§11 (JOB-003) | S-35, S-36, S-37 |
 | 작업 목록 필터·정렬·출력 | [작업] §6 (JOB-005, JOB-008, JOB-010~013, JOB-001) | S-25 |
 | 타임테이블 격자 (기사 행·유형 조건) | [스케줄·배정] §4 (SCH-008) | — |
 | 대기함 | [스케줄·배정] §5 (SCH-001, SCH-002, SCH-009) | — |
@@ -48,7 +48,7 @@
 | 기사 조회 범위 | [스케줄·배정] §10·§16 (SCH-007), [현장 수행] §4·§11 | — |
 | 수락·거절 (거절 사유 5종) | [현장 수행] §4 (FLD-005) | — |
 | 작업 시작 (시작 가능 시간, 동시 작업중) | [현장 수행] §5 (FLD-007) | — |
-| 완료보고 | [현장 수행] §6 (FLD-003, FLD-004) | S-06 |
+| 완료보고 | [현장 수행] §6 (FLD-003, FLD-004) | S-36, S-37 |
 | 완료보고 요청 (작업중·예정 종료 지남·보고 없음, 30분 간격) | [현장 수행] §6, [알림] §4 | — |
 | 네트워크 오류 (재전송 큐 없음) | [현장 수행] §7 (FLD-001) | — |
 | 진행 보드·지연 판정·실시간 갱신 | [현황 파악] §4·§5·§6 (MON-001, MON-003, MON-004) | S-20 |
@@ -66,6 +66,7 @@
 - **기사 요청의 배정 확인**: 기사의 수락·거절·시작·완료보고는 기사가 본 배정 순번이 여전히 최신일 때만 받는다. 배정 순번은 배정 이력의 1부터 시작하는 위치이며 이력은 추가만 되므로 바뀌지 않는다. 같은 기사가 같은 배정에 같은 요청을 다시 보내면(수락, 시작, 같은 내용의 완료보고) 아무것도 바꾸지 않고 성공한다. 거절한 작업은 그 기사가 볼 수 없으므로 거절을 다시 보내면 404다.
 - **배정 이력**: 배정 시도마다 담당기사·일정·배정한 관리자(`assignedBy`)·배정 시각(`assignedAt`)·응답 시각(`decidedAt`)·결과를 남긴다. 관리자의 재배정·일정 변경·배정 해제·취소로 배정이 끝나면 종료 기록(시각·처리자·방식)을 남긴다. 응답 전에 끝난 이력은 결과를 응답 전 회수(`WITHDRAWN`)로 확정하고 응답 시각은 회수 시각으로 두며, 이미 수락된 이력은 결과를 그대로 둔 채 종료만 더한다. 거절은 기사의 응답이라 종료 기록이 없고, 수락·거절은 담당 기사 본인만 하므로 처리자를 따로 남기지 않는다. 담당 기사의 탈퇴로 대기함에 돌린 배정은 처리한 관리자가 없어 종료 방식 `ACCOUNT_WITHDRAWN`에 처리자를 비우며, 그 밖의 종료는 처리자가 반드시 있다. 현재 배정은 최신 이력이며 그보다 앞선 이력은 모두 거절됐거나 끝나 있다. 새 배정 시각은 최신 이력의 마지막 시각(종료·응답·배정 시각 중 가장 늦은 것)보다 앞설 수 없다.
 - **완료보고**: 보고 저장과 완료 전환은 함께 성공·실패하고 완료 시각을 남긴다. 사진은 업로드를 먼저 마친 파일의 식별자로 받는다.
+- **사진**: 현장 사진·완료보고 사진은 media 모듈로 올리고 붙인다([ADR-006](../adr/006-file-storage.md)). 업로드 주소는 업무 엔드포인트가 권한·상태를 확인한 뒤 발급하고(현장 사진: 그 조직의 총관리자·직원, 완료보고 사진: 담당 기사의 작업중 작업), 등록·기본정보 수정·완료보고 제출은 요청자가 올린 사진(기본정보 수정은 이미 그 작업에 붙은 사진도)만 받는다. 저장소 확인은 업무 트랜잭션 전에 하고 결과는 요청 값 확인 자리에서 알리며, 작업 저장과 사진 연결은 한 트랜잭션에서 커밋한다. 기본정보 수정에서 빠진 현장 사진은 만료로 바꾼다. 연결 대상은 `work:{workId}`, 용도는 현장 사진 `WORK_SITE_PHOTO`·완료보고 사진 `WORK_COMPLETION_PHOTO`(작업 전·후 구분은 schedule이 둔다). 조회 응답의 사진 주소는 10분짜리 서명 주소다. 사진 테이블의 `image_url` 컬럼은 이름과 달리 파일 식별자를 담는다.
 - **취소 기록**: 취소 시각·처리자·사유를 작업에 남기고, 배정이 있던 작업은 그 배정도 같은 시각·처리자의 취소로 끝낸다. 작업중 취소는 시작 시각을 그대로 남긴다.
 - **보일 일정**: 작업 목록·출력의 담당기사·예정시간 칸과 진행 보드의 카드는 `Work.shownSchedule()`이다(진행 보드는 시간이 구간에 든 대기함 작업을 등록 열에 담는다, [현황 파악] §4 MON-003). 지금 일정이 있으면 그 일정, 대기함 작업이면 미리 입력한 일정이나 배정됐다 돌아온 작업의 마지막 배정 일정이다(반환한 기사가 비활성·탈퇴했어도 그대로 보인다. 미리 입력한 담당기사만 §9대로 비운다). 같은 일정 컬럼에 저장해 목록의 담당기사·기간 조건과 예정시간 정렬, 지연 조건이 같은 값을 쓴다([작업] §6 JOB-010).
 - **지연**: 예정 종료 시각이 지났는데 끝나지 않은 작업(배정됨·작업전·작업중, 보일 일정이 있는 대기함 작업)과 예정 종료 시각이나 그 뒤에 완료한 작업이다(`Work.isDelayedAt`, [현황 파악] §5). 취소 작업은 지연이 아니다.
@@ -93,9 +94,7 @@ ID 대역·추적 칸의 뜻과 [대역별 구현 규칙](../planning/README.md#
 
 **Notion 확정, 구현이 다름 (`S-0x`)** — 구현을 Notion에 맞춘다.
 
-| ID | Notion 기준 | 현재 구현 | 추적 |
-| --- | --- | --- | --- |
-| S-06 | 사진은 이미지만 받는다. 완료보고 사진은 작업 전·후 각각 최대 6장·장당 40MB ([현장 수행] §6), 현장 사진은 최대 6장이고 이미지가 아니면 저장 실패 ([작업] §4·§11) | 완료보고·현장 사진 모두 업로드한 파일의 식별자만 받아 6장 상한만 있고 이미지 여부·용량 검증 없음(업로드 방식 미정, HM-238) | FLD-004 (확정), JOB-003 |
+현재 없다(S-06 사진 형식·용량은 HM-353에서 해소).
 
 **구현에서 정한 제품 결정 → Notion 결정 필요 (`S-1x`)** — Notion이 정하기 전까지 현재 구현을 유지하고 넓히지 않는다.
 
@@ -114,4 +113,6 @@ ID 대역·추적 칸의 뜻과 [대역별 구현 규칙](../planning/README.md#
 
 | ID | 내용 | 현재 구현 | 추적 |
 | --- | --- | --- | --- |
-| S-35 | 현장 사진 장당 용량 ([작업] §4·§11) | 6장 상한만 있고 장당 용량 검증 없음 | JOB-003 |
+| S-35 | 현장 사진 장당 용량 ([작업] §4·§11) | 값을 정하지 않고 설정 `SCHEDULE_SITE_PHOTO_MAX_BYTES`로 둔다. 비우면(기본) 저장소 한도(5GiB)만 적용 | JOB-003 |
+| S-36 | 허용 이미지 형식과 사진 처리(HEIC 허용·웹 표시, 클라이언트 압축 업로드, EXIF 위치 정보 제거) — 정책은 "이미지만"으로 형식을 정하지 않음 | 서버가 시그니처로 확인할 수 있는 JPEG·PNG·WebP·HEIC/HEIF를 받고(설정 `MEDIA_IMAGE_CONTENT_TYPES`), 원본을 그대로 저장한다(압축·EXIF 제거 없음) | 미등록 |
+| S-37 | 사진 보관 기간과 취소된 작업의 사진 처리 | 연결된 사진은 지우지 않고 기본정보 수정으로 빠진 현장 사진만 만료 표시한다. 보관 기간 상한(`MEDIA_RETENTION_MAX_DAYS`)만 받고 용도별 기간과 보관 배치는 없음 | 미등록 |

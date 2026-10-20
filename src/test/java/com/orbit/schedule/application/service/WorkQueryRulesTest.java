@@ -45,14 +45,14 @@ class WorkQueryRulesTest {
                 new UseCase("작업 상세", (f, request) -> new GetWorkDetailService(
                                 f.actorPort,
                                 f.workRepository,
-                                photoId -> photoId,
+                                f.mediaFiles,
                                 f.technicianProfiles,
                                 f.staffProfiles,
                                 f.workTypeLabels,
                                 f.clock)
                         .get(new GetWorkDetailQuery(request.accountId(), request.organizationId(), request.workId()))),
                 new UseCase("완료보고", (f, request) -> new GetCompletionReportService(
-                                f.actorPort, f.workRepository, photoId -> photoId)
+                                f.actorPort, f.workRepository, f.mediaFiles)
                         .get(new GetCompletionReportQuery(
                                 request.accountId(), request.organizationId(), request.workId()))));
     }

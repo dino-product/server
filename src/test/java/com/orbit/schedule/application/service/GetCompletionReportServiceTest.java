@@ -44,7 +44,7 @@ class GetCompletionReportServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final GetCompletionReportService service =
-            new GetCompletionReportService(fixture.actorPort, fixture.workRepository, photoId -> "url/" + photoId);
+            new GetCompletionReportService(fixture.actorPort, fixture.workRepository, fixture.mediaFiles);
 
     @Test
     @DisplayName("관리자는 보고 내용과 사진의 내려받을 주소를 순서대로 받는다")
@@ -59,8 +59,9 @@ class GetCompletionReportServiceTest {
         assertThat(info.completedAt()).isEqualTo(NOW);
         CompletionReportInfo report = info.report();
         assertThat(report.beforePhotos())
-                .containsExactly(new PhotoInfo("before-1", "url/before-1"), new PhotoInfo("before-2", "url/before-2"));
-        assertThat(report.afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/after-1"));
+                .containsExactly(
+                        new PhotoInfo("before-1", "url/100/before-1"), new PhotoInfo("before-2", "url/100/before-2"));
+        assertThat(report.afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/100/after-1"));
         assertThat(report.usedParts()).isEqualTo("필터");
         assertThat(report.workNote()).isEqualTo("교체 완료");
         assertThat(report.actualFee()).isEqualTo(120_000L);

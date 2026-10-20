@@ -15,8 +15,9 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
- * 작업 등록·기본정보 수정 때 붙인 현장 사진 한 장. 순서는 {@code id} 순이다. 사진 업로드 방식이 정해지기 전까지 {@code image_url}에는 Domain이 받은 사진 식별자를 그대로
- * 둔다. 완료보고 사진({@link WorkExecutionImageJpaEntity})과 생명주기가 달라 테이블을 나눈다(ERD에 없는 테이블이라 ERD에 추가한다).
+ * 작업 등록·기본정보 수정 때 붙인 현장 사진 한 장. 순서는 {@code id} 순이다. {@code image_url}은 이름과 달리 주소가 아니라 media 모듈의 파일 식별자(UUID)를 담는다.
+ * 주소는 조회 때마다 서명해 만든다(ADR-006). 컬럼 이름은 ERD·운영 스키마와 맞춰 두고 바꾸려면 ERD와 함께 바꾼다. 완료보고 사진({@link WorkExecutionImageJpaEntity})과
+ * 생명주기가 달라 테이블을 나눈다(ERD에 없는 테이블이라 ERD에 추가한다).
  */
 @Entity
 @Table(name = "work_site_images", indexes = @Index(name = "ix_work_site_images_work", columnList = "work_id"))

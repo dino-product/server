@@ -298,7 +298,9 @@ public record WorkDetailResponse(
     @Schema(description = "사진")
     public record Photo(
             @Schema(description = "업로드한 사진 식별자") String photoId,
-            @Schema(description = "내려받을 주소") String url) {
+
+            @Schema(description = "내려받을 시간 제한 주소(발급 10분 뒤 만료, 다시 조회해 갱신)")
+            String url) {
 
         static Photo from(PhotoInfo info) {
             return new Photo(info.photoId(), info.url());

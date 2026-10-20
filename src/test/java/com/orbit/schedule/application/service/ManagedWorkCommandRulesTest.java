@@ -44,8 +44,7 @@ class ManagedWorkCommandRulesTest {
 
     static Stream<UseCase> useCases() {
         return Stream.of(
-                new UseCase("기본정보 수정", (f, request) -> new UpdateWorkDetailsService(
-                                f.actorPort, f.workRepository, f.workTypes)
+                new UseCase("기본정보 수정", (f, request) -> f.updateWorkDetailsService()
                         .update(new UpdateWorkDetailsCommand(
                                 request.accountId(),
                                 request.organizationId(),

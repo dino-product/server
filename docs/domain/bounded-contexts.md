@@ -105,7 +105,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 책임 | 작업 등록부터 완료까지 전체 생애주기. 발주–배정–수행의 최소 단위를 다룸 |
 | 상태 | 구현 중 — 설계·구현 결정·기획 차이는 [schedule 문서](schedule.md#schedule) |
 | 소유 애그리게잇 | **Work**(Root) + AssignmentHistory·CompletionReport(내부 엔티티) + 값객체. 읽기 모델 Timetable/Backlog/ProgressBoard는 애그리게잇이 아님 |
-| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — 이유는 [schedule 문서](schedule.md#schedule)) · `notification` ← 이벤트 발행(작업 상태 변경) |
+| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — 이유는 [schedule 문서](schedule.md#schedule)) · `media` → 참조(사진 업로드·연결·조회 주소, Conformist) · `notification` ← 이벤트 발행(작업 상태 변경) |
 
 <a id="notification"></a>
 ### 4. 알림 컨텍스트 (`notification`) — Generic Subdomain

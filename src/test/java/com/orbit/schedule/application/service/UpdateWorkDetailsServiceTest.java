@@ -32,8 +32,7 @@ import com.orbit.schedule.domain.WorkTypeId;
 class UpdateWorkDetailsServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final UpdateWorkDetailsService service =
-            new UpdateWorkDetailsService(fixture.actorPort, fixture.workRepository, fixture.workTypes);
+    private final UpdateWorkDetailsService service = fixture.updateWorkDetailsService();
 
     UpdateWorkDetailsServiceTest() {
         fixture.workTypes.givenSelectable(ORGANIZATION_ID, new WorkTypeId(9L));
