@@ -26,7 +26,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,7 +42,6 @@ import com.orbit.support.IntegrationTestSupport;
 import tools.jackson.databind.ObjectMapper;
 
 /** 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻는다. 계정마다 다른 {@code sub}로 토큰을 만든다. */
-@AutoConfigureMockMvc
 @DisplayName("직원·기사 유형 API")
 class MemberCategoryApiIntegrationTest extends IntegrationTestSupport {
 

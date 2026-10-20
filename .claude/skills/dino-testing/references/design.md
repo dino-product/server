@@ -15,3 +15,22 @@
 - 저장소 원자 연산·TTL은 실제 저장소 통합 검사, 인증 토큰 claim은 실제 검증기로 확인합니다. 외부 제공자 응답은 고정할 수 있으나 대체 경계를 명시하고 실제 제공자 E2E로 보고하지 않습니다.
 - 통과를 위해 assertion·아키텍처 규칙·CI 검사를 약화하지 않습니다. 실패는 제품·테스트·환경 문제로 구분합니다.
 - 계약 불일치는 오류가 가리키는 선언·구현·호출부를 함께 비교하고 원인 수정 후 집중 검사를 재실행합니다. 한쪽 선언만 추측으로 바꾸며 반복 실행하지 않습니다.
+
+<a id="fixtures"></a>
+## 공통 준비물과 컨텍스트 재사용
+
+Spring 테스트 시간은 테스트 본문보다 컨텍스트 생성이 좌우합니다. 같은 준비물을 쓰는 테스트는 컨텍스트 하나를 함께 씁니다.
+
+| 대상 | 상속·구현 | 비고 |
+| --- | --- | --- |
+| 전체 API·이벤트 통합 | `support/IntegrationTestSupport` | MockMvc 포함. 클래스마다 `@AutoConfigureMockMvc`를 다시 붙이지 않음 |
+| 영속 어댑터(`@DataJpaTest`) | `support/PersistenceAdapterTestSupport` | 모든 모듈의 `adapter.out.persistence` 패키지와 감사 설정·`Clock`을 함께 올림. 대상 어댑터를 `@Import`하지 않음 |
+| 인증 API(Apple·Kakao 스텁) | `auth/adapter/in/web/AuthApiTestSupport` | 스텁은 JVM마다 한 번 뜨고 세 클래스가 공유 |
+| Spring 없는 Redis 저장소 | `support/RedisAdapterTestSupport` | 공유 Redis를 클래스 시작 때 비움 |
+| 모듈 조립(`@ApplicationModuleTest`) 등 직접 조립 | `support/SharedContainers` 구현 | 컨테이너만 공유 |
+
+- **컨테이너는 JVM마다 한 번만 띄웁니다.** PostgreSQL·Redis는 `SharedContainers`의 static 필드이고 `@ServiceConnection`으로 연결합니다. 컨테이너를 `@Bean`이나 클래스별 `@Container`로 새로 선언하지 않습니다.
+- **격리는 클래스 단위입니다.** 최상위 테스트 클래스가 시작할 때 DB의 모든 테이블(`flyway_schema_history` 제외)과 Redis가 비워집니다. `@Nested` 클래스는 바깥 클래스의 데이터를 이어 쓰고, Redis는 Redis Bean이 있는 컨텍스트에서만 비웁니다. 같은 클래스 안의 테스트끼리는 고유 값을 쓰거나 직접 정리합니다.
+- **컨텍스트를 새로 만드는 설정은 꼭 필요할 때만 씁니다.** 클래스마다 다른 `@Import`·`@MockitoBean`·`@TestPropertySource`·`@DynamicPropertySource`·프로필은 새 컨텍스트를 만듭니다. 여러 클래스가 같은 대체가 필요하면 공통 베이스로 올리고, 대체 범위가 다른 테스트의 의도를 바꾸면 따로 둡니다.
+- **`@DirtiesContext`를 쓰지 않습니다.** 테스트 프로필이 `create-drop`인 동안 닫히는 컨텍스트가 공유 DB의 테이블을 drop해 다른 컨텍스트의 테스트를 깨뜨립니다.
+- **테스트는 JVM 2개로 나눠 실행됩니다**(`gradle/testing.gradle.kts`의 `maxParallelForks`). fork마다 컨테이너와 컨텍스트가 따로 뜨므로, JVM 전역 상태(static 필드·시스템 속성)에 기대는 테스트는 fork 배정과 실행 순서에 의존하지 않게 씁니다.

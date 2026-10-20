@@ -4,22 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.AssertablePublishedEvents;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 import com.orbit.user.application.port.in.command.RegisterUserUseCase;
 import com.orbit.user.application.port.in.command.dto.RegisterUserCommand;
 import com.orbit.user.application.port.in.command.dto.RegisteredUserInfo;
 
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-class UserModuleTest {
+class UserModuleTest implements SharedContainers {
 
     @Autowired
     private RegisterUserUseCase useCase;

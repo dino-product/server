@@ -13,14 +13,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.out.DuplicateCategoryNameException;
 import com.orbit.organization.domain.AccountId;
@@ -31,15 +26,10 @@ import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.MemberCategoryKind;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.OrganizationId;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PersistenceTestConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("직원·기사 유형 저장")
-class MemberCategoryPersistenceAdapterTest {
+class MemberCategoryPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-10-09T00:00:00.123456Z");
     private static final Instant LATER = Instant.parse("2026-10-10T00:00:00.654321Z");

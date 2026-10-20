@@ -20,7 +20,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,7 +39,6 @@ import tools.jackson.databind.ObjectMapper;
  * 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻는다. 참여 요청 승인·역할 변경 유즈케이스가 아직 없어 직원·기사 행은 SQL로
  * 넣는다.
  */
-@AutoConfigureMockMvc
 @DisplayName("내 소속 목록 조회 API")
 class MembershipApiIntegrationTest extends IntegrationTestSupport {
 

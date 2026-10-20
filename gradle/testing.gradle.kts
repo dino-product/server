@@ -28,6 +28,9 @@ val checkSensitiveResources by tasks.registering {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     maxHeapSize = "1g"
+    // 테스트 클래스를 여러 JVM에 나눠 실행한다. JVM마다 Spring 컨텍스트와 PostgreSQL·Redis 컨테이너를 따로 만들므로
+    // 코어 절반까지, 최대 2개로 둔다(CI 러너 4코어·16GB에서 1g 힙 JVM 2개와 컨테이너 2벌).
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 2)
     dependsOn(checkSensitiveResources)
     inputs.property("requireAllTests", requireAllTests)
 

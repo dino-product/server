@@ -23,7 +23,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -58,7 +57,7 @@ import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.shared.error.BusinessException;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 /**
  * organization이 기사 계약을 끝내는 트랜잭션 안에서 요구 인터페이스를 부르는 상황을 실제 트랜잭션·기사 잠금으로 확인한다. organization 서비스 대신
@@ -67,10 +66,9 @@ import com.orbit.support.TestcontainersConfiguration;
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("대기함 반환 요구 인터페이스(PostgreSQL)")
-class TechnicianWorkReleaseIntegrationTest {
+class TechnicianWorkReleaseIntegrationTest implements SharedContainers {
 
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
 
