@@ -23,13 +23,13 @@ class ApplicationProfileConfigurationTest {
     }
 
     @Test
-    void localProfileUsesDisposableSchemaAndLocalDatabaseDefaults() {
+    void localProfileUsesLocalDatabaseDefaultsAndValidatesSchema() {
         try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=local")) {
             Environment environment = context.getEnvironment();
 
             assertThat(environment.getProperty("spring.datasource.url"))
                     .isEqualTo("jdbc:postgresql://localhost:54321/postgres");
-            assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("create-drop");
+            assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("true");
         }
     }
@@ -60,7 +60,7 @@ class ApplicationProfileConfigurationTest {
                 "--DATABASE_PASSWORD=secret")) {
             Environment environment = context.getEnvironment();
 
-            assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
         }
@@ -71,7 +71,7 @@ class ApplicationProfileConfigurationTest {
         try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=prod,local")) {
             Environment environment = context.getEnvironment();
 
-            assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
             assertThatThrownBy(() -> environment.getRequiredProperty("spring.datasource.url"))
                     .isInstanceOf(IllegalArgumentException.class)

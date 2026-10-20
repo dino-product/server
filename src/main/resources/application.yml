@@ -5,7 +5,7 @@ server:
 
 spring:
   application:
-    name: spring-settings
+    name: orbit-server
   lifecycle:
     timeout-per-shutdown-phase: 30s
   docker:
@@ -23,14 +23,12 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: none
+      # 스키마는 Flyway 마이그레이션(db/migration)이 만든다. Hibernate는 매핑이 스키마와 맞는지만 확인한다.
+      ddl-auto: validate
     properties:
       hibernate:
         show_sql: false
         default_schema: public
-        # 스키마를 자동 생성하는 프로필(local·test의 create-drop)에서만 실행된다. 운영(ddl-auto: none)은 실행하지 않는다.
-        hbm2ddl:
-          import_files: db/partial-unique-indexes.sql
   data:
     redis:
       host: ${REDIS_HOST:localhost}

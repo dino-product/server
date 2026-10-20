@@ -1,8 +1,9 @@
 spring:
   jpa:
     open-in-view: false
-    hibernate:
-      ddl-auto: create-drop
+  flyway:
+    # 테스트 전용 Entity의 테이블(db/test-migration)을 운영 마이그레이션 뒤에 더한다.
+    locations: classpath:db/migration,classpath:db/test-migration
   docker:
     compose:
       enabled: false
