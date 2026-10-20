@@ -5,6 +5,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCO
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETUP_MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -18,6 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.orbit.schedule.CompletionReportSubmitted;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.domain.ActualPaymentMethod;
@@ -34,10 +36,10 @@ class SubmitCompletionReportServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final SubmitCompletionReportService service =
-            new SubmitCompletionReportService(fixture.actorPort, fixture.workRepository, fixture.clock);
+            new SubmitCompletionReportService(fixture.actorPort, fixture.workRepository, fixture.events, fixture.clock);
 
     @Test
-    @DisplayName("담당 기사가 작업중인 작업에 보고를 제출하면 보고를 붙여 완료하고 지금 시각을 완료 시각으로 남긴다")
+    @DisplayName("담당 기사가 작업중인 작업에 보고를 제출하면 보고를 붙여 완료하고 지금 시각을 완료 시각으로 남기며, 저장한 뒤 등록자에게 알릴 제출을 발행한다")
     void submitsReport() {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
@@ -56,6 +58,14 @@ class SubmitCompletionReportServiceTest {
                         new Money(150_000L),
                         ActualPaymentMethod.CREDIT_CARD));
         assertThat(fixture.scheduleLock.locks()).isEmpty();
+        assertThat(fixture.events.published())
+                .containsExactly(new CompletionReportSubmitted(
+                        id.value(),
+                        ORGANIZATION_ID.value(),
+                        REGISTRAR_ID.value(),
+                        TECHNICIAN_ID.value(),
+                        "대상 작업",
+                        NOW));
     }
 
     @Test

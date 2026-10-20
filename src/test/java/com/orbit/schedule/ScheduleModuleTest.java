@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
+import org.springframework.modulith.test.AssertablePublishedEvents;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -24,6 +25,7 @@ import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.StaffMember;
 import com.orbit.organization.TechnicianContract;
 import com.orbit.organization.TechnicianContractLookup;
+import com.orbit.organization.TechnicianMember;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
@@ -334,6 +336,52 @@ class ScheduleModuleTest {
         // 저장소와 다른 연결이면 어댑터가 거부하므로, 예외 없이 끝나면 자동 설정된 JdbcTemplate이 트랜잭션 연결을 쓴다는 뜻이다.
         new TransactionTemplate(transactionManager)
                 .executeWithoutResult(status -> lockTechnicianSchedulePort.lock(ORGANIZATION_ID, new TechnicianId(3L)));
+    }
+
+    @Test
+    void assembledAssignAndAcceptPublishPublicEvents(AssertablePublishedEvents events) {
+        // 계정 1의 소속이 작업을 등록하고 배정한다.
+        long registrarMembershipId = 11L;
+        when(memberLookup.findActiveMember(1L, ORGANIZATION_ID.value()))
+                .thenReturn(Optional.of(new StaffMember(registrarMembershipId, ORGANIZATION_ID.value(), true)));
+        when(memberLookup.findActiveMember(2L, ORGANIZATION_ID.value()))
+                .thenReturn(Optional.of(new TechnicianMember(31L, ORGANIZATION_ID.value())));
+        when(technicianContractLookup.existsActive(ORGANIZATION_ID.value(), 31L))
+                .thenReturn(true);
+        Long workId = workRepository
+                .save(Work.register(
+                        ORGANIZATION_ID,
+                        "알림 작업",
+                        new MembershipId(registrarMembershipId),
+                        REGISTERED_AT,
+                        null,
+                        null,
+                        null))
+                .id()
+                .orElseThrow()
+                .value();
+        Instant startTime = Instant.parse("2026-09-25T01:00:00Z");
+
+        // 겹침을 확인한 요청으로 보내, 다른 테스트가 같은 기사에게 남긴 작업과 관계없이 반영되게 한다.
+        assertThat(assignWorkUseCase
+                        .assign(new AssignWorkCommand(
+                                1L, ORGANIZATION_ID.value(), workId, 31L, startTime, Duration.ofHours(2), true))
+                        .applied())
+                .isTrue();
+        acceptWorkUseCase.accept(new AcceptWorkCommand(2L, ORGANIZATION_ID.value(), workId, 1));
+
+        assertThat(events.ofType(WorkAssigned.class)).singleElement().satisfies(event -> {
+            assertThat(event.workId()).isEqualTo(workId);
+            assertThat(event.organizationId()).isEqualTo(ORGANIZATION_ID.value());
+            assertThat(event.technicianId()).isEqualTo(31L);
+            assertThat(event.workName()).isEqualTo("알림 작업");
+            assertThat(event.scheduledStartAt()).isEqualTo(startTime);
+        });
+        assertThat(events.ofType(WorkAccepted.class)).singleElement().satisfies(event -> {
+            assertThat(event.workId()).isEqualTo(workId);
+            assertThat(event.registrarMembershipId()).isEqualTo(registrarMembershipId);
+            assertThat(event.technicianId()).isEqualTo(31L);
+        });
     }
 
     private static void assertDenied(ThrowingCallable call) {

@@ -8,6 +8,7 @@ import com.orbit.schedule.domain.AssignmentEnding;
 import com.orbit.schedule.domain.AssignmentHistory;
 import com.orbit.schedule.domain.Cancellation;
 import com.orbit.schedule.domain.CompletionReport;
+import com.orbit.schedule.domain.CompletionReportRequest;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
@@ -36,13 +37,19 @@ import com.orbit.schedule.domain.WorkTypeId;
  *   <li>등록·수정 때 붙인 현장 사진은 {@code work_site_images}에 붙인 순서(id 순)로 둔다. 바뀌었을 때만 모두 지우고 다시 넣는다. Domain이 완전한
  *       애그리게잇이라 모든 복원에서 현장 사진 컬렉션을 일괄 조회({@code @BatchSize})로 함께 읽으며, 목록·출력 조회에서 50건마다 조회가 하나 느는 비용을
  *       감수한다.
+ *   <li>완료보고 요청 기록은 {@code work_completion_report_requests}에 요청 순서(id 순)로 둔다. 추가 전용이라 새 요청만 덧붙인다. 요청만 더해도
+ *       작업 버전과 최근 수정 시각({@code updated_at})을 올린다(컬렉션에 낙관적 잠금). 요청은 작업 내용을 바꾸지 않지만, 요청 조건(작업중·보고 없음·
+ *       마지막 요청 뒤 30분)은 읽은 상태로 판정하므로 버전을 올려야 같은 작업에 동시에 들어온 두 요청이나 같은 순간의 완료보고 제출과의 경합을 저장 자리에서
+ *       하나만 통과시킬 수 있다(요청이 이기면 동시에 저장하던 쪽이 버전 충돌로 실패한다). 요청 이력은 작업 상세의 상태 변경 이력에도 보이므로, 화면이 본
+ *       버전이 바뀌고 작업 목록의 최근 수정순에서 앞으로 오는 것을 감수한다. 현장 사진과 같이 모든 복원에서 요청 컬렉션도 일괄 조회
+ *       ({@code @BatchSize})로 함께 읽으며, 목록·출력 조회에서 50건마다 조회가 하나 더 느는 비용을 감수한다.
  *   <li>완료보고는 ERD대로 {@code work} 컬럼에 인라인이고 사진만 {@code work_execution_images}로 나뉜다. 작업 상태가 완료일 때만 복원하며, 항목이 모두
  *       선택 입력이라 보고 컬럼이 전부 비어 있어도 빈 보고를 만든다.
  *   <li>배정 이력의 순번은 부모 컬렉션의 {@code id} 순서다(ERD에 순번 컬럼이 없음). 기존 저장은 i번째 행을 i번째 이력으로 갱신하고 새 이력만 추가한다
  *       (이력은 추가 전용).
  *   <li>배정 종료의 처리자({@code ended_by})는 기사의 탈퇴로 끝난 배정이면 비어 있다. 처리자와 종료 방식의 짝은 Domain이 복원할 때 검증한다.
  *   <li>작업 목록의 최근 수정 시각은 감사 컬럼 {@code updated_at}이다. 루트 행이 바뀔 때만 갱신된다. mappedBy 자식 컬렉션의 변경은 기본으로 루트를
- *       갱신하지 않으므로, 루트 컬럼을 바꾸지 않을 수 있는 현장 사진 교체는 컬렉션에 낙관적 잠금을 켜 루트를 함께 갱신한다. 배정 이력·완료보고 사진의
+ *       갱신하지 않으므로, 루트 컬럼을 바꾸지 않을 수 있는 현장 사진 교체와 완료보고 요청은 컬렉션에 낙관적 잠금을 켜 루트를 함께 갱신한다. 배정 이력·완료보고 사진의
  *       변경은 상태·일정 같은 루트 컬럼을 함께 바꾼다. 기존 자식 행만 고치는 변경(거절 사유 수정 등)을 더하면 루트도 함께 갱신되게 한다.
  *   <li>복원({@link #toDomain})은 {@link Work#reconstitute}를 거치므로 저장값의 정합성 검증은 Domain이 한다. 검증 실패는 그대로 전파한다.
  * </ul>
@@ -100,6 +107,30 @@ final class WorkMapper {
         applyAssignments(entity, work.assignmentHistory());
         applyCompletionReport(entity, previousStatus, work.completionReport().orElse(null));
         applySitePhotos(entity, work.sitePhotos());
+        applyCompletionReportRequests(entity, work.completionReportRequests());
+    }
+
+    /** 완료보고 요청은 추가 전용이라 저장된 행은 그대로 두고 새 요청만 덧붙인다. 저장된 요청이 바뀌었거나 줄었으면 프로그래밍 오류다. */
+    private static void applyCompletionReportRequests(WorkJpaEntity entity, List<CompletionReportRequest> requests) {
+        List<WorkCompletionReportRequestJpaEntity> rows = entity.completionReportRequests();
+        if (requests.size() < rows.size()) {
+            throw new IllegalStateException(
+                    "completion report requests are append-only: stored " + rows.size() + ", given " + requests.size());
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            WorkCompletionReportRequestJpaEntity row = rows.get(i);
+            CompletionReportRequest request = requests.get(i);
+            if (!Objects.equals(row.requestedAt(), request.requestedAt())
+                    || !Objects.equals(row.requestedBy(), request.requestedBy().value())) {
+                throw new IllegalStateException(
+                        "completion report request #" + (i + 1) + " differs from the stored request");
+            }
+        }
+        for (int i = rows.size(); i < requests.size(); i++) {
+            CompletionReportRequest request = requests.get(i);
+            rows.add(new WorkCompletionReportRequestJpaEntity(
+                    entity, request.requestedAt(), request.requestedBy().value()));
+        }
     }
 
     /** 현장 사진은 바뀌었을 때만 모두 지우고 다시 넣는다(순서가 id 순이므로). */
@@ -165,6 +196,9 @@ final class WorkMapper {
                 cancellation,
                 entity.siteImages().stream()
                         .map(WorkSiteImageJpaEntity::imageUrl)
+                        .toList(),
+                entity.completionReportRequests().stream()
+                        .map(row -> new CompletionReportRequest(row.requestedAt(), new MembershipId(row.requestedBy())))
                         .toList(),
                 entity.version());
     }

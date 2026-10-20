@@ -12,8 +12,8 @@ import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 작업 상세. 관리자는 모든 항목을 받고, 기사는 등록자를 뺀 모든 항목을 받는다(등록자는 null). 기사는 자기에게 지금 배정된 작업과 취소 당시 자기가 담당이던 취소
- * 작업만 볼 수 있고, 그 밖의 작업은 찾을 수 없다.
+ * 작업 상세. 관리자는 모든 항목을 받고, 기사는 등록자·완료보고 요청 기록·요청 가능 여부를 뺀 모든 항목을 받는다(null·빈 목록·false). 기사는 자기에게 지금
+ * 배정된 작업과 취소 당시 자기가 담당이던 취소 작업만 볼 수 있고, 그 밖의 작업은 찾을 수 없다.
  *
  * @param delayed 조회 시각에 지연된 작업인지({@link com.orbit.schedule.domain.Work#isDelayedAt}). 배정됐다 돌아온 대기함 작업은 일정이
  *     없어도 마지막 배정 일정(배정 이력의 마지막)으로 판정한다
@@ -30,6 +30,9 @@ import com.orbit.schedule.domain.WorkStatus;
  * @param cancellation 취소 기록. 없으면 null
  * @param completionReport 완료보고. 없으면 null
  * @param sitePhotos 등록·수정 때 붙인 현장 사진(첨부 파일)
+ * @param completionReportRequests 사무실이 담당 기사에게 완료보고를 요청한 기록(오래된 것부터). 관리자에게만 담고 기사에게는 빈 목록
+ * @param completionReportRequestable 조회 시각에 완료보고를 요청할 수 있는지
+ *     ({@link com.orbit.schedule.domain.Work#canRequestCompletionReportAt}). 관리자에게만 계산하고 기사에게는 false
  * @param version 작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다
  */
 public record WorkDetailInfo(
@@ -50,12 +53,22 @@ public record WorkDetailInfo(
         Cancellation cancellation,
         CompletionReportInfo completionReport,
         List<PhotoInfo> sitePhotos,
+        List<CompletionReportRequest> completionReportRequests,
+        boolean completionReportRequestable,
         long version) {
 
     public WorkDetailInfo {
         assignments = List.copyOf(assignments);
         sitePhotos = List.copyOf(sitePhotos);
+        completionReportRequests = List.copyOf(completionReportRequests);
     }
+
+    /**
+     * 완료보고 요청 한 건.
+     *
+     * @param requestedBy 요청한 관리자(조직 소속)
+     */
+    public record CompletionReportRequest(Instant requestedAt, Long requestedBy) {}
 
     /**
      * 입력하지 않은 항목은 null이다.

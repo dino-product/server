@@ -745,17 +745,113 @@ class WorkTest {
         }
 
         @Test
-        @DisplayName("수락된 작업의 일정을 바꾸면 수락 이력은 두고 다시 수락받는다")
-        void reschedulesAcceptedWorkAndRequiresReacceptance() {
+        @DisplayName("수락된 작업의 일정을 바꾸면 다시 수락받지 않고 작업전을 유지하며, 바뀐 시간의 새 배정을 수락된 채로 잇는다")
+        void reschedulesAcceptedWorkKeepingAcceptance() {
             Work work = acceptedWork();
+            MembershipId changer = new MembershipId(98L);
 
             work.reschedule(
                     RESCHEDULED_FIRST_SCHEDULE.startTime(),
                     RESCHEDULED_FIRST_SCHEDULE.expectedDuration(),
-                    NOW,
+                    LATER,
+                    changer);
+
+            assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
+            assertThat(work.schedule()).contains(RESCHEDULED_FIRST_SCHEDULE);
+            assertThat(work.currentAssignmentNumber()).isEqualTo(2);
+            AssignmentHistory previous = work.assignmentHistory().getFirst();
+            assertThat(previous.schedule()).isEqualTo(FIRST_SCHEDULE);
+            assertThat(previous.result()).isEqualTo(AssignmentResult.ACCEPTED);
+            assertThat(previous.decidedAt()).contains(NOW);
+            assertThat(previous.ending())
+                    .contains(new AssignmentEnding(LATER, changer, AssignmentEndReason.RESCHEDULED));
+            AssignmentHistory current = work.assignmentHistory().getLast();
+            assertThat(current.schedule()).isEqualTo(RESCHEDULED_FIRST_SCHEDULE);
+            assertThat(current.assignedAt()).isEqualTo(LATER);
+            assertThat(current.assignedBy()).isEqualTo(changer);
+            assertThat(current.result()).isEqualTo(AssignmentResult.ACCEPTED);
+            assertThat(current.decidedAt()).contains(LATER);
+            assertThat(current.ending()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("수락을 이은 작업은 다시 수락하지 않고 바로 시작할 수 있고, 다시 바꿔도 수락을 잇는다")
+        void startsAndReschedulesAgainAfterKeepingAcceptance() {
+            Work work = acceptedWork();
+            work.reschedule(
+                    RESCHEDULED_FIRST_SCHEDULE.startTime(),
+                    RESCHEDULED_FIRST_SCHEDULE.expectedDuration(),
+                    LATER,
                     MANAGER_ID);
 
-            assertReacceptanceRequired(work, RESCHEDULED_FIRST_SCHEDULE);
+            assertThatThrownBy(() -> work.accept(LATER))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Cannot accept when status is ACCEPTED");
+            work.reschedule(FIRST_SCHEDULE.startTime(), FIRST_SCHEDULE.expectedDuration(), LATER, MANAGER_ID);
+            assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
+            assertThat(work.assignmentHistory())
+                    .extracting(AssignmentHistory::result)
+                    .containsOnly(AssignmentResult.ACCEPTED);
+            assertThat(work.currentAssignmentNumber()).isEqualTo(3);
+
+            work.start(LATER);
+
+            assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        }
+
+        @Test
+        @DisplayName("수락을 이은 작업은 일정을 바꾼 시각보다 앞서 시작할 수 없다")
+        void rejectsStartBeforeKeptAcceptance() {
+            Work work = acceptedWork();
+            work.reschedule(
+                    RESCHEDULED_FIRST_SCHEDULE.startTime(),
+                    RESCHEDULED_FIRST_SCHEDULE.expectedDuration(),
+                    LATER,
+                    MANAGER_ID);
+
+            assertThatThrownBy(() -> work.start(LATER.minusSeconds(1)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("startedAt must not be before the assignment was accepted");
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = WorkStatus.class,
+                names = {"ACCEPTED", "IN_PROGRESS"})
+        @DisplayName("수락을 이은 작업의 배정 이력은 저장값 복원 검증을 통과한다")
+        void reconstitutesWorkWithKeptAcceptance(WorkStatus status) {
+            Work work = acceptedWork();
+            work.reschedule(
+                    RESCHEDULED_FIRST_SCHEDULE.startTime(),
+                    RESCHEDULED_FIRST_SCHEDULE.expectedDuration(),
+                    LATER,
+                    MANAGER_ID);
+            List<AssignmentHistory> histories = work.assignmentHistory().stream()
+                    .map(history -> AssignmentHistory.restore(
+                            history.schedule(),
+                            history.assignedAt(),
+                            history.assignedBy(),
+                            history.result(),
+                            history.rejection().orElse(null),
+                            history.decidedAt().orElse(null),
+                            history.ending().orElse(null)))
+                    .toList();
+            Instant startedAt = status == WorkStatus.IN_PROGRESS ? LATER : null;
+
+            Work restored = reconstitute(status, RESCHEDULED_FIRST_SCHEDULE, histories, null, startedAt, null);
+
+            assertThat(restored.status()).isEqualTo(status);
+            assertThat(restored.currentAssignmentNumber()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("담당기사를 바꾸는 재배정은 수락된 작업이라도 새 기사에게 다시 수락받는다")
+        void reassignmentStillRequiresReacceptance() {
+            Work work = acceptedWork();
+
+            work.reassign(SECOND_SCHEDULE, LATER, MANAGER_ID);
+
+            assertReacceptanceRequired(work, SECOND_SCHEDULE);
         }
 
         @Test

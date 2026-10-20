@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkReassigned;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
@@ -51,10 +52,11 @@ class ReassignWorkServiceTest {
             fixture.workRepository,
             fixture.technicianContracts,
             fixture.scheduleLock,
+            fixture.events,
             fixture.clock);
 
     @Test
-    @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 지금 시각으로 회수하고 새 기사의 수락을 기다린다")
+    @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 지금 시각으로 회수하고 새 기사의 수락을 기다리며, 수락 전 재배정을 발행한다")
     void reassignsPendingWork() {
         fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
@@ -76,10 +78,20 @@ class ReassignWorkServiceTest {
         assertThat(saved.assignmentHistory().getLast().assignedAt()).isEqualTo(NOW);
         assertThat(saved.assignmentHistory().getLast().assignedBy()).isEqualTo(MANAGER_ID);
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, OTHER_TECHNICIAN_ID, 0));
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkReassigned(
+                        id.value(),
+                        ORGANIZATION_ID.value(),
+                        TECHNICIAN_ID.value(),
+                        OTHER_TECHNICIAN_ID.value(),
+                        false,
+                        "대상 작업",
+                        TEN,
+                        NOW));
     }
 
     @Test
-    @DisplayName("수락된 작업을 새 기사에게 넘기면 수락 이력은 두고 새 기사에게 다시 수락받는다")
+    @DisplayName("수락된 작업을 새 기사에게 넘기면 수락 이력은 두고 새 기사에게 다시 수락받으며, 수락 뒤 재배정 하나를 발행한다")
     void reassignsAcceptedWork() {
         fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.ACCEPTED);
@@ -92,6 +104,16 @@ class ReassignWorkServiceTest {
                 .extracting(AssignmentHistory::result)
                 .containsExactly(AssignmentResult.ACCEPTED, AssignmentResult.PENDING);
         assertThat(saved.assignmentHistory().getFirst().decidedAt()).contains(ACCEPTED_AT);
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkReassigned(
+                        id.value(),
+                        ORGANIZATION_ID.value(),
+                        TECHNICIAN_ID.value(),
+                        OTHER_TECHNICIAN_ID.value(),
+                        true,
+                        "대상 작업",
+                        TEN,
+                        NOW));
     }
 
     @Test
@@ -109,6 +131,7 @@ class ReassignWorkServiceTest {
         assertThat(withheld.applied()).isFalse();
         assertThat(withheld.conflicts()).extracting(ConflictingWork::workId).containsExactly(newTechnicianWork.value());
         assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.events.published()).isEmpty();
         assertThat(fixture.stored(target).schedule().orElseThrow().technicianId())
                 .isEqualTo(TECHNICIAN_ID);
 
