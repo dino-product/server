@@ -27,6 +27,7 @@ def load(name: str):
 
 meta = load("check_pr_metadata")
 links = load("check_markdown_links")
+order = load("check_migration_order")
 REPORT = SCRIPTS.parents[1] / ".claude" / "skills" / "dino-review" / "scripts" / "review_report.py"
 _spec = importlib.util.spec_from_file_location("review_report", REPORT)
 report = importlib.util.module_from_spec(_spec)
@@ -286,6 +287,78 @@ class ReviewSkillRecordTest(unittest.TestCase):
                         {"tool_name": "Bash", "tool_input": {"command": "dino-review"}}]:
             self.assertEqual(self.run_record(payload), 0)
         self.assertFalse(report.review_recorded(self.head, self.root))
+
+
+class MigrationOrderTest(unittest.TestCase):
+    ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.dir = self.root / order.MIGRATION_DIR
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.root, check=True)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def commit(self, message: str):
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", message], cwd=self.root, check=True, env=self.ENV)
+
+    def write(self, name: str, sql: str = "select 1;\n"):
+        self.dir.mkdir(parents=True, exist_ok=True)
+        (self.dir / name).write_text(sql, encoding="utf-8")
+
+    def base_with(self, *names: str):
+        for name in names:
+            self.write(name)
+        self.commit("base")
+        subprocess.run(["git", "tag", "base"], cwd=self.root, check=True)
+
+    def check(self) -> list[str]:
+        return order.check("base", "HEAD", self.root)
+
+    def test_next_versions_pass(self):
+        self.base_with("V1__init.sql", "V2__work.sql")
+        self.write("V3__a.sql")
+        self.write("V4__b.sql")
+        self.commit("add")
+        self.assertEqual(self.check(), [])
+
+    def test_first_migration_on_empty_base_passes(self):
+        self.base_with()
+        self.write("V1__init.sql")
+        self.commit("add")
+        self.assertEqual(self.check(), [])
+
+    def test_stale_duplicate_or_gap_fails(self):
+        for name, expected in [("V2__dup.sql", "V3이어야"), ("V5__gap.sql", "V3이어야")]:
+            with self.subTest(name=name):
+                self.tearDown()
+                self.setUp()
+                self.base_with("V1__init.sql", "V2__work.sql")
+                self.write(name)
+                self.commit("add")
+                errors = self.check()
+                self.assertEqual(len(errors), 1)
+                self.assertIn(expected, errors[0])
+
+    def test_merged_migration_changed_or_renamed_fails(self):
+        self.base_with("V1__init.sql", "V2__work.sql")
+        self.write("V1__init.sql", "select 2;\n")
+        (self.dir / "V2__work.sql").rename(self.dir / "V2__renamed.sql")
+        self.commit("edit")
+        errors = self.check()
+        self.assertEqual(len(errors), 3)  # V1 수정, V2 삭제, 옮긴 V2는 base 최신보다 작음
+        self.assertTrue(all("고치거나 지우지" in e for e in errors[:2]))
+
+    def test_bad_name_fails(self):
+        self.base_with("V1__init.sql")
+        self.write("V2_init.sql")
+        self.commit("add")
+        errors = self.check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("건너뜁니다", errors[0])
 
 
 DRAFT = SCRIPTS.parents[1] / ".claude" / "skills" / "dino-pr" / "scripts" / "pr_draft.py"
