@@ -46,3 +46,16 @@ app:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test
       access-token-ttl: PT1H
+  media:
+    retention-max-days: 30
+    # 저장소에 닿지 않는 주소. 서명만 하는 발급·조회 주소는 동작하고, 저장소를 부르는 확인은 실패한다.
+    # 실제 업로드가 필요한 테스트는 LocalStack 컨테이너 주소로 바꾼다(LocalStackTestSupport).
+    storage:
+      bucket: orbit-media-test
+      region: ap-northeast-2
+      endpoint: http://127.0.0.1:9
+      path-style-access: true
+      access-key-id: test
+      secret-access-key: test
+      api-call-timeout: PT2S
+      api-call-attempt-timeout: PT1S

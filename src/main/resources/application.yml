@@ -123,3 +123,18 @@ app:
   schedule:
     technician-lock:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
+  media:
+    # 이미지 시그니처로 확인할 수 있는 형식만 둘 수 있다(ImageFormat).
+    image-content-types: ${MEDIA_IMAGE_CONTENT_TYPES:image/jpeg,image/png,image/webp,image/heic,image/heif}
+    # 저장소 수명 주기 규칙이 허용하는 보관 기간 상한(일, infra와 공유). 용도별 보관 기간(retention-days)이 넘으면 기동에 실패한다.
+    retention-max-days: ${MEDIA_RETENTION_MAX_DAYS}
+    storage:
+      bucket: ${MEDIA_BUCKET}
+      region: ${MEDIA_REGION}
+      # S3 호환 저장소(로컬 LocalStack 등)만 준다. 비우면 AWS 기본 주소와 기본 자격 증명 체인(노드 역할)을 쓴다.
+      endpoint: ${MEDIA_S3_ENDPOINT:}
+      path-style-access: ${MEDIA_S3_PATH_STYLE_ACCESS:false}
+      upload-url-ttl: PT10M
+      download-url-ttl: PT10M
+      api-call-timeout: PT5S
+      api-call-attempt-timeout: PT3S

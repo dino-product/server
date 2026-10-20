@@ -118,6 +118,16 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 소유 개념 | **Notification**, **NotificationSetting** — 상세는 notification 문서 |
 | 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
 
+<a id="media"></a>
+### 5. 파일 컨텍스트 (`media`) — Generic Subdomain
+
+| 항목 | 내용 |
+| --- | --- |
+| 책임 | 사용자가 올리는 파일(지금은 완료보고 사진·현장 사진)의 업로드 주소·연결·내려받기 주소·만료 표시. 권한 판단은 파일을 쓰는 모듈의 몫 |
+| 상태 | 구현 중 — [media 문서](media.md#media), 결정은 [ADR-006](../adr/006-file-storage.md) |
+| 소유 개념 | **UploadedFile** — 업로드 대기·연결·만료 기록 |
+| 관계 | `schedule` → 참조(`MediaFiles`로 사진 업로드 주소 발급·연결·조회 주소, Conformist) |
+
 ---
 
 ## P2 — 다음 확장 (미착수, 코드 없음)
