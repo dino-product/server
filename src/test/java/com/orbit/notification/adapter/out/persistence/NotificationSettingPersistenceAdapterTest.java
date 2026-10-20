@@ -10,32 +10,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.notification.application.port.out.DuplicateNotificationSettingException;
 import com.orbit.notification.domain.NotificationSetting;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /**
  * 실제 PostgreSQL에 저장·조회하며 NotificationSettingRepository 계약을 확인한다. 클래스 트랜잭션을 끄고 조작마다 트랜잭션을 열어 커밋한다. 커밋한 행이
  * 남으므로 계정 식별자를 테스트마다 달리해(9_1xx) 같은 DB를 쓰는 다른 테스트의 행과 섞이지 않게 한다.
  */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PersistenceTestConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DisplayName("알림 설정 저장")
-class NotificationSettingPersistenceAdapterTest {
+class NotificationSettingPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     @Autowired
     private SpringDataNotificationSettingRepository repository;
