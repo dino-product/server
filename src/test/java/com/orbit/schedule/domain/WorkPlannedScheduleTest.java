@@ -51,7 +51,7 @@ class WorkPlannedScheduleTest {
         PlannedSchedule planned = new PlannedSchedule(TECHNICIAN, TEN, null);
         Work work = register(planned);
 
-        work.changeDetails("보일러 점검", null, null, null);
+        work.changeDetails("보일러 점검", null, null, null, null);
 
         assertThat(work.plannedSchedule()).contains(planned);
     }
@@ -76,7 +76,7 @@ class WorkPlannedScheduleTest {
 
         WorkSchedule schedule = new WorkSchedule(TECHNICIAN, TEN, TWO_HOURS);
         AssignmentHistory pending = new AssignmentHistory(schedule, NOW, REGISTRAR);
-        assertThatThrownBy(() -> restore(WorkStatus.PENDING_ACCEPTANCE, schedule, planned, List.of(pending)))
+        assertThatThrownBy(() -> restore(WorkStatus.PENDING_ACCEPT, schedule, planned, List.of(pending)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Only a REGISTERED work can have a planned schedule");
     }
@@ -116,7 +116,6 @@ class WorkPlannedScheduleTest {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
     }
 }

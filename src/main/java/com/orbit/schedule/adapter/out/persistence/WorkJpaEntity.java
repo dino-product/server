@@ -22,6 +22,7 @@ import jakarta.persistence.Version;
 
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.OptimisticLock;
 import org.hibernate.type.SqlTypes;
 
 import com.orbit.schedule.domain.ActualPaymentMethod;
@@ -30,13 +31,14 @@ import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 작업(Work) 애그리게잇 루트의 JPA Entity. 테이블 구조는 팀 ERD의 {@code Work}를 따르고 매핑 결정(일정 컬럼에 담는 보일 일정: 현재 일정
- * 비정규화, 대기함의 미리 입력한 일정이나 마지막 배정 일정, 완료보고 인라인·사진 분리, 현장 사진, 배정 순번, 정정 기록 미저장)은
+ * 비정규화, 대기함의 미리 입력한 일정이나 마지막 배정 일정, 완료보고 인라인·사진 분리, 현장 사진, 완료보고 요청, 배정 순번)은
  * {@link WorkMapper}가 원본이다. 값 검증은 Domain이 하며 이 Entity는 컬럼 제약만 선언한다.
  *
  * <p>이 Entity와 자식 Entity는 모두 {@code BaseTimeEntity}를 상속한다. 다음은 ERD에 빠져 있어 Entity 기준으로 ERD에 추가한다(운영은
@@ -44,7 +46,9 @@ import com.orbit.shared.persistence.BaseTimeEntity;
  * {@code registered_at}, 활성 작업 조회용 인덱스 {@code (company_id, technician_id, status)}, 구간 조회용
  * {@code (company_id, scheduled_start_at)}, 등록순 정렬용 {@code (company_id, registered_at)}, 최근 수정순 정렬용
  * {@code (company_id, updated_at)}, 자식 테이블의 {@code work_id}, 배정 이력의 {@code (technician_id, scheduled_start_at)}, 현장 사진
- * 테이블 {@code work_site_images}(컬럼 {@code id}·{@code work_id}·{@code image_url}과 감사 컬럼, {@code work_id} 인덱스).
+ * 테이블 {@code work_site_images}(컬럼 {@code id}·{@code work_id}·{@code image_url}과 감사 컬럼, {@code work_id} 인덱스), 완료보고 요청
+ * 테이블 {@code work_completion_report_requests}(컬럼 {@code id}·{@code work_id}·{@code requested_at}·{@code requested_by}와
+ * 감사 컬럼, {@code work_id} 인덱스).
  */
 @Entity
 @Table(
@@ -101,8 +105,14 @@ class WorkJpaEntity extends BaseTimeEntity {
     @Column(name = "customer_phone", length = CustomerInfo.MAX_PHONE_LENGTH)
     private String customerPhone;
 
-    @Column(name = "customer_address", length = CustomerInfo.MAX_ADDRESS_LENGTH)
+    @Column(name = "customer_postal_code", length = SiteAddress.POSTAL_CODE_LENGTH)
+    private String customerPostalCode;
+
+    @Column(name = "customer_address", length = SiteAddress.MAX_BASE_ADDRESS_LENGTH)
     private String customerAddress;
+
+    @Column(name = "customer_address_detail", length = SiteAddress.MAX_DETAIL_ADDRESS_LENGTH)
+    private String customerAddressDetail;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method", length = 20)
@@ -153,10 +163,19 @@ class WorkJpaEntity extends BaseTimeEntity {
     @BatchSize(size = 50)
     private List<WorkExecutionImageJpaEntity> images = new ArrayList<>();
 
+    // 현장 사진만 바꾼 기본정보 수정도 루트 행을 갱신해 버전과 최근 수정 시각을 올린다(mappedBy 컬렉션은 기본으로 루트 버전에서 빠진다).
     @OneToMany(mappedBy = "work", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("id")
     @BatchSize(size = 50)
+    @OptimisticLock(excluded = false)
     private List<WorkSiteImageJpaEntity> siteImages = new ArrayList<>();
+
+    // 완료보고 요청만 더해도 루트 행을 갱신해 버전을 올린다. 같은 작업의 동시 요청·완료보고와의 경합을 버전으로 거른다(WorkMapper).
+    @OneToMany(mappedBy = "work", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("id")
+    @BatchSize(size = 50)
+    @OptimisticLock(excluded = false)
+    private List<WorkCompletionReportRequestJpaEntity> completionReportRequests = new ArrayList<>();
 
     protected WorkJpaEntity() {}
 
@@ -220,8 +239,16 @@ class WorkJpaEntity extends BaseTimeEntity {
         return customerPhone;
     }
 
+    String customerPostalCode() {
+        return customerPostalCode;
+    }
+
     String customerAddress() {
         return customerAddress;
+    }
+
+    String customerAddressDetail() {
+        return customerAddressDetail;
     }
 
     PaymentMethod paymentMethod() {
@@ -284,20 +311,28 @@ class WorkJpaEntity extends BaseTimeEntity {
         return siteImages;
     }
 
+    List<WorkCompletionReportRequestJpaEntity> completionReportRequests() {
+        return completionReportRequests;
+    }
+
     /** 작업명·작업 유형·고객정보·결제정보. 기본정보 수정과 저장 때 Domain 값으로 덮어쓴다. */
     void updateDetails(
             String newName,
             Long newJobTypeId,
             String newCustomerName,
             String newCustomerPhone,
+            String newCustomerPostalCode,
             String newCustomerAddress,
+            String newCustomerAddressDetail,
             PaymentMethod newPaymentMethod,
             Long newFee) {
         this.name = newName;
         this.jobTypeId = newJobTypeId;
         this.customerName = newCustomerName;
         this.customerPhone = newCustomerPhone;
+        this.customerPostalCode = newCustomerPostalCode;
         this.customerAddress = newCustomerAddress;
+        this.customerAddressDetail = newCustomerAddressDetail;
         this.paymentMethod = newPaymentMethod;
         this.fee = newFee;
     }
@@ -311,7 +346,7 @@ class WorkJpaEntity extends BaseTimeEntity {
         this.expectedDuration = newExpectedDuration;
     }
 
-    /** 시작·완료·취소 기록. 정정으로 치워진 값은 null로 넘어온다. */
+    /** 시작·완료·취소 기록. 없는 값은 null로 넘어온다. */
     void updateProgress(
             Instant newStartedAt,
             Instant newCompletedAt,

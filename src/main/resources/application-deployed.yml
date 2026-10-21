@@ -1,0 +1,21 @@
+# 배포 환경(dev·prod) 공통 설정. 그룹으로 켜진 이 프로필이 application-dev·prod.yml보다 우선하므로, 환경마다 다른 값은 여기 두지 않는다.
+spring:
+  config:
+    activate:
+      on-profile: deployed
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: none
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: false

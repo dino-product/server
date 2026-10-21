@@ -3,6 +3,7 @@ package com.orbit.schedule;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -67,7 +68,7 @@ import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 /**
  * 실제로 조립된 유즈케이스가 트랜잭션·기사 잠금을 거쳐 끝까지 성공하는지 확인한다. 계정별 요청자를 간단히 정하려고 행위자 포트만 테스트 구현(@Primary)으로 바꾼다(기사 계정은 기사, 그 밖에는 직원).
@@ -75,9 +76,9 @@ import com.orbit.support.TestcontainersConfiguration;
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, ScheduleUseCaseFlowTest.ActorsByAccount.class})
+@Import(ScheduleUseCaseFlowTest.ActorsByAccount.class)
 @Testcontainers(disabledWithoutDocker = true)
-class ScheduleUseCaseFlowTest {
+class ScheduleUseCaseFlowTest implements SharedContainers {
 
     // 요청자는 계정별로 정한 LoadActorPort(@Primary)가 정하므로, organization 계약은 실제 어댑터의 의존성만 채운다.
     @MockitoBean
@@ -143,6 +144,10 @@ class ScheduleUseCaseFlowTest {
     @Autowired
     private WorkRepository workRepository;
 
+    // 기사가 시작할 작업은 시작 가능 시간 안이 되도록 지금 시작하는 일정으로 배정한다.
+    @Autowired
+    private Clock clock;
+
     // 테스트 인스턴스를 테스트끼리 공유해도 테스트마다 새 조직을 쓰도록 필드 초기화가 아니라 매 테스트 전에 정한다.
     @BeforeEach
     void useNewOrganization() {
@@ -177,7 +182,11 @@ class ScheduleUseCaseFlowTest {
                                 false))
                         .applied())
                 .isTrue();
-        unassignWorkUseCase.unassign(new UnassignWorkCommand(ACCOUNT_ID, organizationId.value(), workId));
+        long version = workRepository
+                .findInOrganization(organizationId, new WorkId(workId))
+                .orElseThrow()
+                .version();
+        unassignWorkUseCase.unassign(new UnassignWorkCommand(ACCOUNT_ID, organizationId.value(), workId, version));
 
         Work stored = workRepository
                 .findInOrganization(organizationId, new WorkId(workId))
@@ -222,7 +231,7 @@ class ScheduleUseCaseFlowTest {
     void assembledTechnicianAcceptsStartsAndCompletesTheAssignmentTheySaw() {
         long workId = create("수행할 작업");
         assignWorkUseCase.assign(new AssignWorkCommand(
-                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, TEN, TWO_HOURS, false));
+                ACCOUNT_ID, organizationId.value(), workId, ACCEPTING_TECHNICIAN, clock.instant(), TWO_HOURS, false));
 
         acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1));
         startWorkUseCase.start(new StartWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), workId, 1));
@@ -251,7 +260,7 @@ class ScheduleUseCaseFlowTest {
         Work stored = workRepository
                 .findInOrganization(organizationId, new WorkId(workId))
                 .orElseThrow();
-        assertThat(stored.status()).isEqualTo(WorkStatus.CANCELLED);
+        assertThat(stored.status()).isEqualTo(WorkStatus.CANCELED);
         assertThat(stored.cancellation()).hasValueSatisfying(cancellation -> {
             assertThat(cancellation.cancelledBy()).isEqualTo(MANAGER);
             assertThat(cancellation.reason()).isEqualTo(CancellationReason.CUSTOMER_REQUEST);
@@ -282,7 +291,7 @@ class ScheduleUseCaseFlowTest {
                 organizationId.value(),
                 inProgress,
                 ACCEPTING_TECHNICIAN,
-                TEN.plus(Duration.ofHours(6)),
+                clock.instant(),
                 TWO_HOURS,
                 false));
         acceptWorkUseCase.accept(new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), inProgress, 1));
@@ -330,6 +339,8 @@ class ScheduleUseCaseFlowTest {
                         ACCOUNT_ID,
                         organizationId.value(),
                         name,
+                        null,
+                        null,
                         null,
                         null,
                         null,

@@ -12,12 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.profile.application.port.out.ConcurrentProfileUpdateException;
 import com.orbit.profile.application.port.out.ProfileRepository;
@@ -30,15 +25,10 @@ import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.TermsAgreement;
 import com.orbit.profile.domain.TermsType;
 import com.orbit.profile.domain.TermsVersions;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({PersistenceTestConfiguration.class, ProfilePersistenceAdapter.class})
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("프로필 저장소")
-class ProfilePersistenceAdapterTest {
+class ProfilePersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final AtomicLong ACCOUNT_IDS = new AtomicLong(1_000);
     private static final TermsVersions V1 = new TermsVersions("s1", "p1", "m1");

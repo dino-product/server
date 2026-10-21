@@ -30,6 +30,7 @@ public record TimetableInfo(
      * @param conflicting 같은 기사의 다른 활성 작업과 일정이 겹치는지(확인하고 겹침을 허용한 배정). 겹치는 짝이 구간 밖에 있거나 유형 조건으로 빠져도 표시한다
      * @param workType 작업유형. 없으면 null
      * @param registrar 등록자
+     * @param version 작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다
      */
     public record ScheduledWork(
             Long workId,
@@ -41,5 +42,6 @@ public record TimetableInfo(
             boolean delayed,
             boolean conflicting,
             LabelInfo workType,
-            StaffInfo registrar) {}
+            StaffInfo registrar,
+            long version) {}
 }
