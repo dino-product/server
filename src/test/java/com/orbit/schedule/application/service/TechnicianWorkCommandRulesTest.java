@@ -51,14 +51,14 @@ class TechnicianWorkCommandRulesTest {
     static Stream<UseCase> useCases() {
         return Stream.of(
                 new UseCase("수락", true, (f, request) -> new AcceptWorkService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.scheduleLock, f.events, f.clock)
                         .accept(new AcceptWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),
                                 request.assignmentNumber()))),
                 new UseCase("거절", true, (f, request) -> new RejectWorkService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.scheduleLock, f.events, f.clock)
                         .reject(new RejectWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -74,7 +74,7 @@ class TechnicianWorkCommandRulesTest {
                                 request.workId(),
                                 request.assignmentNumber()))),
                 new UseCase("완료보고", false, (f, request) -> new SubmitCompletionReportService(
-                                f.actorPort, f.workRepository, f.clock)
+                                f.actorPort, f.workRepository, f.events, f.clock)
                         .submit(new SubmitCompletionReportCommand(
                                 request.accountId(),
                                 request.organizationId(),

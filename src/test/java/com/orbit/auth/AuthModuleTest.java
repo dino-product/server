@@ -7,7 +7,6 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -15,15 +14,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.auth.application.port.in.query.GetAuthSubjectUseCase;
 import com.orbit.auth.application.port.in.query.dto.GetAuthSubjectQuery;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 import com.orbit.user.UserLookup;
 import com.orbit.user.UserSummary;
 
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-class AuthModuleTest {
+class AuthModuleTest implements SharedContainers {
 
     @MockitoBean
     private UserLookup userLookup;

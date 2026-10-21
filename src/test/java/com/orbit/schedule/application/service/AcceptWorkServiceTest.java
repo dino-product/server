@@ -4,6 +4,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCE
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETUP_MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkAccepted;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
@@ -35,11 +37,12 @@ import com.orbit.schedule.domain.WorkStatus;
 class AcceptWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final AcceptWorkService service =
-            new AcceptWorkService(fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.clock);
+    private final AcceptWorkService service = new AcceptWorkService(
+            fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.events, fixture.clock);
 
     @Test
-    @DisplayName("담당 기사가 화면에서 본 최신 배정을 수락하면 지금 시각으로 수락을 기록하고 일정은 그대로 두며, 기사를 잠그되 다른 작업은 읽지 않는다")
+    @DisplayName(
+            "담당 기사가 화면에서 본 최신 배정을 수락하면 지금 시각으로 수락을 기록하고 일정은 그대로 두며, 기사를 잠그되 다른 작업은 읽지 않고, " + "저장한 뒤 등록자에게 알릴 수락을 발행한다")
     void acceptsCurrentAssignment() {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
@@ -56,6 +59,14 @@ class AcceptWorkServiceTest {
         });
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkAccepted(
+                        id.value(),
+                        ORGANIZATION_ID.value(),
+                        REGISTRAR_ID.value(),
+                        TECHNICIAN_ID.value(),
+                        "대상 작업",
+                        NOW));
     }
 
     @Test
@@ -90,6 +101,7 @@ class AcceptWorkServiceTest {
         service.accept(command(id.value()));
 
         assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.events.published()).isEmpty();
         assertThat(fixture.stored(id).assignmentHistory().getLast().decidedAt()).contains(firstAcceptedAt);
     }
 
@@ -107,7 +119,7 @@ class AcceptWorkServiceTest {
     @EnumSource(
             value = WorkStatus.class,
             names = {"ACCEPTED", "IN_PROGRESS", "COMPLETED"})
-    @DisplayName("이미 수락해 그대로인 배정에 수락을 다시 보내면 아무것도 바꾸지 않고 성공한다")
+    @DisplayName("이미 수락해 그대로인 배정에 수락을 다시 보내면 아무것도 바꾸지 않고 발행하지 않은 채 성공한다")
     void treatsRepeatedAcceptanceAsSuccess(WorkStatus status) {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = fixture.givenWork(status);
@@ -115,9 +127,26 @@ class AcceptWorkServiceTest {
         service.accept(command(id.value()));
 
         assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.events.published()).isEmpty();
         Work stored = fixture.stored(id);
         assertThat(stored.status()).isEqualTo(status);
         assertThat(stored.assignmentHistory().getLast().decidedAt()).contains(ACCEPTED_AT);
+    }
+
+    @Test
+    @DisplayName("수락한 뒤 일정만 바뀌어 수락을 이은 배정은 새 순번으로 수락을 보내도 중복 전송으로 성공하고, 이전 순번은 낡은 배정이다")
+    void treatsAcceptanceOfKeptAcceptanceAsRepeated() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        work.reschedule(TEN.plusSeconds(3_600), TWO_HOURS, NOW, SETUP_MANAGER_ID);
+        WorkId id = fixture.workRepository.store(work);
+
+        service.accept(command(id.value(), 2));
+
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.events.published()).isEmpty();
+        fixture.assertRejectedWithoutSaving(
+                () -> service.accept(command(id.value(), 1)), ScheduleErrorCode.ASSIGNMENT_CHANGED);
     }
 
     @Test

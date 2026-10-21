@@ -13,16 +13,12 @@ import java.util.UUID;
 
 import javax.crypto.spec.SecretKeySpec;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -31,17 +27,12 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.orbit.support.IntegrationTestSupport;
-import com.orbit.support.KakaoJwksStub;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-@AutoConfigureMockMvc
 @DisplayName("인증 API")
-class AuthApiIntegrationTest extends IntegrationTestSupport {
-
-    private static final KakaoJwksStub KAKAO = KakaoJwksStub.start();
+class AuthApiIntegrationTest extends AuthApiTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
@@ -54,16 +45,6 @@ class AuthApiIntegrationTest extends IntegrationTestSupport {
 
     @Value("${app.auth.jwt.issuer}")
     private String jwtIssuer;
-
-    @DynamicPropertySource
-    static void kakaoJwks(DynamicPropertyRegistry registry) {
-        registry.add("app.auth.kakao.jwk-set-uri", KAKAO::jwkSetUri);
-    }
-
-    @AfterAll
-    static void stopKakaoJwks() {
-        KAKAO.close();
-    }
 
     @Test
     @DisplayName("토큰 없이 로그인 nonce를 발급받는다")

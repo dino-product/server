@@ -114,17 +114,19 @@ class WorkLifecycleScenarioTest {
     }
 
     @Test
-    @DisplayName("수락 후 시간만 바꾸면 같은 기사에게 다시 수락받는다")
-    void rescheduleAfterAcceptanceRequiresReacceptance() {
+    @DisplayName("수락 후 시간만 바꾸면 다시 수락받지 않고 바뀐 시간의 배정을 수락된 채로 이어 바로 시작한다")
+    void rescheduleAfterAcceptanceKeepsAcceptance() {
         Work work = registeredWork();
 
         work.assign(FIRST_SCHEDULE, T1, MANAGER_ID);
         work.accept(T2);
         work.reschedule(
                 RESCHEDULED_FIRST_SCHEDULE.startTime(), RESCHEDULED_FIRST_SCHEDULE.expectedDuration(), T3, MANAGER_ID);
-        work.accept(T4);
 
         assertThat(work.status()).isEqualTo(WorkStatus.ACCEPTED);
+        work.start(T4);
+
+        assertThat(work.status()).isEqualTo(WorkStatus.IN_PROGRESS);
         assertThat(work.schedule()).contains(RESCHEDULED_FIRST_SCHEDULE);
         assertHistory(
                 work,
@@ -134,7 +136,7 @@ class WorkLifecycleScenarioTest {
                         T1,
                         Optional.of(T2),
                         endedBy(AssignmentEndReason.RESCHEDULED, T3)),
-                tuple(RESCHEDULED_FIRST_SCHEDULE, AssignmentResult.ACCEPTED, T3, Optional.of(T4), NOT_ENDED));
+                tuple(RESCHEDULED_FIRST_SCHEDULE, AssignmentResult.ACCEPTED, T3, Optional.of(T3), NOT_ENDED));
     }
 
     @Test
