@@ -57,6 +57,14 @@ class MembershipPersistenceAdapter implements MembershipRepository {
     }
 
     @Override
+    public void deactivate(Membership membership) {
+        repository
+                .findById(membership.id().orElseThrow().value())
+                .orElseThrow(() -> new IllegalStateException("membership to deactivate must exist"))
+                .deactivate(membership);
+    }
+
+    @Override
     public Optional<Membership> findActive(OrganizationId organizationId, AccountId accountId) {
         return repository
                 .findByOrganizationIdAndAccountIdAndStatus(
@@ -73,6 +81,14 @@ class MembershipPersistenceAdapter implements MembershipRepository {
     @Override
     public int unassignStaffCategory(OrganizationId organizationId, MemberCategoryId categoryId, Instant unassignedAt) {
         return repository.unassignStaffCategory(organizationId.value(), categoryId.value(), unassignedAt);
+    }
+
+    @Override
+    public void changeStaffCategory(MembershipId id, MemberCategoryId categoryId) {
+        repository
+                .findById(id.value())
+                .orElseThrow(() -> new IllegalStateException("membership to change must exist"))
+                .changeCategory(categoryId == null ? null : categoryId.value());
     }
 
     @Override

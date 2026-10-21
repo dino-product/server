@@ -21,7 +21,7 @@ import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 기사 계약. 발주사·계정은 다른 애그리게잇·모듈이므로 ID로만 둔다. 같은 계정·같은 발주사의 기사 계약은 1행이며 다시 활성이 되면 이 행을 재사용한다. 새
- * 계약은 참여 요청 승인이 만들고, 기사 유형은 유형 지정 작업이 도메인과 함께 연결한다(지금은 기사 유형 삭제의 벌크 해제와 재참여 승인의 해제만 한다). 활성
+ * 계약은 참여 요청 승인이 만들고, 기사 유형은 계약 도메인에 없어 지정·해제·벌크 해제를 저장 어댑터가 이 컬럼만 바꿔 처리한다. 활성
  * 구성원 조회({@link ActiveMemberQueryAdapter})·기사 계약 조회({@link TechnicianContractQueryAdapter})는 이 Entity 대신 SQL로 읽는다.
  */
 @Entity
@@ -70,6 +70,10 @@ class TechnicianJpaEntity extends BaseTimeEntity {
         return new TechnicianJpaEntity(technician);
     }
 
+    void changeCategory(Long technicianCategoryId) {
+        this.technicianCategoryId = technicianCategoryId;
+    }
+
     void reactivate(Technician technician, boolean unassignCategory) {
         if (technician.status() != TechnicianStatus.ACTIVE) {
             throw new IllegalArgumentException("reactivated technician must be active");
@@ -79,6 +83,14 @@ class TechnicianJpaEntity extends BaseTimeEntity {
         if (unassignCategory) {
             this.technicianCategoryId = null;
         }
+    }
+
+    void deactivate(Technician technician) {
+        if (technician.status() != TechnicianStatus.DEACTIVATED) {
+            throw new IllegalArgumentException("deactivated technician must be deactivated");
+        }
+        this.status = technician.status();
+        this.statusChangedAt = technician.statusChangedAt();
     }
 
     Technician toDomain() {

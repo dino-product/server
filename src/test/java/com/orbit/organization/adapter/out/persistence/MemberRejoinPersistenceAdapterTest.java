@@ -77,12 +77,12 @@ class MemberRejoinPersistenceAdapterTest extends PersistenceAdapterTestSupport {
         Long cleared = insertMembership(ORGANIZATION_ID, new AccountId(8L), false);
 
         memberships.reactivate(
-                memberships.find(ORGANIZATION_ID, ACCOUNT_ID).orElseThrow().rejoin(REJOINED_AT), false);
+                memberships.find(ORGANIZATION_ID, ACCOUNT_ID).orElseThrow().reactivate(REJOINED_AT), false);
         memberships.reactivate(
                 memberships
                         .find(ORGANIZATION_ID, new AccountId(8L))
                         .orElseThrow()
-                        .rejoin(REJOINED_AT),
+                        .reactivate(REJOINED_AT),
                 true);
         entityManager.flush();
         entityManager.clear();
@@ -110,12 +110,12 @@ class MemberRejoinPersistenceAdapterTest extends PersistenceAdapterTestSupport {
         Long cleared = insertTechnician(ORGANIZATION_ID, new AccountId(8L));
 
         Technician reactivated = technicians.reactivate(
-                technicians.find(ORGANIZATION_ID, ACCOUNT_ID).orElseThrow().rejoin(REJOINED_AT), false);
+                technicians.find(ORGANIZATION_ID, ACCOUNT_ID).orElseThrow().reactivate(REJOINED_AT), false);
         technicians.reactivate(
                 technicians
                         .find(ORGANIZATION_ID, new AccountId(8L))
                         .orElseThrow()
-                        .rejoin(REJOINED_AT),
+                        .reactivate(REJOINED_AT),
                 true);
         entityManager.flush();
         entityManager.clear();

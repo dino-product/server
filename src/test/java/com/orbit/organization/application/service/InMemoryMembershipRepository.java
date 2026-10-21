@@ -117,6 +117,15 @@ class InMemoryMembershipRepository implements MembershipRepository {
     }
 
     @Override
+    public void deactivate(Membership membership) {
+        MembershipId id = membership.id().orElseThrow();
+        if (!memberships.containsKey(id)) {
+            throw new IllegalArgumentException("membership must be stored");
+        }
+        memberships.put(id, membership);
+    }
+
+    @Override
     public Optional<Membership> findActive(OrganizationId organizationId, AccountId accountId) {
         return memberships.values().stream()
                 .filter(membership -> membership.organizationId().equals(organizationId))
@@ -128,6 +137,11 @@ class InMemoryMembershipRepository implements MembershipRepository {
     @Override
     public boolean existsActive(OrganizationId organizationId, AccountId accountId) {
         return findActive(organizationId, accountId).isPresent();
+    }
+
+    @Override
+    public void changeStaffCategory(MembershipId id, MemberCategoryId categoryId) {
+        throw new UnsupportedOperationException("staff categories are not modeled by this fake");
     }
 
     @Override

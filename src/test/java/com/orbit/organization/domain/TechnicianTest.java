@@ -43,7 +43,7 @@ class TechnicianTest {
     @Test
     @DisplayName("비활성 기사 계약을 다시 활성으로 바꾸면 같은 계약 ID와 참여일을 유지한다")
     void rejoinsDeactivatedTechnician() {
-        Technician rejoined = deactivated().rejoin(REJOINED_AT);
+        Technician rejoined = deactivated().reactivate(REJOINED_AT);
 
         assertThat(rejoined.id()).contains(new TechnicianId(5L));
         assertThat(rejoined.status()).isEqualTo(TechnicianStatus.ACTIVE);
@@ -57,7 +57,27 @@ class TechnicianTest {
         Technician active = Technician.reconstitute(
                 new TechnicianId(5L), ORGANIZATION_ID, ACCOUNT_ID, TechnicianStatus.ACTIVE, JOINED_AT, JOINED_AT);
 
-        assertThatThrownBy(() -> active.rejoin(REJOINED_AT)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> active.reactivate(REJOINED_AT)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("총관리자가 비활성화하면 계약 ID와 참여일은 유지하고 상태와 상태 변경 시각만 바꾼다")
+    void deactivatesTechnician() {
+        Technician active = Technician.reconstitute(
+                new TechnicianId(5L), ORGANIZATION_ID, ACCOUNT_ID, TechnicianStatus.ACTIVE, JOINED_AT, JOINED_AT);
+
+        Technician deactivated = active.deactivate(DEACTIVATED_AT);
+
+        assertThat(deactivated.id()).contains(new TechnicianId(5L));
+        assertThat(deactivated.status()).isEqualTo(TechnicianStatus.DEACTIVATED);
+        assertThat(deactivated.joinedAt()).isEqualTo(JOINED_AT);
+        assertThat(deactivated.statusChangedAt()).isEqualTo(DEACTIVATED_AT);
+    }
+
+    @Test
+    @DisplayName("비활성 기사 계약은 다시 비활성화할 수 없다")
+    void refusesDeactivatingDeactivatedTechnician() {
+        assertThatThrownBy(() -> deactivated().deactivate(REJOINED_AT)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

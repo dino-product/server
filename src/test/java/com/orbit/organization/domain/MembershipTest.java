@@ -120,7 +120,7 @@ class MembershipTest {
     }
 
     @Test
-    @DisplayName("비활성 소속을 다시 활성으로 바꾸면 참여일은 유지하고 총관리자 표시는 끈다")
+    @DisplayName("비활성 소속을 다시 활성으로 바꾸면(재참여 승인·재활성화) 참여일은 유지하고 총관리자 표시는 끈다")
     void rejoinsDeactivatedMembershipAsStaff() {
         Instant rejoinedAt = NOW.plusSeconds(3600);
         Membership deactivatedOwner = Membership.reconstitute(
@@ -132,7 +132,7 @@ class MembershipTest {
                 NOW,
                 NOW.plusSeconds(60));
 
-        Membership rejoined = deactivatedOwner.rejoin(rejoinedAt);
+        Membership rejoined = deactivatedOwner.reactivate(rejoinedAt);
 
         assertThat(rejoined.id()).contains(new MembershipId(3L));
         assertThat(rejoined.status()).isEqualTo(MembershipStatus.ACTIVE);
@@ -144,7 +144,51 @@ class MembershipTest {
     @Test
     @DisplayName("활성 소속은 다시 활성으로 바꿀 수 없다")
     void refusesRejoiningActiveMembership() {
-        assertThatThrownBy(() -> staff().rejoin(NOW.plusSeconds(3600))).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> staff().reactivate(NOW.plusSeconds(3600))).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("총관리자가 비활성화하면 참여일은 유지하고 상태와 상태 변경 시각만 바꾼다")
+    void deactivatesStaff() {
+        Instant deactivatedAt = NOW.plusSeconds(3600);
+
+        Membership deactivated = staff().deactivate(deactivatedAt, 1);
+
+        assertThat(deactivated.id()).contains(new MembershipId(3L));
+        assertThat(deactivated.status()).isEqualTo(MembershipStatus.DEACTIVATED);
+        assertThat(deactivated.isOwner()).isFalse();
+        assertThat(deactivated.joinedAt()).isEqualTo(NOW);
+        assertThat(deactivated.statusChangedAt()).isEqualTo(deactivatedAt);
+    }
+
+    @Test
+    @DisplayName("다른 총관리자가 남아 있으면 총관리자도 비활성화할 수 있고 총관리자 표시를 떼어 다시 활성이 되면 직원이다")
+    void deactivatesOwnerAndDropsOwnerMark() {
+        Instant deactivatedAt = NOW.plusSeconds(3600);
+
+        Membership deactivated = staff().designateAsOwner().deactivate(deactivatedAt, 2);
+
+        assertThat(deactivated.status()).isEqualTo(MembershipStatus.DEACTIVATED);
+        assertThat(deactivated.isOwner()).isFalse();
+        assertThat(deactivated.reactivate(deactivatedAt.plusSeconds(60)).isOwner())
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("발주사의 마지막 총관리자는 비활성화할 수 없다")
+    void rejectsDeactivatingLastOwner() {
+        Membership owner = staff().designateAsOwner();
+
+        assertThatThrownBy(() -> owner.deactivate(NOW.plusSeconds(3600), 1)).isInstanceOf(LastOwnerException.class);
+    }
+
+    @Test
+    @DisplayName("비활성 소속은 다시 비활성화할 수 없다")
+    void refusesDeactivatingDeactivatedMembership() {
+        Membership deactivated = staff().deactivate(NOW.plusSeconds(3600), 1);
+
+        assertThatThrownBy(() -> deactivated.deactivate(NOW.plusSeconds(7200), 1))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     private static Membership staff() {

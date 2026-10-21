@@ -23,21 +23,24 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
+import com.orbit.organization.application.port.in.command.DeactivateParticipantUseCase;
 import com.orbit.organization.application.port.in.command.DesignateOwnerUseCase;
 import com.orbit.organization.application.port.in.command.RevokeOwnerUseCase;
+import com.orbit.organization.application.port.in.command.dto.ChangeParticipantStatusCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.DesignateOwnerCommand;
 import com.orbit.organization.application.port.in.command.dto.RevokeOwnerCommand;
 import com.orbit.organization.domain.Industry;
+import com.orbit.organization.domain.ParticipationType;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.support.IntegrationTestSupport;
 
 /**
- * 총관리자 해제가 발주사 잠금으로 한 줄로 서는지 두 트랜잭션으로 확인한다. 앞 트랜잭션이 커밋 전에 잠금을 쥔 동안 뒤 요청이 기다리고, 커밋 뒤에는 바뀐 총관리자 표시를
- * 보고 판단해야 한다. 잠금이 없으면 뒤 요청이 커밋 전 상태(총관리자 2명)를 읽고 바로 끝나 총관리자가 0명이 된다. 그 발주사 소속이 아닌 요청은
- * 잠금을 기다리지 않고 거부되어야 대기 한도 초과(409)로 발주사 존재가 드러나지 않는다.
+ * 총관리자 해제·총관리자 소속 비활성화가 발주사 잠금으로 한 줄로 서는지 두 트랜잭션으로 확인한다. 앞 트랜잭션이 커밋 전에 잠금을 쥔 동안 뒤 요청이 기다리고, 커밋
+ * 뒤에는 바뀐 총관리자 표시를 보고 판단해야 한다. 잠금이 없으면 뒤 요청이 커밋 전 상태(총관리자 2명)를 읽고 바로 끝나 총관리자가 0명이 된다. 그 발주사 소속이
+ * 아닌 요청은 잠금을 기다리지 않고 거부되어야 대기 한도 초과(409)로 발주사 존재가 드러나지 않는다.
  */
-@DisplayName("총관리자 지정·해제 동시성")
+@DisplayName("총관리자 지정·해제·비활성화 동시성")
 class OwnerChangeLockIntegrationTest extends IntegrationTestSupport {
 
     private static final long FIRST_OWNER = 90_001L;
@@ -54,6 +57,9 @@ class OwnerChangeLockIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private RevokeOwnerUseCase revokeOwnerUseCase;
+
+    @Autowired
+    private DeactivateParticipantUseCase deactivateParticipantUseCase;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -101,6 +107,48 @@ class OwnerChangeLockIntegrationTest extends IntegrationTestSupport {
                         .isEqualTo(OrganizationErrorCode.OWNER_ONLY));
         assertThat(isOwner(first)).isTrue();
         assertThat(isOwner(second)).isFalse();
+    }
+
+    @Test
+    @DisplayName("남은 두 총관리자가 동시에 자기 소속을 비활성화하면 뒤 요청은 기다렸다가 거부되고 총관리자 1명이 남는다")
+    void serializesSelfDeactivationOfLastTwoOwners() throws Exception {
+        long organizationId = createOrganizationUseCase
+                .create(new CreateOrganizationCommand(FIRST_OWNER, "비활성화 동시성 발주사", Industry.HVAC))
+                .organizationId();
+        long first = membershipOf(organizationId, FIRST_OWNER);
+        long second = staffMembership(organizationId, SECOND_OWNER);
+        designateOwnerUseCase.designate(new DesignateOwnerCommand(FIRST_OWNER, organizationId, second));
+
+        CountDownLatch firstDeactivated = new CountDownLatch(1);
+        CountDownLatch commitFirst = new CountDownLatch(1);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CompletableFuture<Void> firstRequest = CompletableFuture.runAsync(
+                () -> transaction.executeWithoutResult(status -> {
+                    deactivateParticipantUseCase.deactivate(new ChangeParticipantStatusCommand(
+                            FIRST_OWNER, organizationId, ParticipationType.STAFF, first));
+                    firstDeactivated.countDown();
+                    await(commitFirst);
+                }),
+                executor);
+        assertThat(firstDeactivated.await(10, TimeUnit.SECONDS)).isTrue();
+
+        CompletableFuture<Void> secondRequest = CompletableFuture.runAsync(
+                () -> deactivateParticipantUseCase.deactivate(new ChangeParticipantStatusCommand(
+                        SECOND_OWNER, organizationId, ParticipationType.STAFF, second)),
+                executor);
+        assertThatThrownBy(() -> secondRequest.get(500, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+
+        commitFirst.countDown();
+        firstRequest.get(10, TimeUnit.SECONDS);
+        assertThatThrownBy(() -> secondRequest.get(10, TimeUnit.SECONDS))
+                .isInstanceOf(ExecutionException.class)
+                .cause()
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(OrganizationErrorCode.LAST_OWNER));
+        assertThat(statusOf(first)).isEqualTo("DEACTIVATED");
+        assertThat(isOwner(first)).isFalse();
+        assertThat(statusOf(second)).isEqualTo("ACTIVE");
+        assertThat(isOwner(second)).isTrue();
     }
 
     @Test
@@ -176,5 +224,10 @@ class OwnerChangeLockIntegrationTest extends IntegrationTestSupport {
     private boolean isOwner(long membershipId) {
         return jdbcTemplate.queryForObject(
                 "select is_owner from company_memberships where id = ?", Boolean.class, membershipId);
+    }
+
+    private String statusOf(long membershipId) {
+        return jdbcTemplate.queryForObject(
+                "select status from company_memberships where id = ?", String.class, membershipId);
     }
 }

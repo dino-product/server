@@ -37,7 +37,7 @@ class MembershipJpaEntity extends BaseTimeEntity {
     @Column(name = "is_owner", nullable = false)
     private boolean owner;
 
-    /** 직원 유형. NULL은 "유형 없음"이다. 지정은 소속·계약 유형 지정 작업이 도메인과 함께 연결하고, 지금은 유형 삭제 때 해제만 한다. */
+    /** 직원 유형. NULL은 "유형 없음"이다. 소속 도메인에 없어 지정·해제는 저장 어댑터가 이 컬럼만 바꾼다. */
     @Column(name = "company_membership_category_id")
     private Long staffCategoryId;
 
@@ -73,6 +73,10 @@ class MembershipJpaEntity extends BaseTimeEntity {
         this.owner = owner;
     }
 
+    void changeCategory(Long staffCategoryId) {
+        this.staffCategoryId = staffCategoryId;
+    }
+
     void reactivate(Membership membership, boolean unassignCategory) {
         if (membership.status() != MembershipStatus.ACTIVE) {
             throw new IllegalArgumentException("reactivated membership must be active");
@@ -83,6 +87,15 @@ class MembershipJpaEntity extends BaseTimeEntity {
         if (unassignCategory) {
             this.staffCategoryId = null;
         }
+    }
+
+    void deactivate(Membership membership) {
+        if (membership.status() != MembershipStatus.DEACTIVATED) {
+            throw new IllegalArgumentException("deactivated membership must be deactivated");
+        }
+        this.owner = membership.isOwner();
+        this.status = membership.status();
+        this.statusChangedAt = membership.statusChangedAt();
     }
 
     Membership toDomain() {

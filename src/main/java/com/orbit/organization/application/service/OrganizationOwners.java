@@ -102,7 +102,7 @@ final class OrganizationOwners {
                 .orElseThrow(() -> new BusinessException(OrganizationErrorCode.NOT_ORGANIZATION_MEMBER));
     }
 
-    private static OrganizationId organizationId(Long value) {
+    static OrganizationId organizationId(Long value) {
         try {
             return new OrganizationId(value);
         } catch (IllegalArgumentException exception) {

@@ -228,31 +228,18 @@ public class DecideParticipationRequestsService
             Optional<Membership> staff,
             Optional<Technician> technician,
             Instant now) {
-        ParticipationType lastRole = lastRole(staff, technician);
+        ParticipationType lastRole = Participants.lastRole(staff, technician);
         boolean unassignCategory = confirmedType != lastRole;
         if (confirmedType == ParticipationType.STAFF && staff.isPresent()) {
-            membershipRepository.reactivate(staff.get().rejoin(now), unassignCategory);
+            membershipRepository.reactivate(staff.get().reactivate(now), unassignCategory);
         } else if (confirmedType == ParticipationType.TECHNICIAN && technician.isPresent()) {
-            technicianRepository.reactivate(technician.get().rejoin(now), unassignCategory);
+            technicianRepository.reactivate(technician.get().reactivate(now), unassignCategory);
         } else {
             Instant joinedAt = lastRole == ParticipationType.STAFF
                     ? staff.orElseThrow().joinedAt()
                     : technician.orElseThrow().joinedAt();
             join(request, confirmedType, joinedAt, now);
         }
-    }
-
-    /** 목록에 보이는 역할. 상태 변경 시각이 늦은 행이며, 같으면 직원 소속으로 본다. */
-    private static ParticipationType lastRole(Optional<Membership> staff, Optional<Technician> technician) {
-        if (staff.isEmpty()) {
-            return ParticipationType.TECHNICIAN;
-        }
-        if (technician.isEmpty()) {
-            return ParticipationType.STAFF;
-        }
-        return technician.get().statusChangedAt().isAfter(staff.get().statusChangedAt())
-                ? ParticipationType.TECHNICIAN
-                : ParticipationType.STAFF;
     }
 
     private static ParticipationRequestDecisionInfo result(

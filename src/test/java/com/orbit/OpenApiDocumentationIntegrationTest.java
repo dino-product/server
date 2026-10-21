@@ -690,6 +690,86 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsParticipantListWithFiltersForOwners() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/participants'].get";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("참여 인원 목록 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters.length()").value(3))
+                .andExpect(jsonPath(operation + ".parameters[1].name").value("type"))
+                .andExpect(jsonPath(operation + ".parameters[1].required").value(false))
+                .andExpect(jsonPath(operation + ".parameters[2].name").value("name"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.ParticipantsResponse"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
+    void documentsCategoryAssignmentForStaffMembershipsAndTechnicians() throws Exception {
+        String staff =
+                "$.paths['/api/v1/organizations/{organizationId}/staff-memberships/{membershipId}/category'].put";
+        String technician = "$.paths['/api/v1/organizations/{organizationId}/technicians/{technicianId}/category'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(staff + ".summary").value("직원 유형 지정"))
+                .andExpect(jsonPath(staff + ".requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/"
+                                + "com.orbit.organization.adapter.in.web.MemberCategoryAssignmentRequest"))
+                .andExpect(jsonPath(staff + ".responses['204']").exists())
+                .andExpect(jsonPath(staff + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-004'].value.code")
+                        .value("ORGANIZATION-004"))
+                .andExpect(jsonPath(technician + ".summary").value("기사 유형 지정"))
+                .andExpect(jsonPath(technician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-020'].value.code")
+                        .value("ORGANIZATION-020"))
+                .andExpect(jsonPath(technician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-008'].value.code")
+                        .value("ORGANIZATION-008"))
+                .andExpect(jsonPath(technician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-021'].value.code")
+                        .value("ORGANIZATION-021"));
+    }
+
+    @Test
+    void documentsParticipantDeactivationAndReactivation() throws Exception {
+        String base = "$.paths['/api/v1/organizations/{organizationId}/";
+        String deactivateStaff = base + "staff-memberships/{membershipId}/deactivation'].post";
+        String reactivateTechnician = base + "technicians/{technicianId}/reactivation'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(deactivateStaff + ".summary").value("직원 소속 비활성화"))
+                .andExpect(jsonPath(deactivateStaff + ".responses['204']").exists())
+                .andExpect(jsonPath(deactivateStaff + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-005'].value.code")
+                        .value("ORGANIZATION-005"))
+                .andExpect(jsonPath(base + "technicians/{technicianId}/deactivation'].post.summary")
+                        .value("기사 계약 비활성화"))
+                .andExpect(jsonPath(base + "technicians/{technicianId}/deactivation'].post.responses['409']"
+                                + ".content['application/json'].examples['ORGANIZATION-024'].value.code")
+                        .value("ORGANIZATION-024"))
+                .andExpect(jsonPath(base + "staff-memberships/{membershipId}/reactivation'].post.summary")
+                        .value("직원 소속 재활성화"))
+                .andExpect(jsonPath(reactivateTechnician + ".summary").value("기사 계약 재활성화"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-020'].value.code")
+                        .value("ORGANIZATION-020"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-022'].value.code")
+                        .value("ORGANIZATION-022"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-023'].value.code")
+                        .value("ORGANIZATION-023"));
+    }
+
+    @Test
     void documentsParticipationRequestApprovalAndRejectionAsBatches() throws Exception {
         String base = "$.paths['/api/v1/organizations/{organizationId}/participation-requests";
         String approve = base + "/approvals'].post";
