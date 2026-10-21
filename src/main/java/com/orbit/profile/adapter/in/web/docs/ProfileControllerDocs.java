@@ -115,7 +115,8 @@ public interface ProfileControllerDocs {
             summary = "탈퇴 가능 여부 확인",
             description = "탈퇴 확인 화면을 띄우기 전에 탈퇴를 막는 조건이 있는지 확인합니다. 막는 사유가 있으면 사유 코드와 먼저 정리해야 할 "
                     + "대상의 수를 돌려주므로 차단 안내를 보여 줍니다. 확인 뒤 상태가 바뀔 수 있어 탈퇴 요청 때 다시 판정합니다. 다른 계정의 ID면 "
-                    + "PROFILE-002입니다.",
+                    + "PROFILE-002입니다. 판정에 필요한 정보를 다른 요청이 바꾸는 중이라 기다리다 한도를 넘기면 COMMON-409이므로 잠시 후 "
+                    + "다시 확인합니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
@@ -126,7 +127,7 @@ public interface ProfileControllerDocs {
                             schema = @Schema(implementation = WithdrawalEligibilityResponse.class)))
     @ApiErrorCodes(
             enumClass = CommonErrorCode.class,
-            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND"})
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND", "CONFLICT"})
     @ApiErrorCodes(enumClass = ProfileErrorCode.class, includes = "PROFILE_NOT_FOUND")
     WithdrawalEligibilityResponse checkWithdrawalEligibility(
             @Parameter(hidden = true) AccountPrincipal requester,
@@ -139,8 +140,8 @@ public interface ProfileControllerDocs {
                     + "새 계정으로 가입을 시작합니다. 가입 미완료 계정도 탈퇴할 수 있습니다. 성공하면 지금까지 받은 Access Token은 폐기된 토큰과 같은 "
                     + "404를 받으므로 로그인 화면으로 돌아갑니다. 이미 탈퇴한 계정의 재요청도 204입니다. 탈퇴를 막는 조건이 생겼으면 "
                     + "PROFILE-006이므로 탈퇴 가능 여부를 다시 확인해 안내합니다. 다른 계정의 ID면 PROFILE-002입니다. 같은 프로필을 다른 "
-                    + "요청이 먼저 저장했으면 COMMON-409이며, 탈퇴를 두 번 보낸 직후라면 앞선 요청으로 이미 탈퇴된 것이므로 로그인 화면으로 "
-                    + "돌아갑니다.",
+                    + "요청이 먼저 저장했거나, 탈퇴 판정에 필요한 정보를 다른 요청이 바꾸는 중이라 기다리다 한도를 넘기면 COMMON-409입니다. "
+                    + "잠시 후 다시 요청하며, 탈퇴를 두 번 보낸 직후였다면 다시 요청해도 앞선 요청으로 이미 탈퇴된 계정이라 204입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "탈퇴 성공")
     @ApiErrorCodes(

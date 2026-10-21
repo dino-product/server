@@ -49,10 +49,10 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 조직(발주사) 설정, 유형(직원/기사/작업유형) 관리, 회사 참여 요청, 직원 소속(Membership)·기사 계약(Technician) 관리 |
-| 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, 참여 요청 승인 대기 목록·승인·거절(직원 소속·기사 계약 생성, 비활성 소속 재활성화), schedule용 활성 구성원 조회·기사 계약 조회(계정의 계약 목록·활성 확인), 직원·기사 유형 관리. 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
+| 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, 참여 요청 승인 대기 목록·승인·거절(직원 소속·기사 계약 생성, 비활성 소속 재활성화), schedule용 활성 구성원 조회·기사 계약 조회(계정의 계약 목록·활성 확인), 직원·기사 유형 관리, 탈퇴의 유일한 총관리자 차단 판정·소속 비활성화. 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
 | 기획 원본 | [조직·계정] 정책 |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**ParticipationRequest**(Root) — 참여 요청. 사용자가 회사 코드·참여 링크·QR로 찾은 회사에 생성(링크·QR도 회사 코드로 회사를 확인하고, 클라이언트가 요청 경로를 함께 보냄), 희망 유형·요청 경로·확정 유형·처리자 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
-| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 루트 계약 `TechnicianContractLookup`으로 계정의 모든 기사 계약(비활성 포함)과 기사 계약의 활성 여부를 제공해 schedule이 ACL 어댑터로 배정할 기사 확인과 탈퇴 차단 판정·뒤처리에 씀; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현) · `profile` → 참조 (승인 대기 목록의 신청자 이름을 루트 계약 `ProfileLookup`으로 조회, ACL 어댑터가 계정 식별자를 번역 — organization `AccountId`와 이름이 없는 계정의 표시 판단을 profile 모델과 분리하려고) · `notification` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회) · `notification` ← 이벤트 발행(`ParticipationRequestApproved`·`ParticipationRequestRejected`) |
+| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 루트 계약 `TechnicianContractLookup`으로 계정의 모든 기사 계약(비활성 포함)과 기사 계약의 활성 여부를 제공해 schedule이 ACL 어댑터로 배정할 기사 확인과 탈퇴 차단 판정·뒤처리에 씀; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현) · `profile` → 참조 (승인 대기 목록의 신청자 이름을 루트 계약 `ProfileLookup`으로 조회, ACL 어댑터가 계정 식별자를 번역 — organization `AccountId`와 이름이 없는 계정의 표시 판단을 profile 모델과 분리하려고; 탈퇴 차단 판정은 profile이 선언한 요구 인터페이스 `WithdrawalBlocker`를 구현하고, 탈퇴 뒤처리는 이벤트 `AccountWithdrawn`을 구독) · `notification` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회) · `notification` ← 이벤트 발행(`ParticipationRequestApproved`·`ParticipationRequestRejected`) |
 
 <a id="organization-product"></a>
 #### 2.1 제품 규칙 참조
@@ -61,7 +61,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | --- | --- | --- |
 | 사용자 계층·총관리자 | [조직·계정] §4·§4.1·§11 (ORG-010) | 총관리자 지정·해제 구현 |
 | 가입·프로필·소속 없는 계정 | [조직·계정] §5 (ORG-013) | 가입 완료(프로필·약관)는 [profile](profile.md#profile) 구현, 발주사 생성 구현, 소속 없는 계정 안내는 미구현 |
-| 마이페이지·다중 소속·탈퇴 | [조직·계정] §1·§5.1 (ORG-012, ORG-009) | 계정 정보 수정·약관 재동의·탈퇴(개인정보 삭제·계정 폐쇄)는 [profile](profile.md#profile-withdrawal), 내 소속 목록 조회는 organization 구현. 탈퇴 차단 판정 구현·소속 비활성화는 미구현(HM-319), 나머지 미구현, O-35 |
+| 마이페이지·다중 소속·탈퇴 | [조직·계정] §1·§5.1 (ORG-012, ORG-009) | 계정 정보 수정·약관 재동의·탈퇴(개인정보 삭제·계정 폐쇄)는 [profile](profile.md#profile-withdrawal), 내 소속 목록 조회와 탈퇴의 유일한 총관리자 차단 판정·소속 비활성화는 organization 구현, 나머지 미구현, O-35 |
 | 회사 코드·참여 요청·승인·거절·취소 | [조직·계정] §6 (ORG-017, ORG-018, ORG-021) | 회사 코드 형식·발급·조회·변경, 회사 확인, 참여 요청 생성·취소·내 신청 현황, 승인 대기 목록·승인·거절(일괄 포함, 비활성 소속 재요청·재활성화, 요청 경로 기록) 구현, O-19, O-34 |
 | 유형 관리 (소프트 삭제·작업유형 상태별 삭제 처리) | [조직·계정] §7·§11 (ORG-020, ORG-022) / 기능명세 §4·§5 | 직원·기사 유형만 구현(작업 유형 미구현), O-33 |
 | 역할 변경과 예정 작업 반환 | [조직·계정] §4.1·§11·§12 (ORG-015) | 미구현(대기함 반환은 schedule이 `TechnicianWorkRelease`로 구현) |
@@ -127,7 +127,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 — 프로필 입력·수정, 약관 동의·재동의, 마케팅 수신 동의 변경, 탈퇴 가능 여부 확인·탈퇴, 가입 공통 검사, 이름 조회 계약. 프로필 사진은 미착수. 작업 지침은 [profile 지침](../../src/main/java/com/orbit/profile/AGENTS.md), 구현 결정·차이는 [Profile](profile.md#profile) |
 | 기획 원본 | [조직·계정] §5·§5.1·§9·§11 |
 | 소유 애그리게잇 | **Profile**(Root) — auth가 발급한 계정 식별자(값으로만 보관)·이름·연락처·가입 상태·가입일·탈퇴 시각·탈퇴 사유·마케팅 동의, 약관 동의 이력(종류·버전·시각, 추가만). 탈퇴하면 이름·연락처를 지움 |
-| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, 탈퇴 서비스가 `AccountClosure` 호출, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 다른 모듈 ← 이름 조회 계약 `ProfileLookup` 제공(소비자: organization 승인 대기 목록의 신청자 이름, 계획: schedule 기사 이름, HM-288) · `organization`·`schedule` ← 요구 인터페이스 `WithdrawalBlocker` 구현(탈퇴 차단 판정)과 이벤트 `AccountWithdrawn` 구독(탈퇴 뒤처리) — 연결 예정 HM-319·HM-320 |
+| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, 탈퇴 서비스가 `AccountClosure` 호출, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 다른 모듈 ← 이름 조회 계약 `ProfileLookup` 제공(소비자: organization 승인 대기 목록의 신청자 이름, 계획: schedule 기사 이름, HM-288) · `organization`·`schedule` ← 요구 인터페이스 `WithdrawalBlocker` 구현(탈퇴 차단 판정)과 이벤트 `AccountWithdrawn` 구독(탈퇴 뒤처리) |
 
 ---
 

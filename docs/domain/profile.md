@@ -37,7 +37,7 @@
 | `GET /api/v1/profiles/{accountId}/withdrawal-eligibility` | 탈퇴 확인 화면 전에 탈퇴를 막는 사유 확인. 탈퇴 가능 여부(`withdrawable`)와 사유·건수 목록(`blocks`) | [조직·계정] 정책 §5.1·§11, 기능명세 §7 |
 | `POST /api/v1/profiles/{accountId}/withdrawals` | 즉시 탈퇴, 성공하면 204. 본문 `{"reason"}`은 선택 자유 텍스트이며 본문을 생략해도 된다. 가입 미완료 계정도 쓸 수 있다 | [조직·계정] 정책 §5.1·§11, 기능명세 §4·§5·§6·§7 |
 
-- 오류: `PROFILE-001`(입력 규칙 위반, 400), `PROFILE-002`(다른 계정·탈퇴한 계정, 404), `PROFILE-003`(프로필 입력 전 약관 동의, 409), `PROFILE-004`(필수 약관 미동의, 400), `PROFILE-005`(가입 미완료·재동의 전 이용, 403, [공통 검사](#profile-signup-gate)), `PROFILE-006`(탈퇴 차단, 409, 코드만), `PROFILE-007`(탈퇴 사유 200자 초과·NUL 문자, 400), 동시 저장 충돌 `COMMON-409`.
+- 오류: `PROFILE-001`(입력 규칙 위반, 400), `PROFILE-002`(다른 계정·탈퇴한 계정, 404), `PROFILE-003`(프로필 입력 전 약관 동의, 409), `PROFILE-004`(필수 약관 미동의, 400), `PROFILE-005`(가입 미완료·재동의 전 이용, 403, [공통 검사](#profile-signup-gate)), `PROFILE-006`(탈퇴 차단, 409, 코드만), `PROFILE-007`(탈퇴 사유 200자 초과·NUL 문자, 400), 동시 저장 충돌 `COMMON-409`(탈퇴 가능 여부 확인·탈퇴에서 organization의 총관리자 판정이 발주사 잠금을 기다리다 한도를 넘긴 경우 포함).
 - 이름·연락처·탈퇴 사유 규칙은 Domain 값객체가 한 번만 검사하고 서비스가 `PROFILE-001`·`PROFILE-007`로 바꾼다. 요청 본문에 같은 제약을 두지 않는다.
 
 <a id="profile-signup-gate"></a>
@@ -79,7 +79,7 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 
 - **탈퇴 상태와 데이터**: `WITHDRAWN`으로 바꾸고 이름·연락처를 지우며 탈퇴 시각과 선택 사유를 남긴다. 약관 동의 이력(동의 증빙)과 가입일은 남긴다. 동의 상태였던 현재 마케팅 수신은 탈퇴 시각으로 해제하고 동의 이력은 그대로 둔다. 프로필을 입력하기 전에 탈퇴하면 이름·연락처·약관 동의 없는 탈퇴 표시 행만 만든다. 탈퇴한 프로필은 다시 바뀌지 않는다.
 - **탈퇴한 계정**: 조회·프로필 입력·약관 동의·마케팅 변경·사전 확인은 없는 프로필과 같은 `PROFILE-002`다. 탈퇴하면 토큰이 거부되므로 보통은 닿지 않지만, 거부가 확정되기 전의 요청이 탈퇴한 계정을 되살리지 않게 한다.
-- **재요청과 동시 요청**: 이미 탈퇴한 계정의 재요청은 프로필을 그대로 두고 계정 폐쇄만 다시 확정해 204로 끝내며 이벤트를 다시 내지 않는다. 같은 프로필을 다른 요청이 먼저 저장했으면 버전 열로 `COMMON-409`를 주고 계정을 닫지 않는다. 탈퇴를 두 번 보낸 직후의 409는 앞선 요청으로 이미 탈퇴된 상태다.
+- **재요청과 동시 요청**: 이미 탈퇴한 계정의 재요청은 프로필을 그대로 두고 계정 폐쇄만 다시 확정해 204로 끝내며 이벤트를 다시 내지 않는다. 같은 프로필을 다른 요청이 먼저 저장했으면 버전 열로 `COMMON-409`를 주고 계정을 닫지 않는다. 차단 판정 구현이 잠금을 기다리다 한도를 넘겨도 `COMMON-409`다(organization의 발주사 잠금). 어느 쪽이든 다시 요청하면 되며, 탈퇴를 두 번 보낸 직후였다면 재요청은 이미 탈퇴한 계정이라 204다.
 - **차단 판정**: 사전 확인 뒤 상태가 바뀔 수 있어 탈퇴 직전에 다시 판정한다. 막히면 `PROFILE-006` 코드만 주고 사유·건수는 사전 확인 API가 알린다. 409 본문에 사유를 담으려면 shared 오류 응답 계약을 바꿔야 하기 때문이다. 구현이 같은 사유를 여러 번 돌려주면 profile이 사유마다 건수를 합쳐 사유 enum 순서로 돌려준다.
 - **사전 확인의 트랜잭션**: 조회지만 읽기 전용 트랜잭션으로 열지 않는다. `WithdrawalBlocker` 구현에 행 잠금을 허용하는데 PostgreSQL은 읽기 전용 트랜잭션의 `SELECT ... FOR UPDATE`를 거부하기 때문이다. 잠금은 응답과 함께 풀린다.
 - **auth 계정 폐쇄와 잠금 순서**: 프로필 저장 뒤 같은 트랜잭션에서 auth `AccountClosure.close`를 불러, 둘 중 하나가 실패하면 함께 롤백된다. 프로필 행을 먼저 저장(flush)하고 auth가 계정 행을 잠그므로 잠금 순서는 profile → auth다. auth 쪽 처리는 [Auth 계정 폐쇄 흐름](auth.md#계정-폐쇄-흐름)이다.
@@ -101,16 +101,16 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 ## 연동 관계
 
 - **auth (현재)**: 컨트롤러와 공통 검사가 auth 루트 계약 `AccountPrincipal`에서 계정 식별자만 받아 Command·Query에 넘긴다(Conformist). 이 의존 때문에 auth는 profile을 조회·구독할 수 없다. 탈퇴의 계정 폐쇄(외부 식별 해제·토큰 거부)는 `WithdrawService`가 auth 루트 계약 `AccountClosure`를 탈퇴 트랜잭션 안에서 직접 호출한다(auth가 탈퇴 이벤트를 구독하면 순환). 로그인 응답에는 가입 단계가 없으므로 클라이언트는 로그인 뒤 `GET /api/v1/profiles/{accountId}`로 확인한다.
-- **organization·schedule (탈퇴, schedule 연결·organization 연결 전)**: 탈퇴 차단 판정은 두 모듈이 profile 요구 인터페이스 `WithdrawalBlocker`를 구현하고, 탈퇴 뒤처리(소속 비활성화·대기함 반환)는 두 모듈이 `AccountWithdrawn`을 구독해 맡는다(2026-10-14 결정, organization HM-319·schedule HM-320). schedule은 `adapter/in/profile`·`adapter/in/event`로 연결됐다(HM-320). 두 모듈이 profile에 의존하게 되므로 profile은 그들을 조회·구독하지 않는다.
+- **organization·schedule (탈퇴)**: 탈퇴 차단 판정은 두 모듈이 profile 요구 인터페이스 `WithdrawalBlocker`를 구현하고, 탈퇴 뒤처리(소속 비활성화·대기함 반환)는 두 모듈이 `AccountWithdrawn`을 구독해 맡는다(2026-10-14 결정, organization HM-319·schedule HM-320). 두 모듈 모두 `adapter/in/profile`·`adapter/in/event`로 연결됐다. 두 모듈이 profile에 의존하게 되므로 profile은 그들을 조회·구독하지 않는다.
 - **계획된 관계** (현재 허용 의존성이 아님): schedule의 기사 이름 표시가 `ProfileLookup`을 쓰도록 연결한다(HM-288). 기사 계약 ID를 계정 ID로 바꾸는 연결은 organization과 합의한다.
 
 ## 공개 계약
 
 - `ProfileLookup#findNames(Set<Long>)`: 계정 ID별 표시 이름. 가입을 마친(`ACTIVE`) 계정만 돌려주고, 가입 미완료·프로필 없는·탈퇴한 계정은 결과에 키가 없어 소비자가 셋을 구분하지 못한다. 소비 모듈은 organization(승인 대기 목록의 신청자 이름, 이름이 없으면 비워 둠)이다. 탈퇴한 계정의 표기는 [남은 일](#profile-todo)이다.
 - `WithdrawalBlocker#blocksFor(Long)` (요구 인터페이스): 탈퇴를 막는 상태를 소유한 모듈이 구현한다 — organization은 유일한 총관리자(HM-319), schedule은 기사 소속의 작업중·배정됨 작업(HM-320). profile이 사전 확인과 탈퇴 직전에 등록된 모든 구현을 부른다. 탈퇴 직전 판정은 탈퇴 트랜잭션 안이라 상태를 바꾸지 않되, 판정과 커밋 사이의 경합을 막는 행 잠금은 잡을 수 있다. 같은 사유를 여러 번 돌려줘도 된다.
-  - [요구 인터페이스 규칙](../../.claude/skills/dino-architecture/references/communication.md#요구-인터페이스)과 달리 구현을 여러 모듈이 제공하고, 구현이 없으면 임시 구현 없이 아무것도 막지 않는다. 차단 조건이 상태를 소유한 모듈마다 나뉘고, profile은 그 모듈들을 모르기 때문이다. 그래서 운영 출시 전에 두 구현이 들어가야 한다.
+  - [요구 인터페이스 규칙](../../.claude/skills/dino-architecture/references/communication.md#요구-인터페이스)과 달리 구현을 여러 모듈이 제공하고, 구현이 없으면 임시 구현 없이 아무것도 막지 않는다. 차단 조건이 상태를 소유한 모듈마다 나뉘고, profile은 그 모듈들을 모르기 때문이다. 지금은 organization·schedule이 구현한다.
 - `WithdrawalBlock(reason, count)`·`WithdrawalBlockReason`: 차단 사유와 먼저 정리해야 할 대상의 수(1 이상). 사유 `SOLE_OWNER`·`WORK_IN_PROGRESS`·`WORK_PENDING_ACCEPT`는 [조직·계정] 정책 §5.1의 차단 조건이라 profile이 목록을 소유한다. `WORK_PENDING_ACCEPT`는 [작업] 정책 §9의 배정됨 코드 이름을 따른다. 대상 ID는 담지 않는다(정책 §11은 건수와 처리 경로만 안내).
-- `AccountWithdrawn(accountId, occurredAt)` (이벤트): 탈퇴 트랜잭션 안에서 발행하고 구독자는 커밋 뒤 다른 트랜잭션에서 받는다. 차단·롤백·재요청이면 발행하지 않는다. 개인정보 없이 계정 식별자와 발생 시각만 담는다. organization·schedule이 `@ApplicationModuleListener`로 구독해 뒤처리와 실패 재시도를 각자 맡는다. 구독 실패의 재전송은 이벤트 발행 기록(HM-278)이 맡으며, 아직 없어서 지금은 구독자가 실패하면 다시 전달되지 않는다. 아직 구독 모듈은 없다.
+- `AccountWithdrawn(accountId, occurredAt)` (이벤트): 탈퇴 트랜잭션 안에서 발행하고 구독자는 커밋 뒤 다른 트랜잭션에서 받는다. 차단·롤백·재요청이면 발행하지 않는다. 개인정보 없이 계정 식별자와 발생 시각만 담는다. organization·schedule이 `@ApplicationModuleListener`로 구독해 뒤처리와 실패 재시도를 각자 맡는다. 구독 실패의 재전송은 이벤트 발행 기록(HM-278)이 맡는다.
 - 사용하는 계약: auth `AccountPrincipal`(요청자 계정), `AccountClosure`(탈퇴의 계정 폐쇄).
 
 가입 공통 검사는 공개 계약 없이 웹 계층에서 다른 모듈 API에 적용된다.
@@ -125,7 +125,6 @@ ID 대역·추적 칸의 뜻과 [대역별 구현 규칙](../planning/README.md#
 <a id="profile-todo"></a>
 ## 남은 일
 
-- **탈퇴 연동** (운영 출시 전 필수): organization의 `WithdrawalBlocker` 구현과 `AccountWithdrawn` 구독(HM-319). schedule 쪽(HM-320)은 연결됐다. 그 전에는 유일한 총관리자도 탈퇴되고 소속이 활성으로 남는다. 구독 실패는 이벤트 발행 기록의 재전송(HM-278)이 다시 실행한다.
 - **"탈퇴한 사용자" 표기** ([조직·계정] 정책 §5.1): `ProfileLookup`이 탈퇴한 계정을 어떻게 돌려줄지 정한다. 지금은 가입 미완료·프로필 없는 계정과 구분되지 않는다.
 - **탈퇴 뒤 보관 범위**: 약관 동의 이력·가입일·탈퇴 시각·사유를 기한 없이 보관한다. 법적 적정성은 organization 쪽 O-32(ORG-009).
 - **프로필 사진** ([조직·계정] 정책 §5·§5.1): 파일 저장 방식이 정해진 뒤 추가한다.
