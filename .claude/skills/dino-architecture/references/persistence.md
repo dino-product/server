@@ -35,10 +35,12 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 - `shared.internal.config.AsyncConfig`의 `@EnableAsync`와 Boot TaskExecutor를 사용합니다. 리스너는 발행자와 다른 스레드·별도 트랜잭션에서 실행합니다.
 - 발생 시각은 발행 시점의 `Clock` 값이며 커밋 시각이 아닙니다. 후속 처리는 API 응답과 독립적이며 소비 실패가 이미 커밋된 등록을 되돌리지 않습니다.
 - 예외: 모듈 안 이벤트를 응답 전에 같은 스레드에서 처리해야 하거나, 리스너가 외부 HTTP를 기다려 트랜잭션을 열면 안 되는 경우에는 `@TransactionalEventListener`(필요하면 `@Async`)로 커밋 뒤 소비합니다. 현재 예외와 이유는 auth의 계정 폐쇄 리스너이며 [Auth의 이벤트 흐름](../../../../docs/domain/auth.md#이벤트-흐름)이 원본입니다.
-- 전달 보장이 필요한 확장은 저장소·재처리·멱등성과 ADR을 함께 설계합니다. 현재 구현은 [Auth의 이벤트 흐름](../../../../docs/domain/auth.md#이벤트-흐름)을 참고하며, 이벤트 대신 영속 대기와 주기 재시도로 보장하는 예는 auth의 [외부 연결 해제](../../../../docs/domain/auth.md#외부-연결-해제-흐름)입니다.
+- **전달 보장:** 모듈 리스너로 가는 이벤트는 발행 트랜잭션 안에서 `event_publication`에 기록됩니다. 리스너가 예외를 던지거나 처리 중에 멈추면 `shared`가 최초 처리를 포함해 최대 시도 횟수(`app.events.resubmission.max-attempts`, 기본 10)까지 다시 보내고, 정상 종료하면 `event_publication_archive`로 옮깁니다. 리스너가 예외를 삼키면 완료로 처리돼 다시 보내지 않습니다. `@TransactionalEventListener`를 직접 붙인 리스너는 기록·재전송 대상이 아닙니다. 이벤트 대신 영속 대기와 주기 재시도로 보장하는 예는 auth의 [외부 연결 해제](../../../../docs/domain/auth.md#외부-연결-해제-흐름)입니다.
+- **리스너 멱등:** 같은 이벤트가 한 리스너에 두 번 이상 올 수 있으므로 모듈 리스너는 같은 이벤트를 여러 번 받아도 결과가 같아야 합니다. 이벤트로 행을 만들면 이벤트가 담은 식별자로 이미 처리했는지 확인하거나 유니크 제약으로 막습니다.
+- **이벤트 계약:** 이벤트 record에는 식별자·상태·시각만 담고 이름·연락처 같은 개인정보는 넣지 않습니다(보관 테이블에 기한 없이 남음). 이벤트 record의 이름·패키지·필드를 바꿀 때는 `event_publication`에 그 타입의 미완료 발행이 남지 않았는지 확인하거나 이전 타입을 남깁니다.
 - 실제 커밋·롤백·소비 스레드를 통합 테스트로 검증합니다. 테스트 전체를 트랜잭션으로 감싸지 않습니다.
 
-참고: [영속성과 이벤트 결정](../../../../docs/adr/001-backend-architecture.md#영속성과-이벤트).
+참고: [영속성과 이벤트 결정](../../../../docs/adr/001-backend-architecture.md#영속성과-이벤트), 발행 기록·재전송의 선택 이유와 운영 영향은 [ADR-004](../../../../docs/adr/004-event-publication-registry.md).
 
 <a id="profiles"></a>
 ## 프로필과 실행 환경
@@ -50,5 +52,6 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 - `prod,local`·`dev,local` 동시 지정에도 로컬 설정이 활성화되지 않도록 프로필 표현식(`local & !deployed`)으로 보호합니다.
 - 설정은 `application-{profile}.yml`로 분리하고 공통 설정을 중복하지 않습니다.
 - 현재 마이그레이션 도구는 없습니다. 운영 배포 전에 마이그레이션 전략을 ADR로 결정합니다.
+- 이벤트 발행 기록 테이블(`event_publication`·`event_publication_archive`)은 `local`·`test`만 자동으로 만듭니다. 운영 DB에는 배포 전에 Modulith 스키마를 적용합니다([ADR-004 운영 스키마](../../../../docs/adr/004-event-publication-registry.md#영향과-검증)).
 
 실행 명령: [빠른 시작](../../../../README.md#빠른-시작). 참고: [영속성 결정](../../../../docs/adr/001-backend-architecture.md#영속성과-이벤트).

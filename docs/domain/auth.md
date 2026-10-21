@@ -215,7 +215,7 @@ user.UserRegistered
 
 - 리스너가 공개 이벤트를 auth 소유 Command로 변환합니다. ACL 관계이므로 auth의 Application과 Domain은 user 타입을 참조하지 않습니다.
 - 수신한 `userId`, `occurredAt`만 로그로 기록합니다.
-- 로그 외 영속 모델·자동 재처리는 없습니다.
+- 로그 외 영속 모델은 없습니다. 모듈 리스너라 리스너가 실패하면 [발행 기록](../../.claude/skills/dino-architecture/references/persistence.md#events)에서 다시 받으며, 같은 이벤트를 두 번 받으면 로그가 두 번 남습니다.
 
 ```text
 auth.domain.AccountClosed (auth 안의 사실, 폐쇄 트랜잭션에서 발행)
