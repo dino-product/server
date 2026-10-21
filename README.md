@@ -1,6 +1,8 @@
-# Spring Modulith Backend Template
+# Orbit 서버
 
-새 백엔드 프로젝트의 출발점으로 사용하는 단일 JAR 모듈러 모놀리스 템플릿입니다. `user` 예제와 `auth`의 카카오·Apple OIDC 로그인으로 DDD 모듈 경계, 내부 Hexagonal Architecture, 공개 API와 비동기 이벤트 연동을 보여줍니다.
+Orbit은 A/S·설치·점검 업체의 사무실과 기사가 같은 타임테이블에서 작업을 배정하고 진행 상황을 함께 보는 스케줄링 서비스입니다. 이 저장소는 Orbit의 백엔드입니다.
+
+Java 21·Spring Boot·Spring Modulith 기반 단일 JAR 모듈러 모놀리스입니다. 모듈마다 DDD 경계와 내부 Hexagonal Architecture를 두고 공개 API와 비동기 이벤트로 연동하며, 아래 예제 API의 `user` 예제와 `auth`의 카카오·Apple OIDC 로그인에서 그 구조를 확인할 수 있습니다.
 
 ## 기술 스택
 
