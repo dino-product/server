@@ -34,7 +34,10 @@ public enum OrganizationErrorCode implements BaseCode {
     INACTIVE_MEMBER(HttpStatus.CONFLICT, "ORGANIZATION-021", "비활성 구성원의 세부 유형은 바꿀 수 없습니다."),
     ACTIVE_IN_OTHER_ROLE(HttpStatus.CONFLICT, "ORGANIZATION-022", "다른 역할로 활성 상태인 구성원은 다시 활성화할 수 없습니다."),
     NOT_LAST_ROLE(HttpStatus.CONFLICT, "ORGANIZATION-023", "역할이 바뀌기 전의 소속은 다시 활성화할 수 없습니다."),
-    TECHNICIAN_SCHEDULE_BUSY(HttpStatus.CONFLICT, "ORGANIZATION-024", "같은 기사의 일정이 다른 요청으로 변경 중입니다. 잠시 후 다시 시도해 주세요.");
+    TECHNICIAN_SCHEDULE_BUSY(HttpStatus.CONFLICT, "ORGANIZATION-024", "같은 기사의 일정이 다른 요청으로 변경 중입니다. 잠시 후 다시 시도해 주세요."),
+    OWNER_ROLE_LOCKED(HttpStatus.CONFLICT, "ORGANIZATION-025", "총관리자의 역할은 바꿀 수 없습니다."),
+    INACTIVE_MEMBER_ROLE(HttpStatus.CONFLICT, "ORGANIZATION-026", "비활성 구성원의 역할은 바꿀 수 없습니다."),
+    TECHNICIAN_WORK_IN_PROGRESS(HttpStatus.CONFLICT, "ORGANIZATION-027", "작업중인 작업이 있는 기사는 역할을 바꿀 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
