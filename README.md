@@ -26,10 +26,10 @@ set -a && source .env && set +a
 기본 포트: API `8080`, Actuator `9090`.
 
 - OpenAPI UI: `http://localhost:8080/docs`
-- Health: `http://localhost:9090/actuator/health`
+- Health: `http://localhost:9090/actuator/health` (probe: `/actuator/health/liveness`, `/actuator/health/readiness`)
 - Prometheus: `http://localhost:9090/actuator/prometheus`
 
-예제 API·카카오·Apple 로그인 경로·Health는 공개이고 그 밖의 API와 Prometheus·Info는 Bearer Access Token이 필요합니다. 실행 전 [Auth의 인증 지원 범위](docs/domain/auth.md#책임과-범위)를 확인하고 운영 수집기의 인증·접근 정책을 구성해야 합니다.
+예제 API·카카오·Apple 로그인 경로·Health·Prometheus는 공개이고 그 밖의 API와 Info는 Bearer Access Token이 필요합니다. Health·Prometheus는 Actuator 포트에만 있으며, 운영에서는 이 포트를 외부로 라우팅하지 않고 클러스터 안의 수집기·probe만 접근하게 둡니다([접근 정책](docs/adr/001-backend-architecture.md#인증과-계정)). 실행 전 [Auth의 인증 지원 범위](docs/domain/auth.md#책임과-범위)를 확인합니다.
 
 ## 예제 API
 
