@@ -1,5 +1,7 @@
 package com.orbit.auth.adapter.out.persistence;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
@@ -26,6 +28,9 @@ interface SpringDataAccountRepository extends JpaRepository<AccountJpaEntity, Lo
     /** 닫힌 계정은 외부 식별이 없으므로 외부 식별을 바깥 조인으로 읽는다. */
     @Query("select distinct a from AccountJpaEntity a left join fetch a.credentials where a.id = :id")
     Optional<AccountJpaEntity> findWithCredentialsById(@Param("id") Long id);
+
+    @Query("select a from AccountJpaEntity a where a.closedAt >= :since")
+    List<AccountJpaEntity> findClosedSince(@Param("since") Instant since);
 
     /** PostgreSQL은 바깥 조인의 nullable 쪽을 잠글 수 없으므로 계정 행만 잠그고 외부 식별은 지연 로딩한다. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
