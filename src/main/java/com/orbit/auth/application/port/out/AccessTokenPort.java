@@ -1,5 +1,6 @@
 package com.orbit.auth.application.port.out;
 
+import java.time.Duration;
 import java.util.Optional;
 
 import com.orbit.auth.domain.AccessToken;
@@ -12,4 +13,7 @@ public interface AccessTokenPort {
 
     /** 서명·발급자·시간·토큰 종류가 모두 유효하면 클레임을, 아니면 빈 값을 반환한다. 폐기 여부는 확인하지 않는다. */
     Optional<AccessToken> parse(String value);
+
+    /** 발급하는 Access Token의 유효 기간. 이 기간이 지나면 그 전에 발급한 토큰은 모두 만료된다. */
+    Duration lifetime();
 }

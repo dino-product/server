@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.persistence.EntityManager;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,9 +26,13 @@ import com.orbit.support.PersistenceAdapterTestSupport;
 class AccountPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2026-09-27T01:00:00Z");
+    private static final Instant CLOSED_AT = Instant.parse("2026-10-11T03:00:00Z");
 
     @Autowired
     private AccountRepository adapter;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     @DisplayName("계정을 저장하고 외부 식별로 다시 찾는다")
@@ -67,6 +73,35 @@ class AccountPersistenceAdapterTest extends PersistenceAdapterTestSupport {
                     assertThat(exception.getMessage()).doesNotContain(identity.subject());
                 });
         assertThat(adapter.findByIdentity(identity)).map(Account::id).contains(first.id());
+    }
+
+    @Test
+    @DisplayName("닫은 계정을 저장하면 외부 식별을 지우고 폐쇄 시각과 함께 식별자로 다시 찾는다")
+    void savesClosedAccount() {
+        ExternalIdentity identity = newIdentity();
+        AccountId id =
+                adapter.saveNew(Account.register(identity, REGISTERED_AT)).id().orElseThrow();
+
+        Account account = adapter.findByIdForUpdate(id).orElseThrow();
+        account.close(CLOSED_AT);
+        adapter.update(account);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(adapter.findByIdentity(identity)).isEmpty();
+        assertThat(adapter.findById(id)).hasValueSatisfying(found -> {
+            assertThat(found.isClosed()).isTrue();
+            assertThat(found.closedAt()).contains(CLOSED_AT);
+            assertThat(found.identities()).isEmpty();
+            assertThat(found.registeredAt()).isEqualTo(REGISTERED_AT);
+        });
+        assertThat(adapter.findByIdForUpdate(id)).map(Account::isClosed).contains(true);
+    }
+
+    @Test
+    @DisplayName("잠그고 읽을 계정이 없으면 빈 값을 돌려준다")
+    void returnsEmptyWhenLockingUnknownAccount() {
+        assertThat(adapter.findByIdForUpdate(new AccountId(Long.MAX_VALUE))).isEmpty();
     }
 
     @Test

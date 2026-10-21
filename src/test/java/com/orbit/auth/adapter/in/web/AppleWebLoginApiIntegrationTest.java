@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.orbit.auth.AccountClosure;
 import com.orbit.auth.application.port.out.AppleRefreshToken;
 import com.orbit.auth.application.port.out.AppleRefreshTokenRepository;
 import com.orbit.auth.domain.AccountId;
@@ -50,6 +51,9 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
 
     @Autowired
     private AppleRefreshTokenRepository refreshTokens;
+
+    @Autowired
+    private AccountClosure accountClosure;
 
     @Test
     @DisplayName("시작하면 Apple 인가 주소로 302 보내고 콜백 경로에만 쓰는 연결 쿠키를 남긴다")
@@ -233,6 +237,27 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
+    @DisplayName("교환 코드를 만든 뒤 계정이 닫히면 그 코드로 닫힌 계정의 토큰을 받을 수 없다")
+    void rejectsExchangeAfterAccountClosure() throws Exception {
+        String subject = appleSubject();
+        long accountId = readTree(exchange(webLoginCode(subject))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("accountId")
+                .asLong();
+        String pendingCode = webLoginCode(subject);
+
+        accountClosure.close(accountId);
+
+        exchange(pendingCode)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-007"));
+    }
+
+    @Test
     @DisplayName("교환 코드는 한 번만 쓸 수 있고 모르는 코드는 401 AUTH-007이다")
     void exchangesCodeOnlyOnce() throws Exception {
         String subject = appleSubject();
@@ -371,6 +396,18 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
                 .param("code", code)
                 .param("id_token", idToken)
                 .param("user", FIRST_AUTHORIZATION_USER));
+    }
+
+    /** 웹 로그인을 시작하고 콜백까지 마쳐 복귀 주소의 교환 코드를 돌려준다. */
+    private String webLoginCode(String subject) throws Exception {
+        Started started = start("web");
+        URI location = URI.create(
+                callback(started, APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID), code(subject))
+                        .andExpect(status().isFound())
+                        .andReturn()
+                        .getResponse()
+                        .getHeader(HttpHeaders.LOCATION));
+        return query(location).getFirst("code");
     }
 
     private ResultActions exchange(String code) throws Exception {
