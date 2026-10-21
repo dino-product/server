@@ -367,14 +367,15 @@ class WorkTypeApiIntegrationTest extends IntegrationTestSupport {
                 joinedAt);
     }
 
-    /** 참여 요청 승인(HM-290)이 아직 develop에 없어 활성 기사 계약을 직접 넣는다. */
+    /** 기사 권한 확인만 보므로 참여 요청 승인을 거치지 않고 활성 기사 계약을 직접 넣는다. */
     private void joinAsTechnician(long organizationId, long accountId) {
         Timestamp joinedAt = Timestamp.from(Instant.parse("2026-10-06T00:00:00Z"));
         jdbcTemplate.update(
-                "insert into technician (company_id, member_id, status, status_changed_at, created_at, updated_at)"
-                        + " values (?, ?, 'ACTIVE', ?, ?, ?)",
+                "insert into technician (company_id, member_id, status, joined_at, status_changed_at, created_at,"
+                        + " updated_at) values (?, ?, 'ACTIVE', ?, ?, ?, ?)",
                 organizationId,
                 accountId,
+                joinedAt,
                 joinedAt,
                 joinedAt,
                 joinedAt);

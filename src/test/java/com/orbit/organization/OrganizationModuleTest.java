@@ -22,6 +22,7 @@ import com.orbit.organization.application.port.in.command.dto.CreateWorkTypeComm
 import com.orbit.organization.application.port.in.command.dto.CreatedOrganizationInfo;
 import com.orbit.organization.application.port.in.query.dto.WorkTypeInfo;
 import com.orbit.organization.domain.Industry;
+import com.orbit.profile.ProfileLookup;
 import com.orbit.support.SharedContainers;
 
 @ApplicationModuleTest
@@ -56,6 +57,10 @@ class OrganizationModuleTest implements SharedContainers {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    /** 승인 대기 목록의 신청자 이름 ACL이 쓰는 profile 계약. 모듈 단독 실행이라 profile을 띄우지 않는다. */
+    @MockitoBean
+    private ProfileLookup profileLookup;
 
     @Test
     void createsOrganizationWithinStandaloneModule() {

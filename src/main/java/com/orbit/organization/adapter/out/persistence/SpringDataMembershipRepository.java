@@ -12,6 +12,8 @@ import com.orbit.organization.domain.MembershipStatus;
 
 interface SpringDataMembershipRepository extends JpaRepository<MembershipJpaEntity, Long> {
 
+    Optional<MembershipJpaEntity> findByOrganizationIdAndAccountId(Long organizationId, Long accountId);
+
     Optional<MembershipJpaEntity> findByOrganizationIdAndAccountIdAndStatus(
             Long organizationId, Long accountId, MembershipStatus status);
 

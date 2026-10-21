@@ -130,12 +130,13 @@ class MemberDirectoryQueryAdapterTest extends PersistenceAdapterTestSupport {
 
     private long insertTechnician(OrganizationId organizationId, long accountId, String status, Long categoryId) {
         jdbcTemplate.update(
-                "insert into technician (company_id, member_id, company_technician_category_id, status,"
-                        + " status_changed_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
+                "insert into technician (company_id, member_id, company_technician_category_id, status, joined_at,"
+                        + " status_changed_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)",
                 organizationId.value(),
                 accountId,
                 categoryId,
                 status,
+                Timestamp.from(AT),
                 Timestamp.from(AT),
                 Timestamp.from(AT),
                 Timestamp.from(AT));
