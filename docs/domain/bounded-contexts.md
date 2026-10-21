@@ -5,7 +5,7 @@
 - 기준일: 2026-10-10
 - 기획 원본: [기획 원본 색인](../planning/README.md#planning)의 Notion 정책서 (기준 버전은 색인이 소유, 결정 배경은 [ADR-003](../adr/003-planning-source-of-truth.md))
 
-이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 골격 추가와 `schedule`의 도메인·일부 Application·Adapter, `auth`의 카카오·Apple 로그인·계정·토큰, `organization`의 발주사 생성, `profile`의 가입 프로필·약관 동의·가입 공통 검사(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다. 골격 모듈(`notification`)의 허용 의존성은 현재 없다.
+이 문서는 DDD 관점에서 오빗의 바운디드 컨텍스트(BC)를 서브도메인 분류·소유 애그리게잇·컨텍스트 간 관계까지 제안한다. 현재 등록된 모듈 목록·책임 요약·공개 계약·허용 의존성의 원본은 [도메인 지도](README.md#모듈별-책임과-공개-계약)다. 적용된 범위는 `organization`·`schedule`·`notification` 모듈 추가와 `schedule`의 도메인·일부 Application·Adapter, `auth`의 카카오·Apple 로그인·계정·토큰, `organization`의 발주사 생성, `profile`의 가입 프로필·약관 동의·가입 공통 검사, `notification`의 작업 이벤트 알림(구현 범위는 도메인 지도 참조)이며, 그 밖의 애그리게잇·관계와 P2~P4는 설계 초안이다.
 
 제품 규칙(누가·무엇을·언제, 사용자가 체감하는 제한)은 이 문서에 다시 적지 않는다. 구현이 시작된 BC는 모듈별 문서(현재 [schedule](schedule.md#schedule)·[auth](auth.md)·[profile](profile.md#profile))로 분리하고, 이 문서에는 관계·로드맵만 남긴다. 각 BC는 **기획 원본**(기준 정책서) · **제품 규칙 참조**(Notion 절 번호) · **구현 결정**(BC 문서가 원본) · **차이·공백**(Notion과 구현의 차이, 제품 결정 필요 항목)으로 나눠 적는다. 차이·공백 항목은 [대역별 구현 규칙](../planning/README.md#gap-actions)대로 다루며, 운영 절차는 [동기화 규칙](../planning/README.md#sync)을 따른다.
 
@@ -52,7 +52,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, schedule용 활성 구성원 조회·기사 계약 조회(계정의 계약 목록·활성 확인. 기사 계약은 조회와 유형 해제만), 직원·기사 유형 관리. 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
 | 기획 원본 | [조직·계정] 정책 |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**MembershipRequest**(Root) — 사용자가 회사 코드·링크·QR로 생성, 희망 유형 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
-| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 루트 계약 `TechnicianContractLookup`으로 계정의 모든 기사 계약(비활성 포함)과 기사 계약의 활성 여부를 제공해 schedule이 ACL 어댑터로 배정할 기사 확인과 탈퇴 차단 판정·뒤처리에 씀; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
+| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 루트 계약 `TechnicianContractLookup`으로 계정의 모든 기사 계약(비활성 포함)과 기사 계약의 활성 여부를 제공해 schedule이 ACL 어댑터로 배정할 기사 확인과 탈퇴 차단 판정·뒤처리에 씀; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현) · `notification` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회) · `notification` ← 이벤트 발행(`MembershipRequestApproved`) |
 
 <a id="organization-product"></a>
 #### 2.1 제품 규칙 참조
@@ -112,13 +112,11 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 
 | 항목 | 내용 |
 | --- | --- |
-| 책임 | 다른 컨텍스트의 이벤트를 구독해 알림을 생성. 읽음/안읽음 관리 |
-| 상태 | 골격 생성 |
+| 책임 | 다른 컨텍스트의 이벤트를 구독해 알림을 생성. 읽음/안읽음 관리, 기사 알림 설정 |
+| 상태 | 구현 중 — [notification 문서](notification.md#notification) |
 | 기획 원본 | [알림] 정책 — 트리거 §4(단일 원본), 채널 §5, 알림센터·설정 §6·§6.1, 상태 코드 §8, 권한 §9 |
-| 소유 개념 | **Notification** — 수신자·메시지·읽음여부. 상태가 얕아 별도 VO 없음 |
-| 관계 | `organization`, `schedule` ← 이벤트 구독 (Published Language). 양쪽 모듈 모두 알지 못하는 순수 소비자 |
-
-구현 결정·차이는 알림 구현을 시작할 때 이 절에 추가한다. 발행 쪽 이벤트가 [알림] §4의 트리거를 모두 표현할 수 있는지(예: 거절 사유, 역할 변경 때 풀린 예정 작업)를 그때 대조한다.
+| 소유 개념 | **Notification**, **NotificationSetting** — 상세는 notification 문서 |
+| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
 
 <a id="profile"></a>
 ### 5. 프로필 컨텍스트 (`profile`) — Generic Subdomain
@@ -167,7 +165,7 @@ P2~P4의 포함 여부·시점은 제품 결정이며 각 정책서의 MVP 제�
 | --- | --- | --- |
 | BC-002 | 참여 요청(MembershipRequest)을 `organization`에서 분리할 시점 | 현재는 승인·소속 생성의 원자성 때문에 `organization`에 둠 — 요청 생명주기가 복잡해지면 분리 검토 |
 
-개인 계정·프로필 관리(마이페이지, 탈퇴)의 소유 컨텍스트(구 BC-001)는 2026-10-07 `auth`가 아닌 새 모듈로 정하고 2026-10-10 이름을 `profile`로 확정해 닫았다. `member`는 schedule의 조직 구성원 용어·organization의 `Membership`과, `account`는 auth의 `Account`와 겹쳐 쓰지 않았다. 결정 배경은 [ADR-001 인증과 계정](../adr/001-backend-architecture.md#인증과-계정), 모듈 내용은 [Profile](profile.md#profile)에 있다. 정산 포함 여부(구 BC-004)는 [작업] §13에서 MVP 제외로 정해졌고 탈퇴 차단 조건([조직·계정] §5.1)에도 정산이 없어 닫았다. 조직 간 일정 충돌(구 BC-005)은 제품 결정이라 [schedule 차이·공백](schedule.md#schedule-gaps)의 S-31로 옮겼다.
+개인 계정·프로필 관리(마이페이지, 탈퇴)의 소유 컨텍스트(구 BC-001)는 2026-10-07 `auth`가 아닌 새 모듈로 정하고 2026-10-10 이름을 `profile`로 확정해 닫았다. `member`는 schedule의 조직 구성원 용어·organization의 `Membership`과, `account`는 auth의 `Account`와 겹쳐 쓰지 않았다. 결정 배경은 [ADR-001 인증과 계정](../adr/001-backend-architecture.md#인증과-계정), 모듈 내용은 [Profile](profile.md#profile)에 있다. 정산 포함 여부(구 BC-004)는 [작업] §13에서 MVP 제외로 정해졌고 탈퇴 차단 조건([조직·계정] §5.1)에도 정산이 없어 닫았다. 조직 간 일정 충돌(구 BC-005)은 제품 결정이라 schedule 차이(S-31)로 옮겼고, [스케줄·배정] §8(SCH-011)이 같은 발주사 안에서만 판정하기로 정해 닫았다.
 
 ---
 

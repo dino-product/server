@@ -6,6 +6,11 @@ spring:
   docker:
     compose:
       enabled: false
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: true
 
 decorator:
   datasource:
@@ -55,3 +60,7 @@ app:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test
       access-token-ttl: PT1H
+  events:
+    resubmission:
+      # 주기 작업은 끈다. 재전송을 검사하는 테스트는 재전송을 직접 부른다.
+      enabled: false

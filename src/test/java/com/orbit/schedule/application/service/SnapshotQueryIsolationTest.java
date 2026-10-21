@@ -26,8 +26,7 @@ class SnapshotQueryIsolationTest {
                 GetProgressBoardService.class,
                 GetWorkDetailService.class,
                 ExportWorksService.class,
-                GetBacklogSummaryService.class,
-                GetTeamScheduleService.class
+                GetBacklogSummaryService.class
             })
     @DisplayName("한 스냅샷(REPEATABLE READ) 읽기 전용 트랜잭션에서 실행한다")
     void runsInRepeatableReadSnapshot(Class<?> service) {

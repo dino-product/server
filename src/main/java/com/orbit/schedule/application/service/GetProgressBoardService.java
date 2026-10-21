@@ -33,7 +33,7 @@ public class GetProgressBoardService implements GetProgressBoardUseCase {
     /** 보드의 열 순서. 진행 순서와 같다. */
     private static final List<WorkStatus> COLUMN_ORDER = List.of(
             WorkStatus.REGISTERED,
-            WorkStatus.PENDING_ACCEPTANCE,
+            WorkStatus.PENDING_ACCEPT,
             WorkStatus.ACCEPTED,
             WorkStatus.IN_PROGRESS,
             WorkStatus.COMPLETED);

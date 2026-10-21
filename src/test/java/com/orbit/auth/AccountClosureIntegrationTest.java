@@ -23,7 +23,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -44,7 +43,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** 탈퇴를 소유한 모듈처럼 루트 계약을 부르고, 로그인은 카카오·Apple 스텁을 거친 실제 API로 확인한다. */
-@AutoConfigureMockMvc
 @DisplayName("계정 폐쇄")
 class AccountClosureIntegrationTest extends IntegrationTestSupport {
 

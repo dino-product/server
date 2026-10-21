@@ -51,7 +51,7 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
     @DisplayName("배정됨·작업전 작업을 처리자 없이 대기함으로 돌리고 작업중·완료 작업은 그대로 둔다")
     void releasesScheduledWorksWithoutProcessor() {
         contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
-        WorkId pending = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.PENDING_ACCEPTANCE, 0);
+        WorkId pending = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.PENDING_ACCEPT, 0);
         WorkId accepted = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.ACCEPTED, 4);
         WorkId inProgress = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.IN_PROGRESS, 8);
         WorkId completed = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.COMPLETED, 12);
@@ -79,7 +79,7 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
         contracts.givenInactive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
         contracts.givenActive(ACCOUNT_ID, OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
         WorkId first = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.ACCEPTED, 0);
-        WorkId second = givenWork(OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID, WorkStatus.PENDING_ACCEPTANCE, 0);
+        WorkId second = givenWork(OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID, WorkStatus.PENDING_ACCEPT, 0);
 
         service.release(command());
 

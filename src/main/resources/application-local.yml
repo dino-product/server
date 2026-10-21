@@ -1,7 +1,7 @@
 spring:
   config:
     activate:
-      on-profile: "local & !prod"
+      on-profile: "local & !deployed"
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:54321/postgres}
     username: ${DATABASE_USERNAME:postgres}
@@ -9,6 +9,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: true
 
 decorator:
   datasource:

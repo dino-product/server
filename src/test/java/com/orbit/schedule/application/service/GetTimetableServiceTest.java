@@ -86,13 +86,13 @@ class GetTimetableServiceTest {
     void listsScheduledWorks() {
         fixture.givenManager();
         WorkId later = fixture.givenWork(
-                ORGANIZATION_ID, "겹친 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN.plus(Duration.ofHours(1)));
+                ORGANIZATION_ID, "겹친 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN.plus(Duration.ofHours(1)));
         WorkId first = fixture.givenWork(ORGANIZATION_ID, "먼저 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
         WorkId otherTechnician =
                 fixture.givenWork(ORGANIZATION_ID, "다른 기사 작업", WorkStatus.COMPLETED, OTHER_TECHNICIAN_ID, TEN);
         WorkId late = fixture.givenWork(
                 ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, OTHER_TECHNICIAN_ID, NOW.minus(Duration.ofHours(3)));
-        fixture.givenWork(ORGANIZATION_ID, "취소 작업", WorkStatus.CANCELLED, TECHNICIAN_ID, TEN);
+        fixture.givenWork(ORGANIZATION_ID, "취소 작업", WorkStatus.CANCELED, TECHNICIAN_ID, TEN);
         fixture.givenWork(ORGANIZATION_ID, "구간 밖 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TO);
         fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
 
@@ -107,7 +107,7 @@ class GetTimetableServiceTest {
                         TimetableInfo.ScheduledWork::conflicting)
                 .containsExactly(
                         tuple(first.value(), TECHNICIAN_ID.value(), WorkStatus.ACCEPTED, false, true),
-                        tuple(later.value(), TECHNICIAN_ID.value(), WorkStatus.PENDING_ACCEPTANCE, false, true),
+                        tuple(later.value(), TECHNICIAN_ID.value(), WorkStatus.PENDING_ACCEPT, false, true),
                         tuple(late.value(), OTHER_TECHNICIAN_ID.value(), WorkStatus.IN_PROGRESS, true, false),
                         tuple(
                                 otherTechnician.value(),
@@ -126,7 +126,8 @@ class GetTimetableServiceTest {
                         false,
                         true,
                         label(INSTALL),
-                        REGISTRAR));
+                        REGISTRAR,
+                        0L));
     }
 
     @Test
@@ -284,7 +285,7 @@ class GetTimetableServiceTest {
         fixture.givenManager(ActorRole.OWNER);
         WorkId newer = fixture.workRepository.store(Work.register(
                 ORGANIZATION_ID, "나중 등록", REGISTRAR_ID, REGISTERED_AT.plusSeconds(60), WORK_TYPE_ID, null, null));
-        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         rejected.reject(new Rejection(RejectionReason.OTHER, "너무 멀어요"), ACCEPTED_AT);
         WorkId rejectedId = fixture.workRepository.store(rejected);
         fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.REGISTERED, TECHNICIAN_ID, TEN);
@@ -305,7 +306,8 @@ class GetTimetableServiceTest {
                                 true,
                                 RejectionReason.OTHER,
                                 "너무 멀어요",
-                                false),
+                                false,
+                                0L),
                         new BacklogWorkInfo(
                                 newer.value(),
                                 "나중 등록",
@@ -320,7 +322,8 @@ class GetTimetableServiceTest {
                                 false,
                                 null,
                                 null,
-                                false));
+                                false,
+                                0L));
     }
 
     @Test

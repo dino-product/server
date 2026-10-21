@@ -19,6 +19,7 @@ import com.orbit.schedule.application.service.fake.FakeTechnicianProfilesPort;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
 import com.orbit.schedule.application.service.fake.FakeWorkTypeLabelsPort;
 import com.orbit.schedule.application.service.fake.FakeWorkTypePort;
+import com.orbit.schedule.application.service.fake.RecordingEventPublisher;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
@@ -28,6 +29,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -78,6 +80,8 @@ final class ScheduleServiceFixture {
     final FakeTechnicianProfilesPort technicianProfiles = new FakeTechnicianProfilesPort();
     final FakeStaffProfilesPort staffProfiles = new FakeStaffProfilesPort();
     final FakeWorkTypeLabelsPort workTypeLabels = new FakeWorkTypeLabelsPort();
+    /** 변경 서비스가 발행한 공개 이벤트. */
+    final RecordingEventPublisher events = new RecordingEventPublisher();
 
     ScheduleServiceFixture() {
         technicianContracts.givenActive(ORGANIZATION_ID, TECHNICIAN_ID);
@@ -92,6 +96,11 @@ final class ScheduleServiceFixture {
     /** 요청자를 주어진 역할의 관리자({@link #MANAGER_ID})로 둔다. */
     void givenManager(ActorRole role) {
         actorPort.givenManager(ACCOUNT_ID, ORGANIZATION_ID, MANAGER_ID.value(), role);
+    }
+
+    /** 요청자를 {@link #givenWork} 작업을 등록한 직원({@link #REGISTRAR_ID})으로 둔다. */
+    void givenRegistrarStaff() {
+        actorPort.givenManager(ACCOUNT_ID, ORGANIZATION_ID, REGISTRAR_ID.value(), ActorRole.STAFF);
     }
 
     /** 요청자를 주어진 기사로 둔다. 담당 기사 본인 여부는 기사 식별자로 판단한다. */
@@ -115,7 +124,7 @@ final class ScheduleServiceFixture {
                 REGISTRAR_ID,
                 REGISTERED_AT,
                 WORK_TYPE_ID,
-                new CustomerInfo("홍길동", "010-1234-5678", "서울시"),
+                new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress("04043", "서울시", "3층")),
                 new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         if (status != WorkStatus.REGISTERED) {
             work.assign(new WorkSchedule(technicianId, start, TWO_HOURS), ASSIGNED_AT, SETUP_MANAGER_ID);
@@ -129,7 +138,7 @@ final class ScheduleServiceFixture {
         if (status == WorkStatus.COMPLETED) {
             work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), ACCEPTED_AT);
         }
-        if (status == WorkStatus.CANCELLED) {
+        if (status == WorkStatus.CANCELED) {
             work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         }
         return workRepository.store(work);
@@ -144,11 +153,23 @@ final class ScheduleServiceFixture {
         return workRepository.saved().getFirst();
     }
 
-    /** 오류 코드로 실패하고, 저장하지도 기사를 잠그지도 않았는지 확인한다. */
+    /**
+     * 오류 코드로 실패하고 저장하지도 이벤트를 발행하지도 않았는지 확인한다. 작업을 읽기 전에 기사를 잠그는 유즈케이스(수락·거절·시작)처럼 잠근 뒤에 거부할 수
+     * 있는 경우에 쓴다. 잠금 여부는 호출한 쪽이 확인한다.
+     */
+    void assertRejectedWithoutSaving(ThrowingCallable call, ScheduleErrorCode expected) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                .isEqualTo(expected));
+        assertThat(workRepository.saved()).isEmpty();
+        assertThat(events.published()).isEmpty();
+    }
+
+    /** 오류 코드로 실패하고, 저장하지도 기사를 잠그지도 이벤트를 발행하지도 않았는지 확인한다. */
     void assertRejected(ThrowingCallable call, ScheduleErrorCode expected) {
         assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                 .isEqualTo(expected));
         assertThat(workRepository.saved()).isEmpty();
         assertThat(scheduleLock.locks()).isEmpty();
+        assertThat(events.published()).isEmpty();
     }
 }

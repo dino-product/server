@@ -18,7 +18,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -44,7 +43,6 @@ import tools.jackson.databind.ObjectMapper;
  * 계정 폐쇄 뒤 카카오 연결 끊기·Apple 토큰 철회를 로컬 스텁 서버로 확인한다. 로그인·폐쇄·커밋 뒤 비동기 처리·재시도는 실제 경로를 지난다. 제공자 E2E는 아니다. 주기
  * 작업은 테스트 프로필에서 꺼 두고 재시도는 유즈케이스를 직접 부른다.
  */
-@AutoConfigureMockMvc
 @DisplayName("외부 연결 해제")
 class ProviderUnlinkIntegrationTest extends IntegrationTestSupport {
 

@@ -17,7 +17,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -45,7 +44,7 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 /**
  * profile 탈퇴 연동을 실제 트랜잭션·커밋 뒤 비동기 소비로 확인한다. profile 서비스 대신 TransactionTemplate이 탈퇴 트랜잭션을 열고 이벤트를 발행한다. 계정의 기사
@@ -53,10 +52,9 @@ import com.orbit.support.TestcontainersConfiguration;
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("탈퇴 차단 판정과 탈퇴 반환 연동(PostgreSQL)")
-class AccountWithdrawnIntegrationTest {
+class AccountWithdrawnIntegrationTest implements SharedContainers {
 
     // 테스트들이 같은 DB와 비동기 소비를 쓰므로 테스트마다 다른 계정·조직을 써서 앞선 테스트의 작업·소비가 섞이지 않게 한다.
     private static final AtomicLong NEXT_ID = new AtomicLong(900L);
@@ -113,8 +111,8 @@ class AccountWithdrawnIntegrationTest {
     @DisplayName("profile의 탈퇴 트랜잭션에서 작업중·배정됨 작업을 사유와 건수로 알린다")
     void reportsBlockingWorksInWithdrawalTransaction() {
         store(WorkStatus.IN_PROGRESS, 0);
-        store(WorkStatus.PENDING_ACCEPTANCE, 3);
-        store(WorkStatus.PENDING_ACCEPTANCE, 6);
+        store(WorkStatus.PENDING_ACCEPT, 3);
+        store(WorkStatus.PENDING_ACCEPT, 6);
         store(WorkStatus.ACCEPTED, 9);
 
         List<WithdrawalBlock> blocks = new TransactionTemplate(transactionManager)
@@ -131,7 +129,7 @@ class AccountWithdrawnIntegrationTest {
     @Test
     @DisplayName("탈퇴가 커밋되면 다른 스레드의 별도 트랜잭션에서 배정됨·작업전 작업을 처리자 없이 대기함으로 돌리고 작업중 작업은 남긴다")
     void releasesScheduledWorksAfterWithdrawalCommits() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, 0);
         WorkId accepted = store(WorkStatus.ACCEPTED, 3);
         WorkId inProgress = store(WorkStatus.IN_PROGRESS, 6);
         WorkId planned = storePlanned();

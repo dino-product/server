@@ -2,11 +2,14 @@ package com.orbit.schedule.adapter.in.organization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -20,7 +23,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -33,11 +35,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.TechnicianContractLookup;
+import com.orbit.organization.TechnicianMember;
 import com.orbit.organization.TechnicianWorkRelease;
 import com.orbit.organization.TechnicianWorkReleaseResult;
 import com.orbit.organization.WorkReleaseBlocked;
 import com.orbit.organization.WorkReleased;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
+import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
+import com.orbit.schedule.application.port.in.command.StartWorkUseCase;
+import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.AssignmentEndReason;
@@ -50,18 +57,18 @@ import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.shared.error.BusinessException;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 /**
  * organization이 기사 계약을 끝내는 트랜잭션 안에서 요구 인터페이스를 부르는 상황을 실제 트랜잭션·기사 잠금으로 확인한다. organization 서비스 대신
- * TransactionTemplate이 바깥 트랜잭션을 연다.
+ * TransactionTemplate이 바깥 트랜잭션을 연다. 기사 요청(시작·수락)이 같은 기사 잠금으로 반환과 한 줄로 서서 버전 충돌 없이 앞선 커밋을 보고 판정하는지도
+ * 확인한다.
  */
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("대기함 반환 요구 인터페이스(PostgreSQL)")
-class TechnicianWorkReleaseIntegrationTest {
+class TechnicianWorkReleaseIntegrationTest implements SharedContainers {
 
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
 
@@ -72,11 +79,12 @@ class TechnicianWorkReleaseIntegrationTest {
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final MembershipId ASSIGNED_BY = new MembershipId(11L);
     private static final long PROCESSED_BY = 21L;
+    private static final long TECHNICIAN_ACCOUNT_ID = 41L;
     private static final Instant TEN = Instant.parse("2030-01-02T01:00:00Z");
     private static final Duration TWO_HOURS = Duration.ofHours(2);
     private static final long TEST_TIMEOUT_SECONDS = 10;
 
-    // 조립에 필요한 organization 계약. 이 테스트는 요청자와 기사 계약을 확인하지 않는다.
+    // 조립에 필요한 organization 계약. 반환은 요청자와 기사 계약을 확인하지 않고, 기사 요청과의 경합 테스트만 요청자를 기사로 둔다.
     @MockitoBean
     private OrganizationMemberLookup memberLookup;
 
@@ -85,6 +93,12 @@ class TechnicianWorkReleaseIntegrationTest {
 
     @Autowired
     private TechnicianWorkRelease technicianWorkRelease;
+
+    @Autowired
+    private StartWorkUseCase startWorkUseCase;
+
+    @Autowired
+    private AcceptWorkUseCase acceptWorkUseCase;
 
     @Autowired
     private WorkRepository workRepository;
@@ -121,7 +135,7 @@ class TechnicianWorkReleaseIntegrationTest {
     @Test
     @DisplayName("비활성화와 함께 커밋되면 배정됨·작업전 작업은 대기함으로 가고 미리 입력한 담당기사는 비며, 작업중 작업과 다른 기사의 작업은 그대로 남는다")
     void commitsReleaseWithCallerTransaction() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
         WorkId accepted = store(WorkStatus.ACCEPTED, TECHNICIAN_ID, 3);
         WorkId inProgress = store(WorkStatus.IN_PROGRESS, TECHNICIAN_ID, 6);
         WorkId otherTechnician = store(WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, 0);
@@ -151,7 +165,7 @@ class TechnicianWorkReleaseIntegrationTest {
     @Test
     @DisplayName("역할 변경이 롤백되면 반환도 함께 롤백된다")
     void rollsBackReleaseWithCallerTransaction() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
 
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             assertThat(technicianWorkRelease.releaseForRoleChange(
@@ -160,13 +174,13 @@ class TechnicianWorkReleaseIntegrationTest {
             status.setRollbackOnly();
         });
 
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
     @DisplayName("작업중 작업이 있는 기사의 역할 변경은 그 작업을 돌려주고 아무것도 바꾸지 않는다")
     void blocksRoleChangeWithInProgressWork() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
         WorkId inProgress = store(WorkStatus.IN_PROGRESS, TECHNICIAN_ID, 3);
 
         TechnicianWorkReleaseResult result = new TransactionTemplate(transactionManager)
@@ -174,24 +188,24 @@ class TechnicianWorkReleaseIntegrationTest {
                         organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY));
 
         assertThat(result).isEqualTo(new WorkReleaseBlocked(List.of(inProgress.value())));
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
     @DisplayName("바깥 트랜잭션 없이 부르면 반환이 기사 계약 종료와 따로 커밋되므로 거부한다")
     void rejectsCallWithoutCallerTransaction() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
 
         assertThatThrownBy(() -> technicianWorkRelease.releaseForDeactivation(
                         organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY))
                 .isInstanceOf(IllegalTransactionStateException.class);
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
     @DisplayName("바깥 트랜잭션이 REPEATABLE READ면 잠근 뒤에도 앞선 커밋을 못 보므로 거부한다")
     void rejectsCallerTransactionAboveReadCommitted() {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
         TransactionTemplate repeatableRead = new TransactionTemplate(transactionManager);
         repeatableRead.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
 
@@ -199,7 +213,7 @@ class TechnicianWorkReleaseIntegrationTest {
                         repeatableRead.executeWithoutResult(status -> technicianWorkRelease.releaseForDeactivation(
                                 organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY)))
                 .isInstanceOf(IllegalStateException.class);
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @Test
@@ -211,7 +225,7 @@ class TechnicianWorkReleaseIntegrationTest {
                 executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
                     lockTechnicianSchedulePort.lock(organizationId, TECHNICIAN_ID);
                     assignedWhileHolding[0] = workRepository
-                            .save(work(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0))
+                            .save(work(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0))
                             .id()
                             .orElseThrow();
                     locked.countDown();
@@ -235,7 +249,7 @@ class TechnicianWorkReleaseIntegrationTest {
     @Test
     @DisplayName("같은 기사의 앞선 변경이 대기 한도 안에 끝나지 않으면 409로 실패하고 바깥 트랜잭션도 롤백된다")
     void failsWhenTechnicianScheduleStaysBusy() throws Exception {
-        WorkId pending = store(WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, 0);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
         CountDownLatch locked = new CountDownLatch(1);
         executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             lockTechnicianSchedulePort.lock(organizationId, TECHNICIAN_ID);
@@ -248,7 +262,111 @@ class TechnicianWorkReleaseIntegrationTest {
                         organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY)))
                 .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY));
-        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
+    }
+
+    @Test
+    @DisplayName("비활성화 반환의 커밋을 기사 잠금에서 기다린 작업 시작은 반환된 작업을 보고 찾을 수 없음으로 끝난다")
+    void startWaitingForReleaseSeesReleasedWork() throws Exception {
+        givenTechnicianAccount();
+        WorkId accepted = storeStartableNow();
+
+        assertNotFoundAfterWaitingForDeactivation(() -> startWorkUseCase.start(
+                new StartWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), accepted.value(), 1)));
+
+        assertReleased(accepted);
+    }
+
+    @Test
+    @DisplayName("비활성화 반환의 커밋을 기사 잠금에서 기다린 배정 수락은 반환된 작업을 보고 찾을 수 없음으로 끝난다")
+    void acceptWaitingForReleaseSeesReleasedWork() throws Exception {
+        givenTechnicianAccount();
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
+
+        assertNotFoundAfterWaitingForDeactivation(() -> acceptWorkUseCase.accept(
+                new AcceptWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), pending.value(), 1)));
+
+        assertReleased(pending);
+    }
+
+    @Test
+    @DisplayName("작업 시작의 커밋을 기사 잠금에서 기다린 역할 변경은 버전 충돌 없이 그 작업중 작업을 돌려주고 아무것도 바꾸지 않는다")
+    void roleChangeWaitingForStartSeesStartedWork() throws Exception {
+        givenTechnicianAccount();
+        WorkId accepted = storeStartableNow();
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 3);
+        CountDownLatch started = new CountDownLatch(1);
+        // 시작의 커밋을 늦추려고 바깥 트랜잭션에 참여시킨다. 참여하면 시작의 격리 수준 지정은 무시되고 PostgreSQL 기본값 READ COMMITTED로 돈다.
+        Future<?> holder = executor.submit(() -> inCallerTransaction(() -> {
+            startWorkUseCase.start(
+                    new StartWorkCommand(TECHNICIAN_ACCOUNT_ID, organizationId.value(), accepted.value(), 1));
+            started.countDown();
+            awaitHolderRelease();
+        }));
+        assertThat(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+
+        Future<TechnicianWorkReleaseResult> release = executor.submit(() -> new TransactionTemplate(transactionManager)
+                .execute(status -> technicianWorkRelease.releaseForRoleChange(
+                        organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY)));
+        awaitWaitingAdvisoryLock();
+        assertThat(release).isNotDone();
+        releaseHolder.countDown();
+        holder.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+        assertThat(release.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                .isEqualTo(new WorkReleaseBlocked(List.of(accepted.value())));
+        assertThat(load(accepted).status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
+    }
+
+    /**
+     * 비활성화 반환이 기사를 잠그고 커밋하기 전에 기다리는 동안 기사 요청을 보내, 요청이 기사 잠금에서 기다렸다가 반환의 커밋을 보고 찾을 수 없음(404)으로
+     * 끝나는지 확인한다.
+     */
+    private void assertNotFoundAfterWaitingForDeactivation(Runnable technicianRequest) throws Exception {
+        CountDownLatch released = new CountDownLatch(1);
+        Future<?> holder = executor.submit(() -> inCallerTransaction(() -> {
+            technicianWorkRelease.releaseForDeactivation(organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY);
+            released.countDown();
+            awaitHolderRelease();
+        }));
+        assertThat(released.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+
+        Future<?> request = executor.submit(technicianRequest);
+        awaitWaitingAdvisoryLock();
+        assertThat(request).isNotDone();
+        releaseHolder.countDown();
+        holder.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+        assertThatThrownBy(() -> request.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                .isInstanceOf(ExecutionException.class)
+                .cause()
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.WORK_NOT_FOUND));
+    }
+
+    /** 요청 계정을 이 테스트 조직의 기사 {@link #TECHNICIAN_ID}로 둔다. */
+    private void givenTechnicianAccount() {
+        when(memberLookup.findActiveMember(TECHNICIAN_ACCOUNT_ID, organizationId.value()))
+                .thenReturn(Optional.of(new TechnicianMember(TECHNICIAN_ID.value(), organizationId.value())));
+    }
+
+    /**
+     * 지금 시작할 수 있는, 기사 {@link #TECHNICIAN_ID}가 수락한 작업. 30분 전에 시작하는 2시간 일정이라 시작 가능 시간(예정 시작 10분 전부터 예정 종료까지)
+     * 안이고, 배정·수락은 그보다 앞선 과거 시각에 했다.
+     */
+    private WorkId storeStartableNow() {
+        Instant now = Instant.now();
+        Work work = Work.register(organizationId, "시작 대상", REGISTRAR_ID, REGISTERED_AT, null, null, null);
+        work.assign(
+                new WorkSchedule(TECHNICIAN_ID, now.minus(Duration.ofMinutes(30)), TWO_HOURS),
+                now.minus(Duration.ofHours(1)),
+                ASSIGNED_BY);
+        work.accept(now.minus(Duration.ofMinutes(59)));
+        return new TransactionTemplate(transactionManager)
+                .execute(tx -> workRepository.save(work))
+                .id()
+                .orElseThrow();
     }
 
     private void inCallerTransaction(Runnable call) {
