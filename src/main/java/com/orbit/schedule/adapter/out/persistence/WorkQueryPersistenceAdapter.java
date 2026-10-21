@@ -64,7 +64,7 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
 
     /** 보일 일정으로 구간에 담는 상태(일정 상태와 등록). */
     private static final Set<WorkStatus> SHOWN_STATUSES = Arrays.stream(WorkStatus.values())
-            .filter(status -> status != WorkStatus.CANCELLED)
+            .filter(status -> status != WorkStatus.CANCELED)
             .collect(Collectors.toUnmodifiableSet());
 
     private static final char LIKE_ESCAPE = '\\';

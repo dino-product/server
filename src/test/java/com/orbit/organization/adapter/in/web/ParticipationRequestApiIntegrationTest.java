@@ -27,7 +27,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,6 +39,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.support.IntegrationTestSupport;
+import com.orbit.support.SignupTestSupport;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -48,7 +48,6 @@ import tools.jackson.databind.ObjectMapper;
  * 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻는다. 발주사·회사 코드는 발주사 생성·회사 코드 변경 API로 만들고, 승인·역할 변경
  * 유즈케이스가 아직 없어 직원 소속·기사 계약 행은 SQL로 넣는다.
  */
-@AutoConfigureMockMvc
 @DisplayName("회사 확인·참여 요청 API")
 class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
 
@@ -60,6 +59,8 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    private final SignupTestSupport.SignupOnce signups = new SignupTestSupport.SignupOnce();
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -496,7 +497,9 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
                         .claim("token_use", "access")
                         .build());
         jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
-        return jwt.serialize();
+        String accessToken = jwt.serialize();
+        signups.ensure(mockMvc, objectMapper, accountId, accessToken);
+        return accessToken;
     }
 
     private record Company(long organizationId, String code) {}

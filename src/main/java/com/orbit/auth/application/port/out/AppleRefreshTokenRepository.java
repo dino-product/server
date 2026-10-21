@@ -12,4 +12,10 @@ public interface AppleRefreshTokenRepository {
     void save(AccountId accountId, String clientId, String refreshToken, Instant updatedAt);
 
     List<AppleRefreshToken> listByAccount(AccountId accountId);
+
+    /** 철회했거나 Apple이 무효로 본 클라이언트의 값을 지운다. 없으면 아무것도 하지 않는다. */
+    void delete(AccountId accountId, String clientId);
+
+    /** 계정의 값을 모두 지운다. 철회를 포기한 닫힌 계정의 토큰을 더 보관하지 않을 때 쓴다. */
+    void deleteByAccount(AccountId accountId);
 }

@@ -12,12 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.out.DirectoryCategory;
 import com.orbit.organization.application.port.out.DirectoryStaff;
@@ -27,16 +22,11 @@ import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.TechnicianId;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** 참여 요청 승인과 유형 지정 유즈케이스가 develop에 아직 없어 소속·기사 계약·유형 행은 SQL로 넣는다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("구성원 표시 정보 조회(PostgreSQL)")
-class MemberDirectoryQueryAdapterTest {
+class MemberDirectoryQueryAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant AT = Instant.parse("2026-10-01T00:00:00Z");
     private static final OrganizationId ORGANIZATION = new OrganizationId(100L);

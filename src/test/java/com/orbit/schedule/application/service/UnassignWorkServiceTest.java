@@ -41,7 +41,7 @@ class UnassignWorkServiceTest {
     @DisplayName("수락대기 작업을 해제하면 대기 중이던 배정을 지금 시각으로 회수하고 대기함으로 돌린다")
     void unassignsPendingWork() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         service.unassign(command(id.value()));
 
@@ -78,7 +78,7 @@ class UnassignWorkServiceTest {
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
-            names = {"REGISTERED", "IN_PROGRESS", "COMPLETED", "CANCELLED"})
+            names = {"REGISTERED", "IN_PROGRESS", "COMPLETED", "CANCELED"})
     @DisplayName("수락대기·수락됨이 아니면 해제할 수 없다")
     void rejectsUnassignableStatus(WorkStatus status) {
         fixture.givenManager(ActorRole.OWNER);
@@ -131,11 +131,11 @@ class UnassignWorkServiceTest {
     @DisplayName("저장 자리에서 다른 트랜잭션이 먼저 바꾼 것이 드러나면 변경된 정보 오류다")
     void rejectsConcurrentChangeAtSave() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
         fixture.workRepository.failNextSaveWithConcurrentChange();
 
         fixture.assertRejected(() -> service.unassign(command(id.value())), ScheduleErrorCode.WORK_CHANGED);
-        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     private static UnassignWorkCommand command(long workId) {

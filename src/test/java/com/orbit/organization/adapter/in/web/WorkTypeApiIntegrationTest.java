@@ -39,6 +39,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.support.IntegrationTestSupport;
+import com.orbit.support.SignupTestSupport;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -65,6 +66,8 @@ class WorkTypeApiIntegrationTest extends IntegrationTestSupport {
 
     @Value("${app.auth.jwt.issuer}")
     private String jwtIssuer;
+
+    private final SignupTestSupport.SignupOnce signups = new SignupTestSupport.SignupOnce();
 
     @Test
     @DisplayName("총관리자가 작업 유형을 만들면 공백을 지운 이름과 대문자 색상으로 저장하고 목록에 생성순으로 나온다")
@@ -224,11 +227,11 @@ class WorkTypeApiIntegrationTest extends IntegrationTestSupport {
         long workType = createWorkType(organizationId, "설치", "#3B82F6");
         long kept = createWorkType(organizationId, "수리", "#EF4444");
         long registered = insertWork(organizationId, workType, "REGISTERED", null);
-        long pending = insertWork(organizationId, workType, "PENDING_ACCEPTANCE", 21L);
+        long pending = insertWork(organizationId, workType, "PENDING_ACCEPT", 21L);
         long accepted = insertWork(organizationId, workType, "ACCEPTED", 22L);
         long inProgress = insertWork(organizationId, workType, "IN_PROGRESS", 23L);
         long completed = insertWork(organizationId, workType, "COMPLETED", 24L);
-        long cancelled = insertWork(organizationId, workType, "CANCELLED", null);
+        long cancelled = insertWork(organizationId, workType, "CANCELED", null);
         long otherType = insertWork(organizationId, kept, "REGISTERED", null);
 
         deletionImpact(organizationId, workType)
@@ -449,6 +452,8 @@ class WorkTypeApiIntegrationTest extends IntegrationTestSupport {
                         .claim("token_use", "access")
                         .build());
         jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
-        return jwt.serialize();
+        String accessToken = jwt.serialize();
+        signups.ensure(mockMvc, objectMapper, requesterAccountId, accessToken);
+        return accessToken;
     }
 }

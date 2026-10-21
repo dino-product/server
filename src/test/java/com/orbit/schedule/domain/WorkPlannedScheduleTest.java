@@ -76,7 +76,7 @@ class WorkPlannedScheduleTest {
 
         WorkSchedule schedule = new WorkSchedule(TECHNICIAN, TEN, TWO_HOURS);
         AssignmentHistory pending = new AssignmentHistory(schedule, NOW, REGISTRAR);
-        assertThatThrownBy(() -> restore(WorkStatus.PENDING_ACCEPTANCE, schedule, planned, List.of(pending)))
+        assertThatThrownBy(() -> restore(WorkStatus.PENDING_ACCEPT, schedule, planned, List.of(pending)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Only a REGISTERED work can have a planned schedule");
     }
@@ -116,7 +116,6 @@ class WorkPlannedScheduleTest {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
     }
 }

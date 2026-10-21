@@ -48,6 +48,18 @@ class GetAccountServiceTest {
     }
 
     @Test
+    @DisplayName("닫힌 계정은 없는 계정처럼 AUTH-004로 거부한다")
+    void rejectsClosedAccount() {
+        when(accounts.findById(new AccountId(7L)))
+                .thenReturn(Optional.of(
+                        Account.reconstituteClosed(new AccountId(7L), REGISTERED_AT, REGISTERED_AT.plusSeconds(60))));
+
+        assertThatThrownBy(() -> service.getAccount(new GetAccountQuery(7L)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(AuthErrorCode.ACCOUNT_NOT_FOUND));
+    }
+
+    @Test
     @DisplayName("계정이 없으면 AUTH-004로 거부한다")
     void rejectsMissingAccount() {
         when(accounts.findById(new AccountId(404L))).thenReturn(Optional.empty());

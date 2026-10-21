@@ -7,7 +7,6 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -23,13 +22,12 @@ import com.orbit.organization.application.port.in.command.dto.CreateWorkTypeComm
 import com.orbit.organization.application.port.in.command.dto.CreatedOrganizationInfo;
 import com.orbit.organization.application.port.in.query.dto.WorkTypeInfo;
 import com.orbit.organization.domain.Industry;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 @ApplicationModuleTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-class OrganizationModuleTest {
+class OrganizationModuleTest implements SharedContainers {
 
     // schedule이 구현하는 요구 인터페이스. 독립 모듈 조립에는 구현이 없어 대체한다.
     @MockitoBean
@@ -43,6 +41,9 @@ class OrganizationModuleTest {
 
     @Autowired
     private TechnicianContractLookup technicianContractLookup;
+
+    @Autowired
+    private OrganizationAccountLookup accountLookup;
 
     @Autowired
     private CreateWorkTypeUseCase createWorkTypeUseCase;
@@ -97,9 +98,9 @@ class OrganizationModuleTest {
     @Test
     void publicWorkTypeLookupSelectsAndLabelsCreatedWorkType() {
         CreatedOrganizationInfo created =
-                useCase.create(new CreateOrganizationCommand(12L, "작업 유형 발주사", Industry.APPLIANCE_SERVICE));
+                useCase.create(new CreateOrganizationCommand(14L, "작업 유형 발주사", Industry.APPLIANCE_SERVICE));
         WorkTypeInfo workType =
-                createWorkTypeUseCase.create(new CreateWorkTypeCommand(12L, created.organizationId(), "설치", "#3B82F6"));
+                createWorkTypeUseCase.create(new CreateWorkTypeCommand(14L, created.organizationId(), "설치", "#3B82F6"));
 
         Boolean selectable = new TransactionTemplate(transactionManager)
                 .execute(status -> workTypeLookup.isSelectable(created.organizationId(), workType.workTypeId()));
@@ -113,13 +114,26 @@ class OrganizationModuleTest {
     @Test
     void publicMemberDirectoryFindsFounderAsOwnerWithoutCategory() {
         CreatedOrganizationInfo created =
-                useCase.create(new CreateOrganizationCommand(13L, "구성원 표시 발주사", Industry.APPLIANCE_SERVICE));
+                useCase.create(new CreateOrganizationCommand(15L, "구성원 표시 발주사", Industry.APPLIANCE_SERVICE));
         StaffMember founder = (StaffMember)
-                memberLookup.findActiveMember(13L, created.organizationId()).orElseThrow();
+                memberLookup.findActiveMember(15L, created.organizationId()).orElseThrow();
 
         assertThat(memberDirectory.findStaff(created.organizationId(), Set.of(founder.membershipId())))
-                .containsExactly(new StaffDirectoryEntry(founder.membershipId(), 13L, true, null));
+                .containsExactly(new StaffDirectoryEntry(founder.membershipId(), 15L, true, null));
         assertThat(memberDirectory.listActiveTechnicians(created.organizationId()))
+                .isEmpty();
+    }
+
+    @Test
+    void publicAccountLookupFindsFounderAccountByMembership() {
+        CreatedOrganizationInfo created =
+                useCase.create(new CreateOrganizationCommand(12L, "계정 조회 발주사", Industry.APPLIANCE_SERVICE));
+        StaffMember founder = (StaffMember)
+                memberLookup.findActiveMember(12L, created.organizationId()).orElseThrow();
+
+        assertThat(accountLookup.findActiveStaffAccountId(created.organizationId(), founder.membershipId()))
+                .contains(12L);
+        assertThat(accountLookup.findActiveTechnicianAccountId(created.organizationId(), 999_999L))
                 .isEmpty();
     }
 }

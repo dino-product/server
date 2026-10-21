@@ -16,22 +16,18 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.port.out.ConcurrentWorkChangeException;
 import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
+import com.orbit.schedule.domain.CompletionReportRequest;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Money;
@@ -48,20 +44,15 @@ import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.schedule.domain.WorkTypeId;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /**
  * 실제 PostgreSQL에 저장·복원하며 WorkRepository 계약을 확인한다. 클래스 트랜잭션을 끄고 조작마다 트랜잭션을 열어 커밋하므로, "save하지 않은 변경은 커밋돼도 저장되지
  * 않는다" 같은 계약을 실제 커밋 경계에서 검증한다. 조직 식별자를 테스트마다 다르게 두어 같은 DB를 쓰는 다른 테스트의 데이터와 섞이지 않게 한다.
  */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({PersistenceTestConfiguration.class, WorkPersistenceAdapter.class})
-@Testcontainers(disabledWithoutDocker = true)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DisplayName("작업 JPA 저장소")
-class WorkPersistenceAdapterTest {
+class WorkPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
 
@@ -127,14 +118,24 @@ class WorkPersistenceAdapterTest {
         return Stream.of(
                 Arguments.of("대기함(등록)", (Consumer<Work>) work -> {}, WorkStatus.REGISTERED),
                 Arguments.of(
-                        "배정됨",
-                        (Consumer<Work>) work -> work.assign(SCHEDULE, NOW, MANAGER),
-                        WorkStatus.PENDING_ACCEPTANCE),
+                        "배정됨", (Consumer<Work>) work -> work.assign(SCHEDULE, NOW, MANAGER), WorkStatus.PENDING_ACCEPT),
                 Arguments.of(
                         "작업전(수락)",
                         (Consumer<Work>) work -> {
                             work.assign(SCHEDULE, NOW, MANAGER);
                             work.accept(NOW.plusSeconds(10));
+                        },
+                        WorkStatus.ACCEPTED),
+                Arguments.of(
+                        "작업전(수락 뒤 일정 변경으로 수락을 이은 배정)",
+                        (Consumer<Work>) work -> {
+                            work.assign(SCHEDULE, NOW, MANAGER);
+                            work.accept(NOW.plusSeconds(10));
+                            work.reschedule(
+                                    SCHEDULE.startTime().plusSeconds(3_600),
+                                    SCHEDULE.expectedDuration(),
+                                    NOW.plusSeconds(20),
+                                    MANAGER);
                         },
                         WorkStatus.ACCEPTED),
                 Arguments.of(
@@ -175,15 +176,15 @@ class WorkPersistenceAdapterTest {
                             work.releaseForWithdrawal(NOW.plusSeconds(10));
                             work.assign(SCHEDULE, NOW.plusSeconds(20), MANAGER);
                         },
-                        WorkStatus.PENDING_ACCEPTANCE),
+                        WorkStatus.PENDING_ACCEPT),
                 Arguments.of(
                         "취소(대기함에서)",
                         (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.CUSTOMER_REQUEST, null),
-                        WorkStatus.CANCELLED),
+                        WorkStatus.CANCELED),
                 Arguments.of(
                         "취소(대기함에서, 기타 사유 메모)",
                         (Consumer<Work>) work -> work.cancel(NOW, MANAGER, CancellationReason.OTHER, "고객 연락 두절"),
-                        WorkStatus.CANCELLED),
+                        WorkStatus.CANCELED),
                 Arguments.of(
                         "취소(작업중에서)",
                         (Consumer<Work>) work -> {
@@ -192,7 +193,7 @@ class WorkPersistenceAdapterTest {
                             work.start(NOW.plusSeconds(20));
                             work.cancel(NOW.plusSeconds(30), MANAGER, CancellationReason.TECHNICIAN_ISSUE, null);
                         },
-                        WorkStatus.CANCELLED));
+                        WorkStatus.CANCELED));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -492,8 +493,7 @@ class WorkPersistenceAdapterTest {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
 
         assertThatThrownBy(() -> inTx(() -> adapter().save(unknown)))
                 .isInstanceOf(IllegalStateException.class)
@@ -519,8 +519,7 @@ class WorkPersistenceAdapterTest {
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
 
         assertThatThrownBy(() -> inTx(() -> adapter().save(sameIdOtherOrganization)))
                 .isInstanceOf(IllegalStateException.class)
@@ -538,22 +537,8 @@ class WorkPersistenceAdapterTest {
         adapter().save(saved);
 
         Work found = adapter().findInOrganization(organization, id).orElseThrow();
-        assertThat(found.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(found.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(found.assignmentHistory()).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("상태 정정 기록이 있는 작업은 저장할 자리가 없어 거부한다")
-    void rejectsWorkWithStatusCorrections() {
-        OrganizationId organization = organization();
-        Work work = registered(organization, "정정된 작업");
-        work.assign(SCHEDULE, NOW, MANAGER);
-        work.cancel(NOW.plusSeconds(10), MANAGER, CancellationReason.DUPLICATE_REGISTRATION, null);
-        work.correctStatus(WorkStatus.REGISTERED, NOW.plusSeconds(20), MANAGER, "잘못 취소");
-
-        assertThatThrownBy(() -> inTx(() -> adapter().save(work)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("S-11");
     }
 
     @Test
@@ -591,7 +576,7 @@ class WorkPersistenceAdapterTest {
         });
 
         Work reloaded = find(organization, id);
-        assertThat(reloaded.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(reloaded.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(reloaded.assignmentHistory()).singleElement().satisfies(history -> assertThat(history.result())
                 .isEqualTo(AssignmentResult.PENDING));
     }
@@ -669,6 +654,77 @@ class WorkPersistenceAdapterTest {
         replaced.replaceSitePhotos(null);
         inTx(() -> adapter().save(replaced));
         assertThat(find(organization, id).sitePhotos()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("완료보고 요청을 요청 순서대로 저장·복원하고 새 요청만 덧붙이며, 요청만 더해도 버전과 최근 수정 시각을 올린다")
+    void roundTripsCompletionReportRequestsAndBumpsVersion() {
+        OrganizationId organization = organization();
+        Work work = registered(organization, "늦은 작업");
+        work.assign(SCHEDULE, NOW, MANAGER);
+        work.accept(NOW.plusSeconds(10));
+        work.start(NOW.plusSeconds(20));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+        Instant end = SCHEDULE.endTime();
+        Instant firstRequestedAt = end.plusNanos(123_456_000);
+        long versionBefore = find(organization, id).version();
+        Instant updatedBefore = entity(id).updatedAt();
+
+        Work first = inTx(() -> {
+            Work loaded = find(organization, id);
+            loaded.requestCompletionReport(end.plusNanos(123_456_789), MANAGER);
+            return adapter().save(loaded);
+        });
+        Long firstRowId =
+                inTx(() -> entity(id).completionReportRequests().getFirst().id());
+        inTx(() -> {
+            Work loaded = find(organization, id);
+            loaded.requestCompletionReport(firstRequestedAt.plus(Work.COMPLETION_REPORT_REQUEST_INTERVAL), REGISTRAR);
+            return adapter().save(loaded);
+        });
+
+        assertThat(first.version()).isEqualTo(versionBefore + 1);
+        assertThat(entity(id).updatedAt()).isAfter(updatedBefore);
+        Work found = find(organization, id);
+        assertThat(found.version()).isEqualTo(versionBefore + 2);
+        assertThat(found.completionReportRequests())
+                .containsExactly(
+                        new CompletionReportRequest(firstRequestedAt, MANAGER),
+                        new CompletionReportRequest(firstRequestedAt.plus(Duration.ofMinutes(30)), REGISTRAR));
+        assertThat(inTx(() -> entity(id).completionReportRequests().stream()
+                        .map(WorkCompletionReportRequestJpaEntity::id)
+                        .toList()))
+                .hasSize(2)
+                .startsWith(firstRowId);
+    }
+
+    @Test
+    @DisplayName("같은 작업을 읽은 두 요청이 함께 완료보고를 요청하면 뒤에 저장하는 쪽이 동시 변경으로 거부된다")
+    void detectsConcurrentCompletionReportRequests() {
+        OrganizationId organization = organization();
+        Work work = registered(organization, "늦은 작업");
+        work.assign(SCHEDULE, NOW, MANAGER);
+        work.accept(NOW.plusSeconds(10));
+        work.start(NOW.plusSeconds(20));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+        Instant end = SCHEDULE.endTime();
+        TransactionTemplate requiresNew = new TransactionTemplate(transactionManager);
+        requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        assertThatThrownBy(() -> inTx(() -> {
+                    Work loaded = adapter().findInOrganization(organization, id).orElseThrow();
+                    requiresNew.execute(status -> {
+                        Work other =
+                                adapter().findInOrganization(organization, id).orElseThrow();
+                        other.requestCompletionReport(end, REGISTRAR);
+                        return adapter().save(other);
+                    });
+                    loaded.requestCompletionReport(end, MANAGER);
+                    return adapter().save(loaded);
+                }))
+                .isInstanceOf(ConcurrentWorkChangeException.class);
+        assertThat(find(organization, id).completionReportRequests())
+                .containsExactly(new CompletionReportRequest(end, REGISTRAR));
     }
 
     private Work find(OrganizationId organization, WorkId id) {

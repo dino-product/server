@@ -26,7 +26,6 @@ import com.orbit.schedule.application.port.in.query.dto.WorkHistoryInfo;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CompletionReport;
-import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.Work;
@@ -44,19 +43,19 @@ class GetWorkHistoryServiceTest {
     private final GetWorkHistoryService service = new GetWorkHistoryService(fixture.actorPort, fixture.workRepository);
 
     @Test
-    @DisplayName("구간 안 배정이 있는 작업을 지금 상태와 관계없이 최근 순으로 담고, 기사의 마지막 배정과 완료·거절·취소 수를 준다")
+    @DisplayName("관리자에게는 구간 안 배정이 있는 작업을 지금 상태와 관계없이 최근 순으로 담고, 기사의 마지막 배정과 완료·거절·취소 수를 준다")
     void listsHistoryAndStatistics() {
-        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.givenManager();
         WorkId completed = fixture.givenWork(ORGANIZATION_ID, "완료한 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, TEN);
         Work rejected = fixture.stored(
-                fixture.givenWork(ORGANIZATION_ID, "거절한 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, at(1)));
+                fixture.givenWork(ORGANIZATION_ID, "거절한 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, at(1)));
         rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
         WorkId rejectedId = fixture.workRepository.store(rejected);
         Work reassigned =
                 fixture.stored(fixture.givenWork(ORGANIZATION_ID, "넘겨진 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, at(2)));
         reassigned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, at(2), TWO_HOURS), NOW, SETUP_MANAGER_ID);
         WorkId reassignedId = fixture.workRepository.store(reassigned);
-        WorkId cancelled = fixture.givenWork(ORGANIZATION_ID, "취소된 작업", WorkStatus.CANCELLED, TECHNICIAN_ID, at(3));
+        WorkId cancelled = fixture.givenWork(ORGANIZATION_ID, "취소된 작업", WorkStatus.CANCELED, TECHNICIAN_ID, at(3));
         Work rescheduled = fixture.stored(
                 fixture.givenWork(ORGANIZATION_ID, "시간 바뀐 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, at(4)));
         rescheduled.reschedule(at(5), TWO_HOURS, NOW, SETUP_MANAGER_ID);
@@ -65,7 +64,7 @@ class GetWorkHistoryServiceTest {
         fixture.givenWork(ORGANIZATION_ID, "구간 밖 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TO);
         fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
 
-        WorkHistoryInfo history = service.get(query(null, FROM, TO));
+        WorkHistoryInfo history = service.get(query(TECHNICIAN_ID.value(), FROM, TO));
 
         assertThat(history.technicianId()).isEqualTo(TECHNICIAN_ID.value());
         assertThat(history.works())
@@ -77,23 +76,17 @@ class GetWorkHistoryServiceTest {
                         WorkHistoryInfo.AssignedWork::result,
                         WorkHistoryInfo.AssignedWork::endReason)
                 .containsExactly(
-                        tuple(
-                                rescheduledId.value(),
-                                WorkStatus.PENDING_ACCEPTANCE,
-                                true,
-                                2,
-                                AssignmentResult.PENDING,
-                                null),
+                        tuple(rescheduledId.value(), WorkStatus.ACCEPTED, true, 2, AssignmentResult.ACCEPTED, null),
                         tuple(
                                 cancelled.value(),
-                                WorkStatus.CANCELLED,
+                                WorkStatus.CANCELED,
                                 true,
                                 1,
                                 AssignmentResult.WITHDRAWN,
                                 AssignmentEndReason.CANCELLED),
                         tuple(
                                 reassignedId.value(),
-                                WorkStatus.PENDING_ACCEPTANCE,
+                                WorkStatus.PENDING_ACCEPT,
                                 false,
                                 1,
                                 AssignmentResult.ACCEPTED,
@@ -106,33 +99,96 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
+    @DisplayName("기사 본인에게는 본인이 완료한 작업만 담고 통계도 그 작업으로만 세어 거절·취소 수는 0이다")
+    void technicianSeesOnlyOwnCompletedWorks() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId completed = fixture.givenWork(ORGANIZATION_ID, "완료한 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, TEN);
+        Work rejected = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "거절한 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, at(1)));
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        fixture.workRepository.store(rejected);
+        Work reassigned =
+                fixture.stored(fixture.givenWork(ORGANIZATION_ID, "넘겨진 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, at(2)));
+        reassigned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, at(2), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        fixture.workRepository.store(reassigned);
+        fixture.givenWork(ORGANIZATION_ID, "취소된 작업", WorkStatus.CANCELED, TECHNICIAN_ID, at(3));
+        fixture.givenWork(ORGANIZATION_ID, "작업중인 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, at(4));
+        Work rejectedThenCompleted = fixture.stored(fixture.givenWork(
+                ORGANIZATION_ID, "거절 뒤 다시 받아 완료한 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, at(5)));
+        rejectedThenCompleted.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        rejectedThenCompleted.assign(new WorkSchedule(TECHNICIAN_ID, at(6), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        rejectedThenCompleted.accept(NOW);
+        rejectedThenCompleted.start(NOW);
+        rejectedThenCompleted.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        WorkId rejectedThenCompletedId = fixture.workRepository.store(rejectedThenCompleted);
+        Work completedByOther = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "넘겨진 뒤 완료된 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, at(7)));
+        completedByOther.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, at(7), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        completedByOther.accept(NOW);
+        completedByOther.start(NOW);
+        completedByOther.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        fixture.workRepository.store(completedByOther);
+
+        WorkHistoryInfo history = service.get(query(null, FROM, TO));
+
+        assertThat(history.works())
+                .extracting(
+                        WorkHistoryInfo.AssignedWork::workId,
+                        WorkHistoryInfo.AssignedWork::status,
+                        WorkHistoryInfo.AssignedWork::current,
+                        WorkHistoryInfo.AssignedWork::assignmentNumber)
+                .containsExactly(
+                        tuple(rejectedThenCompletedId.value(), WorkStatus.COMPLETED, true, 2),
+                        tuple(completed.value(), WorkStatus.COMPLETED, true, 1));
+        assertThat(history.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(2, 2, 0, 0));
+    }
+
+    @Test
+    @DisplayName("기사 본인에게는 구간 밖으로 일정이 옮겨져 완료된 작업을 옮겨진 일정의 구간에서만 담는다")
+    void technicianSeesCompletedWorkInPeriodOfFinalSchedule() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Instant later = TO.plus(Duration.ofHours(2));
+        Work movedOut =
+                fixture.stored(fixture.givenWork(ORGANIZATION_ID, "옮겨진 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN));
+        movedOut.reschedule(later, TWO_HOURS, NOW, SETUP_MANAGER_ID);
+        movedOut.start(NOW);
+        movedOut.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        WorkId movedOutId = fixture.workRepository.store(movedOut);
+
+        assertThat(service.get(query(null, FROM, TO)).works()).isEmpty();
+        assertThat(service.get(query(null, TO, TO.plus(Duration.ofDays(1)))).works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId, WorkHistoryInfo.AssignedWork::assignmentNumber)
+                .containsExactly(tuple(movedOutId.value(), 2));
+    }
+
+    @Test
     @DisplayName("구간 밖의 배정은 마지막 배정·거절 수에 넣지 않는다")
     void ignoresAssignmentsOutsidePeriod() {
-        fixture.givenTechnician(TECHNICIAN_ID);
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        fixture.givenManager();
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reject(new Rejection(RejectionReason.OTHER, "장비 없음"), ACCEPTED_AT);
         work.assign(new WorkSchedule(TECHNICIAN_ID, TO.plus(TWO_HOURS), TWO_HOURS), NOW, SETUP_MANAGER_ID);
         fixture.workRepository.store(work);
 
-        WorkHistoryInfo history = service.get(query(null, FROM, TO));
+        WorkHistoryInfo history = service.get(query(TECHNICIAN_ID.value(), FROM, TO));
 
         assertThat(history.works())
                 .extracting(WorkHistoryInfo.AssignedWork::assignmentNumber, WorkHistoryInfo.AssignedWork::result)
                 .containsExactly(tuple(1, AssignmentResult.REJECTED));
         assertThat(history.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(1, 0, 1, 0));
-        assertThat(service.get(query(null, TO, TO.plus(Duration.ofDays(1)))).statistics())
+        assertThat(service.get(query(TECHNICIAN_ID.value(), TO, TO.plus(Duration.ofDays(1))))
+                        .statistics())
                 .isEqualTo(new WorkHistoryInfo.Statistics(1, 0, 0, 0));
     }
 
     @Test
     @DisplayName("구간 밖으로 일정이 옮겨졌거나 다시 배정된 작업의 구간 안 배정은 지금 담당이 아니고, 완료는 그 배정이 속한 구간에서 한 번만 센다")
     void marksCurrentOnlyForLatestAssignment() {
-        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.givenManager();
         Instant later = TO.plus(Duration.ofHours(2));
         Work movedOut =
                 fixture.stored(fixture.givenWork(ORGANIZATION_ID, "옮겨진 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN));
         movedOut.reschedule(later, TWO_HOURS, NOW, SETUP_MANAGER_ID);
-        movedOut.accept(NOW);
         movedOut.start(NOW);
         movedOut.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
         WorkId movedOutId = fixture.workRepository.store(movedOut);
@@ -142,8 +198,8 @@ class GetWorkHistoryServiceTest {
         returned.reassign(new WorkSchedule(TECHNICIAN_ID, later, TWO_HOURS), NOW, SETUP_MANAGER_ID);
         WorkId returnedId = fixture.workRepository.store(returned);
 
-        WorkHistoryInfo inPeriod = service.get(query(null, FROM, TO));
-        WorkHistoryInfo nextPeriod = service.get(query(null, TO, TO.plus(Duration.ofDays(1))));
+        WorkHistoryInfo inPeriod = service.get(query(TECHNICIAN_ID.value(), FROM, TO));
+        WorkHistoryInfo nextPeriod = service.get(query(TECHNICIAN_ID.value(), TO, TO.plus(Duration.ofDays(1))));
 
         assertThat(inPeriod.works())
                 .extracting(
@@ -164,17 +220,17 @@ class GetWorkHistoryServiceTest {
     @Test
     @DisplayName("구간 경계에 걸친 일정은 두 구간 목록에 모두 나오지만 완료·거절은 시작이 속한 구간에서만 센다")
     void countsBoundaryWorkOnlyInStartPeriod() {
-        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.givenManager();
         Instant crossingStart = TO.minus(Duration.ofHours(1));
         WorkId crossing =
                 fixture.givenWork(ORGANIZATION_ID, "밤샘 작업", WorkStatus.COMPLETED, TECHNICIAN_ID, crossingStart);
-        Work rejected = fixture.stored(fixture.givenWork(
-                ORGANIZATION_ID, "밤샘 거절", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, crossingStart));
+        Work rejected = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "밤샘 거절", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, crossingStart));
         rejected.reject(new Rejection(RejectionReason.OTHER, "장비 없음"), ACCEPTED_AT);
         WorkId rejectedId = fixture.workRepository.store(rejected);
 
-        WorkHistoryInfo startPeriod = service.get(query(null, FROM, TO));
-        WorkHistoryInfo endPeriod = service.get(query(null, TO, TO.plus(Duration.ofDays(1))));
+        WorkHistoryInfo startPeriod = service.get(query(TECHNICIAN_ID.value(), FROM, TO));
+        WorkHistoryInfo endPeriod = service.get(query(TECHNICIAN_ID.value(), TO, TO.plus(Duration.ofDays(1))));
 
         assertThat(startPeriod.works())
                 .extracting(WorkHistoryInfo.AssignedWork::workId)
@@ -189,8 +245,8 @@ class GetWorkHistoryServiceTest {
     @Test
     @DisplayName("거절한 뒤 같은 구간에서 다시 배정받아 완료한 작업은 완료와 거절에 함께 센다")
     void countsRejectedThenCompletedWorkInBoth() {
-        fixture.givenTechnician(TECHNICIAN_ID);
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        fixture.givenManager();
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
         work.assign(new WorkSchedule(TECHNICIAN_ID, at(3), TWO_HOURS), NOW, SETUP_MANAGER_ID);
         work.accept(NOW);
@@ -198,7 +254,7 @@ class GetWorkHistoryServiceTest {
         work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
         fixture.workRepository.store(work);
 
-        WorkHistoryInfo history = service.get(query(null, FROM, TO));
+        WorkHistoryInfo history = service.get(query(TECHNICIAN_ID.value(), FROM, TO));
 
         assertThat(history.works())
                 .extracting(WorkHistoryInfo.AssignedWork::assignmentNumber, WorkHistoryInfo.AssignedWork::current)
@@ -207,33 +263,13 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
-    @DisplayName("대기함으로 되돌린 취소는 배정 이력에 취소 종료로 남지만 지금 담당도 취소도 아니다")
-    void treatsRestoredCancellationAsNotCurrent() {
-        fixture.givenTechnician(TECHNICIAN_ID);
-        Work work = fixture.stored(fixture.givenWork(WorkStatus.CANCELLED));
-        work.correctStatus(WorkStatus.REGISTERED, NOW, new MembershipId(13L), "잘못 취소");
-        WorkId id = fixture.workRepository.store(work);
-
-        WorkHistoryInfo history = service.get(query(null, FROM, TO));
-
-        assertThat(history.works())
-                .extracting(
-                        WorkHistoryInfo.AssignedWork::workId,
-                        WorkHistoryInfo.AssignedWork::status,
-                        WorkHistoryInfo.AssignedWork::current,
-                        WorkHistoryInfo.AssignedWork::endReason)
-                .containsExactly(tuple(id.value(), WorkStatus.REGISTERED, false, AssignmentEndReason.CANCELLED));
-        assertThat(history.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(1, 0, 0, 0));
-    }
-
-    @Test
     @DisplayName("배정 시작시각이 같으면 작업 식별자 내림차순이다")
     void ordersSameStartByIdDescending() {
-        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.givenManager();
         WorkId first = fixture.givenWork(ORGANIZATION_ID, "첫 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
         WorkId second = fixture.givenWork(ORGANIZATION_ID, "둘째 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TEN);
 
-        assertThat(service.get(query(null, FROM, TO)).works())
+        assertThat(service.get(query(TECHNICIAN_ID.value(), FROM, TO)).works())
                 .extracting(WorkHistoryInfo.AssignedWork::workId)
                 .containsExactly(second.value(), first.value());
     }

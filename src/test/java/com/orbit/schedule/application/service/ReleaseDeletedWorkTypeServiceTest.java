@@ -49,7 +49,7 @@ class ReleaseDeletedWorkTypeServiceTest {
         service.release(new ReleaseDeletedWorkTypeCommand(100L, 5L));
 
         assertThat(port.statuses)
-                .containsExactlyInAnyOrder(WorkStatus.REGISTERED, WorkStatus.PENDING_ACCEPTANCE, WorkStatus.ACCEPTED);
+                .containsExactlyInAnyOrder(WorkStatus.REGISTERED, WorkStatus.PENDING_ACCEPT, WorkStatus.ACCEPTED);
         assertThat(port.organizationId).isEqualTo(new OrganizationId(100L));
         assertThat(port.workTypeId).isEqualTo(new WorkTypeId(5L));
         assertThat(port.at).isEqualTo(NOW);
@@ -60,7 +60,7 @@ class ReleaseDeletedWorkTypeServiceTest {
     void returnsAssignedTechnicianOnly() {
         port.cleared.add(new ClearedWorkType(new WorkId(9L), WorkStatus.ACCEPTED, new TechnicianId(3L)));
         port.cleared.add(new ClearedWorkType(new WorkId(7L), WorkStatus.REGISTERED, new TechnicianId(4L)));
-        port.cleared.add(new ClearedWorkType(new WorkId(8L), WorkStatus.PENDING_ACCEPTANCE, new TechnicianId(3L)));
+        port.cleared.add(new ClearedWorkType(new WorkId(8L), WorkStatus.PENDING_ACCEPT, new TechnicianId(3L)));
 
         assertThat(service.release(new ReleaseDeletedWorkTypeCommand(100L, 5L)))
                 .containsExactly(

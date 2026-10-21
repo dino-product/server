@@ -93,7 +93,6 @@ class WorkSitePhotosTest {
                 null,
                 null,
                 null,
-                List.of(),
                 sitePhotos);
     }
 }

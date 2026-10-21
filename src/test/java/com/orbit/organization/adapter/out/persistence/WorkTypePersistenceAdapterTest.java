@@ -12,14 +12,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.out.DuplicateCategoryNameException;
 import com.orbit.organization.domain.CategoryColor;
@@ -27,15 +22,10 @@ import com.orbit.organization.domain.CategoryName;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.WorkType;
 import com.orbit.organization.domain.WorkTypeId;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PersistenceTestConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("작업 유형 저장")
-class WorkTypePersistenceAdapterTest {
+class WorkTypePersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-10-09T00:00:00.123456Z");
     private static final Instant LATER = Instant.parse("2026-10-10T00:00:00.654321Z");

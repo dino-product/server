@@ -31,11 +31,11 @@ class CountWorksByTypeServiceTest {
                 assertThat(workTypeId).isEqualTo(new WorkTypeId(5L));
                 return Map.of(
                         WorkStatus.REGISTERED, 2L,
-                        WorkStatus.PENDING_ACCEPTANCE, 1L,
+                        WorkStatus.PENDING_ACCEPT, 1L,
                         WorkStatus.ACCEPTED, 3L,
                         WorkStatus.IN_PROGRESS, 4L,
                         WorkStatus.COMPLETED, 5L,
-                        WorkStatus.CANCELLED, 6L);
+                        WorkStatus.CANCELED, 6L);
             }
 
             @Override
