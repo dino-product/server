@@ -62,6 +62,10 @@ class OrganizationModuleTest implements SharedContainers {
     @MockitoBean
     private ProfileLookup profileLookup;
 
+    /** 비활성화의 대기함 반환 요구 인터페이스. 구현은 schedule에 있고 모듈 단독 실행이라 띄우지 않는다. */
+    @MockitoBean
+    private TechnicianWorkRelease technicianWorkRelease;
+
     @Test
     void createsOrganizationWithinStandaloneModule() {
         CreatedOrganizationInfo created =

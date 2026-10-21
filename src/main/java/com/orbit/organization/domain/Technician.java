@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
-/** 계정의 발주사 기사 계약. 같은 계정·발주사의 계약은 1행이며, 다시 활성이 되면 같은 계약 ID를 쓴다. 기사 유형은 유형 지정 작업이 연결한다. */
+/** 계정의 발주사 기사 계약. 같은 계정·발주사의 계약은 1행이며, 다시 활성이 되면 같은 계약 ID를 쓴다. 기사 유형은 계약 도메인에 두지 않고 저장소가 따로 바꾼다. */
 public final class Technician {
 
     private final TechnicianId id;
@@ -60,15 +60,29 @@ public final class Technician {
     }
 
     /**
-     * 비활성 기사 계약을 참여 요청 승인으로 다시 활성으로 바꾼다. 계약 ID와 참여일은 유지한다([조직·계정] §6).
+     * 비활성 기사 계약을 다시 활성으로 바꾼다(참여 요청 승인, 총관리자의 재활성화). 계약 ID와 참여일은 유지한다([조직·계정] §6).
      *
      * @throws IllegalStateException 활성 계약일 때
      */
-    public Technician rejoin(Instant rejoinedAt) {
+    public Technician reactivate(Instant reactivatedAt) {
         if (status != TechnicianStatus.DEACTIVATED) {
-            throw new IllegalStateException("only deactivated technicians can rejoin");
+            throw new IllegalStateException("only deactivated technicians can be reactivated");
         }
-        return new Technician(id, organizationId, accountId, TechnicianStatus.ACTIVE, joinedAt, rejoinedAt);
+        return new Technician(id, organizationId, accountId, TechnicianStatus.ACTIVE, joinedAt, reactivatedAt);
+    }
+
+    /**
+     * 총관리자가 이 기사 계약을 비활성화한다([조직·계정] §4.1). 계약을 지우지 않고 상태만 바꾸며 계약 ID와 참여일은 유지한다. 배정 작업의 대기함 반환은
+     * Application이 같은 트랜잭션에서 처리한다.
+     *
+     * @throws IllegalStateException 이미 비활성 계약일 때
+     */
+    public Technician deactivate(Instant deactivatedAt) {
+        Instant at = Objects.requireNonNull(deactivatedAt, "deactivatedAt must not be null");
+        if (status != TechnicianStatus.ACTIVE) {
+            throw new IllegalStateException("only active technicians can be deactivated");
+        }
+        return new Technician(id, organizationId, accountId, TechnicianStatus.DEACTIVATED, joinedAt, at);
     }
 
     public Optional<TechnicianId> id() {

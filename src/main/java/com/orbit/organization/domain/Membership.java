@@ -103,15 +103,33 @@ public final class Membership {
     }
 
     /**
-     * 비활성 소속을 참여 요청 승인으로 다시 활성으로 바꾼다. 참여일은 유지하고, 승인으로 받는 역할은 직원이므로 총관리자 표시는 끈다([조직·계정] §6).
+     * 비활성 소속을 다시 활성으로 바꾼다(참여 요청 승인, 총관리자의 재활성화). 참여일은 유지하고 총관리자 표시는 끈다([조직·계정] §6, 비활성화 때 이미 뗀다).
      *
      * @throws IllegalStateException 활성 소속일 때
      */
-    public Membership rejoin(Instant rejoinedAt) {
+    public Membership reactivate(Instant reactivatedAt) {
         if (status != MembershipStatus.DEACTIVATED) {
-            throw new IllegalStateException("only deactivated memberships can rejoin");
+            throw new IllegalStateException("only deactivated memberships can be reactivated");
         }
-        return new Membership(id, organizationId, accountId, false, MembershipStatus.ACTIVE, joinedAt, rejoinedAt);
+        return new Membership(id, organizationId, accountId, false, MembershipStatus.ACTIVE, joinedAt, reactivatedAt);
+    }
+
+    /**
+     * 총관리자가 이 소속을 비활성화한다([조직·계정] §4.1). 소속을 지우지 않고 상태만 바꾸며 참여일은 유지한다. 총관리자 표시도 떼므로 다시 활성이 되면 직원이다.
+     *
+     * @param activeOwners 이 소속을 포함한 같은 발주사의 활성 총관리자 수
+     * @throws LastOwnerException 이 소속이 발주사의 마지막 총관리자일 때([조직·계정] §11)
+     * @throws IllegalStateException 이미 비활성 소속일 때
+     */
+    public Membership deactivate(Instant deactivatedAt, long activeOwners) {
+        Instant at = Objects.requireNonNull(deactivatedAt, "deactivatedAt must not be null");
+        if (status != MembershipStatus.ACTIVE) {
+            throw new IllegalStateException("only active memberships can be deactivated");
+        }
+        if (owner && activeOwners <= 1) {
+            throw new LastOwnerException();
+        }
+        return new Membership(id, organizationId, accountId, false, MembershipStatus.DEACTIVATED, joinedAt, at);
     }
 
     public Optional<MembershipId> id() {
