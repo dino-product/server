@@ -9,6 +9,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: true
 
 decorator:
   datasource:
