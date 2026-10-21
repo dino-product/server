@@ -20,7 +20,7 @@ import com.orbit.schedule.domain.WorkStatus;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "작업 상세. 등록자는 관리자에게만 담는다. 기사가 지금 담당이 아니면 작업명·상태와 자기 배정 이력만 담고 나머지는 null(지연은 false, 현장 사진은 빈 목록)이다")
+@Schema(description = "작업 상세. 등록자와 완료보고 요청 기록·요청 가능 여부는 관리자에게만 담는다. " + "기사는 지금 자기에게 배정된 작업과 취소 당시 자기가 담당이던 취소 작업만 받는다")
 public record WorkDetailResponse(
         @Schema(description = "작업 식별자", example = "10") Long workId,
 
@@ -28,8 +28,8 @@ public record WorkDetailResponse(
         String name,
 
         @Schema(
-                description = "작업 상태. REGISTERED(등록), PENDING_ACCEPTANCE(배정됨), ACCEPTED(작업전), "
-                        + "IN_PROGRESS(작업중), COMPLETED(완료), CANCELLED(취소)",
+                description = "작업 상태. REGISTERED(등록), PENDING_ACCEPT(배정됨), ACCEPTED(작업전), "
+                        + "IN_PROGRESS(작업중), COMPLETED(완료), CANCELED(취소)",
                 example = "ACCEPTED")
         WorkStatus status,
 
@@ -49,7 +49,7 @@ public record WorkDetailResponse(
         @Schema(description = "대기함 작업이 등록 때 일부만 입력해 둔 담당기사·시간. 없으면 null")
         PlannedSchedule plannedSchedule,
 
-        @Schema(description = "배정 이력(상태 변경 이력의 배정·수락·거절·종료 시각). 기사에게는 자기 배정만 원래 순번 그대로 담는다")
+        @Schema(description = "배정 이력(상태 변경 이력의 배정·수락·거절·종료 시각). 기사에게는 지금 자기 배정 하나만 원래 순번 그대로 담는다")
         List<Assignment> assignments,
 
         @Schema(description = "작업 시작 시각. 없으면 null", example = "2026-10-21T00:05:00Z")
@@ -61,8 +61,18 @@ public record WorkDetailResponse(
         @Schema(description = "취소 기록. 없으면 null") Cancellation cancellation,
         @Schema(description = "완료보고. 없으면 null") CompletionReport completionReport,
 
-        @Schema(description = "등록·수정 때 붙인 현장 사진(첨부 파일). 기사가 지금 담당이 아니면 빈 목록")
-        List<Photo> sitePhotos,
+        @Schema(description = "등록·수정 때 붙인 현장 사진(첨부 파일)") List<Photo> sitePhotos,
+
+        @Schema(
+                description = "사무실이 담당 기사에게 완료보고를 요청한 기록(오래된 것부터, 상태 변경 이력의 보고 요청 발송됨). "
+                        + "마지막 요청 시각으로 '요청 보냄'을 그린다. 관리자에게만 담고 기사에게는 빈 목록")
+        List<CompletionReportRequest> completionReportRequests,
+
+        @Schema(
+                description = "조회 시각에 완료보고를 요청할 수 있는지(작업중·예정 종료 시각 지남·마지막 요청 뒤 30분 지남). "
+                        + "true면 '기사에게 요청 보내기'를 보여 준다. 기사에게는 false",
+                example = "false")
+        boolean completionReportRequestable,
 
         @Schema(description = "작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다", example = "3")
         long version) {
@@ -88,6 +98,10 @@ public record WorkDetailResponse(
                 info.cancellation() == null ? null : Cancellation.from(info.cancellation()),
                 info.completionReport() == null ? null : CompletionReport.from(info.completionReport()),
                 info.sitePhotos().stream().map(Photo::from).toList(),
+                info.completionReportRequests().stream()
+                        .map(CompletionReportRequest::from)
+                        .toList(),
+                info.completionReportRequestable(),
                 info.version());
     }
 
@@ -171,7 +185,11 @@ public record WorkDetailResponse(
 
             @Schema(description = "그 배정의 일정") Schedule schedule,
 
-            @Schema(description = "배정 시각. 화면의 '배정 알림 발송됨'에 쓴다", example = "2026-10-20T08:50:00Z")
+            @Schema(
+                    description = "배정 시각. 화면의 '배정 알림 발송됨'에 쓴다. 단 앞 배정이 RESCHEDULED로 끝났으면 일정 변경으로 "
+                            + "이어진 배정이라 이 값은 변경 시각이고 배정 알림은 다시 보내지 않으므로(수락된 작업만 일정 변경 알림) "
+                            + "'배정 알림 발송됨'으로 그리지 않는다",
+                    example = "2026-10-20T08:50:00Z")
             Instant assignedAt,
 
             @Schema(description = "배정한 관리자(소속 식별자)", example = "5")
@@ -182,7 +200,10 @@ public record WorkDetailResponse(
                     example = "ACCEPTED")
             AssignmentResult result,
 
-            @Schema(description = "응답 시각", example = "2026-10-20T09:02:00Z")
+            @Schema(
+                    description =
+                            "응답 시각. 앞 배정이 RESCHEDULED로 끝났고 수락된 작업이면 변경 시각에 수락을 이어받은 것이라 " + "기사의 응답 시각이 아니라 일정 변경 시각이다",
+                    example = "2026-10-20T09:02:00Z")
             Instant decidedAt,
 
             @Schema(
@@ -258,6 +279,19 @@ public record WorkDetailResponse(
                     info.workNote(),
                     info.actualFee(),
                     info.actualPaymentMethod());
+        }
+    }
+
+    @Schema(description = "완료보고 요청 한 건")
+    public record CompletionReportRequest(
+            @Schema(description = "요청 시각", example = "2026-10-21T02:10:00Z")
+            Instant requestedAt,
+
+            @Schema(description = "요청한 관리자(소속 식별자)", example = "5")
+            Long requestedBy) {
+
+        static CompletionReportRequest from(WorkDetailInfo.CompletionReportRequest info) {
+            return new CompletionReportRequest(info.requestedAt(), info.requestedBy());
         }
     }
 

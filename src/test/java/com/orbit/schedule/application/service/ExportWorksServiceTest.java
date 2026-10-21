@@ -64,6 +64,27 @@ class ExportWorksServiceTest {
     }
 
     @Test
+    @DisplayName("상태 조건을 비우면 검색처럼 취소 작업을 빼고, 취소를 고르면 담도록 조건을 넘긴다")
+    void excludesCancelledUnlessChosen() {
+        fixture.givenManager();
+
+        service.export(query(null));
+        service.export(query(new WorkSearchFilter(
+                null, Set.of(WorkStatus.CANCELED), null, null, null, null, null, false, false, null)));
+
+        assertThat(fixture.workRepository.listings())
+                .extracting(listing -> listing.criteria().statuses())
+                .containsExactly(
+                        Set.of(
+                                WorkStatus.REGISTERED,
+                                WorkStatus.PENDING_ACCEPT,
+                                WorkStatus.ACCEPTED,
+                                WorkStatus.IN_PROGRESS,
+                                WorkStatus.COMPLETED),
+                        Set.of(WorkStatus.CANCELED));
+    }
+
+    @Test
     @DisplayName("읽은 작업을 목록 줄에 등록 때 정한 금액·결제 방식을 더한 출력 줄로 담고 출력 시각을 남긴다")
     void mapsRowsWithPlannedPayment() {
         fixture.givenManager();

@@ -24,11 +24,11 @@
 | 정책서 | 기준 버전 | 확인 시각 | 관련 모듈 | 이 정책서가 원본인 공통 규칙 |
 | --- | --- | --- | --- | --- |
 | [[조직·계정] 정책](https://app.notion.com/p/3cdf190e116681ffb967c10178f30374) | v1.7 | 2026-10-15 16:10 | `organization`, `auth`, `user` | §10 시스템 전체 권한 매트릭스, §9 참여 요청·소속·계정 상태 코드 |
-| [[작업] 정책](https://app.notion.com/p/3cef190e116681ffb614e9fa12cd3ae3) | v2.0 | 2026-10-17 13:45 | `schedule` | §9 작업 상태 코드·표시값 |
-| [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v2.0 | 2026-10-17 13:38 | `schedule` | — |
-| [[현장 수행] 정책](https://app.notion.com/p/3d0f190e11668133ba17c64b6d33ba5b) | v1.1 | 2026-10-01 00:40 | `schedule` | — |
+| [[작업] 정책](https://app.notion.com/p/3cef190e116681ffb614e9fa12cd3ae3) | v2.1 | 2026-10-19 01:47 | `schedule` | §9 작업 상태 코드·표시값 |
+| [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v2.1 | 2026-10-19 01:46 | `schedule` | — |
+| [[현장 수행] 정책](https://app.notion.com/p/3d0f190e11668133ba17c64b6d33ba5b) | v1.2 | 2026-10-19 01:43 | `schedule` | — |
 | [[현황 파악] 정책](https://app.notion.com/p/3d0f190e11668148aaf1cbfd9685ef05) | v2.0 | 2026-10-17 13:46 | `schedule` (조회) | — |
-| [[알림] 정책](https://app.notion.com/p/3d0f190e116681aab442e9e8f237c63e) | v1.2 | 2026-10-01 00:40 | `notification` | §4 알림 트리거 |
+| [[알림] 정책](https://app.notion.com/p/3d0f190e116681aab442e9e8f237c63e) | v1.4 | 2026-10-19 01:50 | `notification` | §4 알림 트리거 |
 
 정책서 안의 이슈 ID(`ORG-`, `JOB-`, `SCH-`, `FLD-`, `MON-`, `NTF-`)는 각 정책서 마지막 절의 "확정 필요 항목"에 등록되어 있으며, 레포 문서는 이 ID를 그대로 인용한다.
 
@@ -39,11 +39,11 @@
 | 기능명세 | 기준 버전 | 확인 시각 | 비고 |
 | --- | --- | --- | --- |
 | [[조직·계정] 기능명세](https://app.notion.com/p/3cdf190e116681c09ec3f3511d62cffb) | v1.6 | 2026-10-15 16:10 | 기준 정책 v1.7. §5 데이터 명세의 발주사명·이름은 길이만 적혀 있어 공통 입력 규칙(앞뒤 공백 제거·이모지 불가 등)은 정책 §5·§11을 따른다. §12.1 남은 확인 사항에 ORG-020·ORG-021·ORG-022가 없어 정책 §14.1 확정 필요 항목과 다름 — 기획 확인 필요 |
-| [[작업] 기능명세](https://app.notion.com/p/3cef190e1166819b9f21ca729f69fc97) | v1.4 | 2026-10-18 15:19 | §5 데이터 명세 |
+| [[작업] 기능명세](https://app.notion.com/p/3cef190e1166819b9f21ca729f69fc97) | v1.5 | 2026-10-19 01:48 | §5 데이터 명세(입력 제한 포함) |
 | [[스케줄·배정] 기능명세](https://app.notion.com/p/3cef190e116681359a7eeeceb3626f2b) | v1.2 | 2026-10-18 15:03 | |
-| [[현장 수행] 기능명세](https://app.notion.com/p/3d0f190e116681f8850bee316cf8fb00) | v1.1 | 2026-10-01 00:40 | §5 완료보고 입력(수행 메모 255자, 사진 장당 40MB) |
+| [[현장 수행] 기능명세](https://app.notion.com/p/3d0f190e116681f8850bee316cf8fb00) | v1.2 | 2026-10-19 01:43 | §5 완료보고 입력(수행 메모·사용 부품 255자, 사진 장당 40MB) |
 | [[현황 파악] 기능명세](https://app.notion.com/p/3d0f190e1166810caa81ee205bbf4589) | v2.0 | 2026-10-17 13:45 | |
-| [[알림] 기능명세](https://app.notion.com/p/3d0f190e116681e3912ce55ffad90c06) | v1.2 | 2026-10-01 00:40 | |
+| [[알림] 기능명세](https://app.notion.com/p/3d0f190e116681e3912ce55ffad90c06) | v1.3 | 2026-10-19 01:51 | |
 
 ### QA·시나리오
 
@@ -145,14 +145,14 @@ Notion에 없는 제품 판단(`1x`·`3x`, 구현 중 새로 생긴 사용자 �
 
 레포 문서는 Notion 표시값을 쓰고, 코드 식별자는 백틱으로 적는다. 옛 표현은 코드 주석·이전 문서에 남아 있을 수 있으며 같은 뜻이다.
 
-| Notion 표시값 | Notion 코드(제안) | 레포 코드 | 옛 표현 |
-| --- | --- | --- | --- |
-| 등록 (기사·시간 없으면 대기함) | `REGISTERED` | `REGISTERED` | 대기중 |
-| 배정됨 | `PENDING_ACCEPT` | `PENDING_ACCEPTANCE` | 수락대기 |
-| 작업전 | `ACCEPTED` | `ACCEPTED` | 수락됨 |
-| 작업중 | `IN_PROGRESS` | `IN_PROGRESS` | — |
-| 완료 | `COMPLETED` | `COMPLETED` | — |
-| 취소 | `CANCELED` | `CANCELLED` | — |
+| Notion 표시값 | 코드 ([작업] §9) | 옛 표현 |
+| --- | --- | --- |
+| 등록 (기사·시간 없으면 대기함) | `REGISTERED` | 대기중 |
+| 배정됨 | `PENDING_ACCEPT` | 수락대기, `PENDING_ACCEPTANCE` |
+| 작업전 | `ACCEPTED` | 수락됨 |
+| 작업중 | `IN_PROGRESS` | — |
+| 완료 | `COMPLETED` | — |
+| 취소 | `CANCELED` | `CANCELLED` |
 
 | Notion 용어 | 레포 이름 | 비고 |
 | --- | --- | --- |

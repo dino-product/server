@@ -1,0 +1,15 @@
+# 개발 서버. 배포 공통 설정(application-deployed.yml)에 더해 운영과 다른 값만 둔다.
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    com.orbit: ${LOGGING_APP_LEVEL:DEBUG}

@@ -302,7 +302,7 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
         long technician = ACCOUNT_IDS.incrementAndGet();
         long technicianId = join(company, owner, technician, "TECHNICIAN");
         long workId = registerAssignedWork(owner, company.organizationId(), technicianId);
-        assertThat(workStatus(owner, company.organizationId(), workId)).isEqualTo("PENDING_ACCEPTANCE");
+        assertThat(workStatus(owner, company.organizationId(), workId)).isEqualTo("PENDING_ACCEPT");
 
         changeStatus(owner, company.organizationId(), "technicians", technicianId, "deactivation")
                 .andExpect(status().isNoContent());

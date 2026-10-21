@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -15,15 +16,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.port.out.WorkSearchCriteria;
 import com.orbit.schedule.application.port.out.WorkSearchResult;
@@ -42,20 +38,15 @@ import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.schedule.domain.WorkTypeId;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /**
  * 실제 PostgreSQL에서 WorkQueryPort 계약(구간 경계, 조직 격리, 대기함의 미리 입력한 일정 제외, 검색 조건·정렬·쪽 나누기, 분리된 사본)을 확인한다. 조직 식별자를
  * 테스트마다 다르게 두어 같은 DB를 쓰는 다른 테스트의 데이터와 섞이지 않게 한다.
  */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({PersistenceTestConfiguration.class, WorkPersistenceAdapter.class, WorkQueryPersistenceAdapter.class})
-@Testcontainers(disabledWithoutDocker = true)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DisplayName("작업 조회 JPA 저장소")
-class WorkQueryPersistenceAdapterTest {
+class WorkQueryPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
 
@@ -346,6 +337,26 @@ class WorkQueryPersistenceAdapterTest {
         }
 
         @Test
+        @DisplayName("상태 조건은 검색·전체 수·셈·한꺼번에 읽기에 똑같이 걸린다: 취소를 빼면 취소 작업은 어디에도 없고, 취소를 고르면 담긴다")
+        void appliesStatusesAlikeToSearchCountAndListing() {
+            OrganizationId organization = organization();
+            WorkId registered = save(registered(organization, "대기함"));
+            WorkId completed = save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T00:00:00Z", 60)));
+            WorkId cancelled =
+                    save(cancelled(organization, "배정 중 취소", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));
+            WorkId cancelledInBacklog = save(cancelledInBacklog(organization, "대기함 취소"));
+
+            assertReadsAlike(
+                    organization,
+                    EnumSet.complementOf(EnumSet.of(WorkStatus.CANCELED)),
+                    List.of(registered, completed));
+            assertReadsAlike(
+                    organization,
+                    Set.of(WorkStatus.CANCELED, WorkStatus.COMPLETED),
+                    List.of(completed, cancelled, cancelledInBacklog));
+        }
+
+        @Test
         @DisplayName("거절 반환 조건은 마지막 배정이 거절인 대기함 작업만 담는다")
         void filtersReturnedByRejection() {
             OrganizationId organization = organization();
@@ -599,6 +610,21 @@ class WorkQueryPersistenceAdapterTest {
                 .findFirst()
                 .orElseThrow()
                 .lastModifiedAt();
+    }
+
+    /** 그 상태 조건의 검색 쪽·전체 수·셈·한꺼번에 읽기가 모두 expected 작업만 담는지 확인한다. */
+    private void assertReadsAlike(OrganizationId organization, Set<WorkStatus> statuses, List<WorkId> expected) {
+        WorkSearchCriteria criteria = criteria().statuses(statuses).build();
+        WorkSearchResult searched = inTx(() -> adapter.search(organization, criteria));
+
+        assertThat(searched.works())
+                .extracting(work -> work.work().id().orElseThrow())
+                .containsExactlyInAnyOrderElementsOf(expected);
+        assertThat(searched.totalCount()).isEqualTo(expected.size());
+        assertThat(inTx(() -> adapter.count(organization, criteria))).isEqualTo(expected.size());
+        assertThat(adapter.listMatching(organization, criteria, WorkSearchCriteria.MAX_SIZE))
+                .extracting(work -> work.work().id().orElseThrow())
+                .containsExactlyInAnyOrderElementsOf(expected);
     }
 
     private List<WorkId> searchIds(OrganizationId organization, CriteriaBuilder builder) {

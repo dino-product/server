@@ -37,15 +37,6 @@ final class OrganizationActors {
         throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
     }
 
-    /** 관리자 강제 상태 변경처럼 총관리자만 하는 행위를 요청한 총관리자. 직원이면 403(SCHEDULE-005). */
-    static ManagerActor requireOwner(LoadActorPort loadActorPort, Long accountId, Long organizationIdValue) {
-        ManagerActor manager = requireManager(loadActorPort, accountId, organizationIdValue);
-        if (manager.role() != ActorRole.OWNER) {
-            throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
-        }
-        return manager;
-    }
-
     /**
      * 기본정보 수정·취소·리스케줄·재배정·배정 해제는 그 작업의 등록자 본인이나 총관리자만 한다. 다른 직원이면 403(SCHEDULE-005). 작업을 찾은 뒤, 입력·상태
      * 검증보다 먼저 호출한다(권한이 없는 요청에 입력·상태 오류를 드러내지 않는다).

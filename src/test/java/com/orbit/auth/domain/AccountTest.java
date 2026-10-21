@@ -16,7 +16,10 @@ import org.junit.jupiter.api.Test;
 class AccountTest {
 
     private static final ExternalIdentity KAKAO_IDENTITY = new ExternalIdentity(OAuthProvider.KAKAO, "1234567890");
+    private static final ExternalIdentity APPLE_IDENTITY =
+            new ExternalIdentity(OAuthProvider.APPLE, "001234.abcdef0123456789.0123");
     private static final Instant REGISTERED_AT = Instant.parse("2026-09-27T01:00:00Z");
+    private static final Instant CLOSED_AT = Instant.parse("2026-10-11T03:00:00Z");
 
     @Nested
     @DisplayName("등록")
@@ -102,6 +105,80 @@ class AccountTest {
             assertThatThrownBy(() -> Account.reconstitute(new AccountId(1L), identities, REGISTERED_AT))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("identities must have at most one per provider");
+        }
+
+        @Test
+        @DisplayName("닫힌 계정은 외부 식별 없이 폐쇄 시각과 함께 재구성한다")
+        void reconstitutesClosedAccount() {
+            Account account = Account.reconstituteClosed(new AccountId(10L), REGISTERED_AT, CLOSED_AT);
+
+            assertThat(account.isClosed()).isTrue();
+            assertThat(account.closedAt()).contains(CLOSED_AT);
+            assertThat(account.identities()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("닫힌 계정의 폐쇄 시각이 없으면 거부한다")
+        void rejectsClosedAccountWithoutClosedAt() {
+            assertThatThrownBy(() -> Account.reconstituteClosed(new AccountId(10L), REGISTERED_AT, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("closedAt must not be null");
+        }
+    }
+
+    @Nested
+    @DisplayName("폐쇄")
+    class Close {
+
+        @Test
+        @DisplayName("연결된 외부 식별을 모두 끊고 제공자마다 연결 해제할 일을 돌려준다")
+        void releasesIdentitiesAsProviderUnlinks() {
+            AccountId id = new AccountId(10L);
+            Account account = Account.reconstitute(id, List.of(KAKAO_IDENTITY, APPLE_IDENTITY), REGISTERED_AT);
+
+            List<ProviderUnlink> unlinks = account.close(CLOSED_AT);
+
+            assertThat(unlinks)
+                    .containsExactly(
+                            ProviderUnlink.request(id, KAKAO_IDENTITY, CLOSED_AT),
+                            ProviderUnlink.request(id, APPLE_IDENTITY, CLOSED_AT));
+            assertThat(account.isClosed()).isTrue();
+            assertThat(account.closedAt()).contains(CLOSED_AT);
+            assertThat(account.identities()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("이미 닫힌 계정을 다시 닫으면 폐쇄 시각을 바꾸지 않고 할 일도 만들지 않는다")
+        void closingTwiceChangesNothing() {
+            Account account = Account.reconstitute(new AccountId(10L), List.of(KAKAO_IDENTITY), REGISTERED_AT);
+            account.close(CLOSED_AT);
+
+            assertThat(account.close(CLOSED_AT.plusSeconds(60))).isEmpty();
+            assertThat(account.closedAt()).contains(CLOSED_AT);
+        }
+
+        @Test
+        @DisplayName("저장되지 않은 계정은 닫을 수 없다")
+        void rejectsUnsavedAccount() {
+            Account account = Account.register(KAKAO_IDENTITY, REGISTERED_AT);
+
+            assertThatThrownBy(() -> account.close(CLOSED_AT))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("only saved accounts can be closed");
+        }
+
+        @Test
+        @DisplayName("폐쇄 시각이 없거나 등록 시각보다 앞서면 거부한다")
+        void rejectsInvalidClosedAt() {
+            Account account = Account.reconstitute(new AccountId(10L), List.of(KAKAO_IDENTITY), REGISTERED_AT);
+
+            assertThatThrownBy(() -> account.close(null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("closedAt must not be null");
+            assertThatThrownBy(() -> account.close(REGISTERED_AT.minusSeconds(1)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("closedAt must not be before registeredAt");
+            assertThat(account.isClosed()).isFalse();
         }
     }
 }

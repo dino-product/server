@@ -2,6 +2,9 @@ package com.orbit.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -22,6 +25,7 @@ import com.orbit.auth.application.port.in.command.dto.LoginInfo;
 import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.AppleLoginExchangePort;
+import com.orbit.auth.application.port.out.ClosedAccountPort;
 import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.application.port.out.PendingAppleLogin;
 import com.orbit.auth.domain.AccessToken;
@@ -46,6 +50,9 @@ class ExchangeAppleWebLoginServiceTest {
 
     @Mock
     private AccessTokenPort accessTokens;
+
+    @Mock
+    private ClosedAccountPort closedAccounts;
 
     @Test
     @DisplayName("일회성 교환 코드를 소비하고 PKCE verifier가 맞으면 그 계정의 Access Token을 발급한다")
@@ -73,7 +80,20 @@ class ExchangeAppleWebLoginServiceTest {
 
     private ExchangeAppleWebLoginService service() {
         return new ExchangeAppleWebLoginService(
-                loginExchanges, accounts, accessTokens, Clock.fixed(NOW, ZoneOffset.UTC));
+                loginExchanges, closedAccounts, accounts, accessTokens, Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    @Test
+    @DisplayName("교환 코드를 만든 뒤 계정이 닫혔으면 토큰을 발급하지 않고 AUTH-007이다")
+    void rejectsExchangeForClosedAccount() {
+        when(loginExchanges.consume("exchange-code"))
+                .thenReturn(Optional.of(new PendingAppleLogin(ACCOUNT_ID, false, CHALLENGE)));
+        when(closedAccounts.isClosed(ACCOUNT_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> service().exchange(new ExchangeAppleWebLoginCommand("exchange-code", VERIFIER)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(AuthErrorCode.INVALID_APPLE_LOGIN_EXCHANGE_CODE));
+        verify(accessTokens, never()).issue(any());
     }
 
     @Test
