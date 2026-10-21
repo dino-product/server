@@ -21,7 +21,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
@@ -48,7 +47,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** 실제 Access Token으로 탈퇴하고, 같은 토큰·같은 카카오 계정의 다음 동작을 auth까지 이어서 확인한다. 카카오 id_token은 로컬 JWKS 스텁이 서명한다. */
-@AutoConfigureMockMvc
 @Import(ProfileWithdrawalApiIntegrationTest.TestWithdrawalBlockers.class)
 @DisplayName("회원 탈퇴 API")
 class ProfileWithdrawalApiIntegrationTest extends IntegrationTestSupport {

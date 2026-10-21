@@ -11,7 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-@DisplayName("일정 겹침·동시 수행 방지 정책")
+@DisplayName("일정 겹침 방지 정책")
 class WorkScheduleConflictPolicyTest {
 
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
@@ -23,7 +23,8 @@ class WorkScheduleConflictPolicyTest {
     private static final TechnicianId OTHER_TECHNICIAN_ID = new TechnicianId(4L);
     private static final MembershipId REGISTRAR_ID = new MembershipId(1L);
     private static final WorkTypeId WORK_TYPE_ID = new WorkTypeId(2L);
-    private static final CustomerInfo CUSTOMER_INFO = new CustomerInfo("홍길동", "010-1234-5678", "서울시");
+    private static final CustomerInfo CUSTOMER_INFO =
+            new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시", null));
     private static final Instant NOW = Instant.parse("2026-09-21T00:00:00Z");
     private static final PaymentInfo PAYMENT_INFO = new PaymentInfo(new Money(150000L), PaymentMethod.ON_SITE_CARD);
     private static final CompletionReport COMPLETION_REPORT = new CompletionReport(null, null, null, null, null, null);
@@ -159,82 +160,6 @@ class WorkScheduleConflictPolicyTest {
         }
     }
 
-    @Nested
-    @DisplayName("동시 수행")
-    class HasConcurrentInProgress {
-
-        @Test
-        @DisplayName("같은 기사에게 작업중인 작업이 있으면 동시 수행이다")
-        void detectsConcurrentInProgress() {
-            Work work = inProgressWork(scheduleOf(TECHNICIAN_ID, 10, 2));
-
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, null, List.of(work)))
-                    .isTrue();
-        }
-
-        @Test
-        @DisplayName("시작하려는 작업 자신은 같은 인스턴스든 같은 식별자의 사본이든 동시 수행으로 보지 않고, 그 밖의 작업중 작업은 센다")
-        void ignoresTargetItself() {
-            Work target = inProgressWork(scheduleOf(TECHNICIAN_ID, 10, 2));
-            Work storedCopy = reconstitutedInProgressWork(new WorkId(1L), scheduleOf(TECHNICIAN_ID, 10, 2));
-            Work targetWithSameId = reconstitutedInProgressWork(new WorkId(1L), scheduleOf(TECHNICIAN_ID, 10, 2));
-
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, target, List.of(target)))
-                    .isFalse();
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(
-                            TECHNICIAN_ID, targetWithSameId, List.of(storedCopy)))
-                    .isFalse();
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(
-                            TECHNICIAN_ID, targetWithSameId, List.of(storedCopy, target)))
-                    .isTrue();
-        }
-
-        @Test
-        @DisplayName("다른 기사의 작업중 작업은 동시 수행으로 보지 않는다")
-        void ignoresOtherTechnicianInProgressWork() {
-            Work otherTechnicianWork = inProgressWork(scheduleOf(OTHER_TECHNICIAN_ID, 10, 2));
-            Work acceptedWork = acceptedWork(scheduleOf(TECHNICIAN_ID, 13, 1));
-
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(
-                            TECHNICIAN_ID, null, List.of(otherTechnicianWork, acceptedWork)))
-                    .isFalse();
-        }
-
-        @Test
-        @DisplayName("작업중이 아닌 작업만 있으면 동시 수행이 아니다")
-        void ignoresNonInProgressWorks() {
-            Work accepted = acceptedWork(scheduleOf(TECHNICIAN_ID, 10, 2));
-            Work completed = completedWork(scheduleOf(TECHNICIAN_ID, 8, 1));
-
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(
-                            TECHNICIAN_ID, null, List.of(accepted, completed)))
-                    .isFalse();
-        }
-
-        @Test
-        @DisplayName("목록이 비어 있으면 동시 수행이 아니다")
-        void noConcurrentWhenEmpty() {
-            assertThat(WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, null, List.of()))
-                    .isFalse();
-        }
-
-        @Test
-        @DisplayName("기사가 null이면 거부한다")
-        void rejectsNullTechnician() {
-            assertThatThrownBy(() -> WorkScheduleConflictPolicy.hasConcurrentInProgress(null, null, List.of()))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("technicianId must not be null");
-        }
-
-        @Test
-        @DisplayName("목록이 null이면 거부한다")
-        void rejectsNullList() {
-            assertThatThrownBy(() -> WorkScheduleConflictPolicy.hasConcurrentInProgress(TECHNICIAN_ID, null, null))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("works must not be null");
-        }
-    }
-
     private static List<Work> conflictsOf(WorkSchedule candidate, Work existing) {
         return WorkScheduleConflictPolicy.findConflictingWorks(candidate, null, List.of(existing));
     }
@@ -277,27 +202,6 @@ class WorkScheduleConflictPolicyTest {
         return work;
     }
 
-    private static Work reconstitutedInProgressWork(WorkId id, WorkSchedule schedule) {
-        return Work.reconstitute(
-                id,
-                ORGANIZATION_ID,
-                "에어컨 수리",
-                REGISTRAR_ID,
-                REGISTERED_AT,
-                WORK_TYPE_ID,
-                schedule,
-                CUSTOMER_INFO,
-                PAYMENT_INFO,
-                WorkStatus.IN_PROGRESS,
-                List.of(AssignmentHistory.restore(
-                        schedule, NOW, MANAGER_ID, AssignmentResult.ACCEPTED, null, NOW, null)),
-                null,
-                NOW,
-                null,
-                null,
-                List.of());
-    }
-
     private static Work reconstitutedPendingWork(WorkId id, WorkSchedule schedule) {
         return Work.reconstitute(
                 id,
@@ -309,13 +213,12 @@ class WorkScheduleConflictPolicyTest {
                 schedule,
                 CUSTOMER_INFO,
                 PAYMENT_INFO,
-                WorkStatus.PENDING_ACCEPTANCE,
+                WorkStatus.PENDING_ACCEPT,
                 List.of(AssignmentHistory.restore(
                         schedule, NOW, MANAGER_ID, AssignmentResult.PENDING, null, null, null)),
                 null,
                 null,
                 null,
-                null,
-                List.of());
+                null);
     }
 }

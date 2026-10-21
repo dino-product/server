@@ -12,11 +12,6 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.ProviderUnlinkRepository;
@@ -25,16 +20,11 @@ import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
 import com.orbit.auth.domain.OAuthProvider;
 import com.orbit.auth.domain.ProviderUnlink;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** 다른 테스트 클래스의 대기와 섞이지 않도록 기한 조회는 아주 먼 과거 시각을 기준으로 삼는다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({TestcontainersConfiguration.class, AccountPersistenceAdapter.class, ProviderUnlinkPersistenceAdapter.class})
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("외부 연결 해제 대기 저장소")
-class ProviderUnlinkPersistenceAdapterTest {
+class ProviderUnlinkPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2026-09-27T01:00:00Z");
     private static final Instant LONG_AGO = Instant.parse("2000-01-01T00:00:00Z");

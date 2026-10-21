@@ -14,9 +14,9 @@ import com.orbit.schedule.domain.WorkTypeId;
  * 담당기사·예정시간 칸과 같은 작업에 보일 일정({@link com.orbit.schedule.domain.Work#shownSchedule}) 기준이라, 완료·배정 중 취소된 작업과 미리
  * 입력한 값이나 마지막 배정 일정이 있는 대기함 작업도 걸린다.
  *
- * @param keyword 작업명·고객 이름·연락처·주소 중 하나에 대소문자 구분 없이 포함되는 글자(리터럴 부분 문자열이므로 {@code %}·{@code _}·{@code \}는
+ * @param keyword 작업명·고객 이름·연락처·기본주소·상세주소 중 하나에 대소문자 구분 없이 포함되는 글자(리터럴 부분 문자열이므로 {@code %}·{@code _}·{@code \}는
  *     이스케이프한다). 연락처는 입력한 원문 그대로 비교한다. 앞뒤 공백을 뺀, 비어 있지 않은 값이다
- * @param statuses 이 상태 중 하나인 작업. 비어 있으면 모든 상태. null이 아니다
+ * @param statuses 이 상태 중 하나인 작업. 비어 있으면 모든 상태(작업 목록의 기본값인 취소 제외는 서비스가 채운다). null이 아니다
  * @param technicianId 작업에 보일 일정의 담당 기사
  * @param workTypeId 이 작업유형의 작업
  * @param registrarId 이 소속이 등록한 작업

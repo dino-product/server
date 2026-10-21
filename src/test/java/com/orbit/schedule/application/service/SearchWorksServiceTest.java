@@ -45,6 +45,13 @@ import com.orbit.schedule.domain.WorkTypeId;
 @DisplayName("작업 목록 검색")
 class SearchWorksServiceTest {
 
+    private static final Set<WorkStatus> NOT_CANCELLED = Set.of(
+            WorkStatus.REGISTERED,
+            WorkStatus.PENDING_ACCEPT,
+            WorkStatus.ACCEPTED,
+            WorkStatus.IN_PROGRESS,
+            WorkStatus.COMPLETED);
+
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final SearchWorksService service = new SearchWorksService(
             fixture.actorPort,
@@ -55,7 +62,7 @@ class SearchWorksServiceTest {
             fixture.clock);
 
     @Test
-    @DisplayName("비운 조건은 기본값(모든 상태, 최근 등록 먼저, 0쪽, 20건)으로 검색한다")
+    @DisplayName("비운 조건은 기본값(취소를 뺀 모든 상태, 최근 등록 먼저, 0쪽, 20건)으로 검색한다")
     void searchesWithDefaults() {
         fixture.givenManager();
 
@@ -64,7 +71,7 @@ class SearchWorksServiceTest {
         assertThat(fixture.workRepository.searches())
                 .containsExactly(new WorkSearchCriteria(
                         null,
-                        Set.of(),
+                        NOT_CANCELLED,
                         null,
                         null,
                         null,
@@ -119,7 +126,7 @@ class SearchWorksServiceTest {
                                 50),
                         new WorkSearchCriteria(
                                 null,
-                                Set.of(),
+                                NOT_CANCELLED,
                                 null,
                                 null,
                                 null,
@@ -132,7 +139,7 @@ class SearchWorksServiceTest {
                                 1),
                         new WorkSearchCriteria(
                                 null,
-                                Set.of(),
+                                NOT_CANCELLED,
                                 null,
                                 null,
                                 null,
@@ -146,6 +153,23 @@ class SearchWorksServiceTest {
     }
 
     @Test
+    @DisplayName("상태 조건을 비우면 취소 작업을 빼고, 취소를 고르면 다른 상태와 함께여도 취소 작업을 담도록 조건을 넘긴다")
+    void excludesCancelledUnlessChosen() {
+        fixture.givenManager();
+
+        service.search(query().statuses(Set.of()).build());
+        service.search(query().statuses(Set.of(WorkStatus.CANCELED)).build());
+        service.search(query().statuses(Set.of(WorkStatus.CANCELED, WorkStatus.COMPLETED))
+                .delayedOnly()
+                .build());
+
+        assertThat(fixture.workRepository.searches())
+                .extracting(WorkSearchCriteria::statuses)
+                .containsExactly(
+                        NOT_CANCELLED, Set.of(WorkStatus.CANCELED), Set.of(WorkStatus.CANCELED, WorkStatus.COMPLETED));
+    }
+
+    @Test
     @DisplayName("저장소가 돌려준 순서·전체 수 그대로 담고, 일정·표시 정보·등록·수정 시각·지연·거절 반환을 표시한다")
     void mapsResult() {
         fixture.givenManager();
@@ -155,7 +179,7 @@ class SearchWorksServiceTest {
         fixture.staffProfiles.given(ORGANIZATION_ID, new StaffProfile(REGISTRAR_ID, "김운영", false, null));
         WorkId late = fixture.givenWork(
                 ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, NOW.minus(Duration.ofHours(3)));
-        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         rejected.reject(new Rejection(RejectionReason.SCOPE_MISMATCH, null), ACCEPTED_AT);
         WorkId rejectedId = fixture.workRepository.store(rejected);
         Instant lateModified = NOW.minusSeconds(30);

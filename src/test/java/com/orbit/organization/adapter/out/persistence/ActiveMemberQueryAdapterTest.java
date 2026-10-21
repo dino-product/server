@@ -12,11 +12,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.out.ActiveMembership;
 import com.orbit.organization.application.port.out.ActiveTechnicianContract;
@@ -24,16 +19,11 @@ import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.TechnicianId;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** 상태를 바꾸는 유즈케이스가 아직 없어 소속·기사 계약 행은 SQL로 넣는다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("활성 직원 소속·기사 계약 한 문장 조회")
-class ActiveMemberQueryAdapterTest {
+class ActiveMemberQueryAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant JOINED_AT = Instant.parse("2026-10-01T00:00:00.123456Z");
     private static final Instant CHANGED_AT = Instant.parse("2026-10-05T00:00:00.654321Z");

@@ -51,16 +51,16 @@ class GetProgressBoardServiceTest {
         fixture.technicianProfiles.given(ORGANIZATION_ID, new TechnicianProfile(TECHNICIAN_ID, "김민수", null));
         Instant pastStart = NOW.minus(Duration.ofHours(3));
         WorkId laterPending = fixture.givenWork(
-                ORGANIZATION_ID, "나중 대기", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN.plus(TWO_HOURS));
+                ORGANIZATION_ID, "나중 대기", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN.plus(TWO_HOURS));
         WorkId pending =
-                fixture.givenWork(ORGANIZATION_ID, "먼저 대기", WorkStatus.PENDING_ACCEPTANCE, OTHER_TECHNICIAN_ID, TEN);
+                fixture.givenWork(ORGANIZATION_ID, "먼저 대기", WorkStatus.PENDING_ACCEPT, OTHER_TECHNICIAN_ID, TEN);
         WorkId lateInProgress =
                 fixture.givenWork(ORGANIZATION_ID, "늦은 작업", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, pastStart);
         WorkId completed =
                 fixture.givenWork(ORGANIZATION_ID, "끝난 작업", WorkStatus.COMPLETED, OTHER_TECHNICIAN_ID, pastStart);
         WorkId sameStartPending =
-                fixture.givenWork(ORGANIZATION_ID, "같은 시각 대기", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
-        fixture.givenWork(ORGANIZATION_ID, "취소 작업", WorkStatus.CANCELLED, TECHNICIAN_ID, TEN);
+                fixture.givenWork(ORGANIZATION_ID, "같은 시각 대기", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN);
+        fixture.givenWork(ORGANIZATION_ID, "취소 작업", WorkStatus.CANCELED, TECHNICIAN_ID, TEN);
         fixture.givenWork(WorkStatus.REGISTERED);
         fixture.givenWork(ORGANIZATION_ID, "구간 전에 끝난 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, FROM.minus(TWO_HOURS));
         fixture.givenWork(ORGANIZATION_ID, "구간 뒤에 시작하는 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, TO);
@@ -71,7 +71,7 @@ class GetProgressBoardServiceTest {
                 .extracting(ProgressBoardInfo.Column::status)
                 .containsExactly(
                         WorkStatus.REGISTERED,
-                        WorkStatus.PENDING_ACCEPTANCE,
+                        WorkStatus.PENDING_ACCEPT,
                         WorkStatus.ACCEPTED,
                         WorkStatus.IN_PROGRESS,
                         WorkStatus.COMPLETED);
@@ -110,7 +110,7 @@ class GetProgressBoardServiceTest {
     void countsDelayedWaitingWorks() {
         fixture.givenManager();
         Instant pastStart = NOW.minus(Duration.ofHours(3));
-        fixture.givenWork(ORGANIZATION_ID, "늦은 대기", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, pastStart);
+        fixture.givenWork(ORGANIZATION_ID, "늦은 대기", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, pastStart);
         fixture.givenWork(ORGANIZATION_ID, "늦은 수락", WorkStatus.ACCEPTED, OTHER_TECHNICIAN_ID, pastStart);
 
         ProgressBoardInfo board = service.get(query(FROM, TO));
@@ -219,7 +219,7 @@ class GetProgressBoardServiceTest {
                 null,
                 null,
                 new PlannedSchedule(TECHNICIAN_ID, null, null)));
-        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ASSIGNED_AT.plusSeconds(60));
         WorkId rejectedId = fixture.workRepository.store(rejected);
 

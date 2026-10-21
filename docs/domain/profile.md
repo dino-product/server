@@ -101,7 +101,7 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 ## 연동 관계
 
 - **auth (현재)**: 컨트롤러와 공통 검사가 auth 루트 계약 `AccountPrincipal`에서 계정 식별자만 받아 Command·Query에 넘긴다(Conformist). 이 의존 때문에 auth는 profile을 조회·구독할 수 없다. 탈퇴의 계정 폐쇄(외부 식별 해제·토큰 거부)는 `WithdrawService`가 auth 루트 계약 `AccountClosure`를 탈퇴 트랜잭션 안에서 직접 호출한다(auth가 탈퇴 이벤트를 구독하면 순환). 로그인 응답에는 가입 단계가 없으므로 클라이언트는 로그인 뒤 `GET /api/v1/profiles/{accountId}`로 확인한다.
-- **organization·schedule (탈퇴, 연결 전)**: 탈퇴 차단 판정은 두 모듈이 profile 요구 인터페이스 `WithdrawalBlocker`를 구현하고, 탈퇴 뒤처리(소속 비활성화·대기함 반환)는 두 모듈이 `AccountWithdrawn`을 구독해 맡는다(2026-10-14 결정, organization HM-319·schedule HM-320). 두 모듈이 profile에 의존하게 되므로 profile은 그들을 조회·구독하지 않는다.
+- **organization·schedule (탈퇴, schedule 연결·organization 연결 전)**: 탈퇴 차단 판정은 두 모듈이 profile 요구 인터페이스 `WithdrawalBlocker`를 구현하고, 탈퇴 뒤처리(소속 비활성화·대기함 반환)는 두 모듈이 `AccountWithdrawn`을 구독해 맡는다(2026-10-14 결정, organization HM-319·schedule HM-320). schedule은 `adapter/in/profile`·`adapter/in/event`로 연결됐다(HM-320). 두 모듈이 profile에 의존하게 되므로 profile은 그들을 조회·구독하지 않는다.
 - **계획된 관계** (현재 허용 의존성이 아님): schedule의 기사 이름 표시가 `ProfileLookup`을 쓰도록 연결한다(HM-288). 기사 계약 ID를 계정 ID로 바꾸는 연결은 organization과 합의한다.
 
 ## 공개 계약
@@ -125,7 +125,7 @@ ID 대역·추적 칸의 뜻과 [대역별 구현 규칙](../planning/README.md#
 <a id="profile-todo"></a>
 ## 남은 일
 
-- **탈퇴 연동** (운영 출시 전 필수): organization의 `WithdrawalBlocker` 구현과 `AccountWithdrawn` 구독(HM-319), schedule의 구현과 구독(HM-320). 그 전에는 유일한 총관리자와 작업중·배정됨 작업이 있는 기사도 탈퇴되고, 소속이 활성으로 남으며 배정됨·작업전 작업이 대기함으로 돌아가지 않는다. 구독 실패의 재전송은 HM-278.
+- **탈퇴 연동** (운영 출시 전 필수): organization의 `WithdrawalBlocker` 구현과 `AccountWithdrawn` 구독(HM-319). schedule 쪽(HM-320)은 연결됐다. 그 전에는 유일한 총관리자도 탈퇴되고 소속이 활성으로 남는다. 구독 실패는 이벤트 발행 기록의 재전송(HM-278)이 다시 실행한다.
 - **"탈퇴한 사용자" 표기** ([조직·계정] 정책 §5.1): `ProfileLookup`이 탈퇴한 계정을 어떻게 돌려줄지 정한다. 지금은 가입 미완료·프로필 없는 계정과 구분되지 않는다.
 - **탈퇴 뒤 보관 범위**: 약관 동의 이력·가입일·탈퇴 시각·사유를 기한 없이 보관한다. 법적 적정성은 organization 쪽 O-32(ORG-009).
 - **프로필 사진** ([조직·계정] 정책 §5·§5.1): 파일 저장 방식이 정해진 뒤 추가한다.

@@ -30,7 +30,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -48,7 +47,6 @@ import com.orbit.support.SignupTestSupport;
 import tools.jackson.databind.ObjectMapper;
 
 /** 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻는다. 계정마다 다른 {@code sub}로 토큰을 만든다. */
-@AutoConfigureMockMvc
 @DisplayName("발주사 API")
 class OrganizationApiIntegrationTest extends IntegrationTestSupport {
 

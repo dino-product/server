@@ -12,7 +12,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -27,7 +26,6 @@ import com.orbit.support.SignupTestSupport.TestAccount;
 
 import tools.jackson.databind.ObjectMapper;
 
-@AutoConfigureMockMvc
 @DisplayName("프로필 API")
 class ProfileApiIntegrationTest extends IntegrationTestSupport {
 

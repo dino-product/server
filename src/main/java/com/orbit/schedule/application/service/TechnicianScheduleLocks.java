@@ -8,8 +8,9 @@ import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.shared.error.BusinessException;
 
 /**
- * 기사의 활성 작업을 읽고 판정하는 유즈케이스가 같은 기사를 동시에 바꾸지 못하게, 읽기 전에 잠그는 공통 절차. 어느 유즈케이스가 잠가야 하는지는 schedule 지침이
- * 원본이다. 대기 한도를 넘기면 409(SCHEDULE-006)로 바꾸고, 트랜잭션은 예외로 롤백된다.
+ * 기사의 활성 작업을 읽고 판정하는 유즈케이스와, 같은 기사를 잠그는 반환과 한 줄로 서야 하는 기사 요청(수락·거절·시작)이 같은 기사를 동시에 바꾸지 못하게
+ * 읽기 전에 잠그는 공통 절차. 어느 유즈케이스가 잠가야 하는지는 schedule 지침이 원본이다. 대기 한도를 넘기면 409(SCHEDULE-006)로 바꾸고, 트랜잭션은 예외로
+ * 롤백된다.
  */
 final class TechnicianScheduleLocks {
 

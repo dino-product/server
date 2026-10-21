@@ -36,6 +36,7 @@ final class BacklogWorks {
                 rejection != null,
                 rejection == null ? null : rejection.reason(),
                 rejection == null ? null : rejection.note(),
-                work.isStaleInBacklogAt(now));
+                work.isStaleInBacklogAt(now),
+                work.version());
     }
 }
