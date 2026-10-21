@@ -42,6 +42,7 @@ public class ChangeMarketingConsentService implements ChangeMarketingConsentUseC
             throw new BusinessException(CommonErrorCode.BAD_REQUEST);
         }
         Profile profile = profiles.findByAccountId(accountId)
+                .map(ProfileOwnership::requireNotWithdrawn)
                 .filter(found -> found.status() == SignupStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ProfileErrorCode.SIGNUP_NOT_COMPLETED));
         profile.changeMarketingConsent(command.agreed(), currentTerms.currentVersions(), clock.instant());
