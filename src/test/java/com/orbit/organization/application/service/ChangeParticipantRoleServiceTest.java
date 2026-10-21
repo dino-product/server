@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -27,6 +28,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.orbit.organization.StaffRegisteredWorks;
 import com.orbit.organization.TechnicianWorkRelease;
 import com.orbit.organization.TechnicianWorkReleaseBusyException;
 import com.orbit.organization.WorkReleaseBlocked;
@@ -87,6 +89,9 @@ class ChangeParticipantRoleServiceTest {
     @Mock
     private TechnicianWorkRelease technicianWorkRelease;
 
+    @Mock
+    private StaffRegisteredWorks staffRegisteredWorks;
+
     private ChangeParticipantRoleService service;
 
     @BeforeEach
@@ -97,6 +102,7 @@ class ChangeParticipantRoleServiceTest {
                 technicianRepository,
                 categoryRepository,
                 technicianWorkRelease,
+                staffRegisteredWorks,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -161,7 +167,7 @@ class ChangeParticipantRoleServiceTest {
         assertThat(info)
                 .isEqualTo(new ParticipantRoleChangeInfo(ParticipationType.STAFF, MEMBERSHIP_ID.value(), List.of()));
         ArgumentCaptor<Membership> reactivated = ArgumentCaptor.forClass(Membership.class);
-        verify(membershipRepository).reactivate(reactivated.capture(), org.mockito.ArgumentMatchers.eq(true));
+        verify(membershipRepository).reactivate(reactivated.capture(), eq(true));
         assertThat(reactivated.getValue().status()).isEqualTo(MembershipStatus.ACTIVE);
         assertThat(reactivated.getValue().joinedAt()).isEqualTo(JOINED_AT);
         assertThat(reactivated.getValue().statusChangedAt()).isEqualTo(NOW);
@@ -291,6 +297,159 @@ class ChangeParticipantRoleServiceTest {
         verifyNoInteractions(organizationRepository, technicianWorkRelease);
     }
 
+    @Test
+    @DisplayName("직원을 기사로 바꾸면 직원 소속을 끝내고 이전 참여일로 기사 계약을 만든 뒤 기사 유형을 지정한다")
+    void changesStaffToNewTechnician() {
+        givenRequesterIsOwner();
+        givenStaff(false, MembershipStatus.ACTIVE);
+        givenCategory(MemberCategoryKind.TECHNICIAN, ORGANIZATION_ID, false);
+        when(staffRegisteredWorks.existsUnfinished(ORGANIZATION_ID.value(), MEMBERSHIP_ID.value()))
+                .thenReturn(false);
+        when(technicianRepository.find(ORGANIZATION_ID, MEMBER_ACCOUNT)).thenReturn(Optional.empty());
+        when(technicianRepository.save(any()))
+                .thenAnswer(invocation -> withId(invocation.<Technician>getArgument(0), TECHNICIAN_ID));
+
+        ParticipantRoleChangeInfo info =
+                service.changeRole(command(ParticipationType.STAFF, MEMBERSHIP_ID.value(), CATEGORY_ID.value()));
+
+        assertThat(info)
+                .isEqualTo(
+                        new ParticipantRoleChangeInfo(ParticipationType.TECHNICIAN, TECHNICIAN_ID.value(), List.of()));
+        ArgumentCaptor<Membership> ended = ArgumentCaptor.forClass(Membership.class);
+        ArgumentCaptor<Technician> created = ArgumentCaptor.forClass(Technician.class);
+        InOrder order =
+                inOrder(organizationRepository, membershipRepository, staffRegisteredWorks, technicianRepository);
+        order.verify(organizationRepository).lock(ORGANIZATION_ID);
+        order.verify(membershipRepository).findById(MEMBERSHIP_ID);
+        order.verify(staffRegisteredWorks).existsUnfinished(ORGANIZATION_ID.value(), MEMBERSHIP_ID.value());
+        order.verify(membershipRepository).deactivate(ended.capture());
+        order.verify(technicianRepository).save(created.capture());
+        order.verify(technicianRepository).changeTechnicianCategory(TECHNICIAN_ID, CATEGORY_ID);
+        assertThat(ended.getValue().status()).isEqualTo(MembershipStatus.DEACTIVATED);
+        assertThat(ended.getValue().statusChangedAt()).isEqualTo(NOW);
+        assertThat(created.getValue().status()).isEqualTo(TechnicianStatus.ACTIVE);
+        assertThat(created.getValue().joinedAt()).isEqualTo(JOINED_AT);
+        assertThat(created.getValue().statusChangedAt()).isEqualTo(NOW);
+        verifyNoInteractions(technicianWorkRelease);
+    }
+
+    @Test
+    @DisplayName("직원을 기사로 바꿀 때 이전 기사 계약이 있으면 같은 계약 ID로 되살리고 예전 기사 유형은 해제한다")
+    void reactivatesPreviousTechnicianContract() {
+        givenRequesterIsOwner();
+        givenStaff(false, MembershipStatus.ACTIVE);
+        when(staffRegisteredWorks.existsUnfinished(anyLong(), anyLong())).thenReturn(false);
+        Technician previous = Technician.reconstitute(
+                TECHNICIAN_ID, ORGANIZATION_ID, MEMBER_ACCOUNT, TechnicianStatus.DEACTIVATED, JOINED_AT, CHANGED_AT);
+        when(technicianRepository.find(ORGANIZATION_ID, MEMBER_ACCOUNT)).thenReturn(Optional.of(previous));
+        when(technicianRepository.reactivate(any(), anyBoolean())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ParticipantRoleChangeInfo info =
+                service.changeRole(command(ParticipationType.STAFF, MEMBERSHIP_ID.value(), null));
+
+        assertThat(info)
+                .isEqualTo(
+                        new ParticipantRoleChangeInfo(ParticipationType.TECHNICIAN, TECHNICIAN_ID.value(), List.of()));
+        ArgumentCaptor<Technician> reactivated = ArgumentCaptor.forClass(Technician.class);
+        verify(technicianRepository).reactivate(reactivated.capture(), eq(true));
+        assertThat(reactivated.getValue().status()).isEqualTo(TechnicianStatus.ACTIVE);
+        assertThat(reactivated.getValue().statusChangedAt()).isEqualTo(NOW);
+        verify(technicianRepository, never()).save(any());
+        verify(technicianRepository, never()).changeTechnicianCategory(any(), any());
+    }
+
+    @Test
+    @DisplayName("등록한 작업 중 끝나지 않은 것이 있는 직원은 409 ORGANIZATION-028로 거부하고 아무것도 저장하지 않는다")
+    void rejectsStaffWithUnfinishedRegisteredWorks() {
+        givenRequesterIsOwner();
+        givenStaff(false, MembershipStatus.ACTIVE);
+        when(staffRegisteredWorks.existsUnfinished(ORGANIZATION_ID.value(), MEMBERSHIP_ID.value()))
+                .thenReturn(true);
+
+        assertRejected(
+                () -> service.changeRole(command(ParticipationType.STAFF, MEMBERSHIP_ID.value(), null)),
+                OrganizationErrorCode.STAFF_HAS_UNFINISHED_WORKS);
+        verify(membershipRepository, never()).deactivate(any());
+        verify(technicianRepository, never()).save(any());
+        verify(technicianRepository, never()).reactivate(any(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("총관리자 소속은 409 ORGANIZATION-025로 거부하고 등록 작업을 확인하지 않는다")
+    void rejectsOwnerMembership() {
+        givenRequesterIsOwner();
+        givenStaff(true, MembershipStatus.ACTIVE);
+
+        assertRejected(
+                () -> service.changeRole(command(ParticipationType.STAFF, MEMBERSHIP_ID.value(), null)),
+                OrganizationErrorCode.OWNER_ROLE_LOCKED);
+        verifyNoInteractions(staffRegisteredWorks);
+    }
+
+    @Test
+    @DisplayName("요청자 자신의 총관리자 소속도 409 ORGANIZATION-025로 거부한다")
+    void rejectsRequesterOwnMembership() {
+        givenRequesterIsOwner();
+        when(membershipRepository.findById(REQUESTER_MEMBERSHIP_ID))
+                .thenReturn(Optional.of(Membership.reconstitute(
+                        REQUESTER_MEMBERSHIP_ID,
+                        ORGANIZATION_ID,
+                        REQUESTER,
+                        true,
+                        MembershipStatus.ACTIVE,
+                        JOINED_AT,
+                        JOINED_AT)));
+
+        assertRejected(
+                () -> service.changeRole(command(ParticipationType.STAFF, REQUESTER_MEMBERSHIP_ID.value(), null)),
+                OrganizationErrorCode.OWNER_ROLE_LOCKED);
+    }
+
+    @Test
+    @DisplayName("비활성 직원 소속은 409 ORGANIZATION-026으로 거부한다")
+    void rejectsInactiveStaff() {
+        givenRequesterIsOwner();
+        givenStaff(false, MembershipStatus.DEACTIVATED);
+
+        assertRejected(
+                () -> service.changeRole(command(ParticipationType.STAFF, MEMBERSHIP_ID.value(), null)),
+                OrganizationErrorCode.INACTIVE_MEMBER_ROLE);
+        verifyNoInteractions(staffRegisteredWorks);
+    }
+
+    @Test
+    @DisplayName("다른 발주사의 직원 소속은 404 ORGANIZATION-004로 거부한다")
+    void rejectsStaffOfOtherOrganization() {
+        givenRequesterIsOwner();
+        when(membershipRepository.findById(MEMBERSHIP_ID))
+                .thenReturn(Optional.of(Membership.reconstitute(
+                        MEMBERSHIP_ID,
+                        OTHER_ORGANIZATION_ID,
+                        MEMBER_ACCOUNT,
+                        false,
+                        MembershipStatus.ACTIVE,
+                        JOINED_AT,
+                        JOINED_AT)));
+
+        assertRejected(
+                () -> service.changeRole(command(ParticipationType.STAFF, MEMBERSHIP_ID.value(), null)),
+                OrganizationErrorCode.MEMBERSHIP_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("직원을 기사로 바꿀 때 직원 유형을 고르면 404 ORGANIZATION-008로 거부한다")
+    void rejectsCategoryOfOtherKind() {
+        givenRequesterIsOwner();
+        givenStaff(false, MembershipStatus.ACTIVE);
+        when(categoryRepository.findById(MemberCategoryKind.TECHNICIAN, CATEGORY_ID))
+                .thenReturn(Optional.empty());
+
+        assertRejected(
+                () -> service.changeRole(command(ParticipationType.STAFF, MEMBERSHIP_ID.value(), CATEGORY_ID.value())),
+                OrganizationErrorCode.CATEGORY_NOT_FOUND);
+        verifyNoInteractions(staffRegisteredWorks);
+    }
+
     private void givenRequesterIsOwner() {
         when(membershipRepository.existsActive(ORGANIZATION_ID, REQUESTER)).thenReturn(true);
         when(membershipRepository.findActive(ORGANIZATION_ID, REQUESTER))
@@ -302,6 +461,12 @@ class ChangeParticipantRoleServiceTest {
                         MembershipStatus.ACTIVE,
                         JOINED_AT,
                         JOINED_AT)));
+    }
+
+    private void givenStaff(boolean owner, MembershipStatus status) {
+        when(membershipRepository.findById(MEMBERSHIP_ID))
+                .thenReturn(Optional.of(Membership.reconstitute(
+                        MEMBERSHIP_ID, ORGANIZATION_ID, MEMBER_ACCOUNT, owner, status, JOINED_AT, JOINED_AT)));
     }
 
     private void givenTechnician(TechnicianStatus status) {
@@ -331,6 +496,16 @@ class ChangeParticipantRoleServiceTest {
                 membership.status(),
                 membership.joinedAt(),
                 membership.statusChangedAt());
+    }
+
+    private static Technician withId(Technician technician, TechnicianId id) {
+        return Technician.reconstitute(
+                id,
+                technician.organizationId(),
+                technician.accountId(),
+                technician.status(),
+                technician.joinedAt(),
+                technician.statusChangedAt());
     }
 
     private static void assertRejected(Runnable action, BaseCode errorCode) {

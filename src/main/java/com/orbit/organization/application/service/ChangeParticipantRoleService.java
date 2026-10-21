@@ -8,6 +8,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbit.organization.StaffRegisteredWorks;
 import com.orbit.organization.TechnicianWorkRelease;
 import com.orbit.organization.TechnicianWorkReleaseBusyException;
 import com.orbit.organization.TechnicianWorkReleaseResult;
@@ -26,6 +27,7 @@ import com.orbit.organization.domain.MemberCategoryId;
 import com.orbit.organization.domain.MemberCategoryKind;
 import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.MembershipId;
+import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationType;
 import com.orbit.organization.domain.Technician;
@@ -41,6 +43,8 @@ import com.orbit.shared.error.BusinessException;
  * <ul>
  *   <li>기존 행은 비활성으로 끝내고 대상 역할의 행은 없으면 이전 참여일로 만들고 있으면 되살린다. 기사 계약 ID가 유지되어 schedule 이력이 이어진다. 새 역할의
  *       세부 유형은 고른 유형으로 두고, 고르지 않았으면 "유형 없음"이다(되살린 행의 예전 유형도 해제한다).
+ *   <li>직원에서 기사로 바꿀 때 총관리자 소속(요청자 자신 포함)은 409(ORGANIZATION-025)로 거부한다. 그 직원이 등록한 작업 중 끝나지 않은 것이 있으면
+ *       {@link StaffRegisteredWorks}로 확인해 409(ORGANIZATION-028)로 거부한다.
  *   <li>기사에서 직원으로 바꾸면 같은 트랜잭션에서 {@link TechnicianWorkRelease}로 예정 작업을 대기함으로 돌린다. 작업중 작업이 있으면 아무것도 바꾸지
  *       않고 409(ORGANIZATION-027)로, 기사 일정 대기 초과는 409(ORGANIZATION-024)로 거부하며 그 밖의 예외는 그대로 전파한다.
  * </ul>
@@ -53,6 +57,7 @@ public class ChangeParticipantRoleService implements ChangeParticipantRoleUseCas
     private final TechnicianRepository technicianRepository;
     private final MemberCategoryRepository categoryRepository;
     private final TechnicianWorkRelease technicianWorkRelease;
+    private final StaffRegisteredWorks staffRegisteredWorks;
     private final Clock clock;
 
     public ChangeParticipantRoleService(
@@ -61,12 +66,14 @@ public class ChangeParticipantRoleService implements ChangeParticipantRoleUseCas
             TechnicianRepository technicianRepository,
             MemberCategoryRepository categoryRepository,
             TechnicianWorkRelease technicianWorkRelease,
+            StaffRegisteredWorks staffRegisteredWorks,
             Clock clock) {
         this.organizationRepository = organizationRepository;
         this.membershipRepository = membershipRepository;
         this.technicianRepository = technicianRepository;
         this.categoryRepository = categoryRepository;
         this.technicianWorkRelease = technicianWorkRelease;
+        this.staffRegisteredWorks = staffRegisteredWorks;
         this.clock = clock;
     }
 
@@ -78,7 +85,39 @@ public class ChangeParticipantRoleService implements ChangeParticipantRoleUseCas
         if (command.type() == ParticipationType.TECHNICIAN) {
             return toStaff(command, organizationId, Participants.technicianId(command.memberId()), categoryId);
         }
-        throw new UnsupportedOperationException("staff to technician is not implemented");
+        return toTechnician(command, organizationId, Participants.membershipId(command.memberId()), categoryId);
+    }
+
+    private ParticipantRoleChangeInfo toTechnician(
+            ChangeParticipantRoleCommand command,
+            OrganizationId organizationId,
+            MembershipId membershipId,
+            MemberCategoryId categoryId) {
+        OrganizationOwners.lockAndRequireOwner(
+                organizationRepository, membershipRepository, command.accountId(), organizationId);
+        Membership target = Participants.requireMembershipOf(membershipRepository, organizationId, membershipId);
+        if (target.isOwner()) {
+            throw new BusinessException(OrganizationErrorCode.OWNER_ROLE_LOCKED);
+        }
+        requireActive(target.status() == MembershipStatus.ACTIVE);
+        requireCategory(organizationId, MemberCategoryKind.TECHNICIAN, categoryId);
+        if (staffRegisteredWorks.existsUnfinished(organizationId.value(), membershipId.value())) {
+            throw new BusinessException(OrganizationErrorCode.STAFF_HAS_UNFINISHED_WORKS);
+        }
+
+        Instant now = clock.instant();
+        // 총관리자는 위에서 거부했으므로 활성 총관리자 수는 판단에 쓰이지 않는다.
+        membershipRepository.deactivate(target.deactivate(now, 0));
+        Optional<Technician> previous = technicianRepository.find(organizationId, target.accountId());
+        Technician technician = previous.isPresent()
+                ? technicianRepository.reactivate(previous.get().reactivate(now), true)
+                : technicianRepository.save(
+                        Technician.join(organizationId, target.accountId(), target.joinedAt(), now));
+        TechnicianId technicianId = technician.id().orElseThrow();
+        if (categoryId != null) {
+            technicianRepository.changeTechnicianCategory(technicianId, categoryId);
+        }
+        return new ParticipantRoleChangeInfo(ParticipationType.TECHNICIAN, technicianId.value(), List.of());
     }
 
     private ParticipantRoleChangeInfo toStaff(
