@@ -4,5 +4,7 @@ package com.orbit.schedule.domain;
 public enum ActualPaymentMethod {
     CASH,
     BANK_TRANSFER,
-    CREDIT_CARD
+    CREDIT_CARD,
+    /** 청구서 발행(후불). */
+    INVOICE
 }

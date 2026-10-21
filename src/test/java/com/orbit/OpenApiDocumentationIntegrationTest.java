@@ -8,12 +8,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.orbit.support.IntegrationTestSupport;
 
-@AutoConfigureMockMvc
 class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
@@ -382,6 +380,24 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("SCHEDULE-008"))
                 .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.ScheduleChangeResponse']"
                                 + ".properties.applied")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-016'].value.code")
+                        .value("SCHEDULE-016"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.ChangeWorkAssignmentRequest']"
+                                + ".properties.expectedVersion")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.timetable.TimetableResponse.ScheduledWork']"
+                                + ".properties.version")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.BacklogWorkResponse']"
+                                + ".properties.version")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.detail.WorkDetailResponse']"
+                                + ".properties.version")
                         .exists());
     }
 
@@ -463,7 +479,14 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("SCHEDULE-001"))
                 .andExpect(jsonPath(schema + ".properties.registeredAt").exists())
                 .andExpect(jsonPath(schema + ".properties.sitePhotos").exists())
-                .andExpect(jsonPath(schema + ".properties.statusCorrections").doesNotExist());
+                .andExpect(jsonPath(schema + ".properties.statusCorrections").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.detail.WorkDetailResponse.Customer']"
+                                + ".properties.addressDetail")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.WorkCustomerRequest']"
+                                + ".properties.postalCode")
+                        .exists());
     }
 
     @Test
@@ -497,7 +520,42 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(operation + ".responses['204']").exists())
                 .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
                                 + ".examples['SCHEDULE-002'].value.code")
-                        .value("SCHEDULE-002"));
+                        .value("SCHEDULE-002"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-016'].value.code")
+                        .value("SCHEDULE-016"))
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'expectedVersion')].required")
+                        .value(contains(true)));
+    }
+
+    @Test
+    void documentsCompletionReportRequestWithIntervalLimit() throws Exception {
+        String operation =
+                "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-report-requests'].post";
+        String detail = "$.components.schemas['com.orbit.schedule.adapter.in.web.detail.WorkDetailResponse']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("완료보고 요청"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['200']").exists())
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-002'].value.code")
+                        .value("SCHEDULE-002"))
+                .andExpect(jsonPath(operation + ".responses['429'].content['application/json']"
+                                + ".examples['SCHEDULE-019'].value.code")
+                        .value("SCHEDULE-019"))
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.CompletionReportRequestResponse']"
+                                + ".properties.requestedAt")
+                        .exists())
+                .andExpect(jsonPath(detail + ".properties.completionReportRequests")
+                        .exists())
+                .andExpect(jsonPath(detail + ".properties.completionReportRequestable")
+                        .exists());
     }
 
     @Test
@@ -682,5 +740,66 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/marketing-consents'].post.responses['403']"
                                 + ".content['application/json'].examples['PROFILE-005'].value.code")
                         .value("PROFILE-005"));
+    }
+
+    @Test
+    void documentsNotificationCenterAsProtectedOperations() throws Exception {
+        String list = "$.paths['/api/v1/notifications'].get";
+        String unreadCount = "$.paths['/api/v1/notifications/unread-count'].get";
+        String read = "$.paths['/api/v1/notifications/{notificationId}/read'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(list + ".summary").value("내 알림 목록 조회"))
+                .andExpect(
+                        jsonPath(list + ".security[0]['Bearer Authentication']").exists())
+                .andExpect(
+                        jsonPath(list + ".parameters[*].name").value(containsInAnyOrder("unreadOnly", "page", "size")))
+                .andExpect(jsonPath(list + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.notification.adapter.in.web.NotificationsResponse"))
+                .andExpect(jsonPath(list + ".responses['400'].content['application/json']"
+                                + ".examples['NOTIFICATION-001'].value.code")
+                        .value("NOTIFICATION-001"))
+                .andExpect(jsonPath(unreadCount + ".summary").value("안 읽은 알림 수 조회"))
+                .andExpect(jsonPath(unreadCount + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.notification.adapter.in.web."
+                                + "UnreadNotificationCountResponse"))
+                .andExpect(jsonPath(read + ".summary").value("알림 읽음 처리"))
+                .andExpect(
+                        jsonPath(read + ".security[0]['Bearer Authentication']").exists())
+                .andExpect(jsonPath(read + ".parameters[0].name").value("notificationId"))
+                .andExpect(jsonPath(read + ".requestBody").doesNotExist())
+                .andExpect(jsonPath(read + ".responses['204']").exists())
+                .andExpect(jsonPath(read + ".responses['403'].content['application/json']"
+                                + ".examples['NOTIFICATION-003'].value.code")
+                        .value("NOTIFICATION-003"))
+                .andExpect(jsonPath(read + ".responses['404'].content['application/json']"
+                                + ".examples['NOTIFICATION-002'].value.code")
+                        .value("NOTIFICATION-002"));
+    }
+
+    @Test
+    void documentsNotificationSettingReadAndChange() throws Exception {
+        String operations = "$.paths['/api/v1/notification-settings']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operations + ".get.summary").value("내 알림 설정 조회"))
+                .andExpect(jsonPath(operations + ".get.responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.notification.adapter.in.web."
+                                + "NotificationSettingResponse"))
+                .andExpect(jsonPath(operations + ".put.summary").value("내 알림 설정 저장"))
+                .andExpect(jsonPath(operations + ".put.security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operations + ".put.requestBody").exists())
+                .andExpect(jsonPath(operations + ".put.responses['204']").exists())
+                .andExpect(jsonPath(operations + ".put.responses['409'].content['application/json']"
+                                + ".examples['NOTIFICATION-004'].value.code")
+                        .value("NOTIFICATION-004"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.notification.adapter.in.web.NotificationSettingRequest']"
+                                + ".required.length()")
+                        .value(3));
     }
 }

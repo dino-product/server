@@ -75,7 +75,7 @@ class GetBacklogSummaryServiceTest {
         fixture.givenManager();
         fixture.staffProfiles.given(ORGANIZATION_ID, new StaffProfile(REGISTRAR_ID, "김운영", false, null));
         WorkId fresh = fixture.givenWork(WorkStatus.REGISTERED);
-        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE));
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
         WorkId rejectedId = fixture.workRepository.store(rejected);
         fixture.workRepository.givenSearchResult(List.of(fresh, rejectedId), List.of(NOW, NOW), 12);

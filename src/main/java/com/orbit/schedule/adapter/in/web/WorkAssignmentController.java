@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -40,7 +41,7 @@ class WorkAssignmentController implements WorkAssignmentControllerDocs {
             @AuthenticationPrincipal AccountPrincipal requester,
             @PathVariable Long organizationId,
             @PathVariable Long workId,
-            @Valid @RequestBody WorkScheduleRequest request) {
+            @Valid @RequestBody ChangeWorkAssignmentRequest request) {
         Integer minutes = request.expectedDurationMinutes();
         return ScheduleChangeResponse.from(changeWorkAssignmentUseCase.change(new ChangeWorkAssignmentCommand(
                 requester.accountId(),
@@ -49,7 +50,8 @@ class WorkAssignmentController implements WorkAssignmentControllerDocs {
                 request.technicianId(),
                 request.startTime(),
                 minutes == null ? null : Duration.ofMinutes(minutes),
-                Boolean.TRUE.equals(request.conflictConfirmed()))));
+                Boolean.TRUE.equals(request.conflictConfirmed()),
+                request.expectedVersion())));
     }
 
     @Override
@@ -58,7 +60,9 @@ class WorkAssignmentController implements WorkAssignmentControllerDocs {
     public void unassign(
             @AuthenticationPrincipal AccountPrincipal requester,
             @PathVariable Long organizationId,
-            @PathVariable Long workId) {
-        unassignWorkUseCase.unassign(new UnassignWorkCommand(requester.accountId(), organizationId, workId));
+            @PathVariable Long workId,
+            @RequestParam(required = false) Long expectedVersion) {
+        unassignWorkUseCase.unassign(
+                new UnassignWorkCommand(requester.accountId(), organizationId, workId, expectedVersion));
     }
 }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -15,15 +16,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.schedule.application.port.out.WorkSearchCriteria;
 import com.orbit.schedule.application.port.out.WorkSearchResult;
@@ -35,26 +31,22 @@ import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.schedule.domain.WorkTypeId;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /**
  * 실제 PostgreSQL에서 WorkQueryPort 계약(구간 경계, 조직 격리, 대기함의 미리 입력한 일정 제외, 검색 조건·정렬·쪽 나누기, 분리된 사본)을 확인한다. 조직 식별자를
  * 테스트마다 다르게 두어 같은 DB를 쓰는 다른 테스트의 데이터와 섞이지 않게 한다.
  */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({PersistenceTestConfiguration.class, WorkPersistenceAdapter.class, WorkQueryPersistenceAdapter.class})
-@Testcontainers(disabledWithoutDocker = true)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DisplayName("작업 조회 JPA 저장소")
-class WorkQueryPersistenceAdapterTest {
+class WorkQueryPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
 
@@ -275,7 +267,7 @@ class WorkQueryPersistenceAdapterTest {
         WorkId id = save(registered(organization, "원래 이름"));
 
         inTx(() -> {
-            adapter.listBacklog(organization).getFirst().changeDetails("바뀐 이름", null, null, null);
+            adapter.listBacklog(organization).getFirst().changeDetails("바뀐 이름", null, null, null, null);
             return null;
         });
 
@@ -290,12 +282,15 @@ class WorkQueryPersistenceAdapterTest {
     class Search {
 
         @Test
-        @DisplayName("검색어는 작업명·고객 이름·연락처·주소를 대소문자 구분 없이 부분 일치로 찾고 와일드카드·이스케이프 문자는 글자로 본다")
+        @DisplayName("검색어는 작업명·고객 이름·연락처·기본주소·상세주소를 대소문자 구분 없이 부분 일치로 찾고 와일드카드·이스케이프 문자는 글자로 본다")
         void matchesKeywordLiterally() {
             OrganizationId organization = organization();
             WorkId byName = save(registered(organization, "Boiler 점검", null));
             WorkId byCustomer = save(registered(organization, "작업", new CustomerInfo("BOILER 고객", null, null)));
-            WorkId byAddress = save(registered(organization, "작업", new CustomerInfo(null, null, "boiler로 1")));
+            WorkId byAddress = save(registered(
+                    organization, "작업", new CustomerInfo(null, null, new SiteAddress(null, "boiler로 1", null))));
+            WorkId byAddressDetail = save(registered(
+                    organization, "작업", new CustomerInfo(null, null, new SiteAddress("04043", "서울시", "Boiler동 3층"))));
             WorkId byPhone = save(registered(organization, "작업", new CustomerInfo(null, "010-1234-5678", null)));
             WorkId percent = save(registered(organization, "100% 할인", null));
             save(registered(organization, "1000 할인", null));
@@ -305,7 +300,10 @@ class WorkQueryPersistenceAdapterTest {
             save(registered(organization(), "boiler 다른 조직", null));
 
             assertThat(searchIds(organization, criteria().keyword("boiler")))
-                    .containsExactlyInAnyOrder(byName, byCustomer, byAddress);
+                    .containsExactlyInAnyOrder(byName, byCustomer, byAddress, byAddressDetail);
+            assertThat(searchIds(organization, criteria().keyword("04043")))
+                    .as("우편번호는 찾지 않는다")
+                    .isEmpty();
             assertThat(searchIds(organization, criteria().keyword("1234-5678"))).containsExactly(byPhone);
             assertThat(searchIds(organization, criteria().keyword("100%"))).containsExactly(percent);
             assertThat(searchIds(organization, criteria().keyword("a_b"))).containsExactly(underscore);
@@ -336,6 +334,26 @@ class WorkQueryPersistenceAdapterTest {
                     .containsExactlyInAnyOrder(pending, later, planned, completed, cancelled, returned);
             assertThat(searchIds(organization, criteria().start(FROM, TO)))
                     .containsExactlyInAnyOrder(pending, otherTechnician, planned, completed, cancelled, returned);
+        }
+
+        @Test
+        @DisplayName("상태 조건은 검색·전체 수·셈·한꺼번에 읽기에 똑같이 걸린다: 취소를 빼면 취소 작업은 어디에도 없고, 취소를 고르면 담긴다")
+        void appliesStatusesAlikeToSearchCountAndListing() {
+            OrganizationId organization = organization();
+            WorkId registered = save(registered(organization, "대기함"));
+            WorkId completed = save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T00:00:00Z", 60)));
+            WorkId cancelled =
+                    save(cancelled(organization, "배정 중 취소", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));
+            WorkId cancelledInBacklog = save(cancelledInBacklog(organization, "대기함 취소"));
+
+            assertReadsAlike(
+                    organization,
+                    EnumSet.complementOf(EnumSet.of(WorkStatus.CANCELED)),
+                    List.of(registered, completed));
+            assertReadsAlike(
+                    organization,
+                    Set.of(WorkStatus.CANCELED, WorkStatus.COMPLETED),
+                    List.of(completed, cancelled, cancelledInBacklog));
         }
 
         @Test
@@ -444,7 +462,7 @@ class WorkQueryPersistenceAdapterTest {
             WorkId newerSave = save(registered(organization, "나중 저장"));
             Work changed = inTx(() -> repository.findInOrganization(organization, olderSave))
                     .orElseThrow();
-            changed.changeDetails("다시 저장", null, null, null);
+            changed.changeDetails("다시 저장", null, null, null, null);
             inTx(() -> repository.save(changed));
 
             WorkSearchResult result = inTx(() -> adapter.search(
@@ -470,6 +488,29 @@ class WorkQueryPersistenceAdapterTest {
             inTx(() -> repository.save(stored));
 
             assertThat(lastModifiedAt(organization, id)).isAfter(before);
+        }
+
+        @Test
+        @DisplayName("현장 사진만 바꾼 기본정보 수정도 최근 수정 시각을 올린다")
+        void bumpsLastModifiedOnSitePhotoOnlySave() {
+            OrganizationId organization = organization();
+            WorkId id = save(registered(organization, "사진 작업"));
+            Instant before = lastModifiedAt(organization, id);
+            Work stored =
+                    inTx(() -> repository.findInOrganization(organization, id)).orElseThrow();
+            stored.changeDetails(
+                    stored.name(),
+                    stored.workType().orElse(null),
+                    stored.customerInfo(),
+                    stored.paymentInfo(),
+                    List.of("site-1"));
+            inTx(() -> repository.save(stored));
+
+            assertThat(lastModifiedAt(organization, id)).isAfter(before);
+            assertThat(inTx(() -> repository.findInOrganization(organization, id))
+                            .orElseThrow()
+                            .sitePhotos())
+                    .containsExactly("site-1");
         }
 
         @Test
@@ -569,6 +610,21 @@ class WorkQueryPersistenceAdapterTest {
                 .findFirst()
                 .orElseThrow()
                 .lastModifiedAt();
+    }
+
+    /** 그 상태 조건의 검색 쪽·전체 수·셈·한꺼번에 읽기가 모두 expected 작업만 담는지 확인한다. */
+    private void assertReadsAlike(OrganizationId organization, Set<WorkStatus> statuses, List<WorkId> expected) {
+        WorkSearchCriteria criteria = criteria().statuses(statuses).build();
+        WorkSearchResult searched = inTx(() -> adapter.search(organization, criteria));
+
+        assertThat(searched.works())
+                .extracting(work -> work.work().id().orElseThrow())
+                .containsExactlyInAnyOrderElementsOf(expected);
+        assertThat(searched.totalCount()).isEqualTo(expected.size());
+        assertThat(inTx(() -> adapter.count(organization, criteria))).isEqualTo(expected.size());
+        assertThat(adapter.listMatching(organization, criteria, WorkSearchCriteria.MAX_SIZE))
+                .extracting(work -> work.work().id().orElseThrow())
+                .containsExactlyInAnyOrderElementsOf(expected);
     }
 
     private List<WorkId> searchIds(OrganizationId organization, CriteriaBuilder builder) {

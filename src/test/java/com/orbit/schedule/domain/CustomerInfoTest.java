@@ -12,8 +12,9 @@ class CustomerInfoTest {
     @Test
     @DisplayName("같은 고객 정보는 동등하다")
     void hasValueEquality() {
-        CustomerInfo customerInfo = new CustomerInfo("홍길동", "010-1234-5678", "서울시 강남구");
-        CustomerInfo sameCustomerInfo = new CustomerInfo("홍길동", "010-1234-5678", "서울시 강남구");
+        CustomerInfo customerInfo = new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시 강남구", null));
+        CustomerInfo sameCustomerInfo =
+                new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시 강남구", null));
 
         assertThat(customerInfo).isEqualTo(sameCustomerInfo);
         assertThat(customerInfo.hashCode()).isEqualTo(sameCustomerInfo.hashCode());
@@ -22,22 +23,22 @@ class CustomerInfoTest {
     @Test
     @DisplayName("하나라도 다른 고객 정보는 동등하지 않다")
     void isNotEqualWhenAnyValueDiffers() {
-        CustomerInfo customerInfo = new CustomerInfo("홍길동", "010-1234-5678", "서울시 강남구");
+        CustomerInfo customerInfo = new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시 강남구", null));
 
         assertThat(customerInfo)
-                .isNotEqualTo(new CustomerInfo("김철수", "010-1234-5678", "서울시 강남구"))
-                .isNotEqualTo(new CustomerInfo("홍길동", "010-9876-5432", "서울시 강남구"))
-                .isNotEqualTo(new CustomerInfo("홍길동", "010-1234-5678", "서울시 종로구"));
+                .isNotEqualTo(new CustomerInfo("김철수", "010-1234-5678", new SiteAddress(null, "서울시 강남구", null)))
+                .isNotEqualTo(new CustomerInfo("홍길동", "010-9876-5432", new SiteAddress(null, "서울시 강남구", null)))
+                .isNotEqualTo(new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시 종로구", null)));
     }
 
     @Test
     @DisplayName("고객명과 연락처와 주소를 모두 포함해 생성할 수 있다")
     void createsWithAllValues() {
-        CustomerInfo customerInfo = new CustomerInfo("홍길동", "010-1234-5678", "서울시 강남구");
+        CustomerInfo customerInfo = new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress(null, "서울시 강남구", null));
 
         assertThat(customerInfo.name()).contains("홍길동");
         assertThat(customerInfo.phone()).contains("010-1234-5678");
-        assertThat(customerInfo.address()).contains("서울시 강남구");
+        assertThat(customerInfo.address()).contains(new SiteAddress(null, "서울시 강남구", null));
     }
 
     @Test
@@ -61,9 +62,9 @@ class CustomerInfoTest {
     }
 
     @Test
-    @DisplayName("빈 문자열과 공백만 있는 값은 미입력으로 취급한다")
+    @DisplayName("빈 문자열과 공백만 있는 값과 모든 항목이 빈 주소는 미입력으로 취급한다")
     void treatsBlankValuesAsAbsent() {
-        CustomerInfo customerInfo = new CustomerInfo("", "   ", "\t");
+        CustomerInfo customerInfo = new CustomerInfo("", "   ", new SiteAddress(null, "\t", null));
 
         assertThat(customerInfo.name()).isEmpty();
         assertThat(customerInfo.phone()).isEmpty();
@@ -73,7 +74,7 @@ class CustomerInfoTest {
     @Test
     @DisplayName("공백 값으로 만든 고객 정보는 미입력 고객 정보와 동등하다")
     void blankValuesAreEqualToAbsentValues() {
-        CustomerInfo blank = new CustomerInfo("", " ", "");
+        CustomerInfo blank = new CustomerInfo("", " ", new SiteAddress(null, "", null));
         CustomerInfo absent = new CustomerInfo(null, null, null);
 
         assertThat(blank).isEqualTo(absent);
@@ -81,18 +82,16 @@ class CustomerInfoTest {
     }
 
     @Test
-    @DisplayName("이름 50자·연락처 20자·주소 200자까지 받는다")
+    @DisplayName("이름 50자·연락처 20자까지 받는다")
     void acceptsValuesUpToLimits() {
-        CustomerInfo info = new CustomerInfo("가".repeat(50), "0".repeat(20), "가".repeat(200));
+        CustomerInfo info = new CustomerInfo("가".repeat(50), "0".repeat(20), null);
 
         assertThat(info.name()).hasValueSatisfying(name -> assertThat(name).hasSize(50));
         assertThat(info.phone()).hasValueSatisfying(phone -> assertThat(phone).hasSize(20));
-        assertThat(info.address())
-                .hasValueSatisfying(address -> assertThat(address).hasSize(200));
     }
 
     @Test
-    @DisplayName("상한을 넘는 이름·연락처·주소는 거부한다")
+    @DisplayName("상한을 넘는 이름·연락처는 거부한다")
     void rejectsValuesOverLimits() {
         assertThatThrownBy(() -> new CustomerInfo("가".repeat(51), null, null))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -100,8 +99,5 @@ class CustomerInfoTest {
         assertThatThrownBy(() -> new CustomerInfo(null, "0".repeat(21), null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("customer phone must be at most 20 characters");
-        assertThatThrownBy(() -> new CustomerInfo(null, null, "가".repeat(201)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("customer address must be at most 200 characters");
     }
 }

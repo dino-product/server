@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkAssigned;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
@@ -38,6 +39,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
+import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -55,6 +57,7 @@ class CreateWorkServiceTest {
             fixture.workTypes,
             fixture.technicianContracts,
             fixture.scheduleLock,
+            fixture.events,
             fixture.clock);
 
     @ParameterizedTest
@@ -74,7 +77,8 @@ class CreateWorkServiceTest {
         assertThat(saved.registeredAt()).isEqualTo(NOW);
         assertThat(saved.name()).isEqualTo("에어컨 수리");
         assertThat(saved.workType()).contains(new WorkTypeId(2L));
-        assertThat(saved.customerInfo()).isEqualTo(new CustomerInfo("홍길동", "010-1234-5678", "서울시"));
+        assertThat(saved.customerInfo())
+                .isEqualTo(new CustomerInfo("홍길동", "010-1234-5678", new SiteAddress("04043", "서울시", "3층")));
         assertThat(saved.paymentInfo()).isEqualTo(new PaymentInfo(new Money(150_000L), PaymentMethod.ON_SITE_CARD));
         assertThat(saved.status()).isEqualTo(WorkStatus.REGISTERED);
         assertThat(saved.schedule()).isEmpty();
@@ -89,6 +93,8 @@ class CreateWorkServiceTest {
                 ACCOUNT_ID,
                 ORGANIZATION_ID.value(),
                 "에어컨 수리",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -124,6 +130,8 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         false)))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("accountId must not be null");
@@ -134,7 +142,22 @@ class CreateWorkServiceTest {
     void checksOrganizationIdFirst() {
         fixture.assertRejected(
                 () -> service.create(new CreateWorkCommand(
-                        ACCOUNT_ID, 0L, "에어컨 수리", null, null, null, null, null, null, null, null, null, null, false)),
+                        ACCOUNT_ID,
+                        0L,
+                        "에어컨 수리",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false)),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
@@ -167,6 +190,8 @@ class CreateWorkServiceTest {
                         ORGANIZATION_ID.value(),
                         "에어컨 수리",
                         0L,
+                        null,
+                        null,
                         null,
                         null,
                         null,
@@ -221,6 +246,8 @@ class CreateWorkServiceTest {
                             null,
                             null,
                             null,
+                            null,
+                            null,
                             false)),
                     ScheduleErrorCode.WORK_TYPE_NOT_SELECTABLE);
         }
@@ -247,6 +274,8 @@ class CreateWorkServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 false));
 
         assertThat(fixture.singleSaved().workType()).isEmpty();
@@ -254,7 +283,7 @@ class CreateWorkServiceTest {
     }
 
     @Test
-    @DisplayName("담당기사·시작시각·소요시간을 모두 주면 등록과 함께 배정하고, 기사를 잠근 뒤 기사 계약을 확인한다")
+    @DisplayName("담당기사·시작시각·소요시간을 모두 주면 등록과 함께 배정하고, 기사를 잠근 뒤 기사 계약을 확인하며 저장한 작업의 배정을 발행한다")
     void registersAndAssigns() {
         fixture.givenManager();
 
@@ -263,7 +292,7 @@ class CreateWorkServiceTest {
         Work saved = fixture.singleSaved();
         assertThat(created.workId()).isEqualTo(saved.id().orElseThrow().value());
         assertThat(created.scheduleChange().applied()).isTrue();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(saved.registeredAt()).isEqualTo(NOW);
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
@@ -272,10 +301,13 @@ class CreateWorkServiceTest {
         });
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkAssigned(
+                        created.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW));
     }
 
     @Test
-    @DisplayName("일정을 비우면 대기함에 두고 기사를 잠그거나 확인하지 않는다")
+    @DisplayName("일정을 비우면 대기함에 두고 기사를 잠그거나 확인하지 않으며, 배정이 아니므로 발행하지 않는다")
     void registersBacklogWithoutLock() {
         fixture.givenManager();
 
@@ -286,10 +318,11 @@ class CreateWorkServiceTest {
         assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.REGISTERED);
         assertThat(fixture.scheduleLock.locks()).isEmpty();
         assertThat(fixture.technicianContracts.checks()).isZero();
+        assertThat(fixture.events.published()).isEmpty();
     }
 
     @Test
-    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고, 미리 입력한 담당기사만 잠근다")
+    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고, 미리 입력한 담당기사만 잠그며 발행하지 않는다")
     void keepsPartialScheduleInBacklog() {
         fixture.givenManager();
 
@@ -305,6 +338,7 @@ class CreateWorkServiceTest {
         assertThat(timeOnly.workId()).isNotNull();
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
+        assertThat(fixture.events.published()).isEmpty();
     }
 
     @Test
@@ -353,6 +387,8 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         TECHNICIAN_ID.value(),
                         null,
                         null,
@@ -379,7 +415,7 @@ class CreateWorkServiceTest {
     @DisplayName("같은 기사의 활성 작업과 겹치는데 확인하지 않았으면 작업을 만들지 않고 겹친 작업을 돌려준다")
     void doesNotCreateWhenConflictUnconfirmed() {
         fixture.givenManager();
-        WorkId existing = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId existing = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         CreatedWorkInfo created = service.create(scheduled(TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
 
@@ -394,7 +430,24 @@ class CreateWorkServiceTest {
 
         assertThat(confirmed.workId()).isNotNull();
         assertThat(confirmed.scheduleChange().applied()).isTrue();
-        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
+    }
+
+    @Test
+    @DisplayName("겹침을 확인하지 않아 작업을 만들지 않았으면 발행하지 않고, 확인해 만든 뒤에만 배정 하나를 발행한다")
+    void publishesAssignmentOnlyWhenCreated() {
+        fixture.givenManager();
+        fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+
+        service.create(scheduled(TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
+
+        assertThat(fixture.events.published()).isEmpty();
+
+        CreatedWorkInfo confirmed = service.create(scheduled(TECHNICIAN_ID.value(), TEN, TWO_HOURS, true));
+
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkAssigned(
+                        confirmed.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW));
     }
 
     @Test
@@ -428,6 +481,8 @@ class CreateWorkServiceTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
                         TECHNICIAN_ID.value(),
                         TEN,
                         TWO_HOURS,
@@ -446,6 +501,7 @@ class CreateWorkServiceTest {
                 fixture.workTypes,
                 fixture.technicianContracts,
                 fixture.scheduleLock,
+                fixture.events,
                 fixture.clock);
 
         assertThatThrownBy(() -> serviceWithMisbehavingPort.create(command("에어컨 수리", null)))
@@ -487,6 +543,8 @@ class CreateWorkServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 sitePhotoIds,
                 null,
                 null,
@@ -499,6 +557,8 @@ class CreateWorkServiceTest {
                 ACCOUNT_ID,
                 ORGANIZATION_ID.value(),
                 "에어컨 수리",
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -520,7 +580,9 @@ class CreateWorkServiceTest {
                 null,
                 name,
                 phone,
+                null,
                 address,
+                null,
                 null,
                 null,
                 null,
@@ -538,7 +600,9 @@ class CreateWorkServiceTest {
                 2L,
                 "홍길동",
                 "010-1234-5678",
+                "04043",
                 "서울시",
+                "3층",
                 fee,
                 PaymentMethod.ON_SITE_CARD,
                 null,

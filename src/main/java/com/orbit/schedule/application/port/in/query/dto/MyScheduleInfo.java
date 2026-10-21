@@ -20,7 +20,8 @@ public record MyScheduleInfo(List<ScheduledWork> works) {
      * 본인 일정의 작업 하나.
      *
      * @param assignmentNumber 지금 배정의 순번. 수락·거절·시작·완료보고 요청에 그대로 쓴다
-     * @param customerAddress 현장 주소. 입력하지 않았으면 null
+     * @param customerAddress 현장 기본주소. 입력하지 않았으면 null
+     * @param customerAddressDetail 현장 상세주소. 입력하지 않았으면 null
      * @param delayed 조회 시각에 지연된 작업인지
      */
     public record ScheduledWork(
@@ -31,5 +32,6 @@ public record MyScheduleInfo(List<ScheduledWork> works) {
             Instant startTime,
             Instant endTime,
             String customerAddress,
+            String customerAddressDetail,
             boolean delayed) {}
 }
