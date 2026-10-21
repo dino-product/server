@@ -9,29 +9,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.Technician;
 import com.orbit.organization.domain.TechnicianStatus;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** 세부 유형은 소속·계약 도메인에 없으므로 유형이 지정된 비활성 행은 SQL로 넣는다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PersistenceTestConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("재참여 승인의 직원 소속·기사 계약 저장")
-class MemberRejoinPersistenceAdapterTest {
+class MemberRejoinPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant JOINED_AT = Instant.parse("2026-10-01T00:00:00.123456Z");
     private static final Instant DEACTIVATED_AT = Instant.parse("2026-10-03T00:00:00.123456Z");

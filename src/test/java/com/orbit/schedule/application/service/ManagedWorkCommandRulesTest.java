@@ -24,7 +24,6 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ChangeWorkAssignmentCommand;
-import com.orbit.schedule.application.port.in.command.dto.CorrectWorkStatusCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RescheduleWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
@@ -62,7 +61,7 @@ class ManagedWorkCommandRulesTest {
                                 null,
                                 null))),
                 new UseCase("배정", (f, request) -> new AssignWorkService(
-                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.events, f.clock)
                         .assign(new AssignWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -72,7 +71,7 @@ class ManagedWorkCommandRulesTest {
                                 request.validInput() ? TWO_HOURS : Duration.ZERO,
                                 false))),
                 new UseCase("재배정", (f, request) -> new ReassignWorkService(
-                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.events, f.clock)
                         .reassign(new ReassignWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -82,7 +81,7 @@ class ManagedWorkCommandRulesTest {
                                 request.validInput() ? TWO_HOURS : Duration.ZERO,
                                 false))),
                 new UseCase("배정 변경(통합)", (f, request) -> new ChangeWorkAssignmentService(
-                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.technicianContracts, f.scheduleLock, f.events, f.clock)
                         .change(new ChangeWorkAssignmentCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -93,7 +92,7 @@ class ManagedWorkCommandRulesTest {
                                 false,
                                 request.validInput() ? 0L : null))),
                 new UseCase("일정 변경", (f, request) -> new RescheduleWorkService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.scheduleLock, f.events, f.clock)
                         .reschedule(new RescheduleWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -107,21 +106,14 @@ class ManagedWorkCommandRulesTest {
                                 request.organizationId(),
                                 request.workId(),
                                 request.validInput() ? 0L : null))),
-                new UseCase("취소", (f, request) -> new CancelWorkService(f.actorPort, f.workRepository, f.clock)
-                        .cancel(new CancelWorkCommand(
-                                request.accountId(),
-                                request.organizationId(),
-                                request.workId(),
-                                request.validInput() ? CancellationReason.CUSTOMER_REQUEST : null,
-                                null))),
-                new UseCase("관리자 강제 상태 변경", (f, request) -> new CorrectWorkStatusService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
-                        .correct(new CorrectWorkStatusCommand(
-                                request.accountId(),
-                                request.organizationId(),
-                                request.workId(),
-                                request.validInput() ? WorkStatus.IN_PROGRESS : null,
-                                "정정"))));
+                new UseCase(
+                        "취소", (f, request) -> new CancelWorkService(f.actorPort, f.workRepository, f.events, f.clock)
+                                .cancel(new CancelWorkCommand(
+                                        request.accountId(),
+                                        request.organizationId(),
+                                        request.workId(),
+                                        request.validInput() ? CancellationReason.CUSTOMER_REQUEST : null,
+                                        null))));
     }
 
     /** 등록자 본인·총관리자만 하는 변경. 배정된 작업(수락대기)이면 배정 변경(통합)도 재배정·일정 변경이라 여기에 든다. */
@@ -135,7 +127,7 @@ class ManagedWorkCommandRulesTest {
     @DisplayName("등록자가 아닌 직원은 입력이 잘못돼도 권한 오류이고 아무것도 바꾸거나 잠그지 않는다")
     void rejectsOtherStaffBeforeInput(UseCase useCase) {
         fixture.givenManager(ActorRole.STAFF);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         fixture.assertRejected(
                 () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), false)),
@@ -150,7 +142,7 @@ class ManagedWorkCommandRulesTest {
     void hidesMissingWorkBeforeRegistrarCheck(UseCase useCase) {
         fixture.givenManager(ActorRole.STAFF);
         WorkId otherOrganizationWork =
-                fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
+                fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN);
 
         for (long workId : new long[] {otherOrganizationWork.value(), UNKNOWN_WORK_ID}) {
             fixture.assertRejected(
@@ -164,7 +156,7 @@ class ManagedWorkCommandRulesTest {
     @DisplayName("등록자 본인인 직원은 할 수 있다")
     void allowsRegistrarStaff(UseCase useCase) {
         fixture.givenRegistrarStaff();
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), true));
 
@@ -176,7 +168,7 @@ class ManagedWorkCommandRulesTest {
     @DisplayName("총관리자는 다른 직원이 등록한 작업에도 할 수 있다")
     void allowsOwnerForWorkOfOtherRegistrar(UseCase useCase) {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), true));
 
@@ -196,16 +188,15 @@ class ManagedWorkCommandRulesTest {
 
         useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), true));
 
-        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
     @ParameterizedTest
     @MethodSource("useCases")
     @DisplayName("계정 식별자가 없으면 인증 계층의 프로그래밍 오류로 멈춘다")
     void requiresAccountId(UseCase useCase) {
-        // 총관리자 전용 유즈케이스도 요청자 확인을 통과하도록 총관리자로 요청한다.
-        fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        fixture.givenManager();
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         assertThatThrownBy(() -> useCase.invoke(fixture, new Request(null, ORGANIZATION_ID.value(), id.value(), true)))
                 .isInstanceOf(NullPointerException.class)
@@ -242,7 +233,7 @@ class ManagedWorkCommandRulesTest {
     void checksActorKindBeforeLookupAndInput(UseCase useCase) {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId otherOrganizationWork =
-                fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
+                fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN);
 
         for (Long workId : new Long[] {otherOrganizationWork.value(), UNKNOWN_WORK_ID, 0L, null}) {
             fixture.assertRejected(
@@ -255,8 +246,7 @@ class ManagedWorkCommandRulesTest {
     @MethodSource("useCases")
     @DisplayName("작업 식별자가 없거나 형식이 틀리면 입력 오류다")
     void rejectsInvalidWorkId(UseCase useCase) {
-        // 총관리자 전용 유즈케이스도 요청자 확인을 통과하도록 총관리자로 요청한다.
-        fixture.givenManager(ActorRole.OWNER);
+        fixture.givenManager();
 
         for (Long workId : new Long[] {0L, null}) {
             fixture.assertRejected(
@@ -269,10 +259,9 @@ class ManagedWorkCommandRulesTest {
     @MethodSource("useCases")
     @DisplayName("없거나 다른 조직의 작업은 입력이 잘못돼도 존재를 드러내지 않고 찾을 수 없음이다")
     void hidesMissingAndOtherOrganizationWork(UseCase useCase) {
-        // 총관리자 전용 유즈케이스도 요청자 확인을 통과하도록 총관리자로 요청한다.
-        fixture.givenManager(ActorRole.OWNER);
+        fixture.givenManager();
         WorkId otherOrganizationWork =
-                fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
+                fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN);
 
         for (long workId : new long[] {otherOrganizationWork.value(), UNKNOWN_WORK_ID}) {
             fixture.assertRejected(

@@ -19,6 +19,7 @@ import com.orbit.schedule.application.service.fake.FakeTechnicianProfilesPort;
 import com.orbit.schedule.application.service.fake.FakeWorkRepository;
 import com.orbit.schedule.application.service.fake.FakeWorkTypeLabelsPort;
 import com.orbit.schedule.application.service.fake.FakeWorkTypePort;
+import com.orbit.schedule.application.service.fake.RecordingEventPublisher;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.CompletionReport;
@@ -79,6 +80,8 @@ final class ScheduleServiceFixture {
     final FakeTechnicianProfilesPort technicianProfiles = new FakeTechnicianProfilesPort();
     final FakeStaffProfilesPort staffProfiles = new FakeStaffProfilesPort();
     final FakeWorkTypeLabelsPort workTypeLabels = new FakeWorkTypeLabelsPort();
+    /** 변경 서비스가 발행한 공개 이벤트. */
+    final RecordingEventPublisher events = new RecordingEventPublisher();
 
     ScheduleServiceFixture() {
         technicianContracts.givenActive(ORGANIZATION_ID, TECHNICIAN_ID);
@@ -135,7 +138,7 @@ final class ScheduleServiceFixture {
         if (status == WorkStatus.COMPLETED) {
             work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), ACCEPTED_AT);
         }
-        if (status == WorkStatus.CANCELLED) {
+        if (status == WorkStatus.CANCELED) {
             work.cancel(ACCEPTED_AT, SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
         }
         return workRepository.store(work);
@@ -150,11 +153,23 @@ final class ScheduleServiceFixture {
         return workRepository.saved().getFirst();
     }
 
-    /** 오류 코드로 실패하고, 저장하지도 기사를 잠그지도 않았는지 확인한다. */
+    /**
+     * 오류 코드로 실패하고 저장하지도 이벤트를 발행하지도 않았는지 확인한다. 작업을 읽기 전에 기사를 잠그는 유즈케이스(수락·거절·시작)처럼 잠근 뒤에 거부할 수
+     * 있는 경우에 쓴다. 잠금 여부는 호출한 쪽이 확인한다.
+     */
+    void assertRejectedWithoutSaving(ThrowingCallable call, ScheduleErrorCode expected) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                .isEqualTo(expected));
+        assertThat(workRepository.saved()).isEmpty();
+        assertThat(events.published()).isEmpty();
+    }
+
+    /** 오류 코드로 실패하고, 저장하지도 기사를 잠그지도 이벤트를 발행하지도 않았는지 확인한다. */
     void assertRejected(ThrowingCallable call, ScheduleErrorCode expected) {
         assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                 .isEqualTo(expected));
         assertThat(workRepository.saved()).isEmpty();
         assertThat(scheduleLock.locks()).isEmpty();
+        assertThat(events.published()).isEmpty();
     }
 }

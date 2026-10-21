@@ -36,7 +36,7 @@ public record TimetableResponse(
             @Schema(description = "작업명", example = "인덕션 설치") String name,
 
             @Schema(
-                    description = "작업 상태. PENDING_ACCEPTANCE(배정됨), ACCEPTED(작업전), IN_PROGRESS(작업중), COMPLETED(완료)",
+                    description = "작업 상태. PENDING_ACCEPT(배정됨), ACCEPTED(작업전), IN_PROGRESS(작업중), COMPLETED(완료)",
                     example = "ACCEPTED")
             WorkStatus status,
 

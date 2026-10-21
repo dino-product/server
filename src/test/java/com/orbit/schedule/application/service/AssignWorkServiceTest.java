@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkAssigned;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
@@ -48,10 +49,11 @@ class AssignWorkServiceTest {
             fixture.workRepository,
             fixture.technicianContracts,
             fixture.scheduleLock,
+            fixture.events,
             fixture.clock);
 
     @Test
-    @DisplayName("겹치는 일정이 없으면 기사·일정을 배정해 수락대기로 만들고, 기사를 잠근 뒤 판정하며 배정 시각을 기록한다")
+    @DisplayName("겹치는 일정이 없으면 기사·일정을 배정해 수락대기로 만들고, 기사를 잠근 뒤 판정하며 배정 시각을 기록하고, 저장한 뒤 기사에게 알릴 배정을 발행한다")
     void assignsWithoutConflict() {
         fixture.givenManager();
         WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
@@ -61,7 +63,7 @@ class AssignWorkServiceTest {
         assertThat(result.applied()).isTrue();
         assertThat(result.conflicts()).isEmpty();
         Work saved = fixture.singleSaved();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(saved.assignmentHistory()).singleElement().satisfies(history -> {
             assertThat(history.assignedAt()).isEqualTo(NOW);
@@ -69,6 +71,9 @@ class AssignWorkServiceTest {
             assertThat(history.result()).isEqualTo(AssignmentResult.PENDING);
         });
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkAssigned(
+                        id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", TEN, NOW));
     }
 
     @Test
@@ -97,6 +102,7 @@ class AssignWorkServiceTest {
         assertThat(fixture.workRepository.saved()).isEmpty();
         assertThat(fixture.stored(target).status()).isEqualTo(WorkStatus.REGISTERED);
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
+        assertThat(fixture.events.published()).isEmpty();
     }
 
     @Test
@@ -128,15 +134,18 @@ class AssignWorkServiceTest {
         assertThat(result.applied()).isTrue();
         assertThat(result.conflicts()).extracting(ConflictingWork::workId).containsExactly(existing.value());
         Work saved = fixture.singleSaved();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkAssigned(
+                        target.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", TEN, NOW));
     }
 
     @Test
     @DisplayName("다른 조직에서 같은 기사 식별자로 잡힌 작업은 겹침으로 보지 않는다")
     void ignoresWorksOfOtherOrganization() {
         fixture.givenManager();
-        fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
+        fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN);
         WorkId target = fixture.givenWork(WorkStatus.REGISTERED);
 
         ScheduleChangeInfo result =
@@ -284,7 +293,7 @@ class AssignWorkServiceTest {
     }
 
     private WorkId activeWork(String name, Instant start) {
-        return fixture.givenWork(ORGANIZATION_ID, name, WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, start);
+        return fixture.givenWork(ORGANIZATION_ID, name, WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, start);
     }
 
     private WorkId rejectedWork(Instant rejectedAt) {

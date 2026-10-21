@@ -96,7 +96,7 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                             .value("일반 기사"))
                     .andExpect(jsonPath("$.result.scheduledWorks.length()").value(1))
                     .andExpect(jsonPath("$.result.scheduledWorks[0].workId").value(assignedId))
-                    .andExpect(jsonPath("$.result.scheduledWorks[0].status").value("PENDING_ACCEPTANCE"))
+                    .andExpect(jsonPath("$.result.scheduledWorks[0].status").value("PENDING_ACCEPT"))
                     .andExpect(jsonPath("$.result.scheduledWorks[0].technician.name")
                             .value("김민수"))
                     .andExpect(
@@ -232,13 +232,13 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(jsonPath("$.result.works[0].registrar.name").value("박서준"))
                     .andExpect(jsonPath("$.result.works[0].registeredAt").exists())
                     .andExpect(jsonPath("$.result.works[0].lastModifiedAt").exists());
-            works(organization.owner(), organization.id(), "statuses=PENDING_ACCEPTANCE&statuses=ACCEPTED")
+            works(organization.owner(), organization.id(), "statuses=PENDING_ACCEPT&statuses=ACCEPTED")
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.result.totalCount").value(1));
             works(
                             organization.owner(),
                             organization.id(),
-                            "statuses=PENDING_ACCEPTANCE,ACCEPTED&registrarId=" + organization.ownerMembership())
+                            "statuses=PENDING_ACCEPT,ACCEPTED&registrarId=" + organization.ownerMembership())
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.result.totalCount").value(1))
                     .andExpect(jsonPath("$.result.works[0].workId").value(newer))
@@ -375,7 +375,7 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
             save(registered(organization, "다른 상태 작업", Instant.now().minus(Duration.ofHours(2))));
 
             byte[] file = mockMvc.perform(get(
-                                    "/api/v1/organizations/{organizationId}/works/export?statuses=PENDING_ACCEPTANCE"
+                                    "/api/v1/organizations/{organizationId}/works/export?statuses=PENDING_ACCEPT"
                                             + "&timeZone=Asia/Seoul",
                                     organization.id())
                             .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
@@ -460,7 +460,6 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                     .andExpect(
                             jsonPath("$.result.assignments[0].assignmentNumber").value(1))
                     .andExpect(jsonPath("$.result.assignments[0].result").value("PENDING"))
-                    .andExpect(jsonPath("$.result.statusCorrections").doesNotExist())
                     .andExpect(jsonPath("$.result.version").value(0));
         }
 
@@ -561,8 +560,8 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
-        @DisplayName("지금 담당이 아닌 기사는 작업명·상태와 자기 배정만 받고 나머지는 비어 있다")
-        void returnsOwnAssignmentsForFormerTechnician() throws Exception {
+        @DisplayName("다른 기사로 재배정된 작업은 이전 기사에게 SCHEDULE-001로 숨긴다")
+        void hidesWorkFromFormerTechnician() throws Exception {
             Organization organization = organization();
             long technicianAccount = account();
             technicianContract(organization.id(), technicianAccount);
@@ -579,16 +578,8 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
             long workId = save(work);
 
             detail(technicianAccount, organization.id(), workId)
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.result.name").value("넘어간 작업"))
-                    .andExpect(jsonPath("$.result.delayed").value(false))
-                    .andExpect(jsonPath("$.result.customer").value(nullValue()))
-                    .andExpect(jsonPath("$.result.schedule").value(nullValue()))
-                    .andExpect(jsonPath("$.result.registeredAt").value(nullValue()))
-                    .andExpect(jsonPath("$.result.assignments.length()").value(1))
-                    .andExpect(
-                            jsonPath("$.result.assignments[0].assignmentNumber").value(1))
-                    .andExpect(jsonPath("$.result.assignments[0].endReason").value("REASSIGNED"));
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-001"));
         }
 
         @Test
@@ -649,7 +640,7 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
                             .value(true))
                     .andExpect(jsonPath("$.result.columns[0].cards[0].technician.name")
                             .value("김민수"))
-                    .andExpect(jsonPath("$.result.columns[1].status").value("PENDING_ACCEPTANCE"))
+                    .andExpect(jsonPath("$.result.columns[1].status").value("PENDING_ACCEPT"))
                     .andExpect(jsonPath("$.result.columns[1].cards[0].workId").value(pendingId))
                     .andExpect(jsonPath("$.result.columns[1].cards[0].technician.name")
                             .value("김민수"))

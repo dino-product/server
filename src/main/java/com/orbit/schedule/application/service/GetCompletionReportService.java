@@ -17,8 +17,8 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.shared.error.BusinessException;
 
 /**
- * 완료보고 조회. 관리자는 조직의 모든 작업의 보고를 본다. 기사는 배정받은 적 없는 작업이면 404(SCHEDULE-001), 지금 담당이 아니면 403(SCHEDULE-009)이다.
- * 보고가 없으면(완료 전이거나 강제 변경으로 되돌림) 404(SCHEDULE-012)다. 오류 확인 순서는 schedule 지침의 조회 순서를 따른다.
+ * 완료보고 조회. 관리자는 조직의 모든 작업의 보고를 본다. 기사는 자기가 볼 수 있는 작업({@link AssignedTechnicians#isVisibleTo})의 보고만 보고, 아니면
+ * 작업이 없는 것처럼 404(SCHEDULE-001)다. 보고가 없으면(완료 전) 404(SCHEDULE-012)다. 오류 확인 순서는 schedule 지침의 조회 순서를 따른다.
  */
 @Service
 public class GetCompletionReportService implements GetCompletionReportUseCase {
@@ -40,10 +40,7 @@ public class GetCompletionReportService implements GetCompletionReportUseCase {
         Actor actor = OrganizationActors.requireMember(loadActorPort, query.accountId(), query.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), query.workId());
         if (actor instanceof TechnicianActor technician) {
-            AssignedTechnicians.requireEverAssigned(work, technician);
-            if (!WorkViews.isCurrentAssignee(work, technician)) {
-                throw new BusinessException(ScheduleErrorCode.NOT_ASSIGNED_TECHNICIAN);
-            }
+            AssignedTechnicians.requireVisible(work, technician);
         }
         CompletionReport report = work.completionReport()
                 .orElseThrow(() -> new BusinessException(ScheduleErrorCode.COMPLETION_REPORT_NOT_FOUND));

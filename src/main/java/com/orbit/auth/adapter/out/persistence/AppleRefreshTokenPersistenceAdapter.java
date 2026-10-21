@@ -39,6 +39,18 @@ class AppleRefreshTokenPersistenceAdapter implements AppleRefreshTokenRepository
                 .toList();
     }
 
+    @Override
+    @Transactional
+    public void delete(AccountId accountId, String clientId) {
+        repository.deleteByAccountAndClient(accountId.value(), clientId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByAccount(AccountId accountId) {
+        repository.deleteByAccount(accountId.value());
+    }
+
     private static String context(AccountId accountId, String clientId) {
         return accountId.value() + ":" + clientId;
     }

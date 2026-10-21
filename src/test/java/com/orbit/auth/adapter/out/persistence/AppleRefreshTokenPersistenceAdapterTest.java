@@ -10,13 +10,6 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.AppleRefreshToken;
@@ -25,21 +18,10 @@ import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
 import com.orbit.auth.domain.OAuthProvider;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({
-    TestcontainersConfiguration.class,
-    AccountPersistenceAdapter.class,
-    AppleRefreshTokenPersistenceAdapter.class,
-    AppleRefreshTokenCipher.class,
-    AppleRefreshTokenPersistenceAdapterTest.EncryptionProperties.class
-})
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("Apple refresh token 저장소")
-class AppleRefreshTokenPersistenceAdapterTest {
+class AppleRefreshTokenPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-10-04T01:00:00Z");
 
@@ -86,6 +68,26 @@ class AppleRefreshTokenPersistenceAdapterTest {
     }
 
     @Test
+    @DisplayName("철회한 클라이언트의 값만 지우거나 계정의 값을 모두 지운다. 없는 값을 지워도 오류가 없다")
+    void deletesPerClientAndPerAccount() {
+        AccountId accountId = newAccount();
+        AccountId other = newAccount();
+        adapter.save(accountId, "com.orbit.app", "app", NOW);
+        adapter.save(accountId, "com.orbit.web", "web", NOW);
+        adapter.save(other, "com.orbit.app", "other", NOW);
+
+        adapter.delete(accountId, "com.orbit.app");
+        adapter.delete(accountId, "com.orbit.app");
+        entityManager.clear();
+        assertThat(adapter.listByAccount(accountId)).containsExactly(new AppleRefreshToken("com.orbit.web", "web"));
+
+        adapter.deleteByAccount(accountId);
+        entityManager.clear();
+        assertThat(adapter.listByAccount(accountId)).isEmpty();
+        assertThat(adapter.listByAccount(other)).containsExactly(new AppleRefreshToken("com.orbit.app", "other"));
+    }
+
+    @Test
     @DisplayName("저장한 값이 없는 계정은 빈 목록이다")
     void listsNothingForAccountWithoutTokens() {
         assertThat(adapter.listByAccount(newAccount())).isEmpty();
@@ -95,8 +97,4 @@ class AppleRefreshTokenPersistenceAdapterTest {
         ExternalIdentity identity = new ExternalIdentity(OAuthProvider.APPLE, "sub-" + UUID.randomUUID());
         return accounts.saveNew(Account.register(identity, NOW)).id().orElseThrow();
     }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(AppleRefreshTokenEncryptionProperties.class)
-    static class EncryptionProperties {}
 }

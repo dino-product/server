@@ -3,6 +3,7 @@ package com.orbit.schedule.application.service;
 import java.time.Clock;
 import java.time.Instant;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ public class ReassignWorkService implements ReassignWorkUseCase {
     private final WorkRepository workRepository;
     private final TechnicianContractPort technicianContractPort;
     private final LockTechnicianSchedulePort lockTechnicianSchedulePort;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public ReassignWorkService(
@@ -37,11 +39,13 @@ public class ReassignWorkService implements ReassignWorkUseCase {
             WorkRepository workRepository,
             TechnicianContractPort technicianContractPort,
             LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
         this.technicianContractPort = technicianContractPort;
         this.lockTechnicianSchedulePort = lockTechnicianSchedulePort;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -56,12 +60,17 @@ public class ReassignWorkService implements ReassignWorkUseCase {
                 new TechnicianId(command.technicianId()), command.startTime(), command.expectedDuration()));
 
         Instant now = clock.instant();
+        WorkEvents.AssignmentBefore before = WorkEvents.AssignmentBefore.of(work);
         DomainRuleViolations.run(() -> work.reassign(schedule, now, actor.membershipId()));
-        return ScheduleChanges.saveUnlessUnconfirmedConflict(
+        ScheduleChangeInfo result = ScheduleChanges.saveUnlessUnconfirmedConflict(
                 workRepository,
                 lockTechnicianSchedulePort,
                 work,
                 command.conflictConfirmed(),
                 () -> OrganizationReferences.requireActiveTechnician(technicianContractPort, work, schedule));
+        if (result.applied()) {
+            WorkEvents.publishAssignmentChange(eventPublisher, before, work, now);
+        }
+        return result;
     }
 }

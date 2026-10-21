@@ -102,10 +102,10 @@ class WorkRegistrationTimeTest {
         Cancellation earlyCancellation = new Cancellation(
                 REGISTERED_AT.minusSeconds(1), REGISTRAR, CancellationReason.DUPLICATE_REGISTRATION, null);
 
-        assertThatThrownBy(() -> restore(WorkStatus.PENDING_ACCEPTANCE, SCHEDULE, List.of(early), null))
+        assertThatThrownBy(() -> restore(WorkStatus.PENDING_ACCEPT, SCHEDULE, List.of(early), null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("assignment histories must not precede the registration");
-        assertThatThrownBy(() -> restore(WorkStatus.CANCELLED, null, List.of(), earlyCancellation))
+        assertThatThrownBy(() -> restore(WorkStatus.CANCELED, null, List.of(), earlyCancellation))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("cancelledAt must not precede the registration");
     }
@@ -139,7 +139,6 @@ class WorkRegistrationTimeTest {
                 null,
                 null,
                 null,
-                cancellation,
-                List.of());
+                cancellation);
     }
 }
