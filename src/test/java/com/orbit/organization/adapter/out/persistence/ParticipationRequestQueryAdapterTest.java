@@ -11,27 +11,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.out.AccountParticipationRequest;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** 승인·거절 유즈케이스가 아직 없어 발주사와 요청 행은 SQL로 넣는다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PersistenceTestConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("계정의 참여 요청 목록 조회")
-class ParticipationRequestQueryAdapterTest {
+class ParticipationRequestQueryAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant FIRST = Instant.parse("2026-10-01T00:00:00.123456Z");
     private static final Instant SECOND = Instant.parse("2026-10-02T00:00:00.123456Z");

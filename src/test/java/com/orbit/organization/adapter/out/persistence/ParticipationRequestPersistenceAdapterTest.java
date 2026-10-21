@@ -10,27 +10,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** 승인·거절 유즈케이스가 아직 없어 처리된 요청 행은 SQL로 넣는다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PersistenceTestConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("참여 요청 저장")
-class ParticipationRequestPersistenceAdapterTest {
+class ParticipationRequestPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant REQUESTED_AT = Instant.parse("2026-10-06T00:00:00.123456Z");
     private static final OrganizationId ORGANIZATION_ID = new OrganizationId(10L);

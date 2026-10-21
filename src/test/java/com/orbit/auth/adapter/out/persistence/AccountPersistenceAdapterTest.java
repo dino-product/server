@@ -7,14 +7,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.persistence.EntityManager;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.DuplicateIdentityException;
@@ -22,21 +19,20 @@ import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
 import com.orbit.auth.domain.OAuthProvider;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** saveNew는 별도 트랜잭션으로 확정되므로 테스트마다 다른 외부 식별을 쓴다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({TestcontainersConfiguration.class, AccountPersistenceAdapter.class})
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("계정 저장소")
-class AccountPersistenceAdapterTest {
+class AccountPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2026-09-27T01:00:00Z");
+    private static final Instant CLOSED_AT = Instant.parse("2026-10-11T03:00:00Z");
 
     @Autowired
     private AccountRepository adapter;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     @DisplayName("계정을 저장하고 외부 식별로 다시 찾는다")
@@ -77,6 +73,35 @@ class AccountPersistenceAdapterTest {
                     assertThat(exception.getMessage()).doesNotContain(identity.subject());
                 });
         assertThat(adapter.findByIdentity(identity)).map(Account::id).contains(first.id());
+    }
+
+    @Test
+    @DisplayName("닫은 계정을 저장하면 외부 식별을 지우고 폐쇄 시각과 함께 식별자로 다시 찾는다")
+    void savesClosedAccount() {
+        ExternalIdentity identity = newIdentity();
+        AccountId id =
+                adapter.saveNew(Account.register(identity, REGISTERED_AT)).id().orElseThrow();
+
+        Account account = adapter.findByIdForUpdate(id).orElseThrow();
+        account.close(CLOSED_AT);
+        adapter.update(account);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(adapter.findByIdentity(identity)).isEmpty();
+        assertThat(adapter.findById(id)).hasValueSatisfying(found -> {
+            assertThat(found.isClosed()).isTrue();
+            assertThat(found.closedAt()).contains(CLOSED_AT);
+            assertThat(found.identities()).isEmpty();
+            assertThat(found.registeredAt()).isEqualTo(REGISTERED_AT);
+        });
+        assertThat(adapter.findByIdForUpdate(id)).map(Account::isClosed).contains(true);
+    }
+
+    @Test
+    @DisplayName("잠그고 읽을 계정이 없으면 빈 값을 돌려준다")
+    void returnsEmptyWhenLockingUnknownAccount() {
+        assertThat(adapter.findByIdForUpdate(new AccountId(Long.MAX_VALUE))).isEmpty();
     }
 
     @Test

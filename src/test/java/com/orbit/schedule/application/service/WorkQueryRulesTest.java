@@ -1,11 +1,15 @@
 package com.orbit.schedule.application.service;
 
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCEPTED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETUP_MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.UNKNOWN_WORK_ID;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -19,11 +23,16 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.CancellationReason;
+import com.orbit.schedule.domain.Rejection;
+import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
+import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
- * 작업 하나를 조회하는 유즈케이스가 공통 오류 순서(schedule 지침의 조회 순서) — 계정 → 조직 식별자 → 구성원 → 작업 식별자 → 작업 조회 → 기사의 배정 여부 — 를
+ * 작업 하나를 조회하는 유즈케이스가 공통 오류 순서(schedule 지침의 조회 순서) — 계정 → 조직 식별자 → 구성원 → 작업 식별자 → 작업 조회 → 기사가 볼 수 있는 작업 — 를
  * 같게 지키는지 확인한다. 각 단계는 뒤 단계의 오류를 함께 넣어도 자기 오류가 먼저 나는지 본다.
  */
 @DisplayName("작업 조회 유즈케이스 공통 오류 순서")
@@ -115,6 +124,30 @@ class WorkQueryRulesTest {
 
         for (WorkStatus status : new WorkStatus[] {WorkStatus.REGISTERED, WorkStatus.ACCEPTED, WorkStatus.COMPLETED}) {
             WorkId id = fixture.givenWork(status);
+            fixture.assertRejected(
+                    () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value())),
+                    ScheduleErrorCode.WORK_NOT_FOUND);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("useCases")
+    @DisplayName("거절했거나, 다른 기사로 재배정됐거나, 배정 해제된 작업은 이전 기사에게 존재를 숨긴다")
+    void hidesWorkFromFormerTechnician(UseCase useCase) {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work rejected = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        Work rejectedThenCancelled = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
+        rejectedThenCancelled.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        rejectedThenCancelled.cancel(
+                ACCEPTED_AT.plusSeconds(60), SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
+        Work reassigned = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        reassigned.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        Work unassigned = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        unassigned.unassign(NOW, SETUP_MANAGER_ID);
+
+        for (Work work : new Work[] {rejected, rejectedThenCancelled, reassigned, unassigned}) {
+            WorkId id = fixture.workRepository.store(work);
             fixture.assertRejected(
                     () -> useCase.invoke(fixture, new Request(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value())),
                     ScheduleErrorCode.WORK_NOT_FOUND);

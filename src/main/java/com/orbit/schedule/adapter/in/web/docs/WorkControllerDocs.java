@@ -59,10 +59,14 @@ public interface WorkControllerDocs {
 
     @Operation(
             summary = "작업 기본정보 수정",
-            description = "작업명·작업 유형·고객·결제 정보를 한꺼번에 교체합니다. 비운 선택 항목은 지우고 상태·배정은 그대로 둡니다. "
-                    + "완료·취소된 작업은 SCHEDULE-002입니다. 입력 규칙 위반은 SCHEDULE-003, 본문 형식 오류(목록에 없는 결제 방식 등)는 COMMON-400, "
-                    + "그 조직에서 선택할 수 없는 작업 유형은 SCHEDULE-014입니다. "
+            description = "작업명·작업 유형·고객·결제 정보·현장 사진을 한꺼번에 교체합니다. 비운 선택 항목은 지우고 상태·배정은 그대로 둡니다. "
+                    + "현장 사진은 업로드를 마친 파일의 식별자로 최대 6장까지 받으며(sitePhotoIds), 빼거나 null로 보내면 모두 지웁니다. "
+                    + "완료·취소된 작업과, 작업중 작업의 작업 유형을 바꾸거나 비우는 요청은 SCHEDULE-002입니다"
+                    + "(작업중에는 지금 유형을 그대로 보내면 다른 항목을 고칠 수 있습니다). "
+                    + "입력 규칙 위반(현장 사진 7장 이상, 빈·500자 넘는 식별자 포함)은 SCHEDULE-003, 본문 형식 오류(목록에 없는 결제 방식 등)는 COMMON-400, "
+                    + "작업 유형을 바꿀 때 그 조직에서 선택할 수 없는 유형이면 SCHEDULE-014입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005, "
+                    + "등록자 본인·총관리자가 아닌 직원이면 SCHEDULE-005, "
                     + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "수정 성공")
@@ -91,6 +95,7 @@ public interface WorkControllerDocs {
                     + "사유가 없거나, 기타(OTHER)인데 메모가 없거나 255자를 넘거나, 기타가 아닌데 메모가 있으면 SCHEDULE-003입니다. "
                     + "목록에 없는 사유 등 본문 형식 오류는 COMMON-400입니다. 완료됐거나 이미 취소된 작업은 SCHEDULE-002입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005, "
+                    + "등록자 본인·총관리자가 아닌 직원이면 SCHEDULE-005, "
                     + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "취소 성공")

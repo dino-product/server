@@ -44,4 +44,21 @@ class AccountPersistenceAdapter implements AccountRepository {
     public Optional<Account> findById(AccountId accountId) {
         return repository.findWithCredentialsById(accountId.value()).map(AccountJpaEntity::toDomain);
     }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Account> findByIdForUpdate(AccountId accountId) {
+        return repository.findLockedById(accountId.value()).map(AccountJpaEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void update(Account account) {
+        AccountId accountId =
+                account.id().orElseThrow(() -> new IllegalArgumentException("only saved accounts can be updated"));
+        repository
+                .findById(accountId.value())
+                .orElseThrow(() -> new IllegalArgumentException("account not found"))
+                .apply(account);
+    }
 }

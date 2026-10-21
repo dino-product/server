@@ -36,7 +36,7 @@ public record TimetableResponse(
             @Schema(description = "작업명", example = "인덕션 설치") String name,
 
             @Schema(
-                    description = "작업 상태. PENDING_ACCEPTANCE(배정됨), ACCEPTED(작업전), IN_PROGRESS(작업중), COMPLETED(완료)",
+                    description = "작업 상태. PENDING_ACCEPT(배정됨), ACCEPTED(작업전), IN_PROGRESS(작업중), COMPLETED(완료)",
                     example = "ACCEPTED")
             WorkStatus status,
 
@@ -55,7 +55,10 @@ public record TimetableResponse(
             boolean conflicting,
 
             @Schema(description = "작업유형. 없으면 null") LabelResponse workType,
-            @Schema(description = "등록자") StaffResponse registrar) {
+            @Schema(description = "등록자") StaffResponse registrar,
+
+            @Schema(description = "작업 버전. 배정 변경·해제 요청의 expectedVersion으로 그대로 보낸다", example = "3")
+            long version) {
 
         static ScheduledWork from(TimetableInfo.ScheduledWork info) {
             return new ScheduledWork(
@@ -68,7 +71,8 @@ public record TimetableResponse(
                     info.delayed(),
                     info.conflicting(),
                     LabelResponse.from(info.workType()),
-                    StaffResponse.from(info.registrar()));
+                    StaffResponse.from(info.registrar()),
+                    info.version());
         }
     }
 }

@@ -25,10 +25,12 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.shared.error.BusinessException;
 
 /**
- * 기사 작업 이력·통계 조회. 관리자는 조직의 어느 기사든, 기사는 본인 이력만 본다. 구간과 그 기사의 배정 일정이 겹치는 작업을 지금 상태와 관계없이 담고, 작업마다 그
- * 기사의 마지막 배정(구간과 겹치는 것 중)의 순번·일정·결과·종료 방식과 그 배정이 지금 담당인지를 준다. 통계는 이력의 작업 수, 그 배정이 지금 담당인 채 완료·취소된
- * 작업 수, 거절한 작업 수다. 수는 배정 시작시각이 속한 구간에서만 센다(경계에 걸친 일정을 양쪽 구간에서 세지 않게). 오류 확인 순서는 요청자 → 기사 식별자(관리자는 필수, 형식 400) →
- * 기사가 다른 기사를 요청하면 403(SCHEDULE-005) → 구간 입력이다.
+ * 기사 작업 이력·통계 조회. 관리자는 조직의 어느 기사든, 기사는 본인 이력만 본다. 관리자에게는 구간과 그 기사의 배정 일정이 겹치는 작업을 지금 상태와 관계없이 담고,
+ * 작업마다 그 기사의 마지막 배정(구간과 겹치는 것 중)의 순번·일정·결과·종료 방식과 그 배정이 지금 담당인지를 준다. 통계는 이력의 작업 수, 그 배정이 지금 담당인 채
+ * 완료·취소된 작업 수, 거절한 작업 수다. 수는 배정 시작시각이 속한 구간에서만 센다(경계에 걸친 일정을 양쪽 구간에서 세지 않게). 기사 본인이 요청하면 그 가운데
+ * 본인이 완료한 작업(구간 안 마지막 배정이 지금 담당인 채 완료된 작업)만 담고 통계도 그 작업으로만 세므로 거절·취소 수는 0이다. 거절했거나 다른 기사로 넘어간
+ * 작업은 기사에게 보이지 않기 때문이다. 오류 확인 순서는 요청자 → 기사 식별자(관리자는 필수, 형식 400) → 기사가 다른 기사를 요청하면 403(SCHEDULE-005) →
+ * 구간 입력이다.
  */
 @Service
 public class GetWorkHistoryService implements GetWorkHistoryUseCase {
@@ -53,22 +55,19 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
         TechnicianId technicianId = targetTechnician(actor, query.technicianId());
         QueryPeriod period = QueryPeriod.of(query.from(), query.to());
 
+        boolean ownHistory = actor instanceof TechnicianActor;
         List<Work> assigned = workQueryPort.listAssignedToTechnician(
                 actor.organizationId(), technicianId, period.from(), period.to());
         List<WorkHistoryInfo.AssignedWork> works = assigned.stream()
                 .map(work -> assignedWork(work, technicianId, period))
+                .filter(work -> !ownHistory || (work.current() && work.status() == WorkStatus.COMPLETED))
                 .sorted(RECENT_FIRST)
                 .toList();
         WorkHistoryInfo.Statistics statistics = new WorkHistoryInfo.Statistics(
                 works.size(),
                 countCurrentStartedIn(works, WorkStatus.COMPLETED, period),
-                (int) assigned.stream()
-                        .filter(work -> assignmentsInPeriod(work, technicianId, period)
-                                .mapToObj(index -> work.assignmentHistory().get(index))
-                                .anyMatch(history -> history.result() == AssignmentResult.REJECTED
-                                        && !history.schedule().startTime().isBefore(period.from())))
-                        .count(),
-                countCurrentStartedIn(works, WorkStatus.CANCELLED, period));
+                ownHistory ? 0 : countRejectedIn(assigned, technicianId, period),
+                countCurrentStartedIn(works, WorkStatus.CANCELED, period));
         return new WorkHistoryInfo(technicianId.value(), works, statistics);
     }
 
@@ -98,7 +97,7 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
         int index = assignmentsInPeriod(work, technicianId, period).max().orElseThrow();
         AssignmentHistory history = work.assignmentHistory().get(index);
         // 이 행의 배정이 작업의 마지막 배정이고 작업에 그 일정이 남아 있을 때만 지금 담당이다. 구간 밖에서 일정이 바뀌었거나 다시 배정됐으면 이 행은 지난
-        // 배정이고, 되돌린 취소·해제·거절로 일정이 비었으면 담당이 없다.
+        // 배정이고, 거절·배정 해제·기사 반환으로 대기함에 돌아가 일정이 비었으면 담당이 없다.
         boolean current =
                 index == work.assignmentHistory().size() - 1 && work.schedule().isPresent();
         return new WorkHistoryInfo.AssignedWork(
@@ -119,6 +118,16 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
         return IntStream.range(0, histories.size())
                 .filter(index -> histories.get(index).schedule().technicianId().equals(technicianId)
                         && period.overlaps(histories.get(index).schedule()));
+    }
+
+    /** 그 기사가 시작시각이 구간 안인 배정을 한 번이라도 거절한 작업 수. */
+    private static int countRejectedIn(List<Work> works, TechnicianId technicianId, QueryPeriod period) {
+        return (int) works.stream()
+                .filter(work -> assignmentsInPeriod(work, technicianId, period)
+                        .mapToObj(index -> work.assignmentHistory().get(index))
+                        .anyMatch(history -> history.result() == AssignmentResult.REJECTED
+                                && !history.schedule().startTime().isBefore(period.from())))
+                .count();
     }
 
     /** 지금 담당인 채 그 상태가 된 작업 가운데 배정 시작시각이 구간 안인 것. 경계에 걸친 일정을 양쪽 구간에서 세지 않도록 시작이 속한 구간에서만 센다. */

@@ -114,4 +114,9 @@ class JwtAccessTokenAdapter implements AccessTokenPort {
             return Optional.empty();
         }
     }
+
+    @Override
+    public Duration lifetime() {
+        return properties.accessTokenTtl();
+    }
 }
