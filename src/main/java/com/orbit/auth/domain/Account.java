@@ -73,7 +73,7 @@ public final class Account {
             throw new IllegalArgumentException("closedAt must not be before registeredAt");
         }
         List<ProviderUnlink> unlinks = identities.stream()
-                .map(identity -> new ProviderUnlink(id, identity, closedAt))
+                .map(identity -> ProviderUnlink.request(id, identity, closedAt))
                 .toList();
         identities.clear();
         this.closedAt = closedAt;

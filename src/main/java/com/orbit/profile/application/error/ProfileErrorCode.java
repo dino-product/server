@@ -15,7 +15,9 @@ public enum ProfileErrorCode implements BaseCode {
     PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "PROFILE-002", "프로필을 찾을 수 없습니다."),
     PROFILE_REQUIRED(HttpStatus.CONFLICT, "PROFILE-003", "프로필을 먼저 입력해야 합니다."),
     REQUIRED_TERMS_NOT_AGREED(HttpStatus.BAD_REQUEST, "PROFILE-004", "필수 약관에 모두 동의해야 합니다."),
-    SIGNUP_NOT_COMPLETED(HttpStatus.FORBIDDEN, "PROFILE-005", "가입 또는 약관 재동의를 마친 뒤 이용할 수 있습니다.");
+    SIGNUP_NOT_COMPLETED(HttpStatus.FORBIDDEN, "PROFILE-005", "가입 또는 약관 재동의를 마친 뒤 이용할 수 있습니다."),
+    WITHDRAWAL_BLOCKED(HttpStatus.CONFLICT, "PROFILE-006", "지금은 탈퇴할 수 없습니다. 탈퇴 가능 여부를 다시 확인해 주세요."),
+    INVALID_WITHDRAWAL_REASON(HttpStatus.BAD_REQUEST, "PROFILE-007", "탈퇴 사유는 200자까지 입력할 수 있습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

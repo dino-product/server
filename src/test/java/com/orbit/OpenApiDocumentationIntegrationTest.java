@@ -6,10 +6,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Arrays;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.support.IntegrationTestSupport;
 
 class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
@@ -740,6 +743,21 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/marketing-consents'].post.responses['403']"
                                 + ".content['application/json'].examples['PROFILE-005'].value.code")
                         .value("PROFILE-005"));
+    }
+
+    @Test
+    void documentsWithdrawalApis() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/withdrawals'].post.responses['409']"
+                                + ".content['application/json'].examples['PROFILE-006'].value.code")
+                        .value("PROFILE-006"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.profile.adapter.in.web.WithdrawalEligibilityResponse.Block']"
+                                + ".properties.reason.enum")
+                        .value(containsInAnyOrder(Arrays.stream(WithdrawalBlockReason.values())
+                                .map(Enum::name)
+                                .toArray())));
     }
 
     @Test

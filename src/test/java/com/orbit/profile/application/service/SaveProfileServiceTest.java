@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -50,8 +51,8 @@ class SaveProfileServiceTest {
         ArgumentCaptor<Profile> saved = ArgumentCaptor.forClass(Profile.class);
         verify(profiles).save(saved.capture());
         assertThat(saved.getValue().accountId()).isEqualTo(new AccountId(1L));
-        assertThat(saved.getValue().name().value()).isEqualTo("홍길동");
-        assertThat(saved.getValue().phoneNumber().value()).isEqualTo("01012345678");
+        assertThat(saved.getValue().name().orElseThrow().value()).isEqualTo("홍길동");
+        assertThat(saved.getValue().phoneNumber().orElseThrow().value()).isEqualTo("01012345678");
         assertThat(saved.getValue().status()).isEqualTo(SignupStatus.PENDING_SIGNUP);
     }
 
@@ -64,8 +65,8 @@ class SaveProfileServiceTest {
         service.save(new SaveProfileCommand(1L, 1L, "김철수", "01087654321"));
 
         verify(profiles).save(existing);
-        assertThat(existing.name().value()).isEqualTo("김철수");
-        assertThat(existing.phoneNumber().value()).isEqualTo("01087654321");
+        assertThat(existing.name().orElseThrow().value()).isEqualTo("김철수");
+        assertThat(existing.phoneNumber().orElseThrow().value()).isEqualTo("01087654321");
     }
 
     @Test
@@ -102,5 +103,18 @@ class SaveProfileServiceTest {
         assertThatThrownBy(() -> service.save(new SaveProfileCommand(1L, 1L, "김철수", "01087654321")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(CommonErrorCode.CONFLICT));
+    }
+
+    @Test
+    @DisplayName("탈퇴한 계정은 프로필을 다시 입력할 수 없고 없는 프로필과 같은 PROFILE-002다")
+    void rejectsWithdrawnProfile() {
+        when(profiles.findByAccountId(new AccountId(1L)))
+                .thenReturn(Optional.of(Profile.withdrawnWithoutProfile(
+                        new AccountId(1L), Instant.parse("2026-11-01T00:00:00Z"), null)));
+
+        assertThatThrownBy(() -> service.save(new SaveProfileCommand(1L, 1L, "홍길동", "01012345678")))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(ProfileErrorCode.PROFILE_NOT_FOUND));
+        verify(profiles, never()).save(any());
     }
 }
