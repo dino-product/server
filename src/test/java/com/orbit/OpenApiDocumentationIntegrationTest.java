@@ -715,6 +715,34 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsProfileSignupApis() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}'].get.summary")
+                        .value("내 프로필·가입 단계 조회"))
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}'].get.security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}'].get.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.profile.adapter.in.web.ProfileResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}'].get.responses['404']"
+                                + ".content['application/json'].examples['PROFILE-002'].value.code")
+                        .value("PROFILE-002"))
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}'].put.responses['400']"
+                                + ".content['application/json'].examples['PROFILE-001'].value.code")
+                        .value("PROFILE-001"))
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/terms-agreements'].post.responses['400']"
+                                + ".content['application/json'].examples['PROFILE-004'].value.code")
+                        .value("PROFILE-004"))
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/terms-agreements'].post.responses['409']"
+                                + ".content['application/json'].examples['PROFILE-003'].value.code")
+                        .value("PROFILE-003"))
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/marketing-consents'].post.responses['403']"
+                                + ".content['application/json'].examples['PROFILE-005'].value.code")
+                        .value("PROFILE-005"));
+    }
+
+    @Test
     void documentsNotificationCenterAsProtectedOperations() throws Exception {
         String list = "$.paths['/api/v1/notifications'].get";
         String unreadCount = "$.paths['/api/v1/notifications/unread-count'].get";

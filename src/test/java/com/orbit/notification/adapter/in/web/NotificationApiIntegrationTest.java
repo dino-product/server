@@ -30,6 +30,9 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.support.IntegrationTestSupport;
+import com.orbit.support.SignupTestSupport;
+
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻는다. 알림은 schedule 이벤트로 만들어지므로 여기서는 행을 SQL로 넣고 알림센터
@@ -43,6 +46,11 @@ class NotificationApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private final SignupTestSupport.SignupOnce signups = new SignupTestSupport.SignupOnce();
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -233,6 +241,8 @@ class NotificationApiIntegrationTest extends IntegrationTestSupport {
                         .claim("token_use", "access")
                         .build());
         jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
-        return jwt.serialize();
+        String accessToken = jwt.serialize();
+        signups.ensure(mockMvc, objectMapper, accountId, accessToken);
+        return accessToken;
     }
 }
