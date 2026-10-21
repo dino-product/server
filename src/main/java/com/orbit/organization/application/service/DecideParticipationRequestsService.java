@@ -204,6 +204,12 @@ public class DecideParticipationRequestsService
         if (activeMember) {
             return ParticipationRequestDecisionOutcome.ALREADY_MEMBER;
         }
+        // 탈퇴로 비활성화된 행은 어느 역할로도 되살리지 않는다([조직·계정] 기능명세 §6). 탈퇴 반영이 승인 대기 요청을 같은 발주사 잠금 아래에서 취소하므로
+        // 정상 흐름에서는 여기에 오지 않는다.
+        if (staff.filter(Membership::isWithdrawn).isPresent()
+                || technician.filter(Technician::isWithdrawn).isPresent()) {
+            throw new IllegalStateException("withdrawn accounts cannot rejoin");
+        }
         request.approve(confirmedType, deciderId(decider), now);
         if (staff.isEmpty() && technician.isEmpty()) {
             join(request, confirmedType, now, now);

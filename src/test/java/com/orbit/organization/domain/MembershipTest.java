@@ -107,6 +107,31 @@ class MembershipTest {
     }
 
     @Test
+    @DisplayName("다른 활성 총관리자가 없는 활성 총관리자만 유일한 총관리자다")
+    void soleOwnerIsActiveOwnerWithoutOtherActiveOwner() {
+        Membership owner = staff().designateAsOwner();
+
+        assertThat(owner.isSoleOwner(1)).isTrue();
+        assertThat(owner.isSoleOwner(2)).isFalse();
+        assertThat(staff().isSoleOwner(1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("비활성 소속은 총관리자 표시가 남아 있어도 유일한 총관리자가 아니다")
+    void deactivatedOwnerIsNotSoleOwner() {
+        Membership deactivatedOwner = Membership.reconstitute(
+                new MembershipId(3L),
+                new OrganizationId(1L),
+                new AccountId(8L),
+                true,
+                MembershipStatus.DEACTIVATED,
+                NOW,
+                NOW.plusSeconds(60));
+
+        assertThat(deactivatedOwner.isSoleOwner(0)).isFalse();
+    }
+
+    @Test
     @DisplayName("다른 역할로 있던 회원이 직원으로 다시 참여하면 이전 참여일을 이어받고 상태 변경 시각은 승인 시각이다")
     void joinedMembershipKeepsEarlierJoinDate() {
         Instant rejoinedAt = NOW.plusSeconds(3600);
@@ -145,6 +170,78 @@ class MembershipTest {
     @DisplayName("활성 소속은 다시 활성으로 바꿀 수 없다")
     void refusesRejoiningActiveMembership() {
         assertThatThrownBy(() -> staff().rejoin(NOW.plusSeconds(3600))).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 활성 소속을 비활성으로 바꾸고 탈퇴 표시를 남기며 총관리자 표시와 참여일은 유지한다")
+    void withdrawsActiveMembership() {
+        Instant withdrawnAt = NOW.plusSeconds(3600);
+        Membership owner = staff().designateAsOwner();
+
+        Membership withdrawn = owner.withdraw(withdrawnAt);
+
+        assertThat(withdrawn.id()).isEqualTo(owner.id());
+        assertThat(withdrawn.status()).isEqualTo(MembershipStatus.DEACTIVATED);
+        assertThat(withdrawn.isOwner()).isTrue();
+        assertThat(withdrawn.joinedAt()).isEqualTo(NOW);
+        assertThat(withdrawn.statusChangedAt()).isEqualTo(withdrawnAt);
+        assertThat(withdrawn.withdrawnAt()).contains(withdrawnAt);
+        assertThat(withdrawn.isWithdrawn()).isTrue();
+        assertThat(withdrawn.isSoleOwner(0)).isFalse();
+    }
+
+    @Test
+    @DisplayName("이미 비활성인 소속이 탈퇴하면 상태와 상태 변경 시각은 그대로 두고 탈퇴 표시만 남긴다")
+    void withdrawsDeactivatedMembershipKeepingStatusChange() {
+        Instant withdrawnAt = NOW.plusSeconds(3600);
+
+        Membership withdrawn = deactivated().withdraw(withdrawnAt);
+
+        assertThat(withdrawn.status()).isEqualTo(MembershipStatus.DEACTIVATED);
+        assertThat(withdrawn.statusChangedAt()).isEqualTo(NOW.plusSeconds(60));
+        assertThat(withdrawn.withdrawnAt()).contains(withdrawnAt);
+    }
+
+    @Test
+    @DisplayName("탈퇴 표시가 있는 소속에 다시 탈퇴를 반영하면 바뀌지 않는다")
+    void withdrawingAgainLeavesMembershipUnchanged() {
+        Membership withdrawn = staff().withdraw(NOW.plusSeconds(3600));
+
+        assertThat(withdrawn.withdraw(NOW.plusSeconds(7200))).isSameAs(withdrawn);
+    }
+
+    @Test
+    @DisplayName("탈퇴로 비활성화된 소속은 다시 활성으로 바꿀 수 없다")
+    void refusesRejoiningWithdrawnMembership() {
+        Membership withdrawn = deactivated().withdraw(NOW.plusSeconds(3600));
+
+        assertThatThrownBy(() -> withdrawn.rejoin(NOW.plusSeconds(7200))).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("탈퇴 표시가 있는 소속은 활성으로 복원할 수 없다")
+    void rejectsRestoringActiveWithdrawnMembership() {
+        assertThatThrownBy(() -> Membership.reconstitute(
+                        new MembershipId(3L),
+                        new OrganizationId(1L),
+                        new AccountId(8L),
+                        false,
+                        MembershipStatus.ACTIVE,
+                        NOW,
+                        NOW,
+                        NOW.plusSeconds(60)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static Membership deactivated() {
+        return Membership.reconstitute(
+                new MembershipId(3L),
+                new OrganizationId(1L),
+                new AccountId(8L),
+                false,
+                MembershipStatus.DEACTIVATED,
+                NOW,
+                NOW.plusSeconds(60));
     }
 
     private static Membership staff() {

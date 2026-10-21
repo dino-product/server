@@ -79,6 +79,26 @@ class ParticipationRequestPersistenceAdapterTest extends PersistenceAdapterTestS
     }
 
     @Test
+    @DisplayName("계정의 승인 대기 요청이 있는 발주사만 식별자 오름차순으로 찾는다")
+    void listsOrganizationsWithPendingRequestOfAccount() {
+        adapter.save(ParticipationRequest.request(
+                OTHER_ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.STAFF, RequestChannel.COMPANY_CODE, REQUESTED_AT));
+        adapter.save(ParticipationRequest.request(
+                ORGANIZATION_ID, ACCOUNT_ID, ParticipationType.TECHNICIAN, RequestChannel.QR_CODE, REQUESTED_AT));
+        insertDecided(new OrganizationId(12L), ACCOUNT_ID, "REJECTED");
+        adapter.save(ParticipationRequest.request(
+                new OrganizationId(13L),
+                OTHER_ACCOUNT_ID,
+                ParticipationType.STAFF,
+                RequestChannel.COMPANY_CODE,
+                REQUESTED_AT));
+
+        assertThat(adapter.listOrganizationsWithPending(ACCOUNT_ID))
+                .containsExactly(ORGANIZATION_ID, OTHER_ORGANIZATION_ID);
+        assertThat(adapter.listOrganizationsWithPending(new AccountId(9L))).isEmpty();
+    }
+
+    @Test
     @DisplayName("잠가 읽은 요청을 취소해 저장하면 상태만 바뀌고 요청 시각은 그대로다")
     void savesCanceledRequest() {
         ParticipationRequest saved = adapter.save(ParticipationRequest.request(

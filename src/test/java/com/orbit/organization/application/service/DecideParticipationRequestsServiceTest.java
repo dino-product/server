@@ -383,6 +383,21 @@ class DecideParticipationRequestsServiceTest {
     }
 
     @Test
+    @DisplayName("탈퇴로 비활성화된 행이 있는 회원은 같은 역할로도 다른 역할로도 되살리거나 새로 만들지 않는다")
+    void neverRejoinsWithdrawnMember() {
+        givenPending(31L, 7L, ParticipationType.STAFF);
+        Membership withdrawn = membershipRepository.given(ORGANIZATION_ID, new AccountId(7L), false);
+        membershipRepository.withdraw(withdrawn.withdraw(REQUESTED_AT));
+
+        assertThatThrownBy(() -> service.approve(approve(OWNER, new Approval(31L, ParticipationType.STAFF))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.approve(approve(OWNER, new Approval(31L, ParticipationType.TECHNICIAN))))
+                .isInstanceOf(IllegalStateException.class);
+        verify(technicianRepository, never()).save(any());
+        assertThat(membershipRepository.reactivations()).isEmpty();
+    }
+
+    @Test
     @DisplayName("두 행이 모두 비활성이면 마지막 역할과 같은 확정 유형은 세부 유형을 유지하고, 다른 확정 유형은 그 행을 되돌리며 세부 유형을 해제한다")
     void unassignsCategoryWhenConfirmedTypeDiffersFromLastRole() {
         givenPending(31L, 7L, ParticipationType.STAFF);

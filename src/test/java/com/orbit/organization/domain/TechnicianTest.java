@@ -16,6 +16,7 @@ class TechnicianTest {
     private static final Instant JOINED_AT = Instant.parse("2026-10-07T00:00:00Z");
     private static final Instant DEACTIVATED_AT = Instant.parse("2026-10-08T00:00:00Z");
     private static final Instant REJOINED_AT = Instant.parse("2026-10-09T00:00:00Z");
+    private static final Instant WITHDRAWN_AT = Instant.parse("2026-10-10T00:00:00Z");
 
     @Test
     @DisplayName("참여 요청 승인으로 맺은 기사 계약은 활성이며 참여일·상태 변경 시각은 승인 시각이다")
@@ -58,6 +59,62 @@ class TechnicianTest {
                 new TechnicianId(5L), ORGANIZATION_ID, ACCOUNT_ID, TechnicianStatus.ACTIVE, JOINED_AT, JOINED_AT);
 
         assertThatThrownBy(() -> active.rejoin(REJOINED_AT)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("탈퇴하면 활성 계약을 비활성으로 바꾸고 탈퇴 표시를 남기며 계약 ID와 참여일은 유지한다")
+    void withdrawsActiveTechnician() {
+        Technician active = Technician.reconstitute(
+                new TechnicianId(5L), ORGANIZATION_ID, ACCOUNT_ID, TechnicianStatus.ACTIVE, JOINED_AT, JOINED_AT);
+
+        Technician withdrawn = active.withdraw(WITHDRAWN_AT);
+
+        assertThat(withdrawn.id()).contains(new TechnicianId(5L));
+        assertThat(withdrawn.status()).isEqualTo(TechnicianStatus.DEACTIVATED);
+        assertThat(withdrawn.joinedAt()).isEqualTo(JOINED_AT);
+        assertThat(withdrawn.statusChangedAt()).isEqualTo(WITHDRAWN_AT);
+        assertThat(withdrawn.withdrawnAt()).contains(WITHDRAWN_AT);
+        assertThat(withdrawn.isWithdrawn()).isTrue();
+    }
+
+    @Test
+    @DisplayName("이미 비활성인 계약이 탈퇴하면 상태와 상태 변경 시각은 그대로 두고 탈퇴 표시만 남긴다")
+    void withdrawsDeactivatedTechnicianKeepingStatusChange() {
+        Technician withdrawn = deactivated().withdraw(WITHDRAWN_AT);
+
+        assertThat(withdrawn.status()).isEqualTo(TechnicianStatus.DEACTIVATED);
+        assertThat(withdrawn.statusChangedAt()).isEqualTo(DEACTIVATED_AT);
+        assertThat(withdrawn.withdrawnAt()).contains(WITHDRAWN_AT);
+    }
+
+    @Test
+    @DisplayName("탈퇴 표시가 있는 계약에 다시 탈퇴를 반영하면 바뀌지 않는다")
+    void withdrawingAgainLeavesTechnicianUnchanged() {
+        Technician withdrawn = deactivated().withdraw(WITHDRAWN_AT);
+
+        assertThat(withdrawn.withdraw(WITHDRAWN_AT.plusSeconds(60))).isSameAs(withdrawn);
+    }
+
+    @Test
+    @DisplayName("탈퇴로 비활성화된 계약은 다시 활성으로 바꿀 수 없다")
+    void refusesRejoiningWithdrawnTechnician() {
+        Technician withdrawn = deactivated().withdraw(WITHDRAWN_AT);
+
+        assertThatThrownBy(() -> withdrawn.rejoin(REJOINED_AT)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("탈퇴 표시가 있는 계약은 활성으로 복원할 수 없다")
+    void rejectsRestoringActiveWithdrawnTechnician() {
+        assertThatThrownBy(() -> Technician.reconstitute(
+                        new TechnicianId(5L),
+                        ORGANIZATION_ID,
+                        ACCOUNT_ID,
+                        TechnicianStatus.ACTIVE,
+                        JOINED_AT,
+                        JOINED_AT,
+                        WITHDRAWN_AT))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

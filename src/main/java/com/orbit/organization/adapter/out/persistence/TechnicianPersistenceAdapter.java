@@ -1,6 +1,7 @@
 package com.orbit.organization.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
@@ -39,6 +40,22 @@ class TechnicianPersistenceAdapter implements TechnicianRepository {
                 .orElseThrow(() -> new IllegalStateException("technician to reactivate must exist"));
         entity.reactivate(technician, unassignCategory);
         return entity.toDomain();
+    }
+
+    @Override
+    public Technician withdraw(Technician technician) {
+        TechnicianJpaEntity entity = repository
+                .findById(technician.id().orElseThrow().value())
+                .orElseThrow(() -> new IllegalStateException("technician to withdraw must exist"));
+        entity.withdraw(technician);
+        return entity.toDomain();
+    }
+
+    @Override
+    public List<OrganizationId> listOrganizationsOf(AccountId accountId) {
+        return repository.findOrganizationIdsByAccountId(accountId.value()).stream()
+                .map(OrganizationId::new)
+                .toList();
     }
 
     @Override

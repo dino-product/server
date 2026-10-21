@@ -1,6 +1,7 @@
 package com.orbit.organization.application.port.out;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import com.orbit.organization.domain.AccountId;
@@ -25,6 +26,15 @@ public interface MembershipRepository {
      */
     Membership reactivate(Membership membership, boolean unassignCategory);
 
+    /**
+     * {@link Membership#withdraw}로 탈퇴를 반영한 소속의 상태·상태 변경 시각·탈퇴 시각을 저장한다. 직원 유형은 소속 도메인에 없으므로 호출자는 발주사를
+     * 잠근 뒤 읽은 소속을 넘긴다.
+     */
+    Membership withdraw(Membership membership);
+
+    /** 계정의 직원 소속(상태 무관)이 있는 발주사의 식별자, 오름차순. 소속을 적재하지 않는다. */
+    List<OrganizationId> listOrganizationsOf(AccountId accountId);
+
     /** 계정의 그 발주사 활성 직원 소속. */
     Optional<Membership> findActive(OrganizationId organizationId, AccountId accountId);
 
@@ -36,6 +46,12 @@ public interface MembershipRepository {
 
     /** 그 발주사에서 이 직원 유형이 지정된 모든 직원 소속(상태 무관)을 "유형 없음"으로 바꾸고 바뀐 소속 수를 돌려준다. */
     int unassignStaffCategory(OrganizationId organizationId, MemberCategoryId categoryId, Instant unassignedAt);
+
+    /**
+     * 계정이 활성 총관리자인 발주사의 식별자, 오름차순. 소속을 적재하지 않아, 같은 트랜잭션에서 발주사를 잠근 뒤 부르는 {@link #findActive}가 그 사이 커밋된
+     * 값을 읽게 한다.
+     */
+    List<OrganizationId> listOwnedOrganizations(AccountId accountId);
 
     /** 그 발주사의 활성 직원 소속 중 총관리자 수. */
     long countActiveOwners(OrganizationId organizationId);

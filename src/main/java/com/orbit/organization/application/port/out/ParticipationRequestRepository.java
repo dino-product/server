@@ -1,5 +1,6 @@
 package com.orbit.organization.application.port.out;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.orbit.organization.domain.AccountId;
@@ -19,4 +20,7 @@ public interface ParticipationRequestRepository {
 
     /** 계정이 그 발주사에 보낸 승인 대기 요청. 같은 계정·발주사의 승인 대기 요청은 하나뿐이다. */
     Optional<ParticipationRequest> findPending(OrganizationId organizationId, AccountId accountId);
+
+    /** 계정의 승인 대기 요청이 있는 발주사의 식별자, 오름차순. 요청을 적재하지 않는다. */
+    List<OrganizationId> listOrganizationsWithPending(AccountId accountId);
 }

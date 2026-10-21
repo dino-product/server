@@ -51,6 +51,10 @@ class MembershipJpaEntity extends BaseTimeEntity {
     @Column(name = "status_changed_at", nullable = false)
     private Instant statusChangedAt;
 
+    /** 계정 탈퇴로 비활성화된 시각. NULL이면 탈퇴로 비활성화되지 않았다. 탈퇴 표시가 있는 행은 다시 활성이 되지 않는다. */
+    @Column(name = "withdrawn_at")
+    private Instant withdrawnAt;
+
     protected MembershipJpaEntity() {}
 
     private MembershipJpaEntity(Membership membership) {
@@ -60,6 +64,7 @@ class MembershipJpaEntity extends BaseTimeEntity {
         this.status = membership.status();
         this.joinedAt = membership.joinedAt();
         this.statusChangedAt = membership.statusChangedAt();
+        this.withdrawnAt = membership.withdrawnAt().orElse(null);
     }
 
     static MembershipJpaEntity from(Membership membership) {
@@ -85,6 +90,15 @@ class MembershipJpaEntity extends BaseTimeEntity {
         }
     }
 
+    void withdraw(Membership membership) {
+        if (!membership.isWithdrawn()) {
+            throw new IllegalArgumentException("withdrawn membership must have withdrawal time");
+        }
+        this.status = membership.status();
+        this.statusChangedAt = membership.statusChangedAt();
+        this.withdrawnAt = membership.withdrawnAt().orElseThrow();
+    }
+
     Membership toDomain() {
         return Membership.reconstitute(
                 new MembershipId(id),
@@ -93,6 +107,7 @@ class MembershipJpaEntity extends BaseTimeEntity {
                 owner,
                 status,
                 joinedAt,
-                statusChangedAt);
+                statusChangedAt,
+                withdrawnAt);
     }
 }
