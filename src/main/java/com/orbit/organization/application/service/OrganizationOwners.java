@@ -15,8 +15,9 @@ import com.orbit.shared.error.CommonErrorCode;
 /**
  * 발주사 유즈케이스의 요청자 확인.
  *
- * <p>발주사 정보 조회·수정과 유형 관리는 {@link #require}·{@link #requireMember}를 발주사 조회와 입력 검증보다 먼저 호출해, 활성 소속이 아닌 요청에
- * 발주사 존재 여부나 입력 오류가 드러나지 않게 한다. 확인 순서는 organization 지침의 오류 순서를 따른다.
+ * <p>발주사 정보 조회·수정, 유형 관리, 참여 요청 승인 대기·승인·거절은 {@link #require}·{@link #requireOwner}·
+ * {@link #requireMember}를 발주사 조회와 입력 검증보다 먼저 호출해, 활성 소속이 아닌 요청에 발주사 존재 여부나 입력 오류가 드러나지 않게 한다. 확인 순서는
+ * organization 지침의 오류 순서를 따른다.
  *
  * <p>총관리자 지정·해제는 {@link #lockAndRequireOwner}와 {@link #requireMembershipOf}로 다음 순서를 따른다.
  *
@@ -36,12 +37,20 @@ final class OrganizationOwners {
 
     /** 요청자가 그 발주사의 활성 총관리자임을 확인하고 발주사 식별자를 돌려준다. */
     static OrganizationId require(MembershipRepository membershipRepository, Long accountId, Long organizationIdValue) {
+        return requireOwner(membershipRepository, accountId, organizationIdValue)
+                .organizationId();
+    }
+
+    /** {@link #require}와 같이 확인하고, 처리자로 남길 수 있게 요청자의 총관리자 소속을 돌려준다. */
+    static Membership requireOwner(
+            MembershipRepository membershipRepository, Long accountId, Long organizationIdValue) {
         AccountId requester = requester(accountId);
         OrganizationId organizationId = organizationId(organizationIdValue);
-        if (!activeMembership(membershipRepository, requester, organizationId).isOwner()) {
+        Membership membership = activeMembership(membershipRepository, requester, organizationId);
+        if (!membership.isOwner()) {
             throw new BusinessException(OrganizationErrorCode.OWNER_ONLY);
         }
-        return organizationId;
+        return membership;
     }
 
     /**

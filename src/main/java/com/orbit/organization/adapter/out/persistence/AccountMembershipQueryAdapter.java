@@ -18,8 +18,7 @@ import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.TechnicianStatus;
 
 /**
- * 직원 소속과 기사 계약 테이블을 UNION ALL 한 문장으로 읽어, READ COMMITTED에서도 역할 변경 전후의 두 행을 같은 시점으로 본다. 기사 계약은 참여 시각 컬럼이 없어
- * 생성 시각을 참여 시각으로 쓴다.
+ * 직원 소속과 기사 계약 테이블을 UNION ALL 한 문장으로 읽어, READ COMMITTED에서도 역할 변경 전후의 두 행을 같은 시점으로 본다.
  */
 @Repository
 class AccountMembershipQueryAdapter implements AccountMembershipQueryPort {
@@ -32,7 +31,7 @@ class AccountMembershipQueryAdapter implements AccountMembershipQueryPort {
             join companies c on c.id = m.company_id
             where m.member_id = :accountId
             union all
-            select t.company_id, c.name, 'TECHNICIAN', t.status = :technicianActive, t.created_at, t.status_changed_at
+            select t.company_id, c.name, 'TECHNICIAN', t.status = :technicianActive, t.joined_at, t.status_changed_at
             from technician t
             join companies c on c.id = t.company_id
             where t.member_id = :accountId

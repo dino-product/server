@@ -655,15 +655,73 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         jsonPath(conflict + "['ORGANIZATION-013'].value.code").value("ORGANIZATION-013"))
                 .andExpect(
                         jsonPath(conflict + "['ORGANIZATION-014'].value.code").value("ORGANIZATION-014"))
-                .andExpect(
-                        jsonPath(conflict + "['ORGANIZATION-015'].value.code").value("ORGANIZATION-015"))
+                .andExpect(jsonPath(conflict + "['ORGANIZATION-015']").doesNotExist())
                 .andExpect(
                         jsonPath(conflict + "['ORGANIZATION-010'].value.code").value("ORGANIZATION-010"))
                 .andExpect(jsonPath(tooMany + "['ORGANIZATION-018'].value.code").value("ORGANIZATION-018"))
                 .andExpect(jsonPath("$.components.schemas"
                                 + "['com.orbit.organization.adapter.in.web.RequestParticipationRequest']"
                                 + ".properties.desiredType.enum.length()")
-                        .value(2));
+                        .value(2))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.RequestParticipationRequest']"
+                                + ".properties.requestChannel.enum.length()")
+                        .value(3));
+    }
+
+    @Test
+    void documentsPendingParticipationRequestListForOwners() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/participation-requests'].get";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("승인 대기 목록 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("organizationId"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/"
+                                + "com.orbit.organization.adapter.in.web.PendingParticipationRequestsResponse"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
+    void documentsParticipationRequestApprovalAndRejectionAsBatches() throws Exception {
+        String base = "$.paths['/api/v1/organizations/{organizationId}/participation-requests";
+        String approve = base + "/approvals'].post";
+        String reject = base + "/rejections'].post";
+        String schemas = "#/components/schemas/com.orbit.organization.adapter.in.web.";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(approve + ".summary").value("참여 요청 승인"))
+                .andExpect(jsonPath(approve + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(approve + ".requestBody.content['application/json'].schema['$ref']")
+                        .value(schemas + "ApproveParticipationRequestsRequest"))
+                .andExpect(jsonPath(approve + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "ParticipationRequestDecisionsResponse"))
+                .andExpect(jsonPath(approve + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-003'].value.code")
+                        .value("ORGANIZATION-003"))
+                .andExpect(jsonPath(approve + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-010'].value.code")
+                        .value("ORGANIZATION-010"))
+                .andExpect(jsonPath(reject + ".responses['409']").doesNotExist())
+                .andExpect(jsonPath(reject + ".summary").value("참여 요청 거절"))
+                .andExpect(jsonPath(reject + ".requestBody.content['application/json'].schema['$ref']")
+                        .value(schemas + "RejectParticipationRequestsRequest"))
+                .andExpect(jsonPath(reject + ".responses['400'].content['application/json']"
+                                + ".examples['ORGANIZATION-019'].value.code")
+                        .value("ORGANIZATION-019"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.ApproveParticipationRequestsRequest']"
+                                + ".properties.approvals.maxItems")
+                        .value(100));
     }
 
     @Test

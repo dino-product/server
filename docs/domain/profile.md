@@ -106,7 +106,7 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 
 ## 공개 계약
 
-- `ProfileLookup#findNames(Set<Long>)`: 계정 ID별 표시 이름. 가입을 마친(`ACTIVE`) 계정만 돌려주고, 가입 미완료·프로필 없는·탈퇴한 계정은 결과에 키가 없어 소비자가 셋을 구분하지 못한다. 아직 소비 모듈은 없다. 탈퇴한 계정의 표기는 [남은 일](#profile-todo)이다.
+- `ProfileLookup#findNames(Set<Long>)`: 계정 ID별 표시 이름. 가입을 마친(`ACTIVE`) 계정만 돌려주고, 가입 미완료·프로필 없는·탈퇴한 계정은 결과에 키가 없어 소비자가 셋을 구분하지 못한다. 소비 모듈은 organization(승인 대기 목록의 신청자 이름, 이름이 없으면 비워 둠)이다. 탈퇴한 계정의 표기는 [남은 일](#profile-todo)이다.
 - `WithdrawalBlocker#blocksFor(Long)` (요구 인터페이스): 탈퇴를 막는 상태를 소유한 모듈이 구현한다 — organization은 유일한 총관리자(HM-319), schedule은 기사 소속의 작업중·배정됨 작업(HM-320). profile이 사전 확인과 탈퇴 직전에 등록된 모든 구현을 부른다. 탈퇴 직전 판정은 탈퇴 트랜잭션 안이라 상태를 바꾸지 않되, 판정과 커밋 사이의 경합을 막는 행 잠금은 잡을 수 있다. 같은 사유를 여러 번 돌려줘도 된다.
   - [요구 인터페이스 규칙](../../.claude/skills/dino-architecture/references/communication.md#요구-인터페이스)과 달리 구현을 여러 모듈이 제공하고, 구현이 없으면 임시 구현 없이 아무것도 막지 않는다. 차단 조건이 상태를 소유한 모듈마다 나뉘고, profile은 그 모듈들을 모르기 때문이다. 그래서 운영 출시 전에 두 구현이 들어가야 한다.
 - `WithdrawalBlock(reason, count)`·`WithdrawalBlockReason`: 차단 사유와 먼저 정리해야 할 대상의 수(1 이상). 사유 `SOLE_OWNER`·`WORK_IN_PROGRESS`·`WORK_PENDING_ACCEPT`는 [조직·계정] 정책 §5.1의 차단 조건이라 profile이 목록을 소유한다. `WORK_PENDING_ACCEPT`는 [작업] 정책 §9의 배정됨 코드 이름을 따른다. 대상 ID는 담지 않는다(정책 §11은 건수와 처리 경로만 안내).

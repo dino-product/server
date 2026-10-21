@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -21,4 +22,12 @@ public record RequestParticipationRequest(
                 example = "TECHNICIAN",
                 requiredMode = Schema.RequiredMode.REQUIRED)
         @NotNull
-        ParticipationType desiredType) {}
+        ParticipationType desiredType,
+
+        @Schema(
+                description = "요청 경로. COMPANY_CODE 회사 코드 입력, JOIN_LINK 참여 링크 접속, QR_CODE QR 인식. 클라이언트가 "
+                        + "사용자가 회사를 찾은 방법을 넣는다",
+                example = "COMPANY_CODE",
+                requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull
+        RequestChannel requestChannel) {}

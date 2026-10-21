@@ -139,15 +139,17 @@ class MemberAccountQueryAdapterTest extends PersistenceAdapterTestSupport {
         entityManager
                 .createNativeQuery("""
                         insert into technician
-                            (company_id, member_id, status, status_changed_at, created_at, updated_at)
-                        values (?, ?, ?, ?, ?, ?)
+                            (company_id, member_id, status,
+                             joined_at, status_changed_at, created_at, updated_at)
+                        values (?, ?, ?, ?, ?, ?, ?)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())
                 .setParameter(3, status)
-                .setParameter(4, CHANGED_AT)
-                .setParameter(5, CREATED_AT)
-                .setParameter(6, CHANGED_AT)
+                .setParameter(4, CREATED_AT)
+                .setParameter(5, CHANGED_AT)
+                .setParameter(6, CREATED_AT)
+                .setParameter(7, CHANGED_AT)
                 .executeUpdate();
         return lastId("technician");
     }

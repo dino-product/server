@@ -52,7 +52,7 @@ public class RequestParticipationService implements RequestParticipationUseCase 
     @Transactional
     public ParticipationRequestInfo request(RequestParticipationCommand command) {
         AccountId requester = new AccountId(Objects.requireNonNull(command.accountId(), "accountId must not be null"));
-        if (command.desiredType() == null) {
+        if (command.desiredType() == null || command.requestChannel() == null) {
             throw new BusinessException(CommonErrorCode.BAD_REQUEST);
         }
         OrganizationLocks.lock(
@@ -69,15 +69,14 @@ public class RequestParticipationService implements RequestParticipationUseCase 
             throw new BusinessException(rejection(eligibility.availability()));
         }
 
-        ParticipationRequest saved = requestRepository.save(
-                ParticipationRequest.request(organizationId, requester, command.desiredType(), clock.instant()));
+        ParticipationRequest saved = requestRepository.save(ParticipationRequest.request(
+                organizationId, requester, command.desiredType(), command.requestChannel(), clock.instant()));
         return ParticipationRequestInfo.of(saved, organization);
     }
 
     private static OrganizationErrorCode rejection(ParticipationAvailability availability) {
         return switch (availability) {
             case ALREADY_MEMBER -> OrganizationErrorCode.ALREADY_MEMBER;
-            case DEACTIVATED_MEMBER -> OrganizationErrorCode.DEACTIVATED_MEMBER;
             case PENDING_REQUEST -> OrganizationErrorCode.PENDING_REQUEST_EXISTS;
             case AVAILABLE -> throw new IllegalArgumentException("available participation is not a rejection");
         };

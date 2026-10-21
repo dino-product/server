@@ -6,12 +6,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.CreatedOrganizationInfo;
 import com.orbit.organization.domain.Industry;
+import com.orbit.profile.ProfileLookup;
 import com.orbit.support.SharedContainers;
 
 @ApplicationModuleTest
@@ -30,6 +32,10 @@ class OrganizationModuleTest implements SharedContainers {
 
     @Autowired
     private OrganizationAccountLookup accountLookup;
+
+    /** 승인 대기 목록의 신청자 이름 ACL이 쓰는 profile 계약. 모듈 단독 실행이라 profile을 띄우지 않는다. */
+    @MockitoBean
+    private ProfileLookup profileLookup;
 
     @Test
     void createsOrganizationWithinStandaloneModule() {
