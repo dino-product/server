@@ -5,9 +5,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbit.organization.ParticipantRoleChanged;
 import com.orbit.organization.StaffRegisteredWorks;
 import com.orbit.organization.TechnicianWorkRelease;
 import com.orbit.organization.TechnicianWorkReleaseBusyException;
@@ -47,6 +49,7 @@ import com.orbit.shared.error.BusinessException;
  *       {@link StaffRegisteredWorks}로 확인해 409(ORGANIZATION-028)로 거부한다.
  *   <li>기사에서 직원으로 바꾸면 같은 트랜잭션에서 {@link TechnicianWorkRelease}로 예정 작업을 대기함으로 돌린다. 작업중 작업이 있으면 아무것도 바꾸지
  *       않고 409(ORGANIZATION-027)로, 기사 일정 대기 초과는 409(ORGANIZATION-024)로 거부하며 그 밖의 예외는 그대로 전파한다.
+ *   <li>바꾼 뒤 {@link ParticipantRoleChanged}를 같은 트랜잭션에서 발행한다. 롤백되면 소비 모듈에 전달되지 않는다.
  * </ul>
  */
 @Service
@@ -58,6 +61,7 @@ public class ChangeParticipantRoleService implements ChangeParticipantRoleUseCas
     private final MemberCategoryRepository categoryRepository;
     private final TechnicianWorkRelease technicianWorkRelease;
     private final StaffRegisteredWorks staffRegisteredWorks;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public ChangeParticipantRoleService(
@@ -67,6 +71,7 @@ public class ChangeParticipantRoleService implements ChangeParticipantRoleUseCas
             MemberCategoryRepository categoryRepository,
             TechnicianWorkRelease technicianWorkRelease,
             StaffRegisteredWorks staffRegisteredWorks,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.organizationRepository = organizationRepository;
         this.membershipRepository = membershipRepository;
@@ -74,6 +79,7 @@ public class ChangeParticipantRoleService implements ChangeParticipantRoleUseCas
         this.categoryRepository = categoryRepository;
         this.technicianWorkRelease = technicianWorkRelease;
         this.staffRegisteredWorks = staffRegisteredWorks;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -117,7 +123,13 @@ public class ChangeParticipantRoleService implements ChangeParticipantRoleUseCas
         if (categoryId != null) {
             technicianRepository.changeTechnicianCategory(technicianId, categoryId);
         }
-        return new ParticipantRoleChangeInfo(ParticipationType.TECHNICIAN, technicianId.value(), List.of());
+        return changed(
+                target.accountId().value(),
+                ParticipationType.TECHNICIAN,
+                technicianId.value(),
+                List.of(),
+                command,
+                now);
     }
 
     private ParticipantRoleChangeInfo toStaff(
@@ -143,7 +155,38 @@ public class ChangeParticipantRoleService implements ChangeParticipantRoleUseCas
         if (categoryId != null) {
             membershipRepository.changeStaffCategory(membershipId, categoryId);
         }
-        return new ParticipantRoleChangeInfo(ParticipationType.STAFF, membershipId.value(), releasedWorkIds);
+        return changed(
+                target.accountId().value(),
+                ParticipationType.STAFF,
+                membershipId.value(),
+                releasedWorkIds,
+                command,
+                now);
+    }
+
+    private ParticipantRoleChangeInfo changed(
+            Long accountId,
+            ParticipationType newRole,
+            Long memberId,
+            List<Long> releasedWorkIds,
+            ChangeParticipantRoleCommand command,
+            Instant now) {
+        eventPublisher.publishEvent(new ParticipantRoleChanged(
+                command.organizationId(),
+                accountId,
+                eventRole(command.type()),
+                eventRole(newRole),
+                memberId,
+                releasedWorkIds,
+                now));
+        return new ParticipantRoleChangeInfo(newRole, memberId, releasedWorkIds);
+    }
+
+    private static ParticipantRoleChanged.Role eventRole(ParticipationType type) {
+        return switch (type) {
+            case STAFF -> ParticipantRoleChanged.Role.STAFF;
+            case TECHNICIAN -> ParticipantRoleChanged.Role.TECHNICIAN;
+        };
     }
 
     private List<Long> releaseWorks(OrganizationId organizationId, TechnicianId technicianId, Membership requester) {

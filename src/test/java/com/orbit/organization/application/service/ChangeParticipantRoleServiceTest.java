@@ -27,7 +27,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
+import com.orbit.organization.ParticipantRoleChanged;
 import com.orbit.organization.StaffRegisteredWorks;
 import com.orbit.organization.TechnicianWorkRelease;
 import com.orbit.organization.TechnicianWorkReleaseBusyException;
@@ -92,6 +94,9 @@ class ChangeParticipantRoleServiceTest {
     @Mock
     private StaffRegisteredWorks staffRegisteredWorks;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private ChangeParticipantRoleService service;
 
     @BeforeEach
@@ -103,6 +108,7 @@ class ChangeParticipantRoleServiceTest {
                 categoryRepository,
                 technicianWorkRelease,
                 staffRegisteredWorks,
+                eventPublisher,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -126,8 +132,12 @@ class ChangeParticipantRoleServiceTest {
                         ParticipationType.STAFF, MEMBERSHIP_ID.value(), List.of(100L, 101L)));
         ArgumentCaptor<Technician> ended = ArgumentCaptor.forClass(Technician.class);
         ArgumentCaptor<Membership> created = ArgumentCaptor.forClass(Membership.class);
-        InOrder order =
-                inOrder(organizationRepository, technicianRepository, technicianWorkRelease, membershipRepository);
+        InOrder order = inOrder(
+                organizationRepository,
+                technicianRepository,
+                technicianWorkRelease,
+                membershipRepository,
+                eventPublisher);
         order.verify(organizationRepository).lock(ORGANIZATION_ID);
         order.verify(technicianRepository).findById(TECHNICIAN_ID);
         order.verify(technicianWorkRelease)
@@ -141,6 +151,15 @@ class ChangeParticipantRoleServiceTest {
         assertThat(created.getValue().isOwner()).isFalse();
         assertThat(created.getValue().joinedAt()).isEqualTo(JOINED_AT);
         assertThat(created.getValue().statusChangedAt()).isEqualTo(NOW);
+        order.verify(eventPublisher)
+                .publishEvent(new ParticipantRoleChanged(
+                        ORGANIZATION_ID.value(),
+                        MEMBER_ACCOUNT.value(),
+                        ParticipantRoleChanged.Role.TECHNICIAN,
+                        ParticipantRoleChanged.Role.STAFF,
+                        MEMBERSHIP_ID.value(),
+                        List.of(100L, 101L),
+                        NOW));
     }
 
     @Test
@@ -191,6 +210,7 @@ class ChangeParticipantRoleServiceTest {
         verify(technicianRepository, never()).deactivate(any());
         verify(membershipRepository, never()).save(any());
         verify(membershipRepository, never()).reactivate(any(), anyBoolean());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -331,6 +351,15 @@ class ChangeParticipantRoleServiceTest {
         assertThat(created.getValue().joinedAt()).isEqualTo(JOINED_AT);
         assertThat(created.getValue().statusChangedAt()).isEqualTo(NOW);
         verifyNoInteractions(technicianWorkRelease);
+        verify(eventPublisher)
+                .publishEvent(new ParticipantRoleChanged(
+                        ORGANIZATION_ID.value(),
+                        MEMBER_ACCOUNT.value(),
+                        ParticipantRoleChanged.Role.STAFF,
+                        ParticipantRoleChanged.Role.TECHNICIAN,
+                        TECHNICIAN_ID.value(),
+                        List.of(),
+                        NOW));
     }
 
     @Test
@@ -372,6 +401,7 @@ class ChangeParticipantRoleServiceTest {
         verify(membershipRepository, never()).deactivate(any());
         verify(technicianRepository, never()).save(any());
         verify(technicianRepository, never()).reactivate(any(), anyBoolean());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
