@@ -25,6 +25,7 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 
 - 변경 UseCase는 `@Transactional`, 조회 UseCase는 `@Transactional(readOnly = true)`를 적용합니다.
 - 예외: DB를 쓰지 않고 Redis·외부 검증기 같은 다른 저장소만 쓰는 UseCase(예: auth의 nonce 발급·Access Token 인증·로그아웃)는 트랜잭션을 붙이지 않고 서비스 Javadoc에 그 사실을 적습니다. JPA 트랜잭션은 시작할 때 DB 커넥션을 잡으므로, 매 요청 토큰 인증처럼 DB가 필요 없는 경로가 커넥션을 점유하거나 DB 장애에 함께 실패하지 않게 하기 위해서입니다. DB 접근이 추가되면 위 규칙을 적용합니다.
+- 예외: DB를 쓰지만 외부 HTTP를 기다리거나 여러 건을 반복해 처리하는 UseCase는 메서드 트랜잭션을 두지 않고, 출력 Port 구현(저장소 Adapter) 메서드마다 트랜잭션을 확정합니다. 외부 응답이나 반복 처리 동안 DB 커넥션을 잡지 않기 위해서입니다. 예: auth의 Apple 로그인, 외부 연결 해제(`UnlinkAccountProvidersService`·`RetryProviderUnlinksService`가 함께 쓰는 `ProviderUnlinker`), 폐쇄 표시 재확정(`ReconfirmClosedAccountsService`, 조회만 저장소의 읽기 트랜잭션이고 Redis 표시는 그 밖). 메서드 사이에 원자성이 없으므로 중간에 실패한 뒤 다시 처리해도 결과가 같게 만들고, 서비스 Javadoc에 그 사실을 적습니다.
 - 날짜·시각은 UTC `Instant`, 테스트 가능한 시간은 주입받은 `Clock`을 사용합니다. 주입되는 `Clock`은 저장소(PostgreSQL) 정밀도인 마이크로초 단위로 끊으므로, 시각 컬럼도 마이크로초 정밀도로 매핑합니다. JPA 감사 컬럼(`BaseTimeEntity`)도 같은 `Clock`에서 시각을 받습니다(`shared.internal.config.JpaAuditingConfig`).
 
 <a id="events"></a>
@@ -33,7 +34,8 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 - 완료 이벤트는 변경 트랜잭션 안에서 발행하고 `@ApplicationModuleListener`로 커밋 후 소비합니다. 롤백된 트랜잭션의 이벤트는 소비하지 않습니다.
 - `shared.internal.config.AsyncConfig`의 `@EnableAsync`와 Boot TaskExecutor를 사용합니다. 리스너는 발행자와 다른 스레드·별도 트랜잭션에서 실행합니다.
 - 발생 시각은 발행 시점의 `Clock` 값이며 커밋 시각이 아닙니다. 후속 처리는 API 응답과 독립적이며 소비 실패가 이미 커밋된 등록을 되돌리지 않습니다.
-- 전달 보장이 필요한 확장은 저장소·재처리·멱등성과 ADR을 함께 설계합니다. 현재 구현은 [Auth의 이벤트 흐름](../../../../docs/domain/auth.md#이벤트-흐름)을 참고합니다.
+- 예외: 모듈 안 이벤트를 응답 전에 같은 스레드에서 처리해야 하거나, 리스너가 외부 HTTP를 기다려 트랜잭션을 열면 안 되는 경우에는 `@TransactionalEventListener`(필요하면 `@Async`)로 커밋 뒤 소비합니다. 현재 예외와 이유는 auth의 계정 폐쇄 리스너이며 [Auth의 이벤트 흐름](../../../../docs/domain/auth.md#이벤트-흐름)이 원본입니다.
+- 전달 보장이 필요한 확장은 저장소·재처리·멱등성과 ADR을 함께 설계합니다. 현재 구현은 [Auth의 이벤트 흐름](../../../../docs/domain/auth.md#이벤트-흐름)을 참고하며, 이벤트 대신 영속 대기와 주기 재시도로 보장하는 예는 auth의 [외부 연결 해제](../../../../docs/domain/auth.md#외부-연결-해제-흐름)입니다.
 - 실제 커밋·롤백·소비 스레드를 통합 테스트로 검증합니다. 테스트 전체를 트랜잭션으로 감싸지 않습니다.
 
 참고: [영속성과 이벤트 결정](../../../../docs/adr/001-backend-architecture.md#영속성과-이벤트).
