@@ -7,6 +7,8 @@ import com.orbit.profile.adapter.in.web.AgreeToTermsRequest;
 import com.orbit.profile.adapter.in.web.ChangeMarketingConsentRequest;
 import com.orbit.profile.adapter.in.web.ProfileResponse;
 import com.orbit.profile.adapter.in.web.SaveProfileRequest;
+import com.orbit.profile.adapter.in.web.WithdrawRequest;
+import com.orbit.profile.adapter.in.web.WithdrawalEligibilityResponse;
 import com.orbit.profile.application.error.ProfileErrorCode;
 import com.orbit.shared.error.CommonErrorCode;
 import com.orbit.shared.openapi.ApiErrorCodes;
@@ -108,4 +110,47 @@ public interface ProfileControllerDocs {
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId,
             ChangeMarketingConsentRequest request);
+
+    @Operation(
+            summary = "탈퇴 가능 여부 확인",
+            description = "탈퇴 확인 화면을 띄우기 전에 탈퇴를 막는 조건이 있는지 확인합니다. 막는 사유가 있으면 사유 코드와 먼저 정리해야 할 "
+                    + "대상의 수를 돌려주므로 차단 안내를 보여 줍니다. 확인 뒤 상태가 바뀔 수 있어 탈퇴 요청 때 다시 판정합니다. 다른 계정의 ID면 "
+                    + "PROFILE-002입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "확인 성공",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WithdrawalEligibilityResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND"})
+    @ApiErrorCodes(enumClass = ProfileErrorCode.class, includes = "PROFILE_NOT_FOUND")
+    WithdrawalEligibilityResponse checkWithdrawalEligibility(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId);
+
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "본인 계정을 즉시 탈퇴합니다. 이름·연락처를 지우고 탈퇴 상태와 시각, 선택 입력한 사유(자유 텍스트 200자까지, 넘으면 "
+                    + "PROFILE-007)를 남기며, 같은 카카오·Apple 계정으로 다시 로그인하면 "
+                    + "새 계정으로 가입을 시작합니다. 가입 미완료 계정도 탈퇴할 수 있습니다. 성공하면 지금까지 받은 Access Token은 폐기된 토큰과 같은 "
+                    + "404를 받으므로 로그인 화면으로 돌아갑니다. 이미 탈퇴한 계정의 재요청도 204입니다. 탈퇴를 막는 조건이 생겼으면 "
+                    + "PROFILE-006이므로 탈퇴 가능 여부를 다시 확인해 안내합니다. 다른 계정의 ID면 PROFILE-002입니다. 같은 프로필을 다른 "
+                    + "요청이 먼저 저장했으면 COMMON-409이며, 탈퇴를 두 번 보낸 직후라면 앞선 요청으로 이미 탈퇴된 것이므로 로그인 화면으로 "
+                    + "돌아갑니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(responseCode = "204", description = "탈퇴 성공")
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND", "CONFLICT"})
+    @ApiErrorCodes(
+            enumClass = ProfileErrorCode.class,
+            includes = {"PROFILE_NOT_FOUND", "WITHDRAWAL_BLOCKED", "INVALID_WITHDRAWAL_REASON"})
+    void withdraw(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId,
+            WithdrawRequest request);
 }

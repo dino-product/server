@@ -1,5 +1,7 @@
 package com.orbit.auth.adapter.out.persistence;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -43,5 +45,30 @@ class AccountPersistenceAdapter implements AccountRepository {
     @Override
     public Optional<Account> findById(AccountId accountId) {
         return repository.findWithCredentialsById(accountId.value()).map(AccountJpaEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Account> findByIdForUpdate(AccountId accountId) {
+        return repository.findLockedById(accountId.value()).map(AccountJpaEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Account> listClosedSince(Instant since) {
+        return repository.findClosedSince(since).stream()
+                .map(AccountJpaEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void update(Account account) {
+        AccountId accountId =
+                account.id().orElseThrow(() -> new IllegalArgumentException("only saved accounts can be updated"));
+        repository
+                .findById(accountId.value())
+                .orElseThrow(() -> new IllegalArgumentException("account not found"))
+                .apply(account);
     }
 }

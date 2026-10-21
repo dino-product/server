@@ -35,7 +35,7 @@ class WorkExportWorkbookTest {
         WorkExportInfo.Row assigned = new WorkExportInfo.Row(
                 summary(
                         "배관 설치",
-                        WorkStatus.PENDING_ACCEPTANCE,
+                        WorkStatus.PENDING_ACCEPT,
                         new TechnicianInfo(3L, "김기사", null),
                         Instant.parse("2026-10-21T00:00:00Z"),
                         Instant.parse("2026-10-21T02:00:00Z"),

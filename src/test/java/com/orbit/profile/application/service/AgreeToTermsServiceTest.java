@@ -139,4 +139,17 @@ class AgreeToTermsServiceTest {
     private static Profile pendingProfile() {
         return Profile.start(new AccountId(1L), new PersonName("홍길동"), new PhoneNumber("01012345678"));
     }
+
+    @Test
+    @DisplayName("탈퇴한 계정은 약관에 동의할 수 없고 없는 프로필과 같은 PROFILE-002다")
+    void rejectsWithdrawnProfile() {
+        when(profiles.findByAccountId(new AccountId(1L)))
+                .thenReturn(Optional.of(Profile.withdrawnWithoutProfile(
+                        new AccountId(1L), Instant.parse("2026-11-01T00:00:00Z"), null)));
+
+        assertThatThrownBy(() -> service.agree(new AgreeToTermsCommand(1L, 1L, true, true, null)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(ProfileErrorCode.PROFILE_NOT_FOUND));
+        verify(profiles, never()).save(any());
+    }
 }

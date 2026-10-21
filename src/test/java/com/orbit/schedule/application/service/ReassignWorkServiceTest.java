@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkReassigned;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.ReassignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
@@ -51,20 +52,21 @@ class ReassignWorkServiceTest {
             fixture.workRepository,
             fixture.technicianContracts,
             fixture.scheduleLock,
+            fixture.events,
             fixture.clock);
 
     @Test
-    @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 지금 시각으로 회수하고 새 기사의 수락을 기다린다")
+    @DisplayName("수락대기 작업을 새 기사에게 넘기면 대기 중이던 배정을 지금 시각으로 회수하고 새 기사의 수락을 기다리며, 수락 전 재배정을 발행한다")
     void reassignsPendingWork() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         ScheduleChangeInfo result =
                 service.reassign(command(id.value(), OTHER_TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
 
         assertThat(result.applied()).isTrue();
         Work saved = fixture.singleSaved();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(saved.assignmentHistory())
                 .extracting(AssignmentHistory::result, history -> history.decidedAt()
@@ -76,10 +78,20 @@ class ReassignWorkServiceTest {
         assertThat(saved.assignmentHistory().getLast().assignedAt()).isEqualTo(NOW);
         assertThat(saved.assignmentHistory().getLast().assignedBy()).isEqualTo(MANAGER_ID);
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, OTHER_TECHNICIAN_ID, 0));
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkReassigned(
+                        id.value(),
+                        ORGANIZATION_ID.value(),
+                        TECHNICIAN_ID.value(),
+                        OTHER_TECHNICIAN_ID.value(),
+                        false,
+                        "대상 작업",
+                        TEN,
+                        NOW));
     }
 
     @Test
-    @DisplayName("수락된 작업을 새 기사에게 넘기면 수락 이력은 두고 새 기사에게 다시 수락받는다")
+    @DisplayName("수락된 작업을 새 기사에게 넘기면 수락 이력은 두고 새 기사에게 다시 수락받으며, 수락 뒤 재배정 하나를 발행한다")
     void reassignsAcceptedWork() {
         fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.ACCEPTED);
@@ -87,11 +99,21 @@ class ReassignWorkServiceTest {
         service.reassign(command(id.value(), OTHER_TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
 
         Work saved = fixture.singleSaved();
-        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPTANCE);
+        assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.assignmentHistory())
                 .extracting(AssignmentHistory::result)
                 .containsExactly(AssignmentResult.ACCEPTED, AssignmentResult.PENDING);
         assertThat(saved.assignmentHistory().getFirst().decidedAt()).contains(ACCEPTED_AT);
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkReassigned(
+                        id.value(),
+                        ORGANIZATION_ID.value(),
+                        TECHNICIAN_ID.value(),
+                        OTHER_TECHNICIAN_ID.value(),
+                        true,
+                        "대상 작업",
+                        TEN,
+                        NOW));
     }
 
     @Test
@@ -99,9 +121,9 @@ class ReassignWorkServiceTest {
     void checksConflictsOfNewTechnician() {
         fixture.givenManager(ActorRole.OWNER);
         WorkId newTechnicianWork =
-                fixture.givenWork(ORGANIZATION_ID, "새 기사 작업", WorkStatus.PENDING_ACCEPTANCE, OTHER_TECHNICIAN_ID, TEN);
-        fixture.givenWork(ORGANIZATION_ID, "현재 기사의 다른 작업", WorkStatus.PENDING_ACCEPTANCE, TECHNICIAN_ID, TEN);
-        WorkId target = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+                fixture.givenWork(ORGANIZATION_ID, "새 기사 작업", WorkStatus.PENDING_ACCEPT, OTHER_TECHNICIAN_ID, TEN);
+        fixture.givenWork(ORGANIZATION_ID, "현재 기사의 다른 작업", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, TEN);
+        WorkId target = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         ScheduleChangeInfo withheld =
                 service.reassign(command(target.value(), OTHER_TECHNICIAN_ID.value(), TEN, TWO_HOURS, false));
@@ -109,6 +131,7 @@ class ReassignWorkServiceTest {
         assertThat(withheld.applied()).isFalse();
         assertThat(withheld.conflicts()).extracting(ConflictingWork::workId).containsExactly(newTechnicianWork.value());
         assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.events.published()).isEmpty();
         assertThat(fixture.stored(target).schedule().orElseThrow().technicianId())
                 .isEqualTo(TECHNICIAN_ID);
 
@@ -125,7 +148,7 @@ class ReassignWorkServiceTest {
     @DisplayName("현재 담당기사에게 다시 넘기면 입력 오류와 구분되는 같은 기사 오류다")
     void rejectsSameTechnician() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         fixture.assertRejected(
                 () -> service.reassign(command(id.value(), TECHNICIAN_ID.value(), TEN, TWO_HOURS, false)),
@@ -135,7 +158,7 @@ class ReassignWorkServiceTest {
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
-            names = {"REGISTERED", "IN_PROGRESS", "COMPLETED", "CANCELLED"})
+            names = {"REGISTERED", "IN_PROGRESS", "COMPLETED", "CANCELED"})
     @DisplayName("수락대기·수락됨이 아니면 현재 기사로 넘기더라도 같은 기사 오류보다 먼저 상태 오류다")
     void rejectsUnchangeableStatus(WorkStatus status) {
         fixture.givenManager(ActorRole.OWNER);
@@ -164,7 +187,7 @@ class ReassignWorkServiceTest {
     @DisplayName("새 기사 식별자·시작시각·소요시간이 잘못되면 입력 오류다")
     void rejectsInvalidScheduleInput() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
 
         fixture.assertRejected(
                 () -> service.reassign(command(id.value(), 0L, TEN, TWO_HOURS, false)),
@@ -196,7 +219,7 @@ class ReassignWorkServiceTest {
     @DisplayName("새 기사의 앞선 변경을 기다리다 잠금에 실패하면 변경 중 오류다")
     void reportsBusyTechnician() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
         fixture.scheduleLock.failWith(new TechnicianScheduleBusyException(null));
 
         fixture.assertRejected(
@@ -208,7 +231,7 @@ class ReassignWorkServiceTest {
     @DisplayName("새 기사가 요청 조직의 활성 기사 계약이 아니면 그 기사를 잠근 뒤 일정을 읽거나 저장하지 않고 배정할 수 없는 기사 오류다")
     void rejectsTechnicianWithoutActiveContract() {
         fixture.givenManager(ActorRole.OWNER);
-        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
         TechnicianId otherOrganizationTechnician = new TechnicianId(5L);
         fixture.technicianContracts.givenActive(OTHER_ORGANIZATION_ID, otherOrganizationTechnician);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
@@ -233,7 +256,7 @@ class ReassignWorkServiceTest {
         fixture.givenManager(ActorRole.OWNER);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, TECHNICIAN_ID);
         fixture.technicianContracts.givenInactive(ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
-        WorkId pending = fixture.givenWork(WorkStatus.PENDING_ACCEPTANCE);
+        WorkId pending = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
         WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
 
         fixture.assertRejected(

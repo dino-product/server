@@ -28,14 +28,12 @@ import com.orbit.schedule.domain.WorkStatus;
  * 있어 낙관적 잠금 실패는 작업의 것뿐이다. 메서드마다 트랜잭션을 두어 서비스 트랜잭션이 있으면 참여하고, 없으면 (테스트 준비 등)
  * 자체 트랜잭션에서 자식 컬렉션 지연 로딩과 갱신을 마친다. 서비스 트랜잭션 밖에서 읽은 뒤 다시 저장하면 마지막 요청이 이기므로, 화면이 본 버전과의 비교는
  * 서비스가 {@code Work#requireVersion}으로 한다.
- *
- * <p>상태 정정 기록({@code StatusCorrection})은 ERD에 자리가 없어 저장하지 못한다. 정정 기록이 있는 작업은 복원 검증이 깨지므로 저장을 거부한다(S-11).
  */
 @Repository
 class WorkPersistenceAdapter implements WorkRepository {
 
     private static final Set<WorkStatus> ACTIVE_STATUSES =
-            EnumSet.of(WorkStatus.PENDING_ACCEPTANCE, WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS);
+            EnumSet.of(WorkStatus.PENDING_ACCEPT, WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS);
 
     private final SpringDataWorkRepository repository;
 
@@ -47,10 +45,6 @@ class WorkPersistenceAdapter implements WorkRepository {
     @Transactional
     public Work save(Work work) {
         Objects.requireNonNull(work, "work must not be null");
-        if (!work.statusCorrections().isEmpty()) {
-            throw new IllegalStateException(
-                    "status corrections cannot be persisted: the ERD has no table for them (S-11)");
-        }
         if (work.id().isEmpty()) {
             return WorkMapper.toDomain(repository.save(WorkMapper.toEntity(work)));
         }

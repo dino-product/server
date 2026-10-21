@@ -15,7 +15,6 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,7 +41,6 @@ import tools.jackson.databind.ObjectMapper;
  * schedule HTTP API 통합 테스트의 공용 준비물. 발주사는 API로 만들고(생성자가 총관리자), 다른 직원 소속·기사 계약은 참여 승인 기능이 아직 없어 테이블에 직접
  * 넣는다. 다른 API를 검증할 작업은 원하는 상태로 바로 맞추려고 저장소로 준비한다. 계정 식별자는 테스트 클래스 사이에서도 겹치지 않게 하나의 카운터로 만든다.
  */
-@AutoConfigureMockMvc
 abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
 
     private static final AtomicLong ACCOUNT_IDS = new AtomicLong(70_000);
