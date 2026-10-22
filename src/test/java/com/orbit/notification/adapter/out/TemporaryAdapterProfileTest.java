@@ -10,7 +10,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
-import com.orbit.notification.application.port.out.PushNotificationPort;
+import com.orbit.notification.application.port.out.PushSender;
 
 @DisplayName("notification 임시 출력 어댑터 등록 프로필")
 class TemporaryAdapterProfileTest {
@@ -24,7 +24,7 @@ class TemporaryAdapterProfileTest {
     @DisplayName("로컬·테스트·개발 서버 프로필에서만 등록한다")
     void registersOnlyInLocalTestAndDev(String profile) {
         runner.withPropertyValues("spring.profiles.active=" + profile)
-                .run(context -> assertThat(context).hasSingleBean(PushNotificationPort.class));
+                .run(context -> assertThat(context).hasSingleBean(PushSender.class));
     }
 
     @ParameterizedTest
@@ -32,7 +32,7 @@ class TemporaryAdapterProfileTest {
     @DisplayName("운영과 이름 없는·그 밖의 환경에서는 등록하지 않는다")
     void doesNotRegisterElsewhere(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles)
-                .run(context -> assertThat(context).doesNotHaveBean(PushNotificationPort.class));
+                .run(context -> assertThat(context).doesNotHaveBean(PushSender.class));
     }
 
     @Configuration(proxyBeanMethods = false)

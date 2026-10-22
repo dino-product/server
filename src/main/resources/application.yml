@@ -54,6 +54,11 @@ spring:
         schema-initialization:
           # 운영 스키마는 자동으로 만들지 않는다. local·test 프로필만 켠다.
           enabled: false
+  task:
+    scheduling:
+      pool:
+        # 주기 작업(발신 대기열 처리, 실패 발행 재전송, 멈춘 발행 검사)이 서로를 기다리지 않게 한다.
+        size: 4
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -150,6 +155,16 @@ app:
   schedule:
     technician-lock:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
+  notification:
+    push-delivery:
+      # 기사 앱 푸시 발신 대기열을 확인하는 주기와 한 번에 집는 건수. 보내는 중인 채로 in-flight-timeout이 지난 발신(인스턴스 중단 등)은 다시 집는다.
+      # 다시 보낼 실패는 횟수 제한 없이 initial-backoff부터 실패마다 두 배, max-backoff까지 기다렸다 다시 보낸다.
+      enabled: true
+      interval: PT5S
+      batch-size: 100
+      in-flight-timeout: PT5M
+      initial-backoff: PT30S
+      max-backoff: PT30M
   events:
     resubmission:
       # 실패한 이벤트 발행을 확인하는 주기. 처리될 때까지 횟수 제한 없이 다시 보내며, 실패한 시도마다 다음 재전송까지 기다리는 시간을 두 배로 늘린다.

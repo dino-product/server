@@ -1,8 +1,8 @@
-# ADR-004: 이벤트 발행 기록과 실패 발행 재전송
+# ADR-004: 이벤트 발행 기록과 알림 발신 보장
 
 - 상태: Accepted
 - 기준일: 2026-10-15
-- 범위: 모듈 간 이벤트의 발행 기록·완료 보관·실패 재전송·멈춘 발행 처리와, 그 때문에 생기는 리스너·이벤트 계약 규칙, 메시지 브로커를 두지 않는 이유와 도입 기준. 실행 규칙은 [트랜잭션 이벤트](../../.claude/skills/dino-architecture/references/persistence.md#events)가 소유합니다. 알림 생성·발신 대기열은 범위 밖입니다.
+- 범위: 모듈 간 이벤트의 발행 기록·완료 보관·실패 재전송·멈춘 발행 처리와, 그 때문에 생기는 리스너·이벤트 계약 규칙, 메시지 브로커를 두지 않는 이유와 도입 기준, 기사 앱 푸시 발신 대기열. 실행 규칙은 [트랜잭션 이벤트](../../.claude/skills/dino-architecture/references/persistence.md#events)가 소유합니다. 알림을 누구에게 어떤 문구로 만들지와 푸시 제공자 선택은 범위 밖입니다([notification 문서](../domain/notification.md#notification-implementation)).
 
 ## 배경과 목적
 
@@ -20,6 +20,16 @@
 - **멈춤 검사 로거(`DefaultEventPublicationRegistry`)는 WARN으로 올립니다.** 멈춘 발행이 없어도 상태마다 INFO를 남겨 인스턴스마다 1분에 3줄이 쌓이기 때문입니다. 리스너 실패는 비동기 실행기가 ERROR로 남겨 그대로 보입니다. 같은 로거의 재전송 중 오류(INFO)는 함께 가려지지만, 그런 발행은 FAILED로 남아 `event_publication`에서 조회됩니다.
 - **이벤트 record는 기록 행의 계약입니다.** 기록 행은 이벤트 타입 이름과 JSON 원문을 저장하므로 이벤트에는 식별자·상태·시각만 담고 이름·연락처 같은 개인정보는 넣지 않습니다. Modulith 2.1.1에서 이벤트 타입의 이름·패키지를 바꾸면 남은 행은 타입을 찾지 못해 재전송에서 빠진 채 기록 테이블에 남고 읽을 때마다 WARN 로그가 납니다. 필드 구조를 바꿔 역직렬화가 실패하면 그 발행만 30분 간격으로 계속 다시 보내져 실패하고 다른 발행의 재전송은 막지 않습니다. 그래서 바꾸기 전에 미완료 발행을 확인하거나 이전 타입을 남깁니다.
 - **스케줄링은 `shared.internal.config.SchedulingConfig`가 직접 켭니다.** 지금은 spring-modulith-moments 자동 설정이 `@EnableScheduling`을 대신 켜고 있어서, 그 의존성이 빠지면 재전송과 멈춤 검사가 조용히 멈춥니다.
+
+## 기사 앱 푸시 발신 대기열
+
+이벤트 발행 기록은 "이벤트 → 알림 생성"까지 보장합니다. "알림 → 기사 앱 푸시"는 외부 제공자 호출이라 실패·중단이 잦고 오래 걸릴 수 있어 같은 PostgreSQL의 발신 대기열(`notification_deliveries`, `notification` 모듈)로 따로 보장합니다.
+
+- **알림을 저장하는 트랜잭션에 발신 대기를 함께 넣고 주기 작업이 보냅니다.** 알림 서비스가 부르는 푸시 포트(`PushNotificationPort`)의 구현이 그 자리에서 보내지 않고 대기열에 넣으므로, 커밋되면 알림과 발신 대기가 함께 남고 롤백되면 함께 사라집니다. 리스너에서 바로 푸시를 부르는 안은 발신이 실패하거나 도중에 멈추면 다시 보낼 수 없고, 외부 호출 시간이 이벤트 처리를 붙잡아 택하지 않았습니다. 대상은 기사 앱 푸시뿐이며 총관리자·직원 알림은 웹 인앱(알림센터)이라 넣지 않습니다.
+- **집기·발신·결과 저장을 나눕니다**(`app.notification.push-delivery.*`, 기본 5초마다 100건). 보낼 때가 된 행을 `FOR UPDATE SKIP LOCKED`로 집어 발신 중으로 표시하고 커밋한 뒤, 트랜잭션 밖에서 실제 발신 포트(`PushSender`)로 보내고, 결과를 새 트랜잭션으로 저장합니다. 여러 인스턴스가 함께 돌아도 같은 행을 동시에 집지 않고, 외부 호출이 DB 연결을 붙잡지 않습니다. 보내기 직전에 알림을 다시 읽어, 기다리는 동안 거절로 숨겨진 알림은 보내지 않습니다.
+- **발신 중에 멈춘 행은 점유가 만료되면(기본 5분) 다시 집습니다.** 결과를 저장하기 전에 인스턴스가 멈추면 같은 푸시가 드물게 두 번 갈 수 있고, 이를 받아들입니다. 결과 저장은 집은 시점의 시도 횟수와 비교해, 점유가 만료돼 다른 인스턴스가 다시 집은 뒤 늦게 도착한 결과를 버립니다.
+- **다시 보낼 실패는 횟수 제한 없이 재시도합니다.** 30초에서 시작해 실패마다 두 배, 최대 30분 간격이며, 실패한 발신들이 한꺼번에 몰리지 않도록 계산한 시간의 80~100%에서 고릅니다. 제공자 인증·설정 오류도 고치면 성공하므로 다시 보낼 실패입니다. 끝내는 것은 받을 기기가 없을 때(SKIPPED, 알림센터의 알림은 남음, [알림] 정책 §5)와 요청 형식 오류처럼 다시 보내도 성공할 수 없을 때(FAILED)뿐입니다. 푸시 실패 처리는 기획 범위 밖의 기술 결정입니다([알림] 정책 NTF-002). 감시 지표는 두지 않고 행의 상태·시도 횟수·마지막 오류로 조회합니다.
+- **푸시 제공자는 아직 없습니다.** `PushSender`의 구현은 보내지 않고 기록만 하는 임시 어댑터(`local`·`test`·`dev`)뿐이라, 그 밖의 프로필은 Bean 부재로 기동하지 않습니다.
 
 ## 메시지 브로커를 두지 않는 이유
 
@@ -40,8 +50,8 @@
 
 ## 영향과 검증
 
-- **운영 스키마:** `prod`는 기록 테이블을 자동으로 만들지 않습니다(`spring.modulith.events.jdbc.schema-initialization.enabled: false`, `local`·`test`만 켬). 배포 전에 spring-modulith-events-jdbc jar 안의 `org/springframework/modulith/events/jdbc/schemas/v2/schema-postgresql.sql`과 `schema-postgresql-archive.sql`을 운영 DB에 적용합니다. 테이블이 없으면 모듈 리스너로 가는 이벤트를 발행하는 업무 트랜잭션이 실패할 것으로 봅니다(운영 DB로 확인하지 않음). Modulith 버전을 올릴 때는 스키마 버전이 바뀌었는지 확인합니다.
+- **운영 스키마:** `notification_deliveries`는 팀 ERD에 없어 Entity 기준으로 ERD와 운영 스키마에 추가해야 합니다. `prod`는 기록 테이블을 자동으로 만들지 않습니다(`spring.modulith.events.jdbc.schema-initialization.enabled: false`, `local`·`test`만 켬). 배포 전에 spring-modulith-events-jdbc jar 안의 `org/springframework/modulith/events/jdbc/schemas/v2/schema-postgresql.sql`과 `schema-postgresql-archive.sql`을 운영 DB에 적용합니다. 테이블이 없으면 모듈 리스너로 가는 이벤트를 발행하는 업무 트랜잭션이 실패할 것으로 봅니다(운영 DB로 확인하지 않음). Modulith 버전을 올릴 때는 스키마 버전이 바뀌었는지 확인합니다.
 - **수동 처리:** 계속 실패하는 발행은 원인을 고치면 대기 시간 상한(30분) 안에 다음 재전송으로 처리됩니다. 타입을 찾지 못해 남은 행은 이전 타입을 되살려 배포하거나 내용을 확인한 뒤 지웁니다.
 - **커밋 후 리스너 전체:** Modulith는 기록 대상과 무관하게 모든 커밋 후 리스너(`@TransactionalEventListener`)를 감싸 실행 전에 별도 트랜잭션으로 발행 상태를 갱신하려 합니다. 기록하지 않는 리스너도 DB 연결을 쓰고, 그 갱신이 실패하면 리스너가 돌지 않습니다.
-- **검증:** `EventPublicationRegistryIntegrationTest`(Testcontainers PostgreSQL)가 기록·보관·롤백·실패·재전송·대기 시간 증가·횟수 제한 없음·멈춘 발행을, `EventResubmissionPropertiesTest`가 대기 시간 계산과 설정 검사를, `FailedEventPublicationResubmitSchedulerTest`가 주기 작업의 예약 실행을, `ApplicationProfileConfigurationTest`가 프로필별 스키마 초기화·재전송 활성화·로그 수준을 확인합니다. 여러 인스턴스 동시 실행과 운영 스키마 적용은 실행으로 확인하지 않았습니다.
-- **남은 일:** 같은 이벤트를 두 번 받았을 때 알림이 중복되지 않게 하는 소비 측 멱등 키(HM-277, DG-04)와 기사 앱 푸시 발신 대기열(HM-278 후속 PR)은 알림 구현에서 다룹니다.
+- **검증:** `EventPublicationRegistryIntegrationTest`(Testcontainers PostgreSQL)가 기록·보관·롤백·실패·재전송·대기 시간 증가·횟수 제한 없음·멈춘 발행을, `EventResubmissionPropertiesTest`가 대기 시간 계산과 설정 검사를, `FailedEventPublicationResubmitSchedulerTest`가 주기 작업의 예약 실행을, `ApplicationProfileConfigurationTest`가 프로필별 스키마 초기화·재전송과 발신 대기열 처리의 활성화·로그 수준을 확인합니다. 발신 대기열은 `PushDeliveryDispatchIntegrationTest`(두 디스패처 동시 실행에서 1회 발신, 횟수 제한 없는 재시도, 점유 만료 회수, 건너뜀·실패, 숨긴 알림), `NotificationDeliveryPersistenceAdapterTest`(알림 저장 트랜잭션 참여, 동시 집기, 점유 만료, 늦은 결과 버림), `DispatchPushDeliveriesServiceTest`, `NotificationDeliveryTest`, `RetryBackoffTest`가 확인합니다. 여러 인스턴스 프로세스의 동시 실행과 운영 스키마 적용은 실행으로 확인하지 않았습니다.
+- **남은 일:** 같은 이벤트를 두 번 받았을 때 알림이 중복되지 않게 하는 소비 측 멱등 처리(DG-04)와 실제 푸시 제공자 어댑터(notification 문서 N-21)는 알림 구현에서 다룹니다.
