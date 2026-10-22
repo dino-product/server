@@ -2,6 +2,8 @@ package com.orbit.organization.adapter.in.web.docs;
 
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.organization.adapter.in.web.MemberCategoryAssignmentRequest;
+import com.orbit.organization.adapter.in.web.ParticipantRoleChangeRequest;
+import com.orbit.organization.adapter.in.web.ParticipantRoleChangeResponse;
 import com.orbit.organization.adapter.in.web.ParticipantsResponse;
 import com.orbit.organization.application.error.OrganizationErrorCode;
 import com.orbit.organization.domain.ParticipationType;
@@ -29,6 +31,10 @@ public interface ParticipantControllerDocs {
     String ASSIGN = "세부 유형을 지정하거나 categoryId를 비워 \"유형 없음\"으로 바꿉니다. 같은 유형을 다시 지정해도 성공합니다. "
             + "유형이 없거나 삭제됐거나 다른 발주사의 유형이면 ORGANIZATION-008, 대상이 비활성이면 ORGANIZATION-021입니다. " + BUSY + " "
             + OWNER_ONLY;
+
+    String ROLE_CHANGE = "역할을 바꾸면 지금 행은 비활성으로 끝나고, 바뀐 역할의 행이 없으면 참여일을 이어받아 새로 생기며 있으면 다시 활성이 됩니다"
+            + "(기사 계약은 같은 식별자로 돌아와 배정·작업 이력이 이어짐). 바뀐 역할의 세부 유형은 categoryId로 고르고, 비우면 \"유형 없음\"입니다. "
+            + "유형이 없거나 삭제됐거나 다른 발주사·다른 종류의 유형이면 ORGANIZATION-008, 대상이 비활성이면 ORGANIZATION-026입니다. ";
 
     @Operation(
             summary = "참여 인원 목록 조회",
@@ -211,4 +217,83 @@ public interface ParticipantControllerDocs {
             @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
             @Parameter(description = "기사 계약 식별자(참여 인원 목록의 memberId)", example = "5", required = true)
                     Long technicianId);
+
+    @Operation(
+            summary = "직원을 기사로 역할 변경",
+            description = "직원 소속을 기사로 바꿉니다. 총관리자 소속(요청자 자신 포함)은 바꿀 수 없어 ORGANIZATION-025입니다. 그 직원이 등록한 작업 중 "
+                    + "끝나지 않은 작업(대기함·배정됨·작업전·작업중)이 있으면 ORGANIZATION-028입니다. 확인 창에 보일 그 작업은 작업 목록 API를 "
+                    + "registrarId·statuses로 조회합니다. "
+                    + ROLE_CHANGE
+                    + STAFF_TARGET
+                    + BUSY
+                    + " "
+                    + OWNER_ONLY,
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "역할 변경 성공",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ParticipantRoleChangeResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED"})
+    @ApiErrorCodes(
+            enumClass = OrganizationErrorCode.class,
+            includes = {
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "MEMBERSHIP_NOT_FOUND",
+                "OWNER_ROLE_LOCKED",
+                "INACTIVE_MEMBER_ROLE",
+                "CATEGORY_NOT_FOUND",
+                "STAFF_HAS_UNFINISHED_WORKS",
+                "ORGANIZATION_BUSY"
+            })
+    ParticipantRoleChangeResponse changeStaffToTechnician(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
+            @Parameter(description = "직원 소속 식별자(참여 인원 목록의 memberId)", example = "3", required = true) Long membershipId,
+            ParticipantRoleChangeRequest request);
+
+    @Operation(
+            summary = "기사를 직원으로 역할 변경",
+            description = "기사 계약을 직원으로 바꿉니다. 작업중 작업이 있으면 아무것도 바꾸지 않고 ORGANIZATION-027입니다. 배정됨·작업전 작업은 같은 "
+                    + "요청에서 담당기사·시간을 비워 대기함으로 돌리고 그 작업 식별자를 releasedWorkIds로 돌려줍니다. 확인 창에 보일 작업은 작업 목록 "
+                    + "API를 technicianId·statuses로 조회합니다. 같은 기사의 일정 변경이나 수락·거절·시작 요청을 기다리다 대기 한도를 넘기면 "
+                    + "ORGANIZATION-024입니다. "
+                    + ROLE_CHANGE
+                    + TECHNICIAN_TARGET
+                    + BUSY
+                    + " "
+                    + OWNER_ONLY,
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "역할 변경 성공",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ParticipantRoleChangeResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED"})
+    @ApiErrorCodes(
+            enumClass = OrganizationErrorCode.class,
+            includes = {
+                "NOT_ORGANIZATION_MEMBER",
+                "OWNER_ONLY",
+                "TECHNICIAN_NOT_FOUND",
+                "INACTIVE_MEMBER_ROLE",
+                "CATEGORY_NOT_FOUND",
+                "TECHNICIAN_WORK_IN_PROGRESS",
+                "ORGANIZATION_BUSY",
+                "TECHNICIAN_SCHEDULE_BUSY"
+            })
+    ParticipantRoleChangeResponse changeTechnicianToStaff(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "발주사 식별자", example = "1", required = true) Long organizationId,
+            @Parameter(description = "기사 계약 식별자(참여 인원 목록의 memberId)", example = "5", required = true) Long technicianId,
+            ParticipantRoleChangeRequest request);
 }

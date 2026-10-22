@@ -66,6 +66,10 @@ class OrganizationModuleTest implements SharedContainers {
     @MockitoBean
     private TechnicianWorkRelease technicianWorkRelease;
 
+    /** 직원→기사 역할 변경의 등록 작업 확인 요구 인터페이스. 구현은 schedule이 맡으므로 임시 구현이 지워져도 모듈 단독 실행이 깨지지 않게 대체한다. */
+    @MockitoBean
+    private StaffRegisteredWorks staffRegisteredWorks;
+
     @Test
     void createsOrganizationWithinStandaloneModule() {
         CreatedOrganizationInfo created =
