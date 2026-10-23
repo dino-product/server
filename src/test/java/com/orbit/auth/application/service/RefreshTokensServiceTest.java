@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,9 +28,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.in.command.dto.RefreshTokensCommand;
 import com.orbit.auth.application.port.in.command.dto.RefreshedTokensInfo;
+import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.RefreshSessionRepository;
 import com.orbit.auth.application.port.out.RefreshTokenSecretPort;
+import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountId;
+import com.orbit.auth.domain.ExternalIdentity;
+import com.orbit.auth.domain.OAuthProvider;
 import com.orbit.auth.domain.RefreshSession;
 import com.orbit.auth.domain.RefreshSessionId;
 import com.orbit.auth.domain.RefreshTokenHash;
@@ -52,6 +57,9 @@ class RefreshTokensServiceTest {
     private RefreshSessionRepository sessions;
 
     @Mock
+    private AccountRepository accounts;
+
+    @Mock
     private RefreshTokenSecretPort secrets;
 
     @Mock
@@ -61,7 +69,7 @@ class RefreshTokensServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RefreshTokensService(sessions, secrets, tokens, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new RefreshTokensService(sessions, accounts, secrets, tokens, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -146,6 +154,19 @@ class RefreshTokensServiceTest {
     }
 
     @Test
+    @DisplayName("닫힌 계정의 세션이면 지우고 거절한다")
+    void revokesSessionOfClosedAccount() {
+        when(sessions.findByIdForUpdate(SESSION_ID)).thenReturn(Optional.of(startedSession()));
+        when(accounts.findById(ACCOUNT_ID))
+                .thenReturn(Optional.of(Account.reconstituteClosed(ACCOUNT_ID, STARTED_AT, NOW.minusSeconds(1))));
+
+        assertRejected(() -> service.refresh(command(FIRST)));
+
+        verify(sessions).delete(SESSION_ID);
+        verify(tokens, never()).issue(any(), any());
+    }
+
+    @Test
     @DisplayName("저장된 세션이 없으면 거절한다")
     void rejectsUnknownSession() {
         when(sessions.findByIdForUpdate(SESSION_ID)).thenReturn(Optional.empty());
@@ -176,6 +197,9 @@ class RefreshTokensServiceTest {
 
     private void givenSession(RefreshSession session) {
         when(sessions.findByIdForUpdate(SESSION_ID)).thenReturn(Optional.of(session));
+        when(accounts.findById(ACCOUNT_ID))
+                .thenReturn(Optional.of(Account.reconstitute(
+                        ACCOUNT_ID, List.of(new ExternalIdentity(OAuthProvider.KAKAO, "1234567890")), STARTED_AT)));
     }
 
     private static RefreshSession startedSession() {
