@@ -76,10 +76,10 @@ public class RefreshTokensService implements RefreshTokensUseCase {
             }
             case STALE -> throw rejected();
             case REUSED -> {
+                // 세션 식별자를 알면 그 세션을 끊을 수 있으므로 로그에는 계정만 남긴다.
                 log.warn(
-                        "Refresh token reuse detected; session revoked: accountId={}, sessionId={}",
-                        session.accountId().value(),
-                        session.id().value());
+                        "Refresh token reuse detected; session revoked: accountId={}",
+                        session.accountId().value());
                 sessions.delete(session.id());
                 throw rejected();
             }

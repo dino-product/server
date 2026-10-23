@@ -1,6 +1,7 @@
 package com.orbit.auth.application.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -12,6 +13,7 @@ import java.time.ZoneOffset;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -66,6 +68,16 @@ class LogoutServiceTest {
 
         verify(revokedTokens).revoke("jti", Duration.ofMinutes(40));
         verify(sessions, never()).deleteOwnedBy(any(), any());
+    }
+
+    @Test
+    @DisplayName("기기 세션을 먼저 지우고 Access Token 폐기는 마지막에 기록한다")
+    void deletesSessionBeforeRevokingToken() {
+        service().logout(new LogoutCommand(7L, "jti", NOW.plus(Duration.ofMinutes(40)), SESSION_ID));
+
+        InOrder order = inOrder(sessions, revokedTokens);
+        order.verify(sessions).deleteOwnedBy(new RefreshSessionId(SESSION_ID), new AccountId(7L));
+        order.verify(revokedTokens).revoke("jti", Duration.ofMinutes(40));
     }
 
     private LogoutService service() {
