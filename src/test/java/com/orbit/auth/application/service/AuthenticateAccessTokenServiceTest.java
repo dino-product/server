@@ -53,7 +53,8 @@ class AuthenticateAccessTokenServiceTest {
         when(revokedTokens.isRevoked("jti")).thenReturn(false);
         when(closedAccounts.isClosed(new AccountId(7L))).thenReturn(false);
 
-        assertThat(service.authenticate(QUERY)).contains(new AccessTokenInfo(7L, "jti", NOW.plus(Duration.ofHours(1))));
+        assertThat(service.authenticate(QUERY))
+                .contains(new AccessTokenInfo(7L, "jti", NOW.plus(Duration.ofHours(1)), null));
     }
 
     @Test

@@ -120,6 +120,20 @@ class RefreshTokenApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
+    @DisplayName("로그아웃하면 그 기기의 refresh token만 끝나고 같은 계정의 다른 기기 세션은 재발급된다")
+    void logoutEndsOnlyThatDeviceSession() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        JsonNode phone = login(subject);
+        JsonNode tablet = login(subject);
+
+        mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(phone)))
+                .andExpect(status().isNoContent());
+
+        assertRejected(refresh(refreshToken(phone)));
+        refresh(refreshToken(tablet)).andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("미사용 수명이 지난 refresh token은 거절하고 세션을 지운다")
     void rejectsExpiredSession() throws Exception {
         String first = refreshToken(login());
@@ -190,6 +204,10 @@ class RefreshTokenApiIntegrationTest extends AuthApiTestSupport {
     }
 
     private JsonNode login() throws Exception {
+        return login(UUID.randomUUID().toString());
+    }
+
+    private JsonNode login(String subject) throws Exception {
         String nonce = objectMapper
                 .readTree(mockMvc.perform(post("/api/v1/auth/kakao/nonces"))
                         .andExpect(status().isOk())

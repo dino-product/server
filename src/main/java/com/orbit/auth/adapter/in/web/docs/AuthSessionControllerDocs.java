@@ -39,7 +39,8 @@ public interface AuthSessionControllerDocs {
 
     @Operation(
             summary = "로그아웃",
-            description = "현재 Access Token을 만료까지 폐기합니다. 이후 같은 토큰으로 보호 자원에 접근하면 자원이 없는 것과 같은 404를 돌려줍니다.",
+            description = "현재 Access Token을 만료까지 폐기하고 이 기기의 refresh token을 끝냅니다. 이후 같은 토큰으로 보호 자원에 접근하면 자원이 없는 것과"
+                    + " 같은 404를, 이 기기의 refresh token으로 재발급하면 AUTH-009를 돌려줍니다. 같은 계정의 다른 기기 로그인은 유지됩니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "로그아웃 성공")
     @ApiErrorCodes(

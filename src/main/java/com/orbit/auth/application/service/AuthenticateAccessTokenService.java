@@ -32,6 +32,10 @@ public class AuthenticateAccessTokenService implements AuthenticateAccessTokenUs
                 .parse(query.accessToken())
                 .filter(token -> !revokedTokens.isRevoked(token.tokenId()))
                 .filter(token -> !closedAccounts.isClosed(token.accountId()))
-                .map(token -> new AccessTokenInfo(token.accountId().value(), token.tokenId(), token.expiresAt()));
+                .map(token -> new AccessTokenInfo(
+                        token.accountId().value(),
+                        token.tokenId(),
+                        token.expiresAt(),
+                        token.sessionId() == null ? null : token.sessionId().value()));
     }
 }

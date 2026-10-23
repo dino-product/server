@@ -48,7 +48,8 @@ public class AuthSessionController implements AuthSessionControllerDocs {
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(@AuthenticationPrincipal AuthenticatedAccount account) {
-        logoutUseCase.logout(new LogoutCommand(account.tokenId(), account.tokenExpiresAt()));
+        logoutUseCase.logout(new LogoutCommand(
+                account.accountId(), account.tokenId(), account.tokenExpiresAt(), account.sessionId()));
     }
 
     @Override

@@ -76,7 +76,10 @@ class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         AccessTokenAuthentication authentication = new AccessTokenAuthentication(new AuthenticatedAccount(
-                info.get().accountId(), info.get().tokenId(), info.get().expiresAt()));
+                info.get().accountId(),
+                info.get().tokenId(),
+                info.get().expiresAt(),
+                info.get().sessionId()));
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(authentication);
         chain.doFilter(request, response);
