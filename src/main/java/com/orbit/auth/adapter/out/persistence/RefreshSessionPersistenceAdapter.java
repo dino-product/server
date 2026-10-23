@@ -11,6 +11,7 @@ import com.orbit.auth.application.port.out.RefreshSessionRepository;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.RefreshSession;
 import com.orbit.auth.domain.RefreshSessionId;
+import com.orbit.auth.domain.RefreshTokenHash;
 
 @Repository
 class RefreshSessionPersistenceAdapter implements RefreshSessionRepository {
@@ -60,6 +61,12 @@ class RefreshSessionPersistenceAdapter implements RefreshSessionRepository {
     @Transactional
     public void deleteOwnedBy(RefreshSessionId id, AccountId accountId) {
         repository.deleteSessionOfAccount(id.value(), accountId.value());
+    }
+
+    @Override
+    @Transactional
+    public void deleteByToken(RefreshSessionId id, RefreshTokenHash tokenHash) {
+        repository.deleteSessionWithToken(id.value(), tokenHash.value());
     }
 
     @Override

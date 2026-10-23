@@ -213,7 +213,9 @@ class AuthApiIntegrationTest extends AuthApiTestSupport {
                 .andExpect(status().isNoContent());
 
         assertNotFoundLikeMissingResource(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, token));
-        assertNotFoundLikeMissingResource(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, token));
+        // 로그아웃은 만료·폐기 토큰으로도 refresh token을 끝낼 수 있게 404로 막지 않고, 끝낼 것이 없으면 그대로 204다.
+        mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isNoContent());
     }
 
     @Test

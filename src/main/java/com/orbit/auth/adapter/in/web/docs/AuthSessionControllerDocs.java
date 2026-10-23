@@ -1,6 +1,7 @@
 package com.orbit.auth.adapter.in.web.docs;
 
 import com.orbit.auth.adapter.in.web.AuthenticatedAccountResponse;
+import com.orbit.auth.adapter.in.web.LogoutRequest;
 import com.orbit.auth.adapter.in.web.RefreshTokensRequest;
 import com.orbit.auth.adapter.in.web.RefreshedTokensResponse;
 import com.orbit.auth.adapter.in.web.security.AuthenticatedAccount;
@@ -39,14 +40,13 @@ public interface AuthSessionControllerDocs {
 
     @Operation(
             summary = "로그아웃",
-            description = "현재 Access Token을 만료까지 폐기하고 이 기기의 refresh token을 끝냅니다. 이후 같은 토큰으로 보호 자원에 접근하면 자원이 없는 것과"
-                    + " 같은 404를, 이 기기의 refresh token으로 재발급하면 AUTH-009를 돌려줍니다. 같은 계정의 다른 기기 로그인은 유지됩니다.",
-            security = @SecurityRequirement(name = "Bearer Authentication"))
-    @ApiResponse(responseCode = "204", description = "로그아웃 성공")
-    @ApiErrorCodes(
-            enumClass = CommonErrorCode.class,
-            includes = {"UNAUTHORIZED", "NOT_FOUND"})
-    void logout(@Parameter(hidden = true) AuthenticatedAccount account);
+            description = "이 기기의 로그인을 끝냅니다. Bearer 헤더의 Access Token이 유효하면 만료까지 폐기하고 그 토큰을 발급한 기기 세션을 끝냅니다."
+                    + " 본문의 refresh token이 맞으면 그 세션을 끝내므로 Access Token이 만료된 기기도 로그아웃할 수 있습니다. 둘 다 보내기를 권합니다."
+                    + " 이후 같은 Access Token으로 보호 자원에 접근하면 자원이 없는 것과 같은 404를, 이 기기의 refresh token으로 재발급하면"
+                    + " AUTH-009를 돌려줍니다. 같은 계정의 다른 기기 로그인은 유지됩니다. 끝낼 것이 없어도 204입니다. 이 경로는 무효한 Access Token에"
+                    + " 404를 돌려주지 않습니다.")
+    @ApiResponse(responseCode = "204", description = "로그아웃 성공(끝낼 것이 없어도 같음)")
+    void logout(@Parameter(hidden = true) AuthenticatedAccount account, LogoutRequest request);
 
     @Operation(
             summary = "토큰 재발급",

@@ -133,6 +133,37 @@ class AccessTokenAuthenticationFilterTest {
     }
 
     @Test
+    @DisplayName("로그아웃 경로는 무효 토큰이어도 404로 끝내지 않고 인증 없이 넘긴다")
+    void passesLogoutWithInvalidTokenAnonymously() throws Exception {
+        when(useCase.authenticate(new AuthenticateAccessTokenQuery("expired"))).thenReturn(Optional.empty());
+        MockFilterChain chain = new MockFilterChain();
+        MockHttpServletRequest request = request("Bearer expired");
+        request.setRequestURI("/api/v1/auth/logout");
+        request.setMethod("POST");
+
+        filter().doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(responseWriter, never()).write(any(), any());
+    }
+
+    @Test
+    @DisplayName("로그아웃 경로도 유효한 토큰이면 인증한다")
+    void authenticatesLogoutWithValidToken() throws Exception {
+        when(useCase.authenticate(new AuthenticateAccessTokenQuery("token")))
+                .thenReturn(Optional.of(new AccessTokenInfo(7L, "jti", EXPIRES_AT, SESSION_ID)));
+        MockHttpServletRequest request = request("Bearer token");
+        request.setRequestURI("/api/v1/auth/logout");
+        request.setMethod("POST");
+
+        filter().doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal())
+                .isEqualTo(new AuthenticatedAccount(7L, "jti", EXPIRES_AT, SESSION_ID));
+    }
+
+    @Test
     @DisplayName("인증 처리 중 실패하면 공통 실패 봉투의 500으로 끝낸다")
     void endsRequestWithServerErrorEnvelopeOnFailure() throws Exception {
         when(useCase.authenticate(any())).thenThrow(new IllegalStateException("redis down"));

@@ -6,6 +6,7 @@ import java.util.Optional;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.RefreshSession;
 import com.orbit.auth.domain.RefreshSessionId;
+import com.orbit.auth.domain.RefreshTokenHash;
 
 /** 기기 세션을 보관한다. 토큰 원문은 저장하지 않고 해시만 둔다. */
 public interface RefreshSessionRepository {
@@ -23,6 +24,9 @@ public interface RefreshSessionRepository {
 
     /** 그 계정의 세션일 때만 지운다. 다른 계정의 세션 식별자로는 아무것도 지우지 않는다. */
     void deleteOwnedBy(RefreshSessionId id, AccountId accountId);
+
+    /** 비밀값 해시가 그 세션의 현재 또는 직전 토큰과 맞을 때만 지운다. 맞지 않으면 아무것도 지우지 않는다. */
+    void deleteByToken(RefreshSessionId id, RefreshTokenHash tokenHash);
 
     void deleteAllByAccount(AccountId accountId);
 

@@ -35,6 +35,11 @@ interface SpringDataRefreshSessionRepository extends JpaRepository<RefreshSessio
     void deleteSession(@Param("id") String id);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from RefreshSessionJpaEntity s where s.id = :id"
+            + " and (s.tokenHash = :tokenHash or s.previousTokenHash = :tokenHash)")
+    void deleteSessionWithToken(@Param("id") String id, @Param("tokenHash") String tokenHash);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from RefreshSessionJpaEntity s where s.id = :id and s.accountId = :accountId")
     void deleteSessionOfAccount(@Param("id") String id, @Param("accountId") Long accountId);
 

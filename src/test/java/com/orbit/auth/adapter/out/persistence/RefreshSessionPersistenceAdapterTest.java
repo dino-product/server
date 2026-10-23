@@ -124,6 +124,26 @@ class RefreshSessionPersistenceAdapterTest extends PersistenceAdapterTestSupport
     }
 
     @Test
+    @DisplayName("현재 또는 직전 토큰 해시가 맞을 때만 세션을 지운다")
+    void deletesSessionMatchingTokenHash() {
+        RefreshSession current = RefreshSession.start(newSessionId(), newAccount(), FIRST, STARTED_AT, IDLE);
+        RefreshSession rotated = RefreshSession.start(newSessionId(), newAccount(), FIRST, STARTED_AT, IDLE);
+        adapter.saveNew(current);
+        adapter.saveNew(rotated);
+        RefreshSession locked = adapter.findByIdForUpdate(rotated.id()).orElseThrow();
+        locked.refresh(FIRST, SECOND, STARTED_AT.plusSeconds(60), IDLE);
+        adapter.update(locked);
+
+        adapter.deleteByToken(current.id(), SECOND);
+        assertThat(adapter.findByIdForUpdate(current.id())).isPresent();
+
+        adapter.deleteByToken(current.id(), FIRST);
+        adapter.deleteByToken(rotated.id(), FIRST);
+        assertThat(adapter.findByIdForUpdate(current.id())).isEmpty();
+        assertThat(adapter.findByIdForUpdate(rotated.id())).isEmpty();
+    }
+
+    @Test
     @DisplayName("계정의 모든 세션을 지우고 다른 계정의 세션은 남긴다")
     void deletesAllSessionsOfAccount() {
         AccountId accountId = newAccount();

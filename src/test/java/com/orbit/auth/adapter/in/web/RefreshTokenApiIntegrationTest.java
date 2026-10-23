@@ -139,6 +139,48 @@ class RefreshTokenApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
+    @DisplayName("Access Token이 만료된 기기도 로그아웃 본문의 refresh token으로 그 세션을 끝낸다")
+    void logoutEndsSessionWithRefreshTokenWhenAccessTokenExpired() throws Exception {
+        String first = refreshToken(login());
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer expired-or-forged")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LogoutRequest(first))))
+                .andExpect(status().isNoContent());
+
+        assertThat(sessionCount(first)).isZero();
+        assertRejected(refresh(first));
+    }
+
+    @Test
+    @DisplayName("Access Token 없이 refresh token만으로 로그아웃해도 그 세션을 끝낸다")
+    void logoutEndsSessionWithRefreshTokenOnly() throws Exception {
+        String first = refreshToken(login());
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LogoutRequest(first))))
+                .andExpect(status().isNoContent());
+
+        assertThat(sessionCount(first)).isZero();
+    }
+
+    @Test
+    @DisplayName("비밀값이 맞지 않는 refresh token으로 로그아웃하면 아무것도 끝내지 않는다")
+    void logoutKeepsSessionForWrongSecret() throws Exception {
+        String first = refreshToken(login());
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new LogoutRequest(sessionId(first) + "." + "a".repeat(43)))))
+                .andExpect(status().isNoContent());
+
+        refresh(first).andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("미사용 수명이 지난 refresh token은 거절하고 세션을 지운다")
     void rejectsExpiredSession() throws Exception {
         String first = refreshToken(login());

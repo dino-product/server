@@ -47,9 +47,19 @@ public class AuthSessionController implements AuthSessionControllerDocs {
     @Override
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(@AuthenticationPrincipal AuthenticatedAccount account) {
-        logoutUseCase.logout(new LogoutCommand(
-                account.accountId(), account.tokenId(), account.tokenExpiresAt(), account.sessionId()));
+    public void logout(
+            @AuthenticationPrincipal AuthenticatedAccount account,
+            @RequestBody(required = false) LogoutRequest request) {
+        String refreshToken = request == null ? null : request.refreshToken();
+        logoutUseCase.logout(
+                account == null
+                        ? new LogoutCommand(null, null, null, null, refreshToken)
+                        : new LogoutCommand(
+                                account.accountId(),
+                                account.tokenId(),
+                                account.tokenExpiresAt(),
+                                account.sessionId(),
+                                refreshToken));
     }
 
     @Override
