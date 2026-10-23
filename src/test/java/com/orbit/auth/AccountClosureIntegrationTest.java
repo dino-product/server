@@ -30,6 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -168,6 +169,7 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
         assertThat(closedMark(accountId)).isFalse();
         mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
                 .andExpect(status().isOk());
+        refresh(login).andExpect(status().isOk());
         assertThat(accountId(loginWithKakao(subject))).isEqualTo(accountId);
         assertThat(pendingUnlinks(accountId)).isEmpty();
     }
@@ -184,6 +186,24 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COMMON-404"));
+    }
+
+    @Test
+    @DisplayName("폐쇄하면 그 계정의 모든 기기 세션을 지워 refresh token을 거절한다")
+    void revokesAllRefreshSessionsOnClosure() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        JsonNode phone = loginWithKakao(subject);
+        JsonNode tablet = loginWithKakao(subject);
+
+        accountClosure.close(accountId(phone));
+
+        assertThat(refreshSessions(accountId(phone))).isZero();
+        refresh(phone)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-009"));
+        refresh(tablet)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-009"));
     }
 
     @Test
@@ -256,6 +276,19 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
                 .andReturn()
                 .getResponse()
                 .getContentAsString());
+    }
+
+    private ResultActions refresh(JsonNode login) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                        "refreshToken",
+                        login.path("result").path("refreshToken").asString()))));
+    }
+
+    private Integer refreshSessions(long accountId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from refresh_sessions where account_id = ?", Integer.class, accountId);
     }
 
     private List<Map<String, Object>> pendingUnlinks(long accountId) {
