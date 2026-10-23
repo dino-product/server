@@ -169,7 +169,7 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
         assertThat(closedMark(accountId)).isFalse();
         mockMvc.perform(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(login)))
                 .andExpect(status().isOk());
-        refresh(login).andExpect(status().isOk());
+        refresh(refreshToken(login)).andExpect(status().isOk());
         assertThat(accountId(loginWithKakao(subject))).isEqualTo(accountId);
         assertThat(pendingUnlinks(accountId)).isEmpty();
     }
@@ -189,19 +189,29 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("폐쇄하면 그 계정의 모든 기기 세션을 지워 refresh token을 거절한다")
+    @DisplayName("폐쇄하면 수명이 다른 세션까지 그 계정의 모든 기기 세션을 지워 refresh token을 거절한다")
     void revokesAllRefreshSessionsOnClosure() throws Exception {
         String subject = UUID.randomUUID().toString();
         JsonNode phone = loginWithKakao(subject);
         JsonNode tablet = loginWithKakao(subject);
+        // 한 세션만 회전시켜 만료 시각이 다른 세션을 함께 둔다.
+        String rotatedTablet = objectMapper
+                .readTree(refresh(refreshToken(tablet))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("refreshToken")
+                .asString();
 
         accountClosure.close(accountId(phone));
 
         assertThat(refreshSessions(accountId(phone))).isZero();
-        refresh(phone)
+        refresh(refreshToken(phone))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH-009"));
-        refresh(tablet)
+        refresh(rotatedTablet)
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH-009"));
     }
@@ -278,12 +288,14 @@ class AccountClosureIntegrationTest extends IntegrationTestSupport {
                 .getContentAsString());
     }
 
-    private ResultActions refresh(JsonNode login) throws Exception {
+    private ResultActions refresh(String refreshToken) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of(
-                        "refreshToken",
-                        login.path("result").path("refreshToken").asString()))));
+                .content(objectMapper.writeValueAsString(Map.of("refreshToken", refreshToken))));
+    }
+
+    private static String refreshToken(JsonNode login) {
+        return login.path("result").path("refreshToken").asString();
     }
 
     private Integer refreshSessions(long accountId) {

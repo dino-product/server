@@ -2,6 +2,7 @@ package com.orbit.auth.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -9,6 +10,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.orbit.auth.application.port.out.AccountRepository;
@@ -39,6 +41,9 @@ class RefreshSessionPersistenceAdapterTest extends PersistenceAdapterTestSupport
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     @Test
     @DisplayName("새 세션을 해시와 시각만으로 저장하고 잠그고 다시 읽는다")
@@ -73,13 +78,17 @@ class RefreshSessionPersistenceAdapterTest extends PersistenceAdapterTestSupport
         locked.refresh(FIRST, SECOND, rotatedAt, IDLE);
 
         adapter.update(locked);
+        entityManager.flush();
+        entityManager.clear();
 
-        assertThat(adapter.findByIdForUpdate(session.id())).hasValueSatisfying(found -> {
-            assertThat(found.tokenHash()).isEqualTo(SECOND);
-            assertThat(found.previousTokenHash()).contains(FIRST);
-            assertThat(found.rotatedAt()).contains(rotatedAt);
-            assertThat(found.expiresAt()).isEqualTo(rotatedAt.plus(IDLE));
-        });
+        assertThat(jdbcTemplate.queryForMap(
+                        "select token_hash, previous_token_hash, rotated_at, expires_at from refresh_sessions"
+                                + " where id = ?",
+                        session.id().value()))
+                .containsEntry("token_hash", SECOND.value())
+                .containsEntry("previous_token_hash", FIRST.value())
+                .containsEntry("rotated_at", Timestamp.from(rotatedAt))
+                .containsEntry("expires_at", Timestamp.from(rotatedAt.plus(IDLE)));
     }
 
     @Test
@@ -125,6 +134,10 @@ class RefreshSessionPersistenceAdapterTest extends PersistenceAdapterTestSupport
         adapter.saveNew(first);
         adapter.saveNew(second);
         adapter.saveNew(others);
+        // 한 세션만 회전시켜 만료 시각이 다른 세션을 함께 둔다.
+        RefreshSession rotated = adapter.findByIdForUpdate(second.id()).orElseThrow();
+        rotated.refresh(SECOND, FIRST, STARTED_AT.plus(Duration.ofDays(10)), IDLE);
+        adapter.update(rotated);
 
         adapter.deleteAllByAccount(accountId);
 

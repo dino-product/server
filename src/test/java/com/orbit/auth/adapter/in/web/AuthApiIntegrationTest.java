@@ -31,6 +31,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.orbit.auth.domain.RefreshTokenHash;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -119,10 +120,10 @@ class AuthApiIntegrationTest extends AuthApiTestSupport {
                 .containsExactlyInAnyOrder(firstToken.substring(0, 36), secondToken.substring(0, 36));
         assertThat(jdbcTemplate.queryForList(
                         "select token_hash from refresh_sessions where account_id = ?", String.class, accountId))
-                .allSatisfy(hash -> assertThat(hash)
-                        .matches("[0-9a-f]{64}")
-                        .isNotEqualTo(firstToken.substring(37))
-                        .isNotEqualTo(secondToken.substring(37)));
+                .containsExactlyInAnyOrder(
+                        RefreshTokenHash.of(firstToken.substring(37)).value(),
+                        RefreshTokenHash.of(secondToken.substring(37)).value())
+                .doesNotContain(firstToken.substring(37), secondToken.substring(37));
     }
 
     @Test

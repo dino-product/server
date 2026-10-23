@@ -6,6 +6,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -125,6 +128,8 @@ class RefreshTokenApiIntegrationTest extends AuthApiTestSupport {
         String subject = UUID.randomUUID().toString();
         JsonNode phone = login(subject);
         JsonNode tablet = login(subject);
+        assertThat(tablet.path("result").path("accountId").asLong())
+                .isEqualTo(phone.path("result").path("accountId").asLong());
 
         mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(phone)))
                 .andExpect(status().isNoContent());
@@ -137,10 +142,29 @@ class RefreshTokenApiIntegrationTest extends AuthApiTestSupport {
     @DisplayName("미사용 수명이 지난 refresh token은 거절하고 세션을 지운다")
     void rejectsExpiredSession() throws Exception {
         String first = refreshToken(login());
+        // 판정은 애플리케이션 시계로 하므로 DB 시계(now())가 아니라 같은 JVM 시각으로 옮긴다.
+        Instant now = Instant.now();
         jdbcTemplate.update(
-                "update refresh_sessions set started_at = now() - interval '31 days',"
-                        + " expires_at = now() - interval '1 second' where id = ?",
+                "update refresh_sessions set started_at = ?, expires_at = ? where id = ?",
+                Timestamp.from(now.minus(Duration.ofDays(31))),
+                Timestamp.from(now.minusSeconds(1)),
                 sessionId(first));
+
+        assertRejected(refresh(first));
+
+        assertThat(sessionCount(first)).isZero();
+    }
+
+    @Test
+    @DisplayName("계정이 닫혔는데 세션이 남아 있으면 재발급을 거절하고 그 세션을 지운다")
+    void revokesLeftoverSessionOfClosedAccount() throws Exception {
+        JsonNode login = login();
+        String first = refreshToken(login);
+        // 폐쇄 표시가 남기 전에 새 세션이 생긴 경쟁을 흉내 내어, 세션은 둔 채 계정만 닫는다.
+        jdbcTemplate.update(
+                "update accounts set closed_at = ? where id = ?",
+                Timestamp.from(Instant.now()),
+                login.path("result").path("accountId").asLong());
 
         assertRejected(refresh(first));
 
@@ -219,8 +243,7 @@ class RefreshTokenApiIntegrationTest extends AuthApiTestSupport {
                 .asText();
         return readBody(mockMvc.perform(post("/api/v1/auth/kakao/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new KakaoLoginRequest(
-                                KAKAO.idToken(UUID.randomUUID().toString(), nonce)))))
+                        .content(objectMapper.writeValueAsString(new KakaoLoginRequest(KAKAO.idToken(subject, nonce)))))
                 .andExpect(status().isOk()));
     }
 
