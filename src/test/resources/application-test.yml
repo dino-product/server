@@ -7,11 +7,6 @@ spring:
   docker:
     compose:
       enabled: false
-  modulith:
-    events:
-      jdbc:
-        schema-initialization:
-          enabled: true
 
 decorator:
   datasource:

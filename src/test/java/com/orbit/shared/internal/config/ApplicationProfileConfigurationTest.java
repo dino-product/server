@@ -40,7 +40,7 @@ class ApplicationProfileConfigurationTest {
             assertThat(environment.getProperty("spring.datasource.url"))
                     .isEqualTo("jdbc:postgresql://localhost:54321/postgres");
             assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
-            assertThat(environment.getProperty(EVENT_SCHEMA_INITIALIZATION)).isEqualTo("true");
+            assertThat(environment.getProperty(EVENT_SCHEMA_INITIALIZATION)).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("true");
         }
     }

@@ -6,11 +6,6 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:54321/postgres}
     username: ${DATABASE_USERNAME:postgres}
     password: ${DATABASE_PASSWORD:postgres}
-  modulith:
-    events:
-      jdbc:
-        schema-initialization:
-          enabled: true
 
 decorator:
   datasource:

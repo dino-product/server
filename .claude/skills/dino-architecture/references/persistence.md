@@ -5,7 +5,7 @@
 <a id="jpa"></a>
 ## JPA 모델과 생성물
 
-Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분리합니다. 테이블·컬럼의 원본은 팀 ERD([ERDCloud](../../dino-erd/references/erdcloud.md))이며, Entity는 ERD를 따르되 아래 규칙으로 옮깁니다.
+Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분리합니다. 테이블·컬럼의 설계 원본은 팀 ERD([ERDCloud](../../dino-erd/references/erdcloud.md))이며, Entity는 ERD를 따르되 아래 규칙으로 옮깁니다. 실제 DB 스키마는 마이그레이션이 만듭니다([프로필과 실행 환경](#profiles)).
 
 - **구조**: 기본 생성자는 `protected`, 연관관계는 지연 로딩이 기본입니다. 공개 `@Setter`를 두지 않고 변환기가 쓰는 의미 있는 변경 메서드만 둡니다. `equals`/`hashCode`는 정의하지 않습니다(영속화 전 식별자가 없고 컬렉션은 Hibernate가 관리).
 - **이름**: 테이블·컬럼은 소문자 snake_case입니다. ERDCloud 표시명의 대소문자(`Work_Assignments` 등)는 따르지 않습니다. Entity 클래스는 `{Name}JpaEntity`, Spring Data 저장소는 `SpringData{Name}Repository`, 출력 Port 구현은 `{Name}PersistenceAdapter`입니다.
@@ -52,6 +52,6 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 - `prod,local`·`dev,local` 동시 지정에도 로컬 설정이 활성화되지 않도록 프로필 표현식(`local & !deployed`)으로 보호합니다.
 - 설정은 `application-{profile}.yml`로 분리하고 공통 설정을 중복하지 않습니다.
 - 테이블·컬럼·인덱스를 바꾸는 Entity 변경은 같은 PR에 새 버전의 마이그레이션을 추가합니다. develop에 머지된 마이그레이션 파일은 고치지 않습니다.
-- 이벤트 발행 기록 테이블(`event_publication`·`event_publication_archive`)은 `local`·`test`만 자동으로 만듭니다. 운영 DB에는 배포 전에 Modulith 스키마를 적용합니다([ADR-004 운영 스키마](../../../../docs/adr/004-event-publication-registry.md#영향과-검증)).
+- 이벤트 발행 기록 테이블(`event_publication`·`event_publication_archive`)도 마이그레이션이 만들고 Modulith의 스키마 자동 생성은 모든 프로필에서 끕니다. Modulith 버전을 올려 스키마가 바뀌면 새 버전 마이그레이션을 추가합니다([ADR-004 운영 스키마](../../../../docs/adr/004-event-publication-registry.md#영향과-검증)).
 
 실행 명령: [빠른 시작](../../../../README.md#빠른-시작). 참고: [영속성 결정](../../../../docs/adr/001-backend-architecture.md#영속성과-이벤트).
