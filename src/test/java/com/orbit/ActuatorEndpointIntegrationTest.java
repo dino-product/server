@@ -13,11 +13,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 /**
  * Actuator는 관리 포트를 따로 띄워야 검증할 수 있어 MockMvc 기반 {@code IntegrationTestSupport} 대신 실제 포트로 기동한다. 수집기(Prometheus)와
@@ -25,9 +24,8 @@ import com.orbit.support.TestcontainersConfiguration;
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
-class ActuatorEndpointIntegrationTest {
+class ActuatorEndpointIntegrationTest implements SharedContainers {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
