@@ -19,8 +19,8 @@ import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
 import com.orbit.support.PersistenceAdapterTestSupport;
 
-/** 승인·거절 유즈케이스가 아직 없어 발주사와 요청 행은 SQL로 넣는다. */
-@DisplayName("계정의 참여 요청 목록 조회")
+/** 처리 결과가 여러 가지인 요청을 한 번에 만들기 위해 발주사와 요청 행은 SQL로 넣는다. */
+@DisplayName("참여 요청 목록 조회")
 class ParticipationRequestQueryAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant FIRST = Instant.parse("2026-10-01T00:00:00.123456Z");
@@ -73,6 +73,38 @@ class ParticipationRequestQueryAdapterTest extends PersistenceAdapterTestSupport
                 .contains("인원 마감");
     }
 
+    @Test
+    @DisplayName("발주사의 승인 대기 요청만 요청 일시가 오래된 순, 같으면 식별자순으로 읽는다")
+    void readsPendingRequestsOfOrganizationOldestFirst() {
+        OrganizationId organization = insertOrganization("CCCCCC", "대기 발주사");
+        OrganizationId other = insertOrganization("DDDDDD", "다른 발주사");
+        long latest = insertRequest(organization, ACCOUNT_ID, "STAFF", null, "PENDING", null, THIRD, null);
+        long sameTimeFirst =
+                insertRequest(organization, OTHER_ACCOUNT_ID, "TECHNICIAN", null, "PENDING", null, FIRST, null);
+        long sameTimeSecond =
+                insertRequest(organization, new AccountId(9L), "STAFF", null, "PENDING", null, FIRST, null);
+        insertRequest(organization, new AccountId(10L), "STAFF", "STAFF", "APPROVED", null, FIRST, SECOND);
+        insertRequest(organization, new AccountId(11L), "STAFF", null, "REJECTED", null, FIRST, SECOND);
+        insertRequest(organization, new AccountId(12L), "STAFF", null, "CANCELED", null, FIRST, null);
+        insertRequest(other, ACCOUNT_ID, "STAFF", null, "PENDING", null, FIRST, null);
+
+        assertThat(adapter.listPending(organization))
+                .extracting(
+                        request -> request.id().orElseThrow().value(),
+                        request -> request.accountId(),
+                        request -> request.requestedAt())
+                .containsExactly(
+                        tuple(sameTimeFirst, OTHER_ACCOUNT_ID, FIRST),
+                        tuple(sameTimeSecond, new AccountId(9L), FIRST),
+                        tuple(latest, ACCOUNT_ID, THIRD));
+    }
+
+    @Test
+    @DisplayName("승인 대기 요청이 없으면 빈 목록이다")
+    void returnsEmptyPendingList() {
+        assertThat(adapter.listPending(insertOrganization("EEEEEE", "빈 발주사"))).isEmpty();
+    }
+
     private OrganizationId insertOrganization(String code, String name) {
         entityManager
                 .createNativeQuery("""
@@ -87,7 +119,7 @@ class ParticipationRequestQueryAdapterTest extends PersistenceAdapterTestSupport
         return new OrganizationId(lastId("companies"));
     }
 
-    private void insertRequest(
+    private long insertRequest(
             OrganizationId organizationId,
             AccountId accountId,
             String desiredType,
@@ -99,9 +131,9 @@ class ParticipationRequestQueryAdapterTest extends PersistenceAdapterTestSupport
         entityManager
                 .createNativeQuery("""
                         insert into participation_requests
-                            (company_id, member_id, desired_type, confirmed_type, status, reject_reason,
-                             requested_at, decided_at, created_at, updated_at)
-                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            (request_channel, company_id, member_id, desired_type, confirmed_type, status,
+                             reject_reason, requested_at, decided_at, decided_by_membership_id, created_at, updated_at)
+                        values ('COMPANY_CODE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())
@@ -111,9 +143,11 @@ class ParticipationRequestQueryAdapterTest extends PersistenceAdapterTestSupport
                 .setParameter(6, rejectReason)
                 .setParameter(7, requestedAt)
                 .setParameter(8, decidedAt)
-                .setParameter(9, requestedAt)
-                .setParameter(10, decidedAt == null ? requestedAt : decidedAt)
+                .setParameter(9, decidedAt == null ? null : 3L)
+                .setParameter(10, requestedAt)
+                .setParameter(11, decidedAt == null ? requestedAt : decidedAt)
                 .executeUpdate();
+        return lastId("participation_requests");
     }
 
     private long lastId(String table) {

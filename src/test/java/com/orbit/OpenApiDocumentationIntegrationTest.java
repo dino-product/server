@@ -6,10 +6,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Arrays;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.support.IntegrationTestSupport;
 
 class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
@@ -220,6 +223,37 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(item + ".delete.responses['409'].content['application/json']"
                                 + ".examples['ORGANIZATION-010'].value.code")
                         .value("ORGANIZATION-010"));
+    }
+
+    @Test
+    void documentsWorkTypeOperations() throws Exception {
+        String collection = "$.paths['/api/v1/organizations/{organizationId}/work-types']";
+        String item = "$.paths['/api/v1/organizations/{organizationId}/work-types/{workTypeId}']";
+        String schemas = "#/components/schemas/com.orbit.organization.adapter.in.web.";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(collection + ".get.summary").value("작업 유형 목록 조회"))
+                .andExpect(jsonPath(collection + ".get.responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "WorkTypesResponse"))
+                .andExpect(jsonPath(collection + ".post.summary").value("작업 유형 생성"))
+                .andExpect(jsonPath(collection + ".post.responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-009'].value.code")
+                        .value("ORGANIZATION-009"))
+                .andExpect(jsonPath(item + ".put.summary").value("작업 유형 수정"))
+                .andExpect(jsonPath(item + ".put.parameters[*].name").value(contains("organizationId", "workTypeId")))
+                .andExpect(jsonPath(item + ".put.responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-008'].value.code")
+                        .value("ORGANIZATION-008"))
+                .andExpect(jsonPath(item + ".delete.summary").value("작업 유형 삭제"))
+                .andExpect(jsonPath(item + ".delete.responses['204']").exists())
+                .andExpect(jsonPath(item + ".delete.responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-010'].value.code")
+                        .value("ORGANIZATION-010"))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations/{organizationId}/work-types/{workTypeId}"
+                                + "/deletion-impact'].get.responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "WorkTypeDeletionImpactResponse"));
     }
 
     @Test
@@ -667,15 +701,153 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         jsonPath(conflict + "['ORGANIZATION-013'].value.code").value("ORGANIZATION-013"))
                 .andExpect(
                         jsonPath(conflict + "['ORGANIZATION-014'].value.code").value("ORGANIZATION-014"))
-                .andExpect(
-                        jsonPath(conflict + "['ORGANIZATION-015'].value.code").value("ORGANIZATION-015"))
+                .andExpect(jsonPath(conflict + "['ORGANIZATION-015']").doesNotExist())
                 .andExpect(
                         jsonPath(conflict + "['ORGANIZATION-010'].value.code").value("ORGANIZATION-010"))
                 .andExpect(jsonPath(tooMany + "['ORGANIZATION-018'].value.code").value("ORGANIZATION-018"))
                 .andExpect(jsonPath("$.components.schemas"
                                 + "['com.orbit.organization.adapter.in.web.RequestParticipationRequest']"
                                 + ".properties.desiredType.enum.length()")
-                        .value(2));
+                        .value(2))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.RequestParticipationRequest']"
+                                + ".properties.requestChannel.enum.length()")
+                        .value(3));
+    }
+
+    @Test
+    void documentsPendingParticipationRequestListForOwners() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/participation-requests'].get";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("승인 대기 목록 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[0].name").value("organizationId"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/"
+                                + "com.orbit.organization.adapter.in.web.PendingParticipationRequestsResponse"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
+    void documentsParticipantListWithFiltersForOwners() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/participants'].get";
+        String forbidden = operation + ".responses['403'].content['application/json'].examples";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("참여 인원 목록 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters.length()").value(3))
+                .andExpect(jsonPath(operation + ".parameters[1].name").value("type"))
+                .andExpect(jsonPath(operation + ".parameters[1].required").value(false))
+                .andExpect(jsonPath(operation + ".parameters[2].name").value("name"))
+                .andExpect(jsonPath(operation + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.organization.adapter.in.web.ParticipantsResponse"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-002'].value.code").value("ORGANIZATION-002"))
+                .andExpect(
+                        jsonPath(forbidden + "['ORGANIZATION-003'].value.code").value("ORGANIZATION-003"));
+    }
+
+    @Test
+    void documentsCategoryAssignmentForStaffMembershipsAndTechnicians() throws Exception {
+        String staff =
+                "$.paths['/api/v1/organizations/{organizationId}/staff-memberships/{membershipId}/category'].put";
+        String technician = "$.paths['/api/v1/organizations/{organizationId}/technicians/{technicianId}/category'].put";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(staff + ".summary").value("직원 유형 지정"))
+                .andExpect(jsonPath(staff + ".requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/"
+                                + "com.orbit.organization.adapter.in.web.MemberCategoryAssignmentRequest"))
+                .andExpect(jsonPath(staff + ".responses['204']").exists())
+                .andExpect(jsonPath(staff + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-004'].value.code")
+                        .value("ORGANIZATION-004"))
+                .andExpect(jsonPath(technician + ".summary").value("기사 유형 지정"))
+                .andExpect(jsonPath(technician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-020'].value.code")
+                        .value("ORGANIZATION-020"))
+                .andExpect(jsonPath(technician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-008'].value.code")
+                        .value("ORGANIZATION-008"))
+                .andExpect(jsonPath(technician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-021'].value.code")
+                        .value("ORGANIZATION-021"));
+    }
+
+    @Test
+    void documentsParticipantDeactivationAndReactivation() throws Exception {
+        String base = "$.paths['/api/v1/organizations/{organizationId}/";
+        String deactivateStaff = base + "staff-memberships/{membershipId}/deactivation'].post";
+        String reactivateTechnician = base + "technicians/{technicianId}/reactivation'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(deactivateStaff + ".summary").value("직원 소속 비활성화"))
+                .andExpect(jsonPath(deactivateStaff + ".responses['204']").exists())
+                .andExpect(jsonPath(deactivateStaff + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-005'].value.code")
+                        .value("ORGANIZATION-005"))
+                .andExpect(jsonPath(base + "technicians/{technicianId}/deactivation'].post.summary")
+                        .value("기사 계약 비활성화"))
+                .andExpect(jsonPath(base + "technicians/{technicianId}/deactivation'].post.responses['409']"
+                                + ".content['application/json'].examples['ORGANIZATION-024'].value.code")
+                        .value("ORGANIZATION-024"))
+                .andExpect(jsonPath(base + "staff-memberships/{membershipId}/reactivation'].post.summary")
+                        .value("직원 소속 재활성화"))
+                .andExpect(jsonPath(reactivateTechnician + ".summary").value("기사 계약 재활성화"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['404'].content['application/json']"
+                                + ".examples['ORGANIZATION-020'].value.code")
+                        .value("ORGANIZATION-020"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-022'].value.code")
+                        .value("ORGANIZATION-022"))
+                .andExpect(jsonPath(reactivateTechnician + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-023'].value.code")
+                        .value("ORGANIZATION-023"));
+    }
+
+    @Test
+    void documentsParticipationRequestApprovalAndRejectionAsBatches() throws Exception {
+        String base = "$.paths['/api/v1/organizations/{organizationId}/participation-requests";
+        String approve = base + "/approvals'].post";
+        String reject = base + "/rejections'].post";
+        String schemas = "#/components/schemas/com.orbit.organization.adapter.in.web.";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(approve + ".summary").value("참여 요청 승인"))
+                .andExpect(jsonPath(approve + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(approve + ".requestBody.content['application/json'].schema['$ref']")
+                        .value(schemas + "ApproveParticipationRequestsRequest"))
+                .andExpect(jsonPath(approve + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value(schemas + "ParticipationRequestDecisionsResponse"))
+                .andExpect(jsonPath(approve + ".responses['403'].content['application/json']"
+                                + ".examples['ORGANIZATION-003'].value.code")
+                        .value("ORGANIZATION-003"))
+                .andExpect(jsonPath(approve + ".responses['409'].content['application/json']"
+                                + ".examples['ORGANIZATION-010'].value.code")
+                        .value("ORGANIZATION-010"))
+                .andExpect(jsonPath(reject + ".responses['409']").doesNotExist())
+                .andExpect(jsonPath(reject + ".summary").value("참여 요청 거절"))
+                .andExpect(jsonPath(reject + ".requestBody.content['application/json'].schema['$ref']")
+                        .value(schemas + "RejectParticipationRequestsRequest"))
+                .andExpect(jsonPath(reject + ".responses['400'].content['application/json']"
+                                + ".examples['ORGANIZATION-019'].value.code")
+                        .value("ORGANIZATION-019"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.organization.adapter.in.web.ApproveParticipationRequestsRequest']"
+                                + ".properties.approvals.maxItems")
+                        .value(100));
     }
 
     @Test
@@ -755,6 +927,21 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/marketing-consents'].post.responses['403']"
                                 + ".content['application/json'].examples['PROFILE-005'].value.code")
                         .value("PROFILE-005"));
+    }
+
+    @Test
+    void documentsWithdrawalApis() throws Exception {
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/profiles/{accountId}/withdrawals'].post.responses['409']"
+                                + ".content['application/json'].examples['PROFILE-006'].value.code")
+                        .value("PROFILE-006"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.profile.adapter.in.web.WithdrawalEligibilityResponse.Block']"
+                                + ".properties.reason.enum")
+                        .value(containsInAnyOrder(Arrays.stream(WithdrawalBlockReason.values())
+                                .map(Enum::name)
+                                .toArray())));
     }
 
     @Test

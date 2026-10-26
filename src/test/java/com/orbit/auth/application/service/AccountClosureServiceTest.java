@@ -71,7 +71,7 @@ class AccountClosureServiceTest {
 
         service.close(ACCOUNT_ID.value());
 
-        verify(providerUnlinks).saveAll(List.of(new ProviderUnlink(ACCOUNT_ID, KAKAO, NOW)));
+        verify(providerUnlinks).saveAll(List.of(ProviderUnlink.request(ACCOUNT_ID, KAKAO, NOW)));
         ArgumentCaptor<Account> saved = ArgumentCaptor.forClass(Account.class);
         verify(accounts).update(saved.capture());
         assertThat(saved.getValue().closedAt()).contains(NOW);

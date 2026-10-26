@@ -97,15 +97,15 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("비활성 기사 계약만 있는 회사는 비활성 소속 상태로 알린다")
-    void reportsDeactivatedMember() throws Exception {
+    @DisplayName("비활성 기사 계약만 있는 회사는 다시 요청할 수 있다고 알린다")
+    void reportsDeactivatedMemberAsAvailable() throws Exception {
         long accountId = ACCOUNT_IDS.incrementAndGet();
         Company company = createCompany("기사 비활성 발주사");
         insertTechnician(company.organizationId(), accountId, "DEACTIVATED");
 
         check(accountId, company.code())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.availability").value("DEACTIVATED_MEMBER"));
+                .andExpect(jsonPath("$.result.availability").value("AVAILABLE"));
     }
 
     @Test
@@ -233,8 +233,8 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("이미 참여 중이거나 비활성 소속이 있는 발주사에는 요청을 만들지 않는다")
-    void rejectsMemberAndDeactivatedMember() throws Exception {
+    @DisplayName("이미 참여 중인 발주사에는 요청을 만들지 않고, 비활성 소속만 있는 회원은 승인 대기 요청을 만든다")
+    void rejectsMemberButAcceptsDeactivatedMember() throws Exception {
         long owner = ACCOUNT_IDS.incrementAndGet();
         Company company = createCompany(owner, "소속 발주사");
         long deactivated = ACCOUNT_IDS.incrementAndGet();
@@ -244,13 +244,13 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ORGANIZATION-013"));
         request(deactivated, company.code(), "TECHNICIAN")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("ORGANIZATION-015"));
-        assertThat(jdbcTemplate.queryForObject(
-                        "select count(*) from participation_requests where company_id = ?",
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status").value("PENDING"));
+        assertThat(jdbcTemplate.queryForList(
+                        "select member_id from participation_requests where company_id = ?",
                         Long.class,
                         company.organizationId()))
-                .isZero();
+                .containsExactly(deactivated);
     }
 
     @Test
@@ -277,7 +277,7 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("희망 유형이나 회사 코드가 없으면 400, 인증하지 않으면 401로 거부한다")
+    @DisplayName("희망 유형·요청 경로·회사 코드가 없거나 목록에 없는 값이면 400, 인증하지 않으면 401로 거부한다")
     void rejectsInvalidBodyAndUnauthenticatedRequest() throws Exception {
         long requester = ACCOUNT_IDS.incrementAndGet();
         mockMvc.perform(post("/api/v1/participation-requests")
@@ -290,6 +290,18 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(requester))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"desiredType\":\"OWNER\",\"companyCode\":\"7K2M9X\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(post("/api/v1/participation-requests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(requester))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"desiredType\":\"STAFF\",\"companyCode\":\"7K2M9X\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(post("/api/v1/participation-requests")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(requester))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"desiredType\":\"STAFF\",\"companyCode\":\"7K2M9X\",\"requestChannel\":\"SMS\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON-400"));
         mockMvc.perform(post("/api/v1/participation-requests")
@@ -428,8 +440,8 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
         return mockMvc.perform(post("/api/v1/participation-requests")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(
-                        Map.of("companyCode", companyCode, "desiredType", desiredType))));
+                .content(objectMapper.writeValueAsString(Map.of(
+                        "companyCode", companyCode, "desiredType", desiredType, "requestChannel", "COMPANY_CODE"))));
     }
 
     private ResultActions check(long accountId, String companyCode) throws Exception {
@@ -473,8 +485,9 @@ class ParticipationRequestApiIntegrationTest extends IntegrationTestSupport {
     private void insertTechnician(long organizationId, long accountId, String status) {
         jdbcTemplate.update(
                 """
-                insert into technician (company_id, member_id, status, status_changed_at, created_at, updated_at)
-                values (?, ?, ?, ?, ?, ?)
+                insert into technician
+                    (company_id, member_id, status, status_changed_at, joined_at, updated_at, created_at)
+                values (?, ?, ?, ?, ?, ?, current_timestamp)
                 """,
                 organizationId,
                 accountId,
