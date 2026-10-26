@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -29,25 +30,30 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.orbit.schedule.WorkAccepted;
 import com.orbit.support.IntegrationTestSupport;
 import com.orbit.support.SignupTestSupport;
 
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 실제 Access Token 인증과 organization 소속 조회를 거쳐 SSE 연결을 연다. 발주사는 API로 만들고(생성자가 총관리자), 기사 계약은 테이블에 직접 넣는다. 연결은
- * 인스턴스 메모리에 남으므로 계정 식별자를 테스트마다 달리해 계정 상한이 다른 테스트와 섞이지 않게 한다.
+ * 실제 Access Token 인증과 organization 소속 조회를 거쳐 SSE 연결을 연다. 발주사는 API로 만들고(생성자가 총관리자), 기사 계약과 알림은 테이블에 직접 넣는다.
+ * 신호는 실제 커밋 → Redis 채널 → 구독 → 연결로 온다. 연결은 인스턴스 메모리에 남으므로 계정 식별자를 테스트마다 달리해 계정 상한이 다른 테스트와 섞이지 않게
+ * 한다.
  */
 @DisplayName("실시간 갱신 연결 API")
 class RealtimeStreamApiIntegrationTest extends IntegrationTestSupport {
@@ -63,6 +69,12 @@ class RealtimeStreamApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private final SignupTestSupport.SignupOnce signups = new SignupTestSupport.SignupOnce();
 
@@ -92,6 +104,69 @@ class RealtimeStreamApiIntegrationTest extends IntegrationTestSupport {
         assertThat(result.getResponse().getContentType()).startsWith(MediaType.TEXT_EVENT_STREAM_VALUE);
         assertThat(result.getResponse().getHeader(HttpHeaders.CACHE_CONTROL)).isEqualTo("no-cache");
         assertThat(result.getResponse().getHeader("X-Accel-Buffering")).isEqualTo("no");
+    }
+
+    @Test
+    @DisplayName("작업을 등록해 커밋하면 그 발주사의 연결이 새 작업 식별자를 담은 work-changed를 받는다")
+    void sendsWorkChangedAfterWorkIsCommitted() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        long organizationId = organization(owner);
+        MvcResult stream = open(owner, organizationId);
+
+        String created = mockMvc.perform(post("/api/v1/organizations/{organizationId}/works", organizationId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "보일러 점검"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long workId =
+                objectMapper.readTree(created).path("result").path("workId").asLong();
+
+        await().atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> assertThat(stream.getResponse().getContentAsString())
+                        .contains("event:work-changed\ndata:")
+                        .contains("\"workIds\":[" + workId + "]"));
+    }
+
+    @Test
+    @DisplayName("알림을 읽으면 그 계정의 연결이 notification-read를 받는다")
+    void sendsNotificationReadToAccountStreams() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        long organizationId = organization(owner);
+        MvcResult stream = open(owner, organizationId);
+        long notificationId = unreadNotification(owner, organizationId);
+
+        mockMvc.perform(put("/api/v1/notifications/{notificationId}/read", notificationId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isNoContent());
+
+        await().atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> assertThat(stream.getResponse().getContentAsString())
+                        .contains("event:notification-read\ndata:{\"occurredAt\":"));
+    }
+
+    @Test
+    @DisplayName("작업 이벤트로 알림이 별도 트랜잭션에서 저장돼도 그 커밋 뒤 받는 계정의 연결이 notification-created를 받는다")
+    void sendsNotificationCreatedAfterAsyncNotificationCommit() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        long organizationId = organization(owner);
+        Long ownerMembership = jdbcTemplate.queryForObject(
+                "select id from company_memberships where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId,
+                owner);
+        MvcResult stream = open(owner, organizationId);
+
+        // 기사가 수락하면 notification이 비동기 리스너의 새 트랜잭션에서 등록자 알림을 저장한다.
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> eventPublisher.publishEvent(
+                        new WorkAccepted(1L, organizationId, ownerMembership, 2L, "보일러 점검", Instant.now())));
+
+        await().atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> assertThat(stream.getResponse().getContentAsString())
+                        .contains("event:notification-created\ndata:{\"occurredAt\":"));
     }
 
     @Test
@@ -165,6 +240,31 @@ class RealtimeStreamApiIntegrationTest extends IntegrationTestSupport {
         for (MvcResult open : opened.subList(1, opened.size())) {
             assertThat(open.getResponse().getContentAsString()).doesNotContain("event:closed");
         }
+    }
+
+    private MvcResult open(long accountId, long organizationId) throws Exception {
+        MvcResult stream = mockMvc.perform(get(PATH, organizationId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(accountId))
+                        .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        // connected를 받은 뒤의 변경부터 신호를 받는다.
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(() ->
+                        assertThat(stream.getResponse().getContentAsString()).contains("event:connected"));
+        return stream;
+    }
+
+    private long unreadNotification(long accountId, long organizationId) {
+        Timestamp notifiedAt = Timestamp.from(Instant.now());
+        return jdbcTemplate.queryForObject(
+                """
+                insert into notifications
+                    (member_id, company_id, type, work_id, message, notified_at, status, read_at, is_hidden,
+                     created_at, updated_at)
+                values (?, ?, 'WORK_ACCEPTED', 1, '문구', ?, 'UNREAD', null, false, ?, ?)
+                returning id
+                """, Long.class, accountId, organizationId, notifiedAt, notifiedAt, notifiedAt);
     }
 
     private long organization(long owner) throws Exception {

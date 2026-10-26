@@ -179,6 +179,25 @@ class InMemoryRealtimeConnections implements RealtimeConnectionPort, SmartLifecy
         return connection.registered.get();
     }
 
+    /** 연결 수가 상한(기본 2,000)으로 묶여 있고 신호가 드물어, 따로 색인을 두지 않고 목록을 훑어 고른다. */
+    @Override
+    public void sendToOrganization(Long organizationId, RealtimeMessage message) {
+        for (Connection connection : byId.values()) {
+            if (connection.organizationId.equals(organizationId)) {
+                enqueue(connection, new Send(message));
+            }
+        }
+    }
+
+    @Override
+    public void sendToAccount(Long accountId, RealtimeMessage message) {
+        for (Connection connection : byId.values()) {
+            if (connection.accountId.equals(accountId)) {
+                enqueue(connection, new Send(message));
+            }
+        }
+    }
+
     /** 수명이 지난 연결에 {@code reconnect}를 보내고 닫고, 나머지 중 보낼 것이 없는 연결에 유지 신호를 보낸다. 이어서 허가 수와 목록 크기를 맞춰 본다. */
     void heartbeat() {
         Instant now = clock.instant();

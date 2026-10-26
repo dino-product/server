@@ -12,9 +12,9 @@
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 사무실 웹 화면(진행 보드·타임테이블·헤더 알림 배지)에 다시 조회하라는 신호를 보내는 SSE 연결을 열고 유지한다. 바뀐 내용은 보내지 않고 화면이 REST로 다시 조회한다 |
-| 상태 | 구현 중(HM-281) — 연결 열기·유지·종료. 작업·알림 신호 전달(Redis Pub/Sub)은 같은 이슈의 후속 PR |
-| 소유 개념 | 연결 — 인스턴스 메모리에만 있고 DB·Redis에 남기지 않는다. 도메인 애그리게잇은 없다 |
-| 관계 | `organization` → 참조(ID) (연결 요청자가 발주사의 활성 직원인지 공개 계약 `OrganizationMemberLookup`으로 직접 확인. Conformist: 직원 여부만 보므로 번역할 모델이 없어 ACL을 두지 않는다) · `auth` → 요청 계정(`AccountPrincipal`) · 예정: `schedule`·`notification` ← 이벤트 구독(`WorkChanged`·`NotificationCreated`·`NotificationRead`, HM-281) |
+| 상태 | 구현(HM-281) — 연결 열기·유지·종료, 작업 저장·알림 변경 신호 전달(Redis Pub/Sub) |
+| 소유 개념 | 연결 — 인스턴스 메모리에만 있고 DB·Redis에 남기지 않는다. 신호(`RealtimeSignal`) — 인스턴스 사이로 보내는 값이며 저장하지 않는다. 도메인 애그리게잇은 없다 |
+| 관계 | `organization` → 참조(ID) (연결 요청자가 발주사의 활성 직원인지 공개 계약 `OrganizationMemberLookup`으로 직접 확인. Conformist: 직원 여부만 보므로 번역할 모델이 없어 ACL을 두지 않는다) · `auth` → 요청 계정(`AccountPrincipal`) · `schedule`·`notification` ← 이벤트 구독(`WorkChanged`·`NotificationCreated`·`NotificationRead`, 커밋 뒤 신호, Conformist: 식별자·시각만 옮기므로 번역할 모델이 없다) |
 
 <a id="realtime-implementation"></a>
 ## 구현 결정
@@ -30,6 +30,11 @@
 - **지표**: 정상으로 끝난 연결 요청은 수명 동안 이어져 HTTP 요청 시간 지표(`http.server.requests`)의 분위수를 흐리므로 그 지표에서 뺀다(`RealtimeMetricsConfig`). 거부·오류로 끝난 요청은 남긴다. 진행 중 요청 지표(`http.server.requests.active`)에는 열린 연결이 그대로 잡힌다. 연결 상태는 `realtime.connections*` 지표로 본다.
 - **연결 포트 위치**: 연결(`RealtimeChannel`)은 입력 포트 패키지에 두고 웹 어댑터가 구현해 연결 열기 요청에 넘긴다. 연결 목록(출력 어댑터)도 이 타입으로 보낸다. 입력 어댑터는 출력 포트를 참조할 수 없고, 연결은 요청이 가져오는 입력이기 때문이다. 출력 어댑터가 입력 포트 패키지의 다른 타입(유즈케이스)을 부르지 않는 것은 검사로 막혀 있지 않으므로 리뷰로 지킨다.
 - **화면 종류**: `X-Orbit-Client` → `Sec-CH-UA-Mobile` → User-Agent 순서로 판별하며 지표 태그(`client`)로만 쓴다.
+- **신호 발행**: 일반 `@EventListener`가 발행 트랜잭션 안에서 이벤트를 받아 커밋 뒤 동작을 걸고, 커밋되면 신호 전용 실행기(한 스레드, 줄 1,000개)가 Redis 채널 `orbit:realtime`으로 보낸다. 롤백되면 보내지 않는다. `@TransactionalEventListener(AFTER_COMMIT)`을 쓰지 않는 것은 Modulith가 그런 리스너를 모두 감싸 DB로 발행 상태를 갱신하기 때문이다(ADR-004). 리스너와 커밋 뒤 동작은 발행 쪽 트랜잭션·스레드에서 돌므로 예외를 던지지 않는다. 신호는 이벤트 발행 기록 대상이 아니며 보내지 못한 신호는 다시 보내지 않는다. 줄이 차거나 줄에서 30초보다 오래 기다린 신호는 버린다(`realtime.signals.dropped`의 사유 `queue_full`·`stale`, 그 밖에 신호를 만들지 못한 `invalid`·실행기가 멈춘 `stopped`). Redis 명령이 막혀(기본 대기 60초) 쌓인 신호가 Redis가 돌아온 뒤 한꺼번에 나가지 않게 하기 위해서다. 전용 실행기를 두는 것은 Redis가 멈췄을 때 요청 스레드와 다른 모듈 리스너의 실행기를 붙잡지 않기 위해서다. 실행기는 웹 서버 정상 종료가 끝난 뒤, Redis 연결보다 먼저 멈춘다.
+- **신호 전달**: 모든 인스턴스가 채널을 구독해 받은 신호를 Redis 클라이언트의 수신 스레드에서 바로 연결 목록에 줄 세운다. 작업 신호는 그 발주사로 연 연결에, 알림 신호는 알림센터가 계정 단위이므로 그 계정의 모든 연결(발주사와 관계없이)에 보낸다. 연결 수가 상한으로 묶여 있고 신호가 드물어 색인 없이 목록을 훑는다. 채널 형식(JSON의 `type`·대상·시각)은 발행 어댑터와 구독 어댑터가 각자 정의하고(입력 어댑터가 출력 어댑터를 참조할 수 없음) 통합 테스트가 맞물리는지 확인한다. 읽을 수 없는 신호는 버린다(`realtime.signals.received`).
+- **Redis 없이 기동**: 구독 컨테이너는 처음 구독에 실패하면 다시 시도하지 않으므로, `RealtimeSignalSubscription`이 별도 스레드에서 연결될 때까지 5초마다 다시 시작한다. 시작은 첫 시도가 끝날 때까지만(최대 3초) 기다려 Redis가 있으면 기동을 마치기 전에 구독이 열린다. 그래서 Redis에 연결할 수 없어도 기동은 막지 않는다(연결 요청의 Access Token 확인은 Redis를 쓰므로 요청은 실패한다). 구독한 뒤 끊기면 Redis 클라이언트가 다시 연결하며 다시 구독한다.
+- **유즈케이스 입력**: 신호 발행·전달 유즈케이스는 Command 대신 domain 값 `RealtimeSignal`을 받는다. 식별자·시각만 담은 불변 값이라 감쌀 이유가 없어서다.
+- **놓친 신호**: Redis Pub/Sub은 저장하지 않아 구독이 끊긴 동안의 신호, 다른 인스턴스로 다시 연결하는 사이의 신호는 받지 못한다. 화면은 `connected`를 받을 때마다(처음·다시 연결) 보고 있는 목록을 다시 조회하고, 주기 조회로 나머지를 맞춘다.
 - **설정**: `app.realtime.connection.*`(`RealtimeConnectionProperties`)와 `app.realtime.stream.*`(`RealtimeStreamProperties`). 응답의 안전 한도(기본 31분)는 연결 수명보다 길게 둔다.
 
 <a id="realtime-gaps"></a>

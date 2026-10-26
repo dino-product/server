@@ -13,7 +13,10 @@ import com.orbit.realtime.application.port.in.command.RealtimeChannel;
 import com.orbit.realtime.domain.RealtimeMessage;
 import com.orbit.realtime.domain.RealtimeMessage.Closed;
 import com.orbit.realtime.domain.RealtimeMessage.Connected;
+import com.orbit.realtime.domain.RealtimeMessage.NotificationCreated;
+import com.orbit.realtime.domain.RealtimeMessage.NotificationRead;
 import com.orbit.realtime.domain.RealtimeMessage.Reconnect;
+import com.orbit.realtime.domain.RealtimeMessage.WorkChanged;
 
 /**
  * SSE로 구현한 실시간 연결. 이벤트 이름은 {@link RealtimeMessage#name()}을 쓰고 이벤트 값(JSON)은 여기서 정한다. 연결 유지 신호는 화면이 무시하는 주석
@@ -79,6 +82,9 @@ final class SseRealtimeChannel implements RealtimeChannel {
             case Connected connected -> Map.of();
             case Reconnect reconnect -> Map.of();
             case Closed closed -> Map.of("reason", closed.reason());
+            case WorkChanged changed -> Map.of("workIds", changed.workIds(), "occurredAt", changed.occurredAt());
+            case NotificationCreated created -> Map.of("occurredAt", created.occurredAt());
+            case NotificationRead read -> Map.of("occurredAt", read.occurredAt());
         };
     }
 }

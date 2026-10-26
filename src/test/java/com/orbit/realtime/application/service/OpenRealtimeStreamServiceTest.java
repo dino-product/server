@@ -3,7 +3,6 @@ package com.orbit.realtime.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +18,7 @@ import com.orbit.realtime.application.error.RealtimeErrorCode;
 import com.orbit.realtime.application.port.in.command.dto.OpenRealtimeStreamCommand;
 import com.orbit.realtime.domain.ClientType;
 import com.orbit.realtime.fake.RecordingRealtimeChannel;
+import com.orbit.realtime.fake.RecordingRealtimeConnectionPort;
 import com.orbit.shared.error.BusinessException;
 
 @DisplayName("실시간 연결 열기")
@@ -33,18 +33,11 @@ class OpenRealtimeStreamServiceTest {
             List.of(STAFF_ACCOUNT_ID, ORGANIZATION_ID), new StaffMember(100L, ORGANIZATION_ID, false),
             List.of(OWNER_ACCOUNT_ID, ORGANIZATION_ID), new StaffMember(101L, ORGANIZATION_ID, true),
             List.of(TECHNICIAN_ACCOUNT_ID, ORGANIZATION_ID), new TechnicianMember(200L, ORGANIZATION_ID)));
-    private final List<Long> registered = new ArrayList<>();
-    private boolean full;
+    private final RecordingRealtimeConnectionPort connections = new RecordingRealtimeConnectionPort();
 
     private final OpenRealtimeStreamService service = new OpenRealtimeStreamService(
             (accountId, organizationId) -> Optional.ofNullable(members.get(List.of(accountId, organizationId))),
-            (accountId, organizationId, clientType, channel) -> {
-                if (full) {
-                    return false;
-                }
-                registered.add(accountId);
-                return true;
-            });
+            connections);
 
     @Test
     @DisplayName("발주사의 활성 직원과 총관리자는 연결을 등록한다")
@@ -52,7 +45,7 @@ class OpenRealtimeStreamServiceTest {
         service.open(command(STAFF_ACCOUNT_ID, ORGANIZATION_ID));
         service.open(command(OWNER_ACCOUNT_ID, ORGANIZATION_ID));
 
-        assertThat(registered).containsExactly(STAFF_ACCOUNT_ID, OWNER_ACCOUNT_ID);
+        assertThat(connections.registeredAccounts()).containsExactly(STAFF_ACCOUNT_ID, OWNER_ACCOUNT_ID);
     }
 
     @Test
@@ -62,13 +55,13 @@ class OpenRealtimeStreamServiceTest {
         assertRejected(command(STAFF_ACCOUNT_ID, 2L), RealtimeErrorCode.NOT_OFFICE_MEMBER);
         assertRejected(command(99L, ORGANIZATION_ID), RealtimeErrorCode.NOT_OFFICE_MEMBER);
 
-        assertThat(registered).isEmpty();
+        assertThat(connections.registeredAccounts()).isEmpty();
     }
 
     @Test
     @DisplayName("인스턴스가 연결을 더 받을 수 없으면 503(REALTIME-002)이다")
     void rejectsWhenConnectionsAreUnavailable() {
-        full = true;
+        connections.full();
 
         assertRejected(command(STAFF_ACCOUNT_ID, ORGANIZATION_ID), RealtimeErrorCode.CONNECTION_UNAVAILABLE);
     }

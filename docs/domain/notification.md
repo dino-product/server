@@ -14,7 +14,7 @@
 | 상태 | 구현 중 — 작업 트리거 8종(배정·일정 변경·다른 기사에게 넘어감·취소·완료보고 요청 → 담당 기사, 수락·거절·완료보고 제출 → 등록자), 알림센터 API, 알림 설정 API. 조직 트리거는 미구현([차이·공백](#notification-gaps)) |
 | 기획 원본 | [알림] 정책 — 트리거 §4·문구 §4.1, 채널 §5, 알림센터·설정 §6·§6.1, 상태 §8, 권한 §9, 검증 §10 |
 | 소유 개념 | **Notification**(Root) — 수신 계정·발주사·종류·관련 작업·문구·상태(UNREAD/READ)·알림 시각·숨김. **NotificationSetting**(Root) — 계정별 작업 배정·일정 변경·작업 취소 푸시 수신 여부(기본 켜짐) |
-| 관계 | `schedule` ← 이벤트 구독(Conformist): `WorkAssigned`·`WorkReassigned`·`WorkRescheduled`·`WorkCancelled`·`CompletionReportRequested`·`WorkAccepted`·`WorkRejected`·`CompletionReportSubmitted` · `organization` → 참조(ID) (받는 계정 조회, Conformist: 서비스가 공개 계약 `OrganizationAccountLookup`을 직접 주입받는다. 계정 식별자만 받아 번역할 모델이 없어 ACL을 두지 않는다) · `auth` → 요청 계정(`AccountPrincipal`) · 예정: `realtime` ← 이벤트 발행(루트 공개 record `NotificationCreated`·`NotificationRead`, HM-281 웹 실시간 갱신) |
+| 관계 | `schedule` ← 이벤트 구독(Conformist): `WorkAssigned`·`WorkReassigned`·`WorkRescheduled`·`WorkCancelled`·`CompletionReportRequested`·`WorkAccepted`·`WorkRejected`·`CompletionReportSubmitted` · `organization` → 참조(ID) (받는 계정 조회, Conformist: 서비스가 공개 계약 `OrganizationAccountLookup`을 직접 주입받는다. 계정 식별자만 받아 번역할 모델이 없어 ACL을 두지 않는다) · `auth` → 요청 계정(`AccountPrincipal`) · `realtime` ← 이벤트 발행(루트 공개 record `NotificationCreated`·`NotificationRead`, 커밋 뒤 웹 헤더 배지 갱신 신호) |
 
 <a id="notification-implementation"></a>
 ## 구현 결정
