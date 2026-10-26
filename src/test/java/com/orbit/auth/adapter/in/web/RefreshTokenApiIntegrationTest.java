@@ -167,6 +167,16 @@ class RefreshTokenApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
+    @DisplayName("자격 없이 로그아웃하면 아무것도 끝내지 않고 204다")
+    void logoutWithoutCredentialsChangesNothing() throws Exception {
+        String first = refreshToken(login());
+
+        mockMvc.perform(post("/api/v1/auth/logout")).andExpect(status().isNoContent());
+
+        refresh(first).andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("비밀값이 맞지 않는 refresh token으로 로그아웃하면 아무것도 끝내지 않는다")
     void logoutKeepsSessionForWrongSecret() throws Exception {
         String first = refreshToken(login());

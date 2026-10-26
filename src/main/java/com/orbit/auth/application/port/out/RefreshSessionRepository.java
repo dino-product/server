@@ -28,6 +28,10 @@ public interface RefreshSessionRepository {
     /** 비밀값 해시가 그 세션의 현재 또는 직전 토큰과 맞을 때만 지운다. 맞지 않으면 아무것도 지우지 않는다. */
     void deleteByToken(RefreshSessionId id, RefreshTokenHash tokenHash);
 
+    /**
+     * 그 계정의 세션을 모두 지운다. 계정 폐쇄처럼 다른 저장소를 함께 쓰는 호출자 트랜잭션 안에서만 쓰며, 지우기 전에 그 트랜잭션의 대기 중 변경을 DB에 반영하되
+     * 호출자가 다루던 Entity는 그대로 둔다.
+     */
     void deleteAllByAccount(AccountId accountId);
 
     /** 그 계정에서 {@code now} 시각에 이미 만료된 세션을 지운다. */

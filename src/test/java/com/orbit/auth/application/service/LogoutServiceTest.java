@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -99,6 +100,14 @@ class LogoutServiceTest {
 
         verify(sessions, never()).deleteByToken(any(), any());
         verify(revokedTokens, never()).revoke(any(), any());
+    }
+
+    @Test
+    @DisplayName("Access Token도 refresh token도 없으면 저장소와 폐기 목록을 건드리지 않는다")
+    void doesNothingWithoutCredentials() {
+        service().logout(new LogoutCommand(null, null, null, null, null));
+
+        verifyNoInteractions(sessions, revokedTokens);
     }
 
     @Test

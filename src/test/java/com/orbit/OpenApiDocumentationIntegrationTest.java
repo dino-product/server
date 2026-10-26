@@ -91,8 +91,8 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/auth/me'].get.responses['404']"
                                 + ".content['application/json'].examples['AUTH-004'].value.code")
                         .value("AUTH-004"))
-                .andExpect(
-                        jsonPath("$.paths['/api/v1/auth/logout'].post.security").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.security[0]['Bearer Authentication']")
+                        .exists())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.requestBody.required")
                         .doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.requestBody"

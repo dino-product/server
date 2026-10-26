@@ -24,8 +24,8 @@ import lombok.extern.slf4j.Slf4j;
  * 파생하므로 회전 직후 다시 온 직전 토큰에도 같은 다음 토큰을 돌려준다. 재사용·만료로 세션을 지운 뒤 거절하므로 그 삭제는 거절 예외로 롤백하지 않는다. 실패
  * 이유는 응답에서 구분하지 않는다.
  *
- * <p>계정 폐쇄는 같은 트랜잭션에서 세션을 지우지만, 폐쇄 표시가 남기 전에 Apple 웹 교환이 새 세션을 만드는 틈이 있다. 폐쇄 표시는 Access Token 수명만큼만
- * 남으므로, 그 세션으로 표시가 사라진 뒤 토큰을 받지 못하게 재발급마다 계정이 닫혔는지 저장소에서 확인한다.
+ * <p>계정 폐쇄는 같은 트랜잭션에서 세션을 지우지만, 폐쇄와 동시에 커밋된 로그인이나 폐쇄 표시가 남기 전의 Apple 웹 교환이 새 세션을 남길 수 있다. 폐쇄
+ * 표시는 Access Token 수명만큼만 남으므로, 그 세션으로 표시가 사라진 뒤 토큰을 받지 못하게 재발급마다 계정이 닫혔는지 저장소에서 확인한다.
  */
 @Slf4j
 @Service
@@ -76,7 +76,7 @@ public class RefreshTokensService implements RefreshTokensUseCase {
             }
             case STALE -> throw rejected();
             case REUSED -> {
-                // 세션 식별자를 알면 그 세션을 끊을 수 있으므로 로그에는 계정만 남긴다.
+                // 세션 식별자는 Access Token과 기기 세션을 잇는 값이라 로그에 두지 않고 계정만 남긴다.
                 log.warn(
                         "Refresh token reuse detected; session revoked: accountId={}",
                         session.accountId().value());

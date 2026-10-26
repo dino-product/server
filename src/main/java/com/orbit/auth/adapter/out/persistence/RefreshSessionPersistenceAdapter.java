@@ -70,7 +70,7 @@ class RefreshSessionPersistenceAdapter implements RefreshSessionRepository {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public void deleteAllByAccount(AccountId accountId) {
         repository.deleteAllOfAccount(accountId.value());
     }

@@ -1,5 +1,6 @@
 package com.orbit.auth.adapter.in.web.security;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.stereotype.Component;
@@ -30,7 +31,9 @@ class AuthSecurityCustomizer implements SecurityFilterChainCustomizer {
     public void customize(HttpSecurity http) {
         http.addFilterBefore(authenticationFilter, AnonymousAuthenticationFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(KAKAO_LOGIN_PATHS, APPLE_LOGIN_PATHS, REFRESH_PATH, LOGOUT_PATH)
+                        .requestMatchers(KAKAO_LOGIN_PATHS, APPLE_LOGIN_PATHS, REFRESH_PATH)
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, LOGOUT_PATH)
                         .permitAll());
     }
 }

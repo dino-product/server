@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -39,7 +40,7 @@ class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
             PathPatternRequestMatcher.withDefaults().matcher(AuthSecurityCustomizer.APPLE_LOGIN_PATHS),
             PathPatternRequestMatcher.withDefaults().matcher(AuthSecurityCustomizer.REFRESH_PATH));
     private static final RequestMatcher LOGOUT_PATH =
-            PathPatternRequestMatcher.withDefaults().matcher(AuthSecurityCustomizer.LOGOUT_PATH);
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, AuthSecurityCustomizer.LOGOUT_PATH);
 
     private final AuthenticateAccessTokenUseCase useCase;
     private final ApiErrorResponseWriter responseWriter;

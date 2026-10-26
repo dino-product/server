@@ -167,6 +167,26 @@ class RefreshSessionPersistenceAdapterTest extends PersistenceAdapterTestSupport
     }
 
     @Test
+    @DisplayName("계정의 세션을 모두 지워도 같은 트랜잭션의 다른 Entity는 관리 상태로 남고 그 변경은 DB에 반영된다")
+    void keepsCallerEntitiesManagedWhenDeletingAllSessions() {
+        AccountId accountId = newAccount();
+        adapter.saveNew(RefreshSession.start(newSessionId(), accountId, FIRST, STARTED_AT, IDLE));
+        AccountJpaEntity account = entityManager.find(AccountJpaEntity.class, accountId.value());
+        Instant closedAt = STARTED_AT.plusSeconds(60);
+        account.apply(Account.reconstituteClosed(accountId, REGISTERED_AT, closedAt));
+
+        adapter.deleteAllByAccount(accountId);
+
+        assertThat(entityManager.getEntityManager().contains(account)).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                        "select closed_at from accounts where id = ?", Timestamp.class, accountId.value()))
+                .isEqualTo(Timestamp.from(closedAt));
+        assertThat(jdbcTemplate.queryForObject(
+                        "select count(*) from refresh_sessions where account_id = ?", Integer.class, accountId.value()))
+                .isZero();
+    }
+
+    @Test
     @DisplayName("계정의 만료된 세션만 지운다(만료 시각 정각 포함)")
     void deletesExpiredSessionsOfAccount() {
         AccountId accountId = newAccount();
