@@ -120,7 +120,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 중 — [notification 문서](notification.md#notification) |
 | 기획 원본 | [알림] 정책 — 트리거 §4(단일 원본), 채널 §5, 알림센터·설정 §6·§6.1, 상태 코드 §8, 권한 §9 |
 | 소유 개념 | **Notification**, **NotificationSetting** — 상세는 notification 문서 |
-| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
+| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `realtime` ← 이벤트 발행(알림 저장·읽음) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
 
 <a id="profile"></a>
 ### 5. 프로필 컨텍스트 (`profile`) — Generic Subdomain
