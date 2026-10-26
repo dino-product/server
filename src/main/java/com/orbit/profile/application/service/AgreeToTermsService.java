@@ -43,6 +43,7 @@ public class AgreeToTermsService implements AgreeToTermsUseCase {
             throw new BusinessException(ProfileErrorCode.REQUIRED_TERMS_NOT_AGREED);
         }
         Profile profile = profiles.findByAccountId(accountId)
+                .map(ProfileOwnership::requireNotWithdrawn)
                 .orElseThrow(() -> new BusinessException(ProfileErrorCode.PROFILE_REQUIRED));
         TermsVersions current = currentTerms.currentVersions();
         Instant now = clock.instant();

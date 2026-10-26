@@ -25,6 +25,7 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 
 - 변경 UseCase는 `@Transactional`, 조회 UseCase는 `@Transactional(readOnly = true)`를 적용합니다.
 - 예외: DB를 쓰지 않고 Redis·외부 검증기 같은 다른 저장소만 쓰는 UseCase(예: auth의 nonce 발급·Access Token 인증·로그아웃)는 트랜잭션을 붙이지 않고 서비스 Javadoc에 그 사실을 적습니다. JPA 트랜잭션은 시작할 때 DB 커넥션을 잡으므로, 매 요청 토큰 인증처럼 DB가 필요 없는 경로가 커넥션을 점유하거나 DB 장애에 함께 실패하지 않게 하기 위해서입니다. DB 접근이 추가되면 위 규칙을 적용합니다.
+- 예외: DB를 쓰지만 외부 HTTP를 기다리거나 여러 건을 반복해 처리하는 UseCase는 메서드 트랜잭션을 두지 않고, 출력 Port 구현(저장소 Adapter) 메서드마다 트랜잭션을 확정합니다. 외부 응답이나 반복 처리 동안 DB 커넥션을 잡지 않기 위해서입니다. 예: auth의 Apple 로그인, 외부 연결 해제(`UnlinkAccountProvidersService`·`RetryProviderUnlinksService`가 함께 쓰는 `ProviderUnlinker`), 폐쇄 표시 재확정(`ReconfirmClosedAccountsService`, 조회만 저장소의 읽기 트랜잭션이고 Redis 표시는 그 밖). 메서드 사이에 원자성이 없으므로 중간에 실패한 뒤 다시 처리해도 결과가 같게 만들고, 서비스 Javadoc에 그 사실을 적습니다.
 - 날짜·시각은 UTC `Instant`, 테스트 가능한 시간은 주입받은 `Clock`을 사용합니다. 주입되는 `Clock`은 저장소(PostgreSQL) 정밀도인 마이크로초 단위로 끊으므로, 시각 컬럼도 마이크로초 정밀도로 매핑합니다. JPA 감사 컬럼(`BaseTimeEntity`)도 같은 `Clock`에서 시각을 받습니다(`shared.internal.config.JpaAuditingConfig`).
 
 <a id="events"></a>
@@ -33,7 +34,8 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 - 완료 이벤트는 변경 트랜잭션 안에서 발행하고 `@ApplicationModuleListener`로 커밋 후 소비합니다. 롤백된 트랜잭션의 이벤트는 소비하지 않습니다.
 - `shared.internal.config.AsyncConfig`의 `@EnableAsync`와 Boot TaskExecutor를 사용합니다. 리스너는 발행자와 다른 스레드·별도 트랜잭션에서 실행합니다.
 - 발생 시각은 발행 시점의 `Clock` 값이며 커밋 시각이 아닙니다. 후속 처리는 API 응답과 독립적이며 소비 실패가 이미 커밋된 등록을 되돌리지 않습니다.
-- **전달 보장:** 모듈 리스너로 가는 이벤트는 발행 트랜잭션 안에서 `event_publication`에 기록됩니다. 리스너가 예외를 던지거나 처리 중에 멈추면 `shared`가 처리될 때까지 횟수 제한 없이 다시 보내고(마지막 시도 뒤 1분부터 실패마다 두 배, 최대 30분 간격 — `app.events.resubmission.*`), 정상 종료하면 `event_publication_archive`로 옮깁니다. 리스너가 예외를 삼키면 완료로 처리돼 다시 보내지 않습니다. `@TransactionalEventListener`를 직접 붙인 리스너는 기록·재전송 대상이 아니지만, Modulith가 실행 전에 별도 트랜잭션으로 발행 상태를 갱신하려 해 DB 연결을 쓰고 그 갱신이 실패하면 돌지 않습니다.
+- 예외: 모듈 안 이벤트를 응답 전에 같은 스레드에서 처리해야 하거나, 리스너가 외부 HTTP를 기다려 트랜잭션을 열면 안 되는 경우에는 `@TransactionalEventListener`(필요하면 `@Async`)로 커밋 뒤 소비합니다. 현재 예외와 이유는 auth의 계정 폐쇄 리스너이며 [Auth의 이벤트 흐름](../../../../docs/domain/auth.md#이벤트-흐름)이 원본입니다.
+- **전달 보장:** 모듈 리스너로 가는 이벤트는 발행 트랜잭션 안에서 `event_publication`에 기록됩니다. 리스너가 예외를 던지거나 처리 중에 멈추면 `shared`가 처리될 때까지 횟수 제한 없이 다시 보내고(마지막 시도 뒤 1분부터 실패마다 두 배, 최대 30분 간격 — `app.events.resubmission.*`), 정상 종료하면 `event_publication_archive`로 옮깁니다. 리스너가 예외를 삼키면 완료로 처리돼 다시 보내지 않습니다. `@TransactionalEventListener`를 직접 붙인 리스너는 기록·재전송 대상이 아니지만, Modulith가 실행 전에 별도 트랜잭션으로 발행 상태를 갱신하려 해 DB 연결을 쓰고 그 갱신이 실패하면 돌지 않습니다. 이벤트 대신 영속 대기와 주기 재시도로 보장하는 예는 auth의 [외부 연결 해제](../../../../docs/domain/auth.md#외부-연결-해제-흐름)입니다.
 - **리스너 멱등:** 같은 이벤트가 한 리스너에 두 번 이상 올 수 있으므로 모듈 리스너는 같은 이벤트를 여러 번 받아도 결과가 같아야 합니다. 이벤트로 행을 만들면 이벤트가 담은 식별자로 이미 처리했는지 확인하거나 유니크 제약으로 막습니다.
 - **이벤트 계약:** 이벤트 record에는 식별자·상태·시각만 담고 이름·연락처 같은 개인정보는 넣지 않습니다(보관 테이블에 기한 없이 남음). 이벤트 record의 이름·패키지·필드를 바꿀 때는 `event_publication`에 그 타입의 미완료 발행이 남지 않았는지 확인하거나 이전 타입을 남깁니다.
 - 실제 커밋·롤백·소비 스레드를 통합 테스트로 검증합니다. 테스트 전체를 트랜잭션으로 감싸지 않습니다.
@@ -45,7 +47,7 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 
 - 패키징된 설정은 기본 활성 프로필을 선택하지 않습니다. 환경의 `SPRING_PROFILES_ACTIVE`로 지정합니다.
 - 공통·`prod`의 `ddl-auto`는 `none`, `create-drop`은 로컬 예제·테스트에서만 허용합니다. 로컬 DB에 보존할 데이터를 넣지 않습니다.
-- 운영은 `SPRING_PROFILES_ACTIVE=prod`로 실행합니다. `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`는 기본값 없이 받아 누락 시 시작에 실패하게 합니다. `KAKAO_ALLOWED_AUDIENCES`, `AUTH_JWT_SECRET`, `APPLE_ALLOWED_AUDIENCES`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_REFRESH_TOKEN_ENCRYPTION_KEY`, `APPLE_SERVICES_ID`, `APPLE_WEB_REDIRECT_URI`, `APPLE_WEB_RETURN_URI`, `APPLE_ANDROID_RETURN_URI`는 모든 프로필에서 기본값 없이 받습니다([Auth 설정](../../../../docs/domain/auth.md#설정)).
+- 운영은 `SPRING_PROFILES_ACTIVE=prod`로 실행합니다. `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`는 기본값 없이 받아 누락 시 시작에 실패하게 합니다. `KAKAO_ALLOWED_AUDIENCES`, `KAKAO_ADMIN_KEY`, `AUTH_JWT_SECRET`, `APPLE_ALLOWED_AUDIENCES`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_REFRESH_TOKEN_ENCRYPTION_KEY`, `APPLE_SERVICES_ID`, `APPLE_WEB_REDIRECT_URI`, `APPLE_WEB_RETURN_URI`, `APPLE_ANDROID_RETURN_URI`는 모든 프로필에서 기본값 없이 받습니다([Auth 설정](../../../../docs/domain/auth.md#설정)).
 - 개발 서버는 `SPRING_PROFILES_ACTIVE=dev`로 실행합니다. `dev`·`prod`는 배포 공통 설정 `deployed`(위 DB·Redis 환경 변수 필수 등)를 프로필 그룹으로 함께 켜고, 자기 파일에는 환경마다 다른 값만 둡니다. 운영 OpenAPI UI는 비활성화하고 `dev`는 켜며 앱 로그를 DEBUG로 둡니다. 그룹으로 켜진 `deployed`가 `dev`·`prod` 파일보다 우선하므로 환경마다 다른 값은 `deployed`에 두지 않습니다.
 - `prod,local`·`dev,local` 동시 지정에도 로컬 설정이 활성화되지 않도록 프로필 표현식(`local & !deployed`)으로 보호합니다.
 - 설정은 `application-{profile}.yml`로 분리하고 공통 설정을 중복하지 않습니다.

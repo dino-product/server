@@ -99,6 +99,23 @@ class AccountPersistenceAdapterTest extends PersistenceAdapterTestSupport {
     }
 
     @Test
+    @DisplayName("기준 시각 이후에 닫힌 계정만 읽는다")
+    void listsAccountsClosedSince() {
+        AccountId recent = closedAccount(CLOSED_AT);
+        AccountId old = closedAccount(CLOSED_AT.minusSeconds(3600));
+        AccountId open = adapter.saveNew(Account.register(newIdentity(), REGISTERED_AT))
+                .id()
+                .orElseThrow();
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(adapter.listClosedSince(CLOSED_AT.minusSeconds(60)))
+                .extracting(account -> account.id().orElseThrow())
+                .contains(recent)
+                .doesNotContain(old, open);
+    }
+
+    @Test
     @DisplayName("잠그고 읽을 계정이 없으면 빈 값을 돌려준다")
     void returnsEmptyWhenLockingUnknownAccount() {
         assertThat(adapter.findByIdForUpdate(new AccountId(Long.MAX_VALUE))).isEmpty();
@@ -112,6 +129,16 @@ class AccountPersistenceAdapterTest extends PersistenceAdapterTestSupport {
         assertThatThrownBy(() -> adapter.saveNew(existing))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("only new accounts can be saved");
+    }
+
+    private AccountId closedAccount(Instant closedAt) {
+        AccountId id = adapter.saveNew(Account.register(newIdentity(), REGISTERED_AT))
+                .id()
+                .orElseThrow();
+        Account account = adapter.findByIdForUpdate(id).orElseThrow();
+        account.close(closedAt);
+        adapter.update(account);
+        return id;
     }
 
     private static ExternalIdentity newIdentity() {
