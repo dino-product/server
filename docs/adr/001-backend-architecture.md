@@ -1,8 +1,8 @@
 # ADR-001: 백엔드 아키텍처
 
 - 상태: Accepted
-- 기준일: 2026-10-09
-- 범위: 초기 백엔드의 구조·기술 선택·카카오·Apple OIDC 인증과 계정·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
+- 기준일: 2026-10-16
+- 범위: 초기 백엔드의 구조·기술 선택·카카오·Apple OIDC 인증과 계정·가입 프로필과 가입 공통 검사·탈퇴(계정 폐쇄·외부 연결 해제)·예제 계약과 검증 체계. 에이전트 작업 방식은 [ADR-002](002-agentic-coding-rules.md)가 다룹니다.
 
 ## 배경과 목적
 
@@ -22,20 +22,28 @@
 - 조직·소속·초대, 작업 생애주기, 알림을 각각의 책임으로 계획합니다. 각 모듈의 현재 구현 범위와 허용 의존성은 [도메인 지도](../domain/README.md#모듈별-책임과-공개-계약)가 원본이며 이 결정 기록에 복제하지 않습니다.
 - 실제 사용 전 의존성을 열어 두지 않도록 골격 모듈(`package-info.java`만 있는 모듈)의 `allowedDependencies`는 빈 배열로 명시합니다. 구현이 공개 계약을 사용할 때 필요한 항목만 추가하고 도메인 지도를 함께 갱신합니다.
 - [도메인 지도](../domain/README.md#모듈별-책임과-공개-계약)는 골격을 포함한 현재 모듈 구성의 원본입니다. [BC 설계 초안](../domain/bounded-contexts.md#bounded-contexts)의 애그리게잇·컨텍스트 관계·향후 확장은 현재 구현 계약과 구분합니다.
-- `ModularityTest`는 6개 모듈 구성과 경계를 검사합니다. 골격 등록만으로 제품 기능이나 계획된 모듈 간 연동이 구현되었다고 보지 않습니다.
+- `ModularityTest`는 7개 모듈 구성과 경계를 검사합니다. 골격 등록만으로 제품 기능이나 계획된 모듈 간 연동이 구현되었다고 보지 않습니다.
 
 ## 인증과 계정
 
 - 소셜 로그인은 카카오·Apple OIDC를 함께 지원하고, 제공자·클라이언트별로 증명을 얻는 경로만 다르게 둡니다. 카카오 앱과 Apple iOS는 네이티브 SDK가 돌려준 id_token을 제출하고, Apple 웹·Android는 서버가 authorize·callback으로 code와 id_token을 받습니다(카카오 웹 흐름은 후속 구현). 모든 경로는 공통 골격(JWKS 서명·발급자·허용 클라이언트·만료)의 제공자별 id_token 검증기와 서버 발급 nonce로 합류하며 제공자 토큰을 API 인증에 쓰지 않습니다. iOS 앱이 카카오 같은 타사 로그인을 제공하면 App Store 심사 지침 4.8에 따라 개인정보 보호형 대체 로그인이 필요하므로 Apple을 두 번째 제공자로 붙였고, 제품 결정은 Notion 반영을 기다립니다([A-10](../domain/bounded-contexts.md#auth-gaps)).
 - nonce는 서버가 발급하고 한 번만 소비하므로 이미 쓴 id_token은 다시 제출할 수 없습니다. Apple은 앱이 nonce의 SHA-256 hex를 요청에 넣어 id_token에 해시가 실리므로 서버는 raw를 발급하고 해시로 보관·원자 소비합니다. 앱 흐름은 브라우저 세션이 없어 nonce를 발급 주체와 따로 묶지 않으며 그 이유는 [Auth 로그인 흐름](../domain/auth.md#카카오-로그인-흐름)에 둡니다. 웹 흐름은 state/nonce를 시작 브라우저의 연결 쿠키와 묶고, 콜백 뒤 Access Token 대신 60초 일회성 교환 코드만 복귀 주소에 실어 토큰이 URL에 남지 않게 합니다. 교환 코드는 시작 클라이언트의 PKCE(S256) code_verifier가 있어야 쓸 수 있어 Android 앱 스킴 가로채기와 login CSRF를 막습니다(RFC 8252).
-- 계정 원본은 `auth`가 소유합니다. `Account`는 제공자별 외부 식별(`ExternalIdentity`)과 등록 시각만 가지며 `accounts`·`oauth_credentials` 테이블에 저장합니다. 첫 로그인에 계정을 만들고 이후 같은 제공자의 같은 `sub`는 같은 계정입니다. 카카오 계정과 Apple 계정은 별개이며, Apple 비공개 릴레이 이메일·카카오 이메일 미동의 때문에 이메일 매칭 자동 연결은 불안정하고 탈취 경로가 되므로 하지 않습니다. 이름·연락처 같은 프로필과 조직 역할은 auth에 두지 않으며 소유 컨텍스트는 [BC-001](../domain/bounded-contexts.md#미해결-설계-이슈)에서 결정합니다. `user` 예제는 그대로 둡니다.
+- 계정 원본은 `auth`가 소유합니다. `Account`는 제공자별 외부 식별(`ExternalIdentity`)과 등록 시각만 가지며 `accounts`·`oauth_credentials` 테이블에 저장합니다. 첫 로그인에 계정을 만들고 이후 같은 제공자의 같은 `sub`는 같은 계정입니다. 카카오 계정과 Apple 계정은 별개이며, Apple 비공개 릴레이 이메일·카카오 이메일 미동의 때문에 이메일 매칭 자동 연결은 불안정하고 탈취 경로가 되므로 하지 않습니다. 이름·연락처 같은 가입 프로필은 아래 `profile` 모듈이, 조직 역할은 organization이 소유하며 auth에 두지 않습니다. `user` 예제는 그대로 둡니다.
 - 자체 자격증명은 HS256 Access JWT(`iss`, `sub`=accountId, `jti`, `exp`, `token_use=access`)입니다. 로그아웃은 토큰의 `jti`를 남은 유효 시간 동안 Redis에 기억해 폐기하며, Refresh 회전은 후속 결정입니다.
+- 계정을 닫으면 그 계정의 모든 토큰을 거부해야 하지만 계정별 발급 목록이 없고 인증은 DB 없이 동작하므로, 커밋 뒤 Redis에 계정 단위 폐쇄 표시를 `폐쇄 시각 + 토큰 수명 + 5분`까지 남겨 매 요청 대조합니다. 탈퇴 응답 전에 확정되도록 같은 스레드의 커밋 뒤 리스너로 남기고, 저장 실패는 1분 주기 재확정으로 복구합니다. 매 요청 DB 조회는 인증 경로에 트랜잭션이 생겨, 비동기 리스너는 응답 뒤 틈에 이전 토큰이 통과해 택하지 않았습니다.
 - Apple 계정 삭제 시 토큰 철회가 요구되므로 iOS·웹 로그인 모두 authorization code를 교환해 refresh token을 받아 `apple_refresh_tokens`에 AES-256-GCM으로 암호화해 보관합니다. 교환 실패는 로그인 실패로, Apple이 거절한 code는 401, Apple 장애·설정 오류는 502로 구분해 클라이언트가 재로그인과 재시도를 고를 수 있게 합니다(오류 코드는 Auth 문서). 저장 키 교체·보관 정책은 후속 결정입니다. Apple 토큰 API를 기다리는 로그인 유즈케이스는 DB 커넥션을 잡지 않도록 메서드 트랜잭션을 두지 않습니다([트랜잭션 예외](../../.claude/skills/dino-architecture/references/persistence.md#transactions)).
 - 인증 실패 응답 정책: 토큰이 없으면 401, 토큰이 있는데 폐기·만료·위조됐으면 카카오·Apple 로그인 경로를 뺀 어느 경로든 실제 존재하지 않는 자원과 같은 404 본문으로 응답해 보호 자원의 존재와 실패 이유를 드러내지 않습니다.
 - 인증 필터와 공개 경로는 `shared::security`의 `SecurityFilterChainCustomizer`로 공통 SecurityFilterChain에 덧붙입니다. shared는 비즈니스 모듈에 의존하지 않고 모듈은 별도 SecurityFilterChain을 만들지 않습니다.
+- Actuator는 API와 다른 관리 포트(기본 9090)에 둡니다. health(liveness·readiness 포함)와 prometheus만 인증 없이 열고 info 등 나머지는 Access Token을 요구합니다. 관리 포트는 Ingress·CDN 같은 외부 진입점에 라우팅하지 않고 클러스터 안의 수집기와 kubelet probe만 접근한다는 전제이며, 이 전제가 깨지는 배포에서는 수집 전용 인증을 먼저 둡니다.
 - 다른 모듈은 인증된 계정을 auth 모듈 루트의 공개 계약 `AccountPrincipal`(계정 식별자만)로 받습니다. 계정 식별자의 의미와 발급은 auth가 소유하고 `shared`는 기술 확장점만 공개하므로 `shared::security`로 옮기는 안은 택하지 않았습니다. 계약을 제공 모듈 루트에 두는 [모듈 간 통신](#모듈-간-통신) 원칙과도 맞습니다. 이 계약을 쓰는 모듈은 auth에 의존하므로 auth는 그 모듈을 조회하거나 그 모듈의 이벤트를 구독할 수 없습니다. 그래서 조직 역할 인가는 auth가 organization을 조회해 채우지 않으며, auth가 이미 의존하는 예제 `user`는 이 계약을 쓰지 않습니다.
+- 가입 프로필(이름·연락처)·가입 상태·약관 동의 이력은 비즈니스 모듈 `profile`이 소유합니다. 인증(외부 식별·토큰)과 개인정보(이름·연락처·약관 이력)는 바뀌는 이유가 달라 auth에 넣지 않았고, auth가 이미 의존하는 예제 `user`를 넓히면 `AccountPrincipal`을 쓰는 순간 순환이 생겨 택하지 않았습니다. 이름은 schedule의 조직 구성원 용어·organization `Membership`과 겹치는 `member`, auth `Account`와 겹치는 `account`를 피해 `profile`로 정했습니다(구 BC-001, 2026-10-07 새 모듈 결정, 2026-10-10 이름 확정).
+- profile은 웹 어댑터에서 `AccountPrincipal`을 써 auth에 의존하므로 auth는 profile을 조회·구독하지 않습니다. 로그인 응답에는 가입 단계를 담지 않고 클라이언트가 로그인 뒤 profile API로 확인합니다.
+- 탈퇴는 profile이 소유하고, 계정 폐쇄(외부 식별 해제·이전 토큰 거부)는 profile이 auth 루트 계약 `AccountClosure`를 탈퇴 트랜잭션 안에서 직접 호출해 탈퇴와 함께 확정·롤백합니다. auth가 profile의 탈퇴 이벤트를 구독하면 의존이 순환하고, 탈퇴가 커밋된 뒤 폐쇄가 실패하는 틈도 생겨 택하지 않았습니다. 계정 행은 다른 모듈의 기록이 참조하므로 남기고 외부 식별만 지워, 같은 외부 계정의 재로그인이 새 계정이 되게 합니다. 프로필 행을 먼저 저장하고 계정 행을 잠가 잠금 순서를 profile → auth로 고정합니다.
+- 탈퇴한 계정의 제공자 연결 해제(카카오 관리자 API 연결 끊기·Apple 토큰 철회)는 탈퇴를 막지 않도록 커밋 뒤에 시도하고, 전달은 이벤트가 아니라 영속 대기로 보장합니다. 폐쇄 트랜잭션이 계정·제공자마다 `provider_unlinks` 대기를 남기고, 커밋 직후 한 번 시도한 뒤 실패하면 1분 주기 작업이 간격을 늘려 다시 시도합니다. 제공자 호출과 대기 변경·삭제가 멱등이라 대기를 잠그지 않습니다. 요청 7일 뒤에는 포기하고 대기와 남은 Apple 토큰을 지웁니다(2026-10-11 결정). 폐쇄 트랜잭션 안에서 제공자를 부르면 외부 장애가 탈퇴 실패로 번지고 계정 잠금을 오래 잡아 택하지 않았습니다. 대신 포기하면 제공자 쪽 앱 연결이 남을 수 있고, 해제까지 최대 7일 카카오 회원번호와 암호화한 Apple refresh token을 보관합니다.
+- 가입 미완료·필수 약관 재동의 전 계정의 이용 제한은 profile 웹 어댑터의 Spring MVC 인터셉터가 허용 목록(profile·auth 경로와 회사 확인) 밖 모든 `/api/**` 컨트롤러 요청에 공통으로 적용합니다(403 `PROFILE-005`). 같은 규칙이 모든 API에 걸리므로 다른 모듈은 각자 검사를 넣지 않습니다. 보안 필터(`SecurityFilterChainCustomizer`)로 두면 없는 경로도 403이 되어 위의 "무효 토큰 404 = 실제로 없는 자원 404" 정책이 깨지므로, 컨트롤러 메서드로 연결된 요청만 보는 인터셉터를 택했습니다. 공개 API도 토큰을 붙이면 검사합니다. 탈퇴 API는 profile 경로라 이미 허용 목록 안이고, 다른 모듈의 가입 전 API(회사 확인)는 허용 목록에 더합니다.
+- 비즈니스 모듈이 다른 모듈 API 전체에 웹 공통 검사를 거는 첫 사례이며 다음 제약을 감수합니다. 허용 목록은 다른 모듈의 URL 문자열(`/api/v1/auth/**`, organization 회사 확인 `/api/v1/organizations/lookup`)에 묶여 모듈 의존이 아니므로 `ModularityTest`가 감지하지 못합니다. 경로를 옮기거나 가입 전 API를 더할 때 허용 목록을 직접 고치고 전체 컨텍스트 통합 테스트로 확인합니다. 다른 모듈의 `@ApplicationModuleTest`에는 profile이 올라오지 않아 이 검사가 빠지므로 모듈 테스트 통과가 가입 검사 통과를 뜻하지 않으며, 전체 컨텍스트 API 테스트는 가입을 마친 계정으로 요청합니다. 다른 모듈의 ControllerDocs는 profile 오류를 선언할 수 없어 OpenAPI의 403 응답은 profile이 덧붙입니다.
 
-상세 흐름·설정·오류 코드는 [Auth](../domain/auth.md)가 소유합니다.
+상세 흐름·설정·오류 코드는 [Auth](../domain/auth.md)와 [Profile](../domain/profile.md#profile)(허용 목록·테스트 지원은 [가입 공통 검사](../domain/profile.md#profile-signup-gate))이 소유합니다.
 
 ## Application과 모델 분리
 
@@ -71,6 +79,10 @@
 
 요구 인터페이스를 쓰면 타입 의존이 한 방향으로 유지되고, 확인·변경 결과도 동기로 받습니다.
 
+탈퇴는 차단 판정만 요구 인터페이스로 두고 뒤처리는 이벤트로 나눕니다(2026-10-14 결정). organization·schedule이 profile 루트의 `WithdrawalBlocker`를 구현해 탈퇴 전에 차단 사유를 돌려주고, 소속 비활성화·대기함 반환은 profile 이벤트 `AccountWithdrawn`을 구독해 커밋 뒤에 맡습니다. 차단은 탈퇴 전에 결과가 필요해 요구 인터페이스로 둡니다. 뒤처리는 요구 인터페이스에 동기 탈퇴 처리 메서드를 두는 안 대신 구독을 택해 profile이 두 모듈의 처리를 모르게 했습니다. 대기함 반환을 이벤트로 하지 않은 위 결정과 달리, 이벤트 발행 기록(HM-278)이 구독 실패를 다시 전달한다는 전제입니다. 그 전에는 구독자가 실패하면 다시 전달되지 않습니다.
+
+`WithdrawalBlocker`는 차단 조건이 모듈마다 나뉘어 여러 모듈이 구현하고, 구현이 없으면 아무것도 막지 않습니다. 구현은 한 모듈만 제공하고 없으면 안전한 임시 구현을 둔다는 [요구 인터페이스 규칙](../../.claude/skills/dino-architecture/references/communication.md#요구-인터페이스)의 예외이므로, 운영 출시 전에 두 구현이 들어가야 합니다([Profile 공개 계약](../domain/profile.md#공개-계약)).
+
 방식 선택과 세부 규칙은 [모듈 간 통신](../../.claude/skills/dino-architecture/references/communication.md#communication)을 따릅니다.
 
 ## 예제 모듈
@@ -92,10 +104,10 @@
 ## 영속성과 이벤트
 
 - PostgreSQL·JPA·QueryDSL을 사용하고 DB 검증은 PostgreSQL Testcontainers로 수행합니다. H2로 대체하지 않아 SQL·매핑 차이를 실제 DB에서 확인합니다.
-- 스키마는 Flyway 마이그레이션으로 만들고 Hibernate는 매핑만 검증합니다([ADR-004](004-schema-migration.md)). 활성 프로필·운영 DB 접속 정보는 실행 환경에서 지정합니다.
+- 스키마는 Flyway 마이그레이션으로 만들고 Hibernate는 매핑만 검증합니다([ADR-005](005-schema-migration.md)). 활성 프로필·운영 DB 접속 정보는 실행 환경에서 지정합니다.
 - 모듈 간 이벤트는 변경 트랜잭션에서 발행하고 커밋 후 비동기로 소비합니다. 시간은 주입받은 `Clock`과 UTC `Instant`를 사용하며, JPA 감사 컬럼도 같은 `Clock`으로 채워 업무 시각과 기준을 맞춥니다.
 - JPA Entity는 팀 ERD를 따르되 Domain과 분리하고 값 검증은 Domain에 맡깁니다. 모듈 간 참조는 FK 없는 식별자 컬럼으로 두어 모듈 분리 때 스키마 의존이 생기지 않게 합니다. 규칙은 [JPA 모델](../../.claude/skills/dino-architecture/references/persistence.md#jpa)이 원본입니다.
-- 전달 보장이 필요한 서비스는 영속 저장소·재처리·멱등성 정책을 함께 설계합니다. 최소 예제의 후속 처리는 모듈 경계를 보여 주는 데 한정하며 전달 보장을 암시하지 않습니다.
+- 모듈 리스너로 가는 이벤트는 발행 트랜잭션 안에서 기록하고, 리스너가 실패하거나 멈추면 다시 보냅니다. 같은 이벤트가 두 번 이상 갈 수 있어 리스너는 멱등하게 만듭니다. 결정과 이유는 [ADR-004](004-event-publication-registry.md)가 소유합니다.
 - nonce·폐기 토큰처럼 만료가 있는 임시 상태는 Redis에 두고 PostgreSQL에는 원본 데이터만 저장합니다.
 
 프로필·트랜잭션·이벤트의 실행 규칙은 [영속성·이벤트](../../.claude/skills/dino-architecture/references/persistence.md#transactions), 실행 준비는 [빠른 시작](../../README.md#빠른-시작)을 따릅니다.

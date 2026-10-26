@@ -24,7 +24,7 @@ public record ProgressBoardResponse(
     @Schema(description = "한 상태의 열")
     public record Column(
             @Schema(
-                    description = "상태. REGISTERED(등록), PENDING_ACCEPTANCE(배정됨), ACCEPTED(작업전), IN_PROGRESS(작업중), "
+                    description = "상태. REGISTERED(등록), PENDING_ACCEPT(배정됨), ACCEPTED(작업전), IN_PROGRESS(작업중), "
                             + "COMPLETED(완료)",
                     example = "IN_PROGRESS")
             WorkStatus status,

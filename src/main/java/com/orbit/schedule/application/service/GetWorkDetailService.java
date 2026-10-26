@@ -24,10 +24,9 @@ import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.Work;
 
 /**
- * 작업 상세 조회. 관리자(총관리자·직원)는 조직의 모든 작업을 모든 항목과 함께 본다. 기사는 한 번이라도 배정받은 작업만 보고(아니면 다른 조직 작업처럼
- * 404), 자기 배정 이력만 받는다. 작업유형·등록 시각·지연·고객·결제·일정·진행 기록·완료보고·현장 사진은 지금 담당일 때만 받고, 등록자와 관리자 강제 변경
- * 기록은 받지 않는다. 지연 여부는 지금 시각으로 계산하고, 완료보고 사진(강제 변경으로 치운 보고 포함)과 현장 사진은 내려받을 주소와 함께 담는다. 오류 확인
- * 순서는 schedule 지침의 조회 순서를 따른다.
+ * 작업 상세 조회. 관리자(총관리자·직원)는 조직의 모든 작업을 모든 항목과 함께 본다. 기사는 자기가 볼 수 있는 작업({@link
+ * AssignedTechnicians#isVisibleTo})만 보고(아니면 다른 조직 작업처럼 404), 등록자·완료보고 요청 기록·요청 가능 여부를 뺀 모든 항목과 지금 자기 배정 하나만
+ * 받는다. 지연 여부는 지금 시각으로 계산하고, 완료보고 사진과 현장 사진은 내려받을 주소와 함께 담는다. 오류 확인 순서는 schedule 지침의 조회 순서를 따른다.
  */
 @Service
 public class GetWorkDetailService implements GetWorkDetailUseCase {
@@ -72,54 +71,26 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                         displayInfos,
                         displayInfos.registrar(work),
                         WorkViews.assignments(work, displayInfos),
-                        WorkViews.statusCorrections(work, photoUrlPort));
+                        completionReportRequests(work),
+                        work.canRequestCompletionReportAt(now));
             }
             case TechnicianActor technician -> technicianDetail(work, now, technician);
         };
     }
 
     private WorkDetailInfo technicianDetail(Work work, Instant now, TechnicianActor technician) {
-        AssignedTechnicians.requireEverAssigned(work, technician);
-        if (WorkViews.isCurrentAssignee(work, technician)) {
-            DisplayInfos displayInfos = DisplayInfos.ofCurrentTechnician(
-                    loadTechnicianProfilesPort,
-                    loadStaffProfilesPort,
-                    loadWorkTypeLabelsPort,
-                    work.organizationId(),
-                    work);
-            return fullDetail(
-                    work,
-                    now,
-                    displayInfos,
-                    null,
-                    WorkViews.assignmentsOf(work, technician.technicianId(), displayInfos),
-                    List.of());
-        }
-        // 지금 담당이 아니면 자기 배정만 보이므로 자기 표시 정보만 찾는다.
-        DisplayInfos ownInfo =
-                DisplayInfos.ofTechnician(loadTechnicianProfilesPort, work.organizationId(), technician.technicianId());
-        List<WorkDetailInfo.Assignment> ownAssignments =
-                WorkViews.assignmentsOf(work, technician.technicianId(), ownInfo);
-        return new WorkDetailInfo(
-                work.id().orElseThrow().value(),
-                work.name(),
-                work.status(),
-                false,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                ownAssignments,
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                List.of(),
-                work.version());
+        AssignedTechnicians.requireVisible(work, technician);
+        DisplayInfos displayInfos = DisplayInfos.ofCurrentTechnician(
+                loadTechnicianProfilesPort, loadStaffProfilesPort, loadWorkTypeLabelsPort, work.organizationId(), work);
+        return fullDetail(
+                work, now, displayInfos, null, WorkViews.currentAssignment(work, displayInfos), List.of(), false);
+    }
+
+    private static List<WorkDetailInfo.CompletionReportRequest> completionReportRequests(Work work) {
+        return work.completionReportRequests().stream()
+                .map(request -> new WorkDetailInfo.CompletionReportRequest(
+                        request.requestedAt(), request.requestedBy().value()))
+                .toList();
     }
 
     private DisplayInfos displayInfos(Work work) {
@@ -133,7 +104,8 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
             DisplayInfos displayInfos,
             StaffInfo registrar,
             List<WorkDetailInfo.Assignment> assignments,
-            List<WorkDetailInfo.StatusCorrection> statusCorrections) {
+            List<WorkDetailInfo.CompletionReportRequest> completionReportRequests,
+            boolean completionReportRequestable) {
         return new WorkDetailInfo(
                 work.id().orElseThrow().value(),
                 work.name(),
@@ -158,7 +130,8 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                         .map(report -> WorkViews.completionReport(report, photoUrlPort))
                         .orElse(null),
                 WorkViews.photos(work.sitePhotos(), photoUrlPort),
-                statusCorrections,
+                completionReportRequests,
+                completionReportRequestable,
                 work.version());
     }
 }

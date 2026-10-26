@@ -7,6 +7,11 @@ spring:
   docker:
     compose:
       enabled: false
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: true
 
 decorator:
   datasource:
@@ -26,6 +31,10 @@ app:
   auth:
     kakao:
       allowed-audiences: test-kakao-app-key
+      admin-api:
+        # 테스트가 실제 카카오를 부르지 않도록 닫힌 로컬 주소를 둔다. 연결 끊기를 검사하는 테스트는 스텁 주소로 바꾼다.
+        unlink-uri: http://127.0.0.1:1/v1/user/unlink
+        admin-key: test-kakao-admin-key
     apple:
       allowed-audiences: test-apple-bundle-id,test-apple-services-id
       client-secret:
@@ -43,7 +52,16 @@ app:
         return-uris:
           web: http://localhost:3000/login/apple
           android: orbit-test://auth/apple
+    closed-account:
+      reconfirm-enabled: false
+    provider-unlink:
+      # 주기 작업은 끈다. 재시도·재확정을 검사하는 테스트는 유즈케이스를 직접 부른다.
+      retry-enabled: false
     jwt:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test
       access-token-ttl: PT1H
+  events:
+    resubmission:
+      # 주기 작업은 끈다. 재전송을 검사하는 테스트는 재전송을 직접 부른다.
+      enabled: false

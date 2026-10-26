@@ -39,3 +39,11 @@ jobs:
           python3 .github/scripts/check_markdown_links.py
           --base ${{ github.event.pull_request.base.sha }}
           --head ${{ github.event.pull_request.head.sha }}
+
+      # develop 머지가 곧 dev DB 마이그레이션이라 새 버전 번호를 base 최신 뒤로 강제한다 (ADR-005 파일 규칙)
+      - name: Check migration order
+        if: always()
+        run: >-
+          python3 .github/scripts/check_migration_order.py
+          --base ${{ github.event.pull_request.base.sha }}
+          --head ${{ github.event.pull_request.head.sha }}

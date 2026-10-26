@@ -11,26 +11,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.application.port.out.AccountMembership;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.MemberRole;
 import com.orbit.organization.domain.OrganizationId;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** 역할 변경·참여 요청 승인 유즈케이스가 아직 없어 발주사·소속·기사 계약 행은 SQL로 넣는다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("계정의 직원 소속·기사 계약 한 문장 조회")
-class AccountMembershipQueryAdapterTest {
+class AccountMembershipQueryAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant JOINED_AT = Instant.parse("2026-10-01T00:00:00.123456Z");
     private static final Instant CHANGED_AT = Instant.parse("2026-10-05T00:00:00.654321Z");
@@ -130,8 +120,8 @@ class AccountMembershipQueryAdapterTest {
         entityManager
                 .createNativeQuery("""
                         insert into technician
-                            (company_id, member_id, status, status_changed_at, created_at, updated_at)
-                        values (?, ?, ?, ?, ?, ?)
+                            (company_id, member_id, status, status_changed_at, joined_at, updated_at, created_at)
+                        values (?, ?, ?, ?, ?, ?, current_timestamp)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())

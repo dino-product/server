@@ -20,7 +20,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,6 +32,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.support.IntegrationTestSupport;
+import com.orbit.support.SignupTestSupport;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -40,7 +40,6 @@ import tools.jackson.databind.ObjectMapper;
  * 요청자는 실제 Access Token 인증을 거친 auth의 {@code AccountPrincipal}에서 얻는다. 참여 요청 승인·역할 변경 유즈케이스가 아직 없어 직원·기사 행은 SQL로
  * 넣는다.
  */
-@AutoConfigureMockMvc
 @DisplayName("내 소속 목록 조회 API")
 class MembershipApiIntegrationTest extends IntegrationTestSupport {
 
@@ -53,6 +52,8 @@ class MembershipApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    private final SignupTestSupport.SignupOnce signups = new SignupTestSupport.SignupOnce();
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -165,8 +166,9 @@ class MembershipApiIntegrationTest extends IntegrationTestSupport {
     private void insertTechnician(long organizationId, long accountId, String status) {
         jdbcTemplate.update(
                 """
-                insert into technician (company_id, member_id, status, status_changed_at, created_at, updated_at)
-                values (?, ?, ?, ?, ?, ?)
+                insert into technician
+                    (company_id, member_id, status, status_changed_at, joined_at, updated_at, created_at)
+                values (?, ?, ?, ?, ?, ?, current_timestamp)
                 """,
                 organizationId,
                 accountId,
@@ -189,6 +191,8 @@ class MembershipApiIntegrationTest extends IntegrationTestSupport {
                         .claim("token_use", "access")
                         .build());
         jwt.sign(new MACSigner(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
-        return jwt.serialize();
+        String accessToken = jwt.serialize();
+        signups.ensure(mockMvc, objectMapper, accountId, accessToken);
+        return accessToken;
     }
 }
