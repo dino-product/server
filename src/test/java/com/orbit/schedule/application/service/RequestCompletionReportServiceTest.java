@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.CompletionReportRequested;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CompletionReportRequestInfo;
 import com.orbit.schedule.application.port.in.command.dto.RequestCompletionReportCommand;
@@ -55,8 +57,10 @@ class RequestCompletionReportServiceTest {
         assertThat(saved.completionReportRequests()).containsExactly(new CompletionReportRequest(NOW, MANAGER_ID));
         assertThat(saved.status()).isEqualTo(WorkStatus.IN_PROGRESS);
         assertThat(fixture.events.published())
-                .containsExactly(new CompletionReportRequested(
-                        id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "늦은 작업", NOW));
+                .containsExactly(
+                        new CompletionReportRequested(
+                                id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "늦은 작업", NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test

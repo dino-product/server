@@ -57,6 +57,7 @@ public class RequestCompletionReportService implements RequestCompletionReportUs
 
         WorkVersions.save(workRepository, work);
         eventPublisher.publishEvent(WorkEvents.completionReportRequested(work, request));
+        eventPublisher.publishEvent(WorkEvents.changed(work, now));
         return new CompletionReportRequestInfo(request.requestedAt());
     }
 }

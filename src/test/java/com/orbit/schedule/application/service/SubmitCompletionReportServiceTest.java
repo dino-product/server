@@ -20,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.orbit.schedule.CompletionReportSubmitted;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.domain.ActualPaymentMethod;
@@ -59,13 +60,15 @@ class SubmitCompletionReportServiceTest {
                         ActualPaymentMethod.CREDIT_CARD));
         assertThat(fixture.scheduleLock.locks()).isEmpty();
         assertThat(fixture.events.published())
-                .containsExactly(new CompletionReportSubmitted(
-                        id.value(),
-                        ORGANIZATION_ID.value(),
-                        REGISTRAR_ID.value(),
-                        TECHNICIAN_ID.value(),
-                        "대상 작업",
-                        NOW));
+                .containsExactly(
+                        new CompletionReportSubmitted(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                REGISTRAR_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                "대상 작업",
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test

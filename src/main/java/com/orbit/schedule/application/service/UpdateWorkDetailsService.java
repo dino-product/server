@@ -1,7 +1,9 @@
 package com.orbit.schedule.application.service;
 
+import java.time.Clock;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,12 +30,20 @@ public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
     private final WorkTypePort workTypePort;
+    private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     public UpdateWorkDetailsService(
-            LoadActorPort loadActorPort, WorkRepository workRepository, WorkTypePort workTypePort) {
+            LoadActorPort loadActorPort,
+            WorkRepository workRepository,
+            WorkTypePort workTypePort,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
         this.workTypePort = workTypePort;
+        this.eventPublisher = eventPublisher;
+        this.clock = clock;
     }
 
     @Override
@@ -63,5 +73,6 @@ public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
         }
 
         workRepository.save(work);
+        eventPublisher.publishEvent(WorkEvents.changed(work, clock.instant()));
     }
 }
