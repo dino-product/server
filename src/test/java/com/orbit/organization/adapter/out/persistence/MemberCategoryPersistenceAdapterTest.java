@@ -239,7 +239,8 @@ class MemberCategoryPersistenceAdapterTest extends PersistenceAdapterTestSupport
     private Long technicianWithCategory(OrganizationId organizationId, long accountId, long categoryId, String status) {
         jdbcTemplate.update(
                 "insert into technician (company_id, member_id, company_technician_category_id, status,"
-                        + " status_changed_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
+                        + " status_changed_at, joined_at, updated_at, created_at)"
+                        + " values (?, ?, ?, ?, ?, ?, ?, current_timestamp)",
                 organizationId.value(),
                 accountId,
                 categoryId,

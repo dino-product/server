@@ -26,4 +26,12 @@ interface SpringDataAppleRefreshTokenRepository extends JpaRepository<AppleRefre
 
     @Query("select t from AppleRefreshTokenJpaEntity t where t.account.id = :accountId")
     List<AppleRefreshTokenJpaEntity> findByAccountId(@Param("accountId") Long accountId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from AppleRefreshTokenJpaEntity t where t.account.id = :accountId and t.clientId = :clientId")
+    int deleteByAccountAndClient(@Param("accountId") Long accountId, @Param("clientId") String clientId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from AppleRefreshTokenJpaEntity t where t.account.id = :accountId")
+    int deleteByAccount(@Param("accountId") Long accountId);
 }

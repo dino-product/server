@@ -11,6 +11,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
@@ -19,7 +20,7 @@ import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
 
 @Entity
-@Table(name = "accounts")
+@Table(name = "accounts", indexes = @Index(name = "idx_accounts_closed_at", columnList = "closed_at"))
 class AccountJpaEntity {
 
     @Id

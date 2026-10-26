@@ -12,6 +12,8 @@ import com.orbit.organization.domain.Membership;
 import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.MembershipStatus;
 import com.orbit.organization.domain.OrganizationId;
+import com.orbit.organization.domain.WorkType;
+import com.orbit.organization.domain.WorkTypeId;
 
 /** 유형 서비스 테스트가 함께 쓰는 고정 값. 요청자는 계정 7, 발주사 10이다. */
 final class MemberCategoryFixtures {
@@ -56,5 +58,20 @@ final class MemberCategoryFixtures {
         MemberCategory category = category(id, kind, name);
         category.delete(CREATED_AT);
         return category;
+    }
+
+    static WorkType workType(long id, String name) {
+        return workType(id, ORGANIZATION_ID, name);
+    }
+
+    static WorkType workType(long id, OrganizationId organizationId, String name) {
+        return WorkType.reconstitute(
+                new WorkTypeId(id), organizationId, new CategoryName(name), new CategoryColor(BLUE), false, null);
+    }
+
+    static WorkType deletedWorkType(long id, String name) {
+        WorkType workType = workType(id, name);
+        workType.delete(CREATED_AT);
+        return workType;
     }
 }

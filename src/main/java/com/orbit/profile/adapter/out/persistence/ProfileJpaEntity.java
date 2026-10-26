@@ -23,9 +23,13 @@ import com.orbit.profile.domain.PhoneNumber;
 import com.orbit.profile.domain.Profile;
 import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.TermsAgreement;
+import com.orbit.profile.domain.WithdrawalReason;
 import com.orbit.shared.persistence.BaseTimeEntity;
 
-/** 계정 식별자를 기본 키로 쓴다. auth의 계정 테이블과는 모듈 경계를 넘는 외래 키를 두지 않는다. 연락처는 계정 사이에 중복을 허용해 유일 제약이 없다. */
+/**
+ * 계정 식별자를 기본 키로 쓴다. auth의 계정 테이블과는 모듈 경계를 넘는 외래 키를 두지 않는다. 연락처는 계정 사이에 중복을 허용해 유일 제약이 없다. 탈퇴한
+ * 프로필은 이름·연락처가 비어 있다.
+ */
 @Entity
 @Table(name = "profiles")
 class ProfileJpaEntity extends BaseTimeEntity {
@@ -34,10 +38,10 @@ class ProfileJpaEntity extends BaseTimeEntity {
     @Column(name = "account_id")
     private Long accountId;
 
-    @Column(name = "name", nullable = false, length = 20)
+    @Column(name = "name", length = 20)
     private String name;
 
-    @Column(name = "phone_number", nullable = false, length = 11)
+    @Column(name = "phone_number", length = 11)
     private String phoneNumber;
 
     @Enumerated(EnumType.STRING)
@@ -46,6 +50,12 @@ class ProfileJpaEntity extends BaseTimeEntity {
 
     @Column(name = "signed_up_at")
     private Instant signedUpAt;
+
+    @Column(name = "withdrawn_at")
+    private Instant withdrawnAt;
+
+    @Column(name = "withdrawal_reason", length = 200)
+    private String withdrawalReason;
 
     @Column(name = "marketing_agreed")
     private Boolean marketingAgreed;
@@ -72,10 +82,13 @@ class ProfileJpaEntity extends BaseTimeEntity {
     }
 
     void apply(Profile profile) {
-        this.name = profile.name().value();
-        this.phoneNumber = profile.phoneNumber().value();
+        this.name = profile.name().map(PersonName::value).orElse(null);
+        this.phoneNumber = profile.phoneNumber().map(PhoneNumber::value).orElse(null);
         this.status = profile.status();
         this.signedUpAt = profile.signedUpAt().orElse(null);
+        this.withdrawnAt = profile.withdrawnAt().orElse(null);
+        this.withdrawalReason =
+                profile.withdrawalReason().map(WithdrawalReason::value).orElse(null);
         this.marketingAgreed =
                 profile.marketingConsent().map(MarketingConsent::agreed).orElse(null);
         this.marketingChangedAt =
@@ -92,10 +105,12 @@ class ProfileJpaEntity extends BaseTimeEntity {
                 marketingAgreed == null ? null : new MarketingConsent(marketingAgreed, marketingChangedAt);
         return Profile.reconstitute(
                 new AccountId(accountId),
-                new PersonName(name),
-                new PhoneNumber(phoneNumber),
+                name == null ? null : new PersonName(name),
+                phoneNumber == null ? null : new PhoneNumber(phoneNumber),
                 status,
                 signedUpAt,
+                withdrawnAt,
+                withdrawalReason == null ? null : new WithdrawalReason(withdrawalReason),
                 agreements.stream().map(TermsAgreementJpaEntity::toDomain).toList(),
                 marketingConsent);
     }

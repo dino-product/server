@@ -8,6 +8,12 @@ spring:
     name: spring-settings
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  task:
+    scheduling:
+      pool:
+        # 주기 작업(폐쇄 표시 재확정, 외부 연결 해제 재시도, 실패 발행 재전송, 멈춘 발행 검사, 발신 대기열 처리)마다 스레드를 둬
+        # 제공자 장애로 한 작업이 길어져도 다른 작업이 밀리지 않게 한다
+        size: 5
   docker:
     compose:
       enabled: ${SPRING_DOCKER_COMPOSE_ENABLED:false}
@@ -54,11 +60,6 @@ spring:
         schema-initialization:
           # 운영 스키마는 자동으로 만들지 않는다. local·test 프로필만 켠다.
           enabled: false
-  task:
-    scheduling:
-      pool:
-        # 주기 작업(발신 대기열 처리, 실패 발행 재전송, 멈춘 발행 검사)이 서로를 기다리지 않게 한다.
-        size: 4
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -116,6 +117,10 @@ app:
       issuer: https://kauth.kakao.com
       jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
       allowed-audiences: ${KAKAO_ALLOWED_AUDIENCES}
+      admin-api:
+        unlink-uri: https://kapi.kakao.com/v1/user/unlink
+        admin-key: ${KAKAO_ADMIN_KEY}
+        timeout: PT5S
     apple:
       issuer: https://appleid.apple.com
       jwk-set-uri: https://appleid.apple.com/auth/keys
@@ -138,6 +143,14 @@ app:
         return-uris:
           web: ${APPLE_WEB_RETURN_URI}
           android: ${APPLE_ANDROID_RETURN_URI}
+    closed-account:
+      # 커밋 뒤 폐쇄 표시 저장이 실패했을 때를 대비해 최근 폐쇄 계정의 표시를 다시 남기는 주기
+      reconfirm-enabled: true
+      reconfirm-interval: PT1M
+    provider-unlink:
+      # 탈퇴한 계정의 카카오 연결 끊기·Apple 토큰 철회 재시도 주기
+      retry-enabled: true
+      retry-interval: PT1M
     jwt:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}

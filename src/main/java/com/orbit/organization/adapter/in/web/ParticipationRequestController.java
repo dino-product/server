@@ -48,8 +48,8 @@ class ParticipationRequestController implements ParticipationRequestControllerDo
     public ParticipationRequestResponse request(
             @AuthenticationPrincipal AccountPrincipal requester,
             @Valid @RequestBody RequestParticipationRequest request) {
-        RequestParticipationCommand command =
-                new RequestParticipationCommand(requester.accountId(), request.companyCode(), request.desiredType());
+        RequestParticipationCommand command = new RequestParticipationCommand(
+                requester.accountId(), request.companyCode(), request.desiredType(), request.requestChannel());
         return ParticipationRequestResponse.from(requestParticipationUseCase.request(command));
     }
 

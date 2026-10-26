@@ -112,4 +112,22 @@ class WorkStatusTest {
                 Arguments.of(WorkStatus.CANCELED, WorkStatus.REGISTERED),
                 Arguments.of(WorkStatus.CANCELED, WorkStatus.PENDING_ACCEPT));
     }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = WorkStatus.class,
+            names = {"REGISTERED", "PENDING_ACCEPT", "ACCEPTED"})
+    @DisplayName("등록·수락대기·수락됨은 시작 전 상태다")
+    void beforeStartStatuses(WorkStatus status) {
+        assertThat(status.isBeforeStart()).isTrue();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = WorkStatus.class,
+            names = {"IN_PROGRESS", "COMPLETED", "CANCELED"})
+    @DisplayName("작업중·완료·취소는 시작 전 상태가 아니다")
+    void startedStatuses(WorkStatus status) {
+        assertThat(status.isBeforeStart()).isFalse();
+    }
 }

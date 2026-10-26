@@ -34,6 +34,7 @@ public class SaveProfileService implements SaveProfileUseCase {
         PersonName name = validInput(() -> new PersonName(command.name()));
         PhoneNumber phoneNumber = validInput(() -> new PhoneNumber(command.phoneNumber()));
         Profile profile = profiles.findByAccountId(accountId)
+                .map(ProfileOwnership::requireNotWithdrawn)
                 .map(existing -> {
                     existing.changeBasics(name, phoneNumber);
                     return existing;
