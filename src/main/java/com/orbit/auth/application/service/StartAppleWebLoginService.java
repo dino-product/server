@@ -1,50 +1,36 @@
 package com.orbit.auth.application.service;
 
-import java.time.Duration;
-
 import org.springframework.stereotype.Service;
 
 import com.orbit.auth.application.port.in.command.StartAppleWebLoginUseCase;
-import com.orbit.auth.application.port.in.command.dto.AppleWebLoginStartInfo;
 import com.orbit.auth.application.port.in.command.dto.StartAppleWebLoginCommand;
+import com.orbit.auth.application.port.in.command.dto.WebLoginStartInfo;
 import com.orbit.auth.application.port.out.AppleWebAuthorizationPort;
-import com.orbit.auth.application.port.out.AppleWebLoginState;
-import com.orbit.auth.application.port.out.AppleWebLoginStatePort;
-import com.orbit.auth.domain.HashedNonce;
-import com.orbit.auth.domain.PkceChallenge;
-import com.orbit.shared.error.BusinessException;
-import com.orbit.shared.error.CommonErrorCode;
+import com.orbit.auth.application.port.out.WebLoginStatePort;
+import com.orbit.auth.application.service.WebLoginStates.StartedWebLogin;
+import com.orbit.auth.domain.OAuthProvider;
 
 /**
- * 웹·Android의 Apple 로그인을 시작한다. 일회성 state와 nonce, 시작한 브라우저에만 남길 연결 값을 만들고, state와 연결 값 해시를 함께 키로 nonce 해시·복귀
- * 주소·클라이언트의 PKCE challenge를 10분 보관한다. 인가 요청에는 nonce 해시를 실어 id_token의 nonce 클레임과 바로 대조한다. challenge가 S256 형식이
- * 아니면 COMMON-400이다. DB 트랜잭션 없이 state 저장소만 사용한다.
+ * 웹·Android의 Apple 로그인을 시작한다. 웹 로그인 state를 보관하고({@link WebLoginStates}), 인가 요청에는 nonce 해시를 실어 id_token의 nonce
+ * 클레임과 바로 대조한다. DB 트랜잭션 없이 state 저장소만 사용한다.
  */
 @Service
 public class StartAppleWebLoginService implements StartAppleWebLoginUseCase {
 
-    static final Duration STATE_TTL = Duration.ofMinutes(10);
-
-    private final AppleWebLoginStatePort states;
+    private final WebLoginStates webLogins;
     private final AppleWebAuthorizationPort authorization;
 
-    public StartAppleWebLoginService(AppleWebLoginStatePort states, AppleWebAuthorizationPort authorization) {
-        this.states = states;
+    public StartAppleWebLoginService(WebLoginStatePort states, AppleWebAuthorizationPort authorization) {
+        this.webLogins = new WebLoginStates(OAuthProvider.APPLE, states);
         this.authorization = authorization;
     }
 
     @Override
-    public AppleWebLoginStartInfo start(StartAppleWebLoginCommand command) {
-        PkceChallenge challenge = PkceChallenge.parse(command.codeChallenge())
-                .orElseThrow(() -> new BusinessException(CommonErrorCode.BAD_REQUEST));
-        String state = LoginSecrets.random();
-        HashedNonce nonce = HashedNonce.fromRaw(LoginSecrets.random());
-        String browserBinding = LoginSecrets.random();
-        states.save(
-                state,
-                HashedNonce.fromRaw(browserBinding).value(),
-                new AppleWebLoginState(nonce, command.returnUri(), challenge),
-                STATE_TTL);
-        return new AppleWebLoginStartInfo(authorization.authorizationUri(state, nonce), browserBinding, STATE_TTL);
+    public WebLoginStartInfo start(StartAppleWebLoginCommand command) {
+        StartedWebLogin started = webLogins.start(command.returnUri(), command.codeChallenge());
+        return new WebLoginStartInfo(
+                authorization.authorizationUri(started.state(), started.nonce()),
+                started.browserBinding(),
+                WebLoginStates.TTL);
     }
 }

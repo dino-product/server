@@ -26,21 +26,21 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.orbit.auth.application.error.AuthErrorCode;
-import com.orbit.auth.application.port.in.command.dto.AppleWebLoginCompletion;
 import com.orbit.auth.application.port.in.command.dto.CompleteAppleWebLoginCommand;
+import com.orbit.auth.application.port.in.command.dto.WebLoginCompletion;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.AppleCodeExchange;
 import com.orbit.auth.application.port.out.AppleIdTokenClaims;
-import com.orbit.auth.application.port.out.AppleLoginExchangePort;
 import com.orbit.auth.application.port.out.AppleRefreshTokenRepository;
 import com.orbit.auth.application.port.out.AppleTokenApiException;
 import com.orbit.auth.application.port.out.AppleTokenApiException.Failure;
 import com.orbit.auth.application.port.out.AppleWebAuthorizationPort;
-import com.orbit.auth.application.port.out.AppleWebLoginState;
-import com.orbit.auth.application.port.out.AppleWebLoginStatePort;
 import com.orbit.auth.application.port.out.ExchangeAppleAuthorizationCodePort;
-import com.orbit.auth.application.port.out.PendingAppleLogin;
+import com.orbit.auth.application.port.out.LoginExchangePort;
+import com.orbit.auth.application.port.out.PendingWebLogin;
 import com.orbit.auth.application.port.out.VerifyAppleIdTokenPort;
+import com.orbit.auth.application.port.out.WebLoginState;
+import com.orbit.auth.application.port.out.WebLoginStatePort;
 import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
@@ -62,12 +62,12 @@ class CompleteAppleWebLoginServiceTest {
     private static final HashedNonce NONCE = HashedNonce.fromRaw("raw-nonce");
     private static final String BINDING_HASH = HashedNonce.fromRaw(BINDING).value();
     private static final PkceChallenge CHALLENGE = new PkceChallenge("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
-    private static final AppleWebLoginState STATE = new AppleWebLoginState(NONCE, RETURN_URI, CHALLENGE);
+    private static final WebLoginState STATE = new WebLoginState(NONCE, RETURN_URI, CHALLENGE);
     private static final ExternalIdentity IDENTITY = new ExternalIdentity(OAuthProvider.APPLE, SUBJECT);
     private static final AccountId ACCOUNT_ID = new AccountId(7L);
 
     @Mock
-    private AppleWebLoginStatePort states;
+    private WebLoginStatePort states;
 
     @Mock
     private AppleWebAuthorizationPort authorization;
@@ -82,7 +82,7 @@ class CompleteAppleWebLoginServiceTest {
     private AppleRefreshTokenRepository refreshTokens;
 
     @Mock
-    private AppleLoginExchangePort loginExchanges;
+    private LoginExchangePort loginExchanges;
 
     @Mock
     private AccountRepository accounts;
@@ -118,14 +118,15 @@ class CompleteAppleWebLoginServiceTest {
         when(accounts.findByIdentity(IDENTITY)).thenReturn(Optional.empty());
         when(accounts.saveNew(any())).thenReturn(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW));
 
-        AppleWebLoginCompletion completion = service.complete(command(BINDING, null));
+        WebLoginCompletion completion = service.complete(command(BINDING, null));
 
         ArgumentCaptor<String> code = ArgumentCaptor.forClass(String.class);
         verify(loginExchanges)
                 .save(
+                        eq(OAuthProvider.APPLE),
                         code.capture(),
-                        eq(new PendingAppleLogin(ACCOUNT_ID, true, CHALLENGE)),
-                        eq(CompleteAppleWebLoginService.EXCHANGE_CODE_TTL));
+                        eq(new PendingWebLogin(ACCOUNT_ID, true, CHALLENGE)),
+                        eq(WebLoginExchangeCodes.TTL));
         verify(refreshTokens).save(ACCOUNT_ID, SERVICES_ID, "apple-refresh", NOW);
         verify(tokens, never()).start(any());
         assertThat(completion.returnUri()).isEqualTo(RETURN_URI);
@@ -136,7 +137,7 @@ class CompleteAppleWebLoginServiceTest {
     @Test
     @DisplayName("보관하지 않았거나 이미 쓴 state면 복귀 주소를 모르므로 AUTH-003으로 끝낸다")
     void rejectsUnknownState() {
-        when(states.consume("state", BINDING_HASH)).thenReturn(Optional.empty());
+        when(states.consume(OAuthProvider.APPLE, "state", BINDING_HASH)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.complete(command(BINDING, null)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
@@ -147,7 +148,10 @@ class CompleteAppleWebLoginServiceTest {
     @Test
     @DisplayName("로그인을 시작한 브라우저의 연결 값이 없거나 다르면 복귀하지 않고 AUTH-003으로 끝낸다")
     void rejectsCallbackFromAnotherBrowser() {
-        when(states.consume("state", HashedNonce.fromRaw("other-browser").value()))
+        when(states.consume(
+                        OAuthProvider.APPLE,
+                        "state",
+                        HashedNonce.fromRaw("other-browser").value()))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.complete(command("other-browser", null)))
@@ -156,7 +160,7 @@ class CompleteAppleWebLoginServiceTest {
         assertThatThrownBy(() -> service.complete(command(null, null)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(AuthErrorCode.INVALID_NONCE));
-        verify(states, never()).consume("state", BINDING_HASH);
+        verify(states, never()).consume(OAuthProvider.APPLE, "state", BINDING_HASH);
         verify(idTokens, never()).verify(anyString());
     }
 
@@ -165,7 +169,7 @@ class CompleteAppleWebLoginServiceTest {
     void returnsCancellation() {
         givenState();
 
-        AppleWebLoginCompletion completion = service.complete(command(BINDING, "user_cancelled_authorize"));
+        WebLoginCompletion completion = service.complete(command(BINDING, "user_cancelled_authorize"));
 
         assertThat(completion.errorCode()).isEqualTo("AUTH-008");
         assertThat(completion.exchangeCode()).isNull();
@@ -207,11 +211,11 @@ class CompleteAppleWebLoginServiceTest {
                 .when(refreshTokens)
                 .save(any(), anyString(), anyString(), any());
 
-        AppleWebLoginCompletion completion = service.complete(command(BINDING, null));
+        WebLoginCompletion completion = service.complete(command(BINDING, null));
 
         assertThat(completion.errorCode()).isEqualTo("COMMON-500");
         assertThat(completion.returnUri()).isEqualTo(RETURN_URI);
-        verify(loginExchanges, never()).save(anyString(), any(), any(Duration.class));
+        verify(loginExchanges, never()).save(any(), anyString(), any(), any(Duration.class));
     }
 
     @Test
@@ -262,11 +266,11 @@ class CompleteAppleWebLoginServiceTest {
         givenState();
         assertThat(service.complete(command(BINDING, null)).errorCode()).isEqualTo("AUTH-006");
         verify(accounts, never()).findByIdentity(any());
-        verify(loginExchanges, never()).save(anyString(), any(), any(Duration.class));
+        verify(loginExchanges, never()).save(any(), anyString(), any(), any(Duration.class));
     }
 
     private void givenState() {
-        when(states.consume("state", BINDING_HASH)).thenReturn(Optional.of(STATE));
+        when(states.consume(OAuthProvider.APPLE, "state", BINDING_HASH)).thenReturn(Optional.of(STATE));
     }
 
     private void givenValidIdToken() {

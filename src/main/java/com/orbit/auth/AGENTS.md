@@ -34,7 +34,7 @@
 - id_token·Access Token 검증기: `com.orbit.auth.adapter.out.kakao.KakaoIdTokenVerifierTest`, `com.orbit.auth.adapter.out.apple.AppleIdTokenVerifierTest`, `com.orbit.auth.adapter.out.jwt.JwtAccessTokenAdapterTest`.
 - Apple 토큰 API: `com.orbit.auth.adapter.out.apple` 패키지의 `AppleClientSecretFactoryTest`, `AppleTokenClientTest`, `AppleWebAuthorizationAdapterTest`(토큰 엔드포인트는 로컬 스텁, 실제 Apple E2E 아님).
 - 저장소: `com.orbit.auth.adapter.out.persistence` 패키지의 테스트(계정·Apple refresh token·암호화, Testcontainers PostgreSQL), `com.orbit.auth.adapter.out.redis` 패키지의 테스트(Testcontainers Redis).
-- 비밀값 가림·복귀 주소 등록: `com.orbit.auth.application.port.in.command.dto.AppleLoginCommandsTest`, `com.orbit.auth.adapter.in.web.AppleWebReturnPropertiesTest`.
+- 비밀값 가림·복귀 주소 등록: `com.orbit.auth.application.port.in.command.dto` 패키지의 `AppleLoginCommandsTest`·`WebLoginCommandsTest`, `com.orbit.auth.adapter.in.web.AppleWebReturnPropertiesTest`.
 - 필터·API: `com.orbit.auth.adapter.in.web.security.AccessTokenAuthenticationFilterTest`, `com.orbit.auth.adapter.in.web.AuthApiIntegrationTest`, `AppleLoginApiIntegrationTest`, `AppleWebLoginApiIntegrationTest`(JWKS·토큰 엔드포인트 스텁 서버로 실제 조회·검증·교환 경로 통과, 제공자 E2E 아님).
 - 경계 변환: `com.orbit.auth.adapter.out.user.UserSubjectAdapterTest`, `com.orbit.auth.adapter.in.event.UserRegisteredListenerTest`.
 - 계정 폐쇄·외부 연결 해제: `com.orbit.auth.AccountClosureIntegrationTest`, `com.orbit.auth.ProviderUnlinkIntegrationTest`(커밋·롤백·비동기 해제, 카카오 관리자 API는 로컬 스텁), `com.orbit.auth.adapter.out.kakao.KakaoUnlinkClientTest`, `com.orbit.auth.adapter.in.scheduler` 패키지의 테스트.
