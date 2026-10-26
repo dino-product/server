@@ -92,10 +92,13 @@ class RejectWorkServiceTest {
 
         service.reject(command(id.value(), 1, reason, note));
 
-        assertThat(fixture.events.published()).singleElement().isInstanceOfSatisfying(WorkRejected.class, event -> {
-            assertThat(event.reasonCode()).isEqualTo(expectedCode);
-            assertThat(event.reasonNote()).isEqualTo(expectedNote);
-        });
+        assertThat(fixture.events.published())
+                .hasExactlyElementsOfTypes(WorkRejected.class, WorkChanged.class)
+                .first()
+                .isInstanceOfSatisfying(WorkRejected.class, event -> {
+                    assertThat(event.reasonCode()).isEqualTo(expectedCode);
+                    assertThat(event.reasonNote()).isEqualTo(expectedNote);
+                });
     }
 
     @Test

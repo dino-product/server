@@ -117,7 +117,8 @@ class RequestCompletionReportServiceTest {
                 .containsExactly(
                         new CompletionReportRequest(previous, SETUP_MANAGER_ID),
                         new CompletionReportRequest(NOW, MANAGER_ID));
-        assertThat(fixture.events.published()).hasSize(1);
+        assertThat(fixture.events.published())
+                .hasExactlyElementsOfTypes(CompletionReportRequested.class, WorkChanged.class);
     }
 
     @Test
