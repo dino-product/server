@@ -25,6 +25,7 @@ import com.orbit.profile.domain.SignupStatus;
 import com.orbit.profile.domain.TermsAgreement;
 import com.orbit.profile.domain.TermsType;
 import com.orbit.profile.domain.TermsVersions;
+import com.orbit.profile.domain.WithdrawalReason;
 import com.orbit.support.PersistenceAdapterTestSupport;
 
 @DisplayName("프로필 저장소")
@@ -52,12 +53,65 @@ class ProfilePersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
         assertThat(adapter.findByAccountId(accountId)).hasValueSatisfying(found -> {
             assertThat(found.accountId()).isEqualTo(accountId);
-            assertThat(found.name().value()).isEqualTo("홍길동");
-            assertThat(found.phoneNumber().value()).isEqualTo("01012345678");
+            assertThat(found.name().orElseThrow().value()).isEqualTo("홍길동");
+            assertThat(found.phoneNumber().orElseThrow().value()).isEqualTo("01012345678");
             assertThat(found.status()).isEqualTo(SignupStatus.PENDING_SIGNUP);
             assertThat(found.signedUpAt()).isEmpty();
         });
         assertThat(adapter.findByAccountId(newAccountId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 프로필은 이름·연락처 없이 탈퇴 시각과 가입일·약관 동의 이력을 남긴다")
+    void savesWithdrawnProfile() {
+        AccountId accountId = newAccountId();
+        Profile profile = Profile.start(accountId, new PersonName("홍길동"), new PhoneNumber("01012345678"));
+        profile.agreeToTerms(V1, SIGNUP_AT);
+        adapter.save(profile);
+        Profile loaded = adapter.findByAccountId(accountId).orElseThrow();
+
+        loaded.withdraw(LATER, null);
+        adapter.save(loaded);
+        flushAndClear();
+
+        assertThat(adapter.findByAccountId(accountId)).hasValueSatisfying(found -> {
+            assertThat(found.status()).isEqualTo(SignupStatus.WITHDRAWN);
+            assertThat(found.withdrawnAt()).contains(LATER);
+            assertThat(found.name()).isEmpty();
+            assertThat(found.phoneNumber()).isEmpty();
+            assertThat(found.signedUpAt()).contains(SIGNUP_AT);
+            assertThat(found.agreements()).hasSize(2);
+        });
+    }
+
+    @Test
+    @DisplayName("탈퇴 사유를 함께 저장하고 다시 읽는다")
+    void savesWithdrawalReason() {
+        AccountId accountId = newAccountId();
+        WithdrawalReason reason = WithdrawalReason.from("😀 더 이상 쓰지 않아요").orElseThrow();
+
+        adapter.save(Profile.withdrawnWithoutProfile(accountId, LATER, reason));
+        flushAndClear();
+
+        assertThat(adapter.findByAccountId(accountId))
+                .flatMap(Profile::withdrawalReason)
+                .contains(reason);
+    }
+
+    @Test
+    @DisplayName("프로필 없이 탈퇴한 계정은 탈퇴 표시만 저장한다")
+    void savesWithdrawalWithoutProfile() {
+        AccountId accountId = newAccountId();
+
+        adapter.save(Profile.withdrawnWithoutProfile(accountId, LATER, null));
+        flushAndClear();
+
+        assertThat(adapter.findByAccountId(accountId)).hasValueSatisfying(found -> {
+            assertThat(found.status()).isEqualTo(SignupStatus.WITHDRAWN);
+            assertThat(found.withdrawnAt()).contains(LATER);
+            assertThat(found.name()).isEmpty();
+            assertThat(found.agreements()).isEmpty();
+        });
     }
 
     @Test
@@ -72,8 +126,8 @@ class ProfilePersistenceAdapterTest extends PersistenceAdapterTestSupport {
         flushAndClear();
 
         assertThat(adapter.findByAccountId(accountId)).hasValueSatisfying(found -> {
-            assertThat(found.name().value()).isEqualTo("김철수");
-            assertThat(found.phoneNumber().value()).isEqualTo("01087654321");
+            assertThat(found.name().orElseThrow().value()).isEqualTo("김철수");
+            assertThat(found.phoneNumber().orElseThrow().value()).isEqualTo("01087654321");
         });
     }
 

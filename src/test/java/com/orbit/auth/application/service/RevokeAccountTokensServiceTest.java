@@ -48,8 +48,7 @@ class RevokeAccountTokensServiceTest {
     void marksClosedUntilTokensIssuedAroundClosureExpire() {
         service.revoke(new RevokeAccountTokensCommand(7L, NOW));
 
-        verify(closedAccounts)
-                .markClosed(new AccountId(7L), LIFETIME.plus(RevokeAccountTokensService.ISSUE_RACE_MARGIN));
+        verify(closedAccounts).markClosed(new AccountId(7L), LIFETIME.plus(ClosedAccountMarks.ISSUE_RACE_MARGIN));
     }
 
     @Test
@@ -60,8 +59,7 @@ class RevokeAccountTokensServiceTest {
         verify(closedAccounts)
                 .markClosed(
                         new AccountId(7L),
-                        LIFETIME.plus(RevokeAccountTokensService.ISSUE_RACE_MARGIN)
-                                .minus(Duration.ofMinutes(20)));
+                        LIFETIME.plus(ClosedAccountMarks.ISSUE_RACE_MARGIN).minus(Duration.ofMinutes(20)));
     }
 
     @Test
@@ -69,9 +67,7 @@ class RevokeAccountTokensServiceTest {
     void skipsSubSecondRetention() {
         service.revoke(new RevokeAccountTokensCommand(
                 7L,
-                NOW.minus(LIFETIME)
-                        .minus(RevokeAccountTokensService.ISSUE_RACE_MARGIN)
-                        .plusMillis(500)));
+                NOW.minus(LIFETIME).minus(ClosedAccountMarks.ISSUE_RACE_MARGIN).plusMillis(500)));
 
         verify(closedAccounts, never()).markClosed(any(), any());
     }
@@ -79,8 +75,8 @@ class RevokeAccountTokensServiceTest {
     @Test
     @DisplayName("폐쇄 전에 발급한 토큰이 모두 만료됐으면 표시하지 않는다")
     void skipsWhenAllTokensExpired() {
-        service.revoke(new RevokeAccountTokensCommand(
-                7L, NOW.minus(LIFETIME).minus(RevokeAccountTokensService.ISSUE_RACE_MARGIN)));
+        service.revoke(
+                new RevokeAccountTokensCommand(7L, NOW.minus(LIFETIME).minus(ClosedAccountMarks.ISSUE_RACE_MARGIN)));
 
         verify(closedAccounts, never()).markClosed(any(), any());
     }

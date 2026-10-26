@@ -40,6 +40,19 @@ public final class Membership {
         return new Membership(null, organizationId, accountId, true, MembershipStatus.ACTIVE, joinedAt, joinedAt);
     }
 
+    /** 참여 요청 승인으로 생기는 활성 직원 소속. 총관리자 표시가 없고 참여일은 승인 시각이다. */
+    public static Membership join(OrganizationId organizationId, AccountId accountId, Instant joinedAt) {
+        return join(organizationId, accountId, joinedAt, joinedAt);
+    }
+
+    /**
+     * 같은 발주사에 기사로 있던 회원을 직원으로 승인해 새로 만드는 활성 직원 소속. 참여일은 이전 역할의 참여일을 이어받고 상태 변경 시각은 승인 시각이다.
+     */
+    public static Membership join(
+            OrganizationId organizationId, AccountId accountId, Instant joinedAt, Instant activatedAt) {
+        return new Membership(null, organizationId, accountId, false, MembershipStatus.ACTIVE, joinedAt, activatedAt);
+    }
+
     public static Membership reconstitute(
             MembershipId id,
             OrganizationId organizationId,
@@ -87,6 +100,36 @@ public final class Membership {
             throw new LastOwnerException();
         }
         return new Membership(id, organizationId, accountId, false, status, joinedAt, statusChangedAt);
+    }
+
+    /**
+     * 비활성 소속을 다시 활성으로 바꾼다(참여 요청 승인, 총관리자의 재활성화). 참여일은 유지하고 총관리자 표시는 끈다([조직·계정] §6, 비활성화 때 이미 뗀다).
+     *
+     * @throws IllegalStateException 활성 소속일 때
+     */
+    public Membership reactivate(Instant reactivatedAt) {
+        if (status != MembershipStatus.DEACTIVATED) {
+            throw new IllegalStateException("only deactivated memberships can be reactivated");
+        }
+        return new Membership(id, organizationId, accountId, false, MembershipStatus.ACTIVE, joinedAt, reactivatedAt);
+    }
+
+    /**
+     * 총관리자가 이 소속을 비활성화한다([조직·계정] §4.1). 소속을 지우지 않고 상태만 바꾸며 참여일은 유지한다. 총관리자 표시도 떼므로 다시 활성이 되면 직원이다.
+     *
+     * @param activeOwners 이 소속을 포함한 같은 발주사의 활성 총관리자 수
+     * @throws LastOwnerException 이 소속이 발주사의 마지막 총관리자일 때([조직·계정] §11)
+     * @throws IllegalStateException 이미 비활성 소속일 때
+     */
+    public Membership deactivate(Instant deactivatedAt, long activeOwners) {
+        Instant at = Objects.requireNonNull(deactivatedAt, "deactivatedAt must not be null");
+        if (status != MembershipStatus.ACTIVE) {
+            throw new IllegalStateException("only active memberships can be deactivated");
+        }
+        if (owner && activeOwners <= 1) {
+            throw new LastOwnerException();
+        }
+        return new Membership(id, organizationId, accountId, false, MembershipStatus.DEACTIVATED, joinedAt, at);
     }
 
     public Optional<MembershipId> id() {
