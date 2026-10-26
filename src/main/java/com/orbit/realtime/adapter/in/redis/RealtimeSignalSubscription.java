@@ -13,6 +13,8 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -21,9 +23,12 @@ import lombok.extern.slf4j.Slf4j;
  * <ul>
  *   <li>시작할 때 Redis에 연결할 수 없어도 기동을 막지 않는다. 컨테이너는 처음 구독에 실패하면 다시 시도하지 않으므로, 별도 스레드에서 연결될 때까지 5초마다
  *       다시 시작한다. 시작은 첫 시도가 끝날 때까지만(최대 3초) 기다려, Redis가 있으면 기동을 마치기 전에 구독이 열린다. 구독하기 전의 신호는 받지 못한다.
- *   <li>구독한 뒤 연결이 끊기면 Redis 클라이언트가 다시 연결하며 다시 구독한다. 끊긴 동안의 신호는 받지 못하고 화면의 재조회로 맞춘다.
+ *   <li>구독한 뒤 연결이 끊기면 Redis 클라이언트가 다시 연결하며 다시 구독한다. 듣기만 하는 연결이라 통로만 사라지면 스스로 알 수 없지만, Redis 클라이언트의
+ *       기본 TCP keepalive(13초 쉬면 13초 간격으로 3번 확인)가 1분 안에 끊는다. 끊긴 동안의 신호는 받지 못하고 화면의 재조회로 맞춘다.
  *   <li>받은 신호는 Redis 클라이언트의 수신 스레드에서 바로 넘긴다. 연결 목록에 줄 세우기만 하고 기다리지 않으므로 수신을 막지 않으며, 받은 순서대로 넘긴다.
  *   <li>기본 phase라 웹 서버의 정상 종료보다 먼저 구독을 멈춘다. 그 뒤의 신호는 연결 목록도 곧 닫히므로 받을 곳이 없다.
+ *   <li>구독 여부를 {@code realtime.subscription.listening}(구독 중 1)으로 내보낸다. 구독 컨테이너의 상태라 0은 처음 구독이 열리기 전(Redis가 없어 다시 시도하는
+ *       중 포함)과 멈춘 뒤뿐이다. 구독한 뒤 연결이 끊기면 Redis 클라이언트가 다시 연결하는 동안에도 1이므로, 끊긴 구독은 발행은 되는데 받은 신호가 없는지로 본다.
  * </ul>
  */
 @Slf4j
@@ -38,13 +43,15 @@ class RealtimeSignalSubscription implements SmartLifecycle, DisposableBean {
     private volatile Thread subscriber;
 
     @Autowired
-    RealtimeSignalSubscription(RedisConnectionFactory connectionFactory, RedisRealtimeSignalSubscriber listener) {
-        this(connectionFactory, listener, Duration.ofSeconds(5), Duration.ofSeconds(3));
+    RealtimeSignalSubscription(
+            RedisConnectionFactory connectionFactory, RedisRealtimeSignalSubscriber listener, MeterRegistry meters) {
+        this(connectionFactory, listener, meters, Duration.ofSeconds(5), Duration.ofSeconds(3));
     }
 
     RealtimeSignalSubscription(
             RedisConnectionFactory connectionFactory,
             RedisRealtimeSignalSubscriber listener,
+            MeterRegistry meters,
             Duration retryInterval,
             Duration firstAttemptWait) {
         this.retryInterval = retryInterval;
@@ -54,6 +61,12 @@ class RealtimeSignalSubscription implements SmartLifecycle, DisposableBean {
         container.setTaskExecutor(new SyncTaskExecutor());
         container.addMessageListener(listener, new ChannelTopic(RedisRealtimeSignalSubscriber.CHANNEL));
         container.afterPropertiesSet();
+        Gauge.builder(
+                        "realtime.subscription.listening",
+                        container,
+                        listenerContainer -> listenerContainer.isListening() ? 1 : 0)
+                .description("이 인스턴스가 실시간 신호 채널을 구독 중이면 1")
+                .register(meters);
     }
 
     @Override

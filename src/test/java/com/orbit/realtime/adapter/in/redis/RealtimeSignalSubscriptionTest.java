@@ -31,8 +31,9 @@ class RealtimeSignalSubscriptionTest extends RedisAdapterTestSupport {
     private static final long ORGANIZATION_ID = 987_001L;
 
     private final List<RealtimeSignal> delivered = new CopyOnWriteArrayList<>();
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
     private final RedisRealtimeSignalSubscriber subscriber = new RedisRealtimeSignalSubscriber(
-            delivered::add, JsonMapper.builder().build(), new SimpleMeterRegistry());
+            delivered::add, JsonMapper.builder().build(), meters);
 
     @Test
     @DisplayName("시작하면 채널을 구독해 받은 신호를 넘긴다")
@@ -56,6 +57,20 @@ class RealtimeSignalSubscriptionTest extends RedisAdapterTestSupport {
     }
 
     @Test
+    @DisplayName("구독 중이면 구독 여부 지표가 1이고, 멈추면 0이다")
+    void reportsListeningAsGauge() throws Exception {
+        RealtimeSignalSubscription subscription = subscription(redisTemplate.getConnectionFactory());
+        try {
+            subscription.start();
+            assertThat(listeningGauge()).isEqualTo(1.0);
+        } finally {
+            subscription.stop();
+            subscription.destroy();
+        }
+        assertThat(listeningGauge()).isZero();
+    }
+
+    @Test
     @DisplayName("Redis에 연결할 수 없어도 시작은 실패하지 않고 구독만 열리지 않는다")
     void startsWithoutRedis() throws Exception {
         LettuceConnectionFactory unreachable = new LettuceConnectionFactory("localhost", 1);
@@ -67,6 +82,7 @@ class RealtimeSignalSubscriptionTest extends RedisAdapterTestSupport {
 
             assertThat(subscription.isRunning()).isTrue();
             assertThat(subscription.isListening()).isFalse();
+            assertThat(listeningGauge()).isZero();
         } finally {
             subscription.stop();
             subscription.destroy();
@@ -100,6 +116,7 @@ class RealtimeSignalSubscriptionTest extends RedisAdapterTestSupport {
 
             await().atMost(Duration.ofSeconds(10)).until(subscription::isListening);
             assertThat(failuresLeft.get()).isNegative();
+            assertThat(listeningGauge()).isEqualTo(1.0);
         } finally {
             subscription.stop();
             subscription.destroy();
@@ -109,6 +126,10 @@ class RealtimeSignalSubscriptionTest extends RedisAdapterTestSupport {
 
     private RealtimeSignalSubscription subscription(RedisConnectionFactory connectionFactory) {
         return new RealtimeSignalSubscription(
-                connectionFactory, subscriber, Duration.ofMillis(100), Duration.ofSeconds(3));
+                connectionFactory, subscriber, meters, Duration.ofMillis(100), Duration.ofSeconds(3));
+    }
+
+    private double listeningGauge() {
+        return meters.get("realtime.subscription.listening").gauge().value();
     }
 }
