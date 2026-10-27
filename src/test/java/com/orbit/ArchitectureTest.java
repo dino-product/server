@@ -92,8 +92,8 @@ class ArchitectureTest {
     }
 
     /**
-     * {@code @Service}만 보면 같은 패키지의 {@code @Component} 빈(사진을 받는 유즈케이스의 {@code *Transaction} 등)과 보조 타입을 놓치므로, Application
-     * Service 구현을 두는 패키지 전체를 막는다.
+     * {@code @Service}만 보면 같은 패키지의 {@code @Component} 빈(사진을 받는 유즈케이스의 {@code *Transaction} 등)과 보조 타입을 놓치고, 패키지만 보면
+     * 그 밖에 놓인 {@code @Service}를 놓치므로 둘 다 막는다.
      */
     @Test
     void inputAdaptersDoNotDependOnApplicationImplementations() {
@@ -103,7 +103,10 @@ class ArchitectureTest {
                 .should()
                 .dependOnClassesThat()
                 .resideInAPackage("..application.service..")
-                .because("입력 Adapter는 Application Service 구현(application.service의 빈·보조 타입) 대신 입력 Port에 의존한다")
+                .orShould()
+                .dependOnClassesThat()
+                .areAnnotatedWith(org.springframework.stereotype.Service.class)
+                .because("입력 Adapter는 Application Service 구현(application.service의 빈·보조 타입, @Service) 대신 입력 Port에 의존한다")
                 .check(APPLICATION_CLASSES);
     }
 
