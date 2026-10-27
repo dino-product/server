@@ -90,7 +90,7 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 - `profiles`: 기본 키 `account_id`(auth가 발급한 계정 식별자), 이름, 연락처(숫자만), 가입 상태(`PENDING_SIGNUP`·`ACTIVE`·`WITHDRAWN`), 가입일, 탈퇴 시각 `withdrawn_at`, 탈퇴 사유 `withdrawal_reason`(200자), 마케팅 동의 여부·변경 시각, 낙관적 잠금용 `version`. 이름·연락처는 탈퇴하면 비우므로 nullable이다. 연락처는 계정 사이에 중복을 허용하므로 유일 제약이 없다.
 - `profile_terms_agreements`: 계정별 약관 종류·버전·동의 시각. 추가만 한다.
 - 두 테이블 모두 `BaseTimeEntity`의 `created_at`·`updated_at` 감사 컬럼을 가진다. 가입일·동의 시각 같은 업무 시각은 이 컬럼과 별개다.
-- auth의 `accounts`로 가는 외래 키는 두지 않는다(모듈 경계). 두 테이블의 스키마 마이그레이션은 auth와 마찬가지로 아직 없다([실행 프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)).
+- auth의 `accounts`로 가는 외래 키는 두지 않는다(모듈 경계). 두 테이블은 `V1__init.sql`이 만든다([ADR-005](../adr/005-schema-migration.md)).
 
 ## 설정
 
@@ -129,4 +129,3 @@ ID 대역·추적 칸의 뜻과 [대역별 구현 규칙](../planning/README.md#
 - **"탈퇴한 사용자" 표기** ([조직·계정] 정책 §5.1): `ProfileLookup`이 탈퇴한 계정을 어떻게 돌려줄지 정한다. 지금은 가입 미완료·프로필 없는 계정과 구분되지 않는다.
 - **탈퇴 뒤 보관 범위**: 약관 동의 이력·가입일·탈퇴 시각·사유를 기한 없이 보관한다. 법적 적정성은 organization 쪽 O-32(ORG-009).
 - **프로필 사진** ([조직·계정] 정책 §5·§5.1): 파일 저장 방식이 정해진 뒤 추가한다.
-- **운영 전**: `profiles`·`profile_terms_agreements` 스키마 마이그레이션. `profiles`는 `name`·`phone_number` NOT NULL 해제, `withdrawn_at`·`withdrawal_reason`(varchar(200)) 추가, `status`의 enum check 제약(Hibernate가 만든 DB)에 `WITHDRAWN` 허용을 함께 적용한다.

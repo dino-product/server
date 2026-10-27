@@ -8,7 +8,7 @@
 - 시작 시 `git status --short`와 관련 diff로 기존 변경을 확인·보존합니다. 조사 요청은 읽기·검증으로 답하고 수정 요청은 구현·검증까지 완료합니다. 무관한 리팩터링·의존성·설정 변경은 하지 않습니다. 결과를 크게 바꿀 미결정만 질문합니다.
 - 요청 범위의 조회·DB 정리 없는 로컬 검사/빌드·생성물 정리는 자동 진행합니다. 기본 브랜치에서 시작하면 작업 브랜치로 전환하고, 첫 편집 전 [작업 단위와 커밋](.claude/skills/dino-commit/references/commits.md#checkpoints)을 계획해 한 이유가 완결될 때마다 집중 검사·diff 검토 후 커밋합니다. 명시된 커밋 금지는 우선합니다.
 - 제품 결정(권한·시간 제한·사유 목록 등)은 노션 정책서, 필드·화면 흐름은 기능명세가 원본입니다([기획 원본 색인](docs/planning/README.md#planning)). 레포에는 링크와 절만 남기고, 기능은 [PR 종류](.claude/skills/dino-pr/references/kinds.md#kinds)별로 나눕니다.
-- **추가 확인 대상:** 푸시·브랜치 삭제·DB 데이터/볼륨 삭제·테스트/로컬 `create-drop`·배포·amend/rebase/reset·작업을 잃는 Git 정리/복원·PR 병합/닫기/삭제·릴리스 게시·ERDCloud 편집. 직접 요청받아도 [실행 전 승인](#approvals)을 따릅니다.
+- **추가 확인 대상:** 푸시·브랜치 삭제·DB 데이터/볼륨 삭제·Testcontainers 테스트·로컬 외 DB 마이그레이션·배포·amend/rebase/reset·작업을 잃는 Git 정리/복원·PR 병합/닫기/삭제·릴리스 게시·ERDCloud 편집. 직접 요청받아도 [실행 전 승인](#approvals)을 따릅니다.
 - Notion에 없는 제품 판단은 [기획 결정 요청](docs/planning/README.md#plan-request)으로 Slack `#plan`에 올리고 Notion 반영 전에 구현하지 않습니다. 이 게시는 초안을 보여 확인받은 뒤에만 합니다.
 - 요청한 PR·이슈 생성/수정/댓글은 추가 확인 없이 수행합니다. 동반 푸시·DB 삭제 승인은 별도입니다. 막히면 완료한 준비·필요한 결정을 알립니다.
 - 같은 문제가 반복되면 [트러블슈팅 기록 규칙](docs/troubleshooting/README.md#기록-규칙)에 재사용 가능한 발견을 남깁니다.
@@ -47,7 +47,7 @@
 
 - 비즈니스 모듈은 루트 타입, `shared`는 named interface로 계약을 공개합니다. 내부 타입 공개로 검증을 우회하지 않습니다. Domain은 Spring/JPA/Web·Application/Adapter에 의존하지 않습니다.
 - Controller의 Repository 직접 호출·JPA Entity 반환, 모듈 간 Entity 공유·이유 없는 `shared` 이동을 금지합니다. 다른 비즈니스 모듈과는 모듈 루트의 공개 인터페이스·이벤트로만 통신하고 Domain은 다른 모듈 타입을 참조하지 않습니다.
-- 실제 환경값·비밀 파일은 커밋하거나 `src/main/resources`에 두지 않습니다. 생성 Q 클래스·`build/`는 직접 편집하지 않으며 로컬/테스트 외 스키마 자동 변경을 금지합니다.
+- 실제 환경값·비밀 파일은 커밋하거나 `src/main/resources`에 두지 않습니다. 생성 Q 클래스·`build/`는 직접 편집하지 않으며 스키마는 Flyway 마이그레이션으로만 바꾸며 Hibernate 스키마 자동 변경을 쓰지 않습니다.
 - 기능·버그 수정은 재현 테스트의 의도한 실패 확인 → 구현 → 집중 검사 순서를 지킵니다. 모듈 책임·공개 계약·아키텍처 정책을 바꾸면 도메인 지도·관련 계약·ADR을 함께 갱신합니다. 기능 추가만으로는 레포 문서를 늘리지 않습니다.
 
 ## 검증과 완료

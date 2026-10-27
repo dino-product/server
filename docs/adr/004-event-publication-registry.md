@@ -1,7 +1,7 @@
 # ADR-004: 이벤트 발행 기록과 실패 발행 재전송
 
 - 상태: Accepted
-- 기준일: 2026-10-15
+- 기준일: 2026-10-27
 - 범위: 모듈 간 이벤트의 발행 기록·완료 보관·실패 재전송·멈춘 발행 처리·감시와, 그 때문에 생기는 리스너·이벤트 계약 규칙. 실행 규칙은 [트랜잭션 이벤트](../../.claude/skills/dino-architecture/references/persistence.md#events)가 소유합니다. 알림 생성·발신 대기열은 범위 밖입니다.
 
 ## 배경과 목적
@@ -23,8 +23,8 @@
 
 ## 영향과 검증
 
-- **운영 스키마:** `prod`는 기록 테이블을 자동으로 만들지 않습니다(`spring.modulith.events.jdbc.schema-initialization.enabled: false`, `local`·`test`만 켬). 배포 전에 spring-modulith-events-jdbc jar 안의 `org/springframework/modulith/events/jdbc/schemas/v2/schema-postgresql.sql`과 `schema-postgresql-archive.sql`을 운영 DB에 적용합니다. 테이블이 없으면 모듈 리스너로 가는 이벤트를 발행하는 업무 트랜잭션이 실패할 것으로 봅니다(운영 DB로 확인하지 않음). Modulith 버전을 올릴 때는 스키마 버전이 바뀌었는지 확인합니다.
+- **운영 스키마:** 기록 테이블은 다른 테이블과 같이 Flyway 마이그레이션(`V1__init.sql`, [ADR-005](005-schema-migration.md))이 만들고, Modulith의 자동 생성(`spring.modulith.events.jdbc.schema-initialization.enabled`)은 모든 프로필에서 끕니다. 정의는 spring-modulith-events-jdbc 2.1.1 jar 안의 `org/springframework/modulith/events/jdbc/schemas/v2/schema-postgresql.sql`·`schema-postgresql-archive.sql`과 같습니다. 테이블이 없으면 모듈 리스너로 가는 이벤트를 발행하는 업무 트랜잭션이 실패할 것으로 봅니다(운영 DB로 확인하지 않음). Modulith 버전을 올릴 때 스키마 버전이 바뀌었으면 새 버전 마이그레이션으로 따라갑니다.
 - **수동 처리:** 시도를 다 쓴 발행은 원인을 고친 뒤 그 행의 `completion_attempts`를 상한보다 낮추면 다음 재전송 주기에 다시 보내집니다. 타입을 찾지 못해 남은 행은 이전 타입을 되살려 배포하거나 내용을 확인한 뒤 지웁니다.
 - **커밋 후 리스너 전체:** Modulith는 기록 대상과 무관하게 모든 커밋 후 리스너(`@TransactionalEventListener`)를 감싸 실행 전에 별도 트랜잭션으로 발행 상태를 갱신하려 합니다. 기록하지 않는 리스너도 DB 연결을 쓰고, 그 갱신이 실패하면 리스너가 돌지 않습니다.
-- **검증:** `EventPublicationRegistryIntegrationTest`(Testcontainers PostgreSQL)가 기록·보관·롤백·실패·재전송·시도 상한·멈춘 발행·지표를, `FailedEventPublicationResubmitSchedulerTest`가 주기 작업의 예약 실행을, `ApplicationProfileConfigurationTest`가 프로필별 스키마 초기화·재전송 활성화·로그 수준을 확인합니다. 여러 인스턴스 동시 실행, 운영 스키마 적용, 실제 Prometheus 수집은 실행으로 확인하지 않았습니다.
+- **검증:** `EventPublicationRegistryIntegrationTest`(Testcontainers PostgreSQL)가 기록·보관·롤백·실패·재전송·시도 상한·멈춘 발행·지표를, `FailedEventPublicationResubmitSchedulerTest`가 주기 작업의 예약 실행을, `ApplicationProfileConfigurationTest`가 모든 프로필에서 Modulith 스키마 초기화가 꺼져 있는지와 재전송 활성화·로그 수준을 확인합니다. 테스트의 기록 테이블은 V1이 만듭니다. 여러 인스턴스 동시 실행, 운영 DB의 마이그레이션 적용, 실제 Prometheus 수집은 실행으로 확인하지 않았습니다.
 - **남은 일:** 같은 이벤트를 두 번 받았을 때 알림이 중복되지 않게 하는 소비 측 멱등 키(HM-277, DG-04)와 발신 대기열(HM-280)은 알림 구현에서 다룹니다.

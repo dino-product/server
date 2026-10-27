@@ -12,7 +12,7 @@ Spring MVC/Validation/Security/Actuator/OpenAPI, Spring Data JPA/QueryDSL/Postgr
 
 JDK 21과 Docker/Compose가 필요합니다. 별도 Gradle 설치 없이 Wrapper를 사용합니다.
 
-에이전트가 아래 앱을 실행할 때는 `local`의 `create-drop`에 따른 DB 생성·삭제 범위를 먼저 확인받습니다. [승인 절차](AGENTS.md#approvals)를 따릅니다.
+앱은 기동할 때 Flyway 마이그레이션(`src/main/resources/db/migration`)을 대상 DB에 적용합니다. 에이전트가 로컬 Compose DB가 아닌 DB로 실행할 때는 [승인 절차](AGENTS.md#approvals)를 따릅니다.
 
 ```bash
 cp .env.example .env
@@ -21,7 +21,7 @@ set -a && source .env && set +a
 ./gradlew bootRun
 ```
 
-활성 프로필은 자동 선택하지 않습니다. 위 명령은 `.env`의 `SPRING_PROFILES_ACTIVE=local`을 적용합니다. 로컬/테스트는 `create-drop`이므로 보존할 데이터를 넣지 마세요. 카카오 로그인을 실제로 쓰려면 `.env`의 `KAKAO_ALLOWED_AUDIENCES`를 카카오 개발자 콘솔의 앱 키로, `AUTH_JWT_SECRET`을 무작위 값으로 바꿉니다. `KAKAO_ADMIN_KEY`는 같은 카카오 앱의 서비스 앱 어드민 키로, 탈퇴한 계정의 카카오 연결을 서버가 끊을 때 씁니다. 기본값이 없는 필수 값이라 비우면 기동에 실패합니다. 자리표시자로도 기동은 되지만 카카오 연결 끊기는 실패해 재시도하다 7일 뒤 포기합니다. 실제 키는 커밋하지 않습니다. Apple 로그인은 Apple 개발자 콘솔 값(클라이언트 ID 목록, Team ID·키 ID·`.p8` 개인키, Services ID와 거기에 등록한 HTTPS 콜백 주소)과 직접 정하는 값(`openssl rand -base64 32`로 만든 refresh token 암호화 키, 웹·Android 복귀 주소)으로 `APPLE_*`를 바꿉니다. 자리표시자로도 기동은 되지만 Apple 토큰 교환은 실패하고, 웹·Android 흐름은 Apple이 HTTPS 공개 도메인의 콜백만 받으므로 로컬에서는 HTTPS 터널 등이 필요합니다([Auth 설정](docs/domain/auth.md#설정)).
+활성 프로필은 자동 선택하지 않습니다. 위 명령은 `.env`의 `SPRING_PROFILES_ACTIVE=local`을 적용합니다. 로컬 DB는 재시작해도 데이터가 남습니다. 스키마를 처음부터 다시 만들려면 `docker compose down -v`로 볼륨을 지운 뒤 다시 띄웁니다. 예전 `create-drop`이 남긴 테이블 때문에 Flyway가 기동을 막을 때도 같습니다. 카카오 로그인을 실제로 쓰려면 `.env`의 `KAKAO_ALLOWED_AUDIENCES`를 카카오 개발자 콘솔의 앱 키로, `AUTH_JWT_SECRET`을 무작위 값으로 바꿉니다. `KAKAO_ADMIN_KEY`는 같은 카카오 앱의 서비스 앱 어드민 키로, 탈퇴한 계정의 카카오 연결을 서버가 끊을 때 씁니다. 기본값이 없는 필수 값이라 비우면 기동에 실패합니다. 자리표시자로도 기동은 되지만 카카오 연결 끊기는 실패해 재시도하다 7일 뒤 포기합니다. 실제 키는 커밋하지 않습니다. Apple 로그인은 Apple 개발자 콘솔 값(클라이언트 ID 목록, Team ID·키 ID·`.p8` 개인키, Services ID와 거기에 등록한 HTTPS 콜백 주소)과 직접 정하는 값(`openssl rand -base64 32`로 만든 refresh token 암호화 키, 웹·Android 복귀 주소)으로 `APPLE_*`를 바꿉니다. 자리표시자로도 기동은 되지만 Apple 토큰 교환은 실패하고, 웹·Android 흐름은 Apple이 HTTPS 공개 도메인의 콜백만 받으므로 로컬에서는 HTTPS 터널 등이 필요합니다([Auth 설정](docs/domain/auth.md#설정)).
 
 기본 포트: API `8080`, Actuator `9090`.
 
@@ -80,7 +80,7 @@ docs/
 └── maintenance.md          문서·ADR 원본 위치와 관리 규칙
 ```
 
-모듈별 소유권·공개 계약·구현 범위는 [도메인 지도](docs/domain/README.md), 의존 규칙은 [아키텍처](.claude/skills/dino-architecture/references/architecture.md#modules)가 원본입니다. 운영 적용 준비는 [프로필·마이그레이션](.claude/skills/dino-architecture/references/persistence.md#profiles), 이벤트 경계는 [트랜잭션 이벤트](.claude/skills/dino-architecture/references/persistence.md#events)를 확인합니다.
+모듈별 소유권·공개 계약·구현 범위는 [도메인 지도](docs/domain/README.md), 의존 규칙은 [아키텍처](.claude/skills/dino-architecture/references/architecture.md#modules)가 원본입니다. 스키마 변경은 [마이그레이션 결정](docs/adr/005-schema-migration.md), 운영 적용 준비는 [프로필](.claude/skills/dino-architecture/references/persistence.md#profiles), 이벤트 경계는 [트랜잭션 이벤트](.claude/skills/dino-architecture/references/persistence.md#events)를 확인합니다.
 
 ## 검증
 
