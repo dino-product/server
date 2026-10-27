@@ -20,8 +20,8 @@ import com.orbit.notification.domain.NotificationDeliveryId;
 import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
- * 알림 발신 대기의 JPA Entity. 값 검증은 Domain이 하며 이 Entity는 컬럼 제약만 선언한다. 스키마는 {@code V2__notification_deliveries.sql}이
- * 만든다. {@code notification_id}는 같은 모듈의 알림을 가리키지만 다른 애그리게잇이라 외래 키 없이 식별자로만 둔다.
+ * 알림 발신 대기의 JPA Entity. 값 검증은 Domain이 하며 이 Entity는 컬럼 제약만 선언한다. 스키마는 Flyway 마이그레이션이 만든다.
+ * {@code notification_id}는 같은 모듈의 알림을 가리키지만 다른 애그리게잇이라 외래 키 없이 식별자로만 둔다.
  */
 @Entity
 @Table(
