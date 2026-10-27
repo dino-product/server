@@ -216,6 +216,43 @@ class WorkPhotoRulesTest {
         }
 
         @Test
+        @DisplayName("완료된 작업이어도 사진 확인 결과(400 SCHEDULE-022)를 상태 오류(409)보다 먼저 알린다")
+        void photoResultComesBeforeState() {
+            fixture.givenManager(ActorRole.OWNER);
+            WorkId id = fixture.givenWork(WorkStatus.COMPLETED);
+            fixture.mediaFiles.givenRejected(PHOTO_1, Reason.NOT_UPLOADED);
+
+            fixture.assertRejected(
+                    () -> fixture.updateWorkDetailsService().update(update(id.value(), List.of(PHOTO_1))),
+                    ScheduleErrorCode.PHOTO_NOT_UPLOADED);
+        }
+
+        @Test
+        @DisplayName("작업명이 틀리면 사진 확인 결과보다 입력 오류(400 SCHEDULE-003)가 먼저다")
+        void domainInputComesBeforePhotoResult() {
+            fixture.givenManager(ActorRole.OWNER);
+            WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+            fixture.mediaFiles.givenRejected(PHOTO_1, Reason.NOT_UPLOADED);
+            UpdateWorkDetailsCommand blankName = new UpdateWorkDetailsCommand(
+                    ACCOUNT_ID,
+                    ORGANIZATION_ID.value(),
+                    id.value(),
+                    " ",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(PHOTO_1));
+
+            fixture.assertRejected(
+                    () -> fixture.updateWorkDetailsService().update(blankName), ScheduleErrorCode.INVALID_WORK_INPUT);
+        }
+
+        @Test
         @DisplayName("올리지 않은 사진이면 400 SCHEDULE-022이고 바꾸지 않는다")
         void rejectsNotUploaded() {
             fixture.givenManager(ActorRole.OWNER);

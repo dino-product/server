@@ -130,6 +130,25 @@ class PhotoUploadApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
+        @DisplayName("작업중이 아니면 409 SCHEDULE-002이고 업로드 대기 기록을 남기지 않으며, 이미지가 아니면 상태보다 400 SCHEDULE-020이 먼저다")
+        void requiresInProgressAfterInput() throws Exception {
+            Organization organization = organization();
+            long technician = account();
+            technicianContract(organization.id(), technician);
+            long workId = save(accepted(organization, technicianIdOf(organization.id(), technician)));
+            long filesBefore = jdbcTemplate.queryForObject("select count(*) from uploaded_files", Long.class);
+
+            completion(technician, organization.id(), workId, "image/jpeg", 100L)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-002"));
+            completion(technician, organization.id(), workId, "application/pdf", 100L)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-020"));
+            assertThat(jdbcTemplate.queryForObject("select count(*) from uploaded_files", Long.class))
+                    .isEqualTo(filesBefore);
+        }
+
+        @Test
         @DisplayName("관리자는 403 SCHEDULE-005, 다른 기사는 404 SCHEDULE-001이다")
         void rejectsOthers() throws Exception {
             Organization organization = organization();
@@ -190,6 +209,14 @@ class PhotoUploadApiIntegrationTest extends ScheduleApiTestSupport {
     /** 지금 시작한 작업중 작업. */
     static Work inProgress(Organization organization, long technicianId) {
         Instant start = Instant.now().minus(Duration.ofMinutes(5));
+        Work work = accepted(organization, technicianId);
+        work.start(start);
+        return work;
+    }
+
+    /** 5분 전 시작 예정으로 배정해 수락한 작업전 작업. */
+    static Work accepted(Organization organization, long technicianId) {
+        Instant start = Instant.now().minus(Duration.ofMinutes(5));
         Work work = Work.register(
                 new OrganizationId(organization.id()),
                 "필터 교체",
@@ -203,7 +230,6 @@ class PhotoUploadApiIntegrationTest extends ScheduleApiTestSupport {
                 start.minusSeconds(60),
                 new MembershipId(organization.ownerMembership()));
         work.accept(start.minusSeconds(30));
-        work.start(start);
         return work;
     }
 }

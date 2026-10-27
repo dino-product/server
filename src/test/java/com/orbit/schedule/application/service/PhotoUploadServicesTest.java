@@ -143,6 +143,7 @@ class PhotoUploadServicesTest {
             assertThat(CompletionReport.MAX_PHOTO_BYTES).isEqualTo(40L * 1024 * 1024);
         }
 
+        /** 발급 기록은 트랜잭션과 함께 롤백돼 남지 않는다(PhotoUploadApiIntegrationTest). 여기서는 오류와 주소를 돌려주지 않는 것만 본다. */
         @ParameterizedTest
         @EnumSource(
                 value = WorkStatus.class,
@@ -152,8 +153,26 @@ class PhotoUploadServicesTest {
             fixture.givenTechnician(TECHNICIAN_ID);
             WorkId id = fixture.givenWork(status);
 
+            assertThatThrownBy(() -> service.issue(command(id.value(), "image/jpeg", 1L)))
+                    .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                            .isEqualTo(ScheduleErrorCode.INVALID_WORK_STATE));
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = UploadNotAllowedException.Reason.class,
+                names = {"CONTENT_TYPE_NOT_ALLOWED", "SIZE_NOT_ALLOWED"})
+        @DisplayName("작업중이 아니어도 형식·크기 거부(400 SCHEDULE-020·021)를 상태 오류(409)보다 먼저 알린다")
+        void uploadInputComesBeforeState(UploadNotAllowedException.Reason reason) {
+            fixture.givenTechnician(TECHNICIAN_ID);
+            WorkId id = fixture.givenWork(WorkStatus.COMPLETED);
+            fixture.mediaFiles.givenUploadRejected(reason);
+
             assertRejected(
-                    () -> service.issue(command(id.value(), "image/jpeg", 1L)), ScheduleErrorCode.INVALID_WORK_STATE);
+                    () -> service.issue(command(id.value(), "image/gif", 1L)),
+                    reason == UploadNotAllowedException.Reason.CONTENT_TYPE_NOT_ALLOWED
+                            ? ScheduleErrorCode.PHOTO_TYPE_NOT_ALLOWED
+                            : ScheduleErrorCode.PHOTO_TOO_LARGE);
         }
 
         @Test

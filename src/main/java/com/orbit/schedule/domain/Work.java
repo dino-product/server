@@ -609,6 +609,15 @@ public final class Work {
     }
 
     /**
+     * 기본정보 수정의 작업명·현장 사진 형식({@link #changeDetails}가 상태보다 먼저 하는 입력 확인과 같다). 서비스가 다른 요청 값 확인(사진 업로드 확인 결과)을
+     * 상태 확인보다 먼저 끝내야 할 때 {@link #changeDetails} 전에 부른다.
+     */
+    public static void requireDetailsInput(String newName, List<String> newSitePhotoIds) {
+        requireName(newName);
+        requireSitePhotos(newSitePhotoIds);
+    }
+
+    /**
      * 작업명·작업 유형·고객정보·결제정보·현장 사진 다섯 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된
      * 작업은 바꿀 수 없고, 상태·배정은 그대로 둔다. 작업 유형은 시작 전까지만 바꾸거나 비울 수 있고 작업중에는 지금 유형을 그대로 줘야 한다. 서비스의 공통 오류
      * 순서(입력 → 상태)에 맞춰 작업명·현장 사진을 상태보다 먼저 검증한다.

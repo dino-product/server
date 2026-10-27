@@ -51,19 +51,11 @@ public class UpdateWorkDetailsTransaction {
         OrganizationActors.requireRegistrarOrOwner(actor, work);
         Optional<WorkTypeId> workTypeBefore = work.workType();
 
-        DomainRuleViolations.run(() -> work.changeDetails(
-                command.name(),
-                command.workTypeId() == null ? null : new WorkTypeId(command.workTypeId()),
-                new CustomerInfo(
-                        command.customerName(),
-                        command.customerPhone(),
-                        new SiteAddress(
-                                command.customerPostalCode(),
-                                command.customerAddress(),
-                                command.customerAddressDetail())),
-                new PaymentInfo(command.fee() == null ? null : new Money(command.fee()), command.paymentMethod()),
-                command.sitePhotoIds()));
+        // 요청 값(공통 순서 5번)을 사진 확인 결과까지 모두 알린 뒤에 상태(6번)를 본다. 상태는 changeDetails가 확인한다.
+        Details details = DomainRuleViolations.call(() -> details(command));
         WorkPhotos.requireAccepted(sitePhotos);
+        DomainRuleViolations.run(() -> work.changeDetails(
+                command.name(), details.workType(), details.customer(), details.payment(), command.sitePhotoIds()));
         // 지금 유형을 그대로 보낸 수정은 다시 확인하지 않는다. 작업중 작업이 그 사이 삭제된 유형을 가져도 다른 항목을 고칠 수 있다.
         if (!work.workType().equals(workTypeBefore)) {
             OrganizationReferences.requireSelectableWorkType(workTypePort, work);
@@ -72,4 +64,20 @@ public class UpdateWorkDetailsTransaction {
         workRepository.save(work);
         WorkPhotos.attach(mediaFiles, sitePhotos, work.id().orElseThrow());
     }
+
+    /** 바꿀 값의 형식을 확인해 값객체로 만든다. 도메인 호출만 하므로 {@link DomainRuleViolations}로 감싼다. */
+    private static Details details(UpdateWorkDetailsCommand command) {
+        WorkTypeId workType = command.workTypeId() == null ? null : new WorkTypeId(command.workTypeId());
+        CustomerInfo customer = new CustomerInfo(
+                command.customerName(),
+                command.customerPhone(),
+                new SiteAddress(
+                        command.customerPostalCode(), command.customerAddress(), command.customerAddressDetail()));
+        PaymentInfo payment =
+                new PaymentInfo(command.fee() == null ? null : new Money(command.fee()), command.paymentMethod());
+        Work.requireDetailsInput(command.name(), command.sitePhotoIds());
+        return new Details(workType, customer, payment);
+    }
+
+    private record Details(WorkTypeId workType, CustomerInfo customer, PaymentInfo payment) {}
 }
