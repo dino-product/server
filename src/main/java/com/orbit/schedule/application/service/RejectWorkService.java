@@ -70,5 +70,6 @@ public class RejectWorkService implements RejectWorkUseCase {
 
         workRepository.save(work);
         eventPublisher.publishEvent(WorkEvents.rejected(work, technician.technicianId(), rejection, now));
+        eventPublisher.publishEvent(WorkEvents.changed(work, now));
     }
 }

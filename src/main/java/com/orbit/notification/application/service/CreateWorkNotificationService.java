@@ -1,11 +1,14 @@
 package com.orbit.notification.application.service;
 
+import java.time.Clock;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbit.notification.NotificationCreated;
 import com.orbit.notification.application.port.in.command.CreateWorkNotificationUseCase;
 import com.orbit.notification.application.port.in.command.dto.CreateWorkNotificationCommand;
 import com.orbit.notification.application.port.out.NotificationRepository;
@@ -24,7 +27,8 @@ import com.orbit.organization.OrganizationAccountLookup;
  * 거절한 기사가 그 작업에 대해 거절 시점까지 받은 기사 알림을 숨긴다(직원에서 기사로 역할이 바뀐 계정이 받은 사무실 알림은 숨기지 않는다). 같은 일이 두 번
  * 들어오면(이벤트 재전송) 이미 남긴 같은 일(받는 계정·종류·작업·일어난 시각)의 알림을 찾아 다시 만들지도 푸시하지도 않는다. 같은 일이 동시에 두 번 처리되면 한쪽은
  * 저장소의 유일 제약으로 실패하고 재전송 때 건너뛴다. 이벤트마다 따로 처리돼 순서가 보장되지 않으므로, 배정 알림 처리가 그 뒤의 거절 처리보다 늦게 커밋되면 그
- * 배정 알림은 숨기지 못한다.
+ * 배정 알림은 숨기지 못한다. 알림을 저장하면 {@link NotificationCreated}를 발행한다. 재전송이라 다시 만들지 않았거나 거절로 기사 알림을 숨길 때는 발행하지 않는다
+ * (안 읽은 수는 다음 조회에서 맞춰진다).
  */
 @Service
 public class CreateWorkNotificationService implements CreateWorkNotificationUseCase {
@@ -33,16 +37,22 @@ public class CreateWorkNotificationService implements CreateWorkNotificationUseC
     private final NotificationRepository notificationRepository;
     private final NotificationSettingRepository settingRepository;
     private final PushNotificationPort pushNotificationPort;
+    private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     public CreateWorkNotificationService(
             OrganizationAccountLookup accountLookup,
             NotificationRepository notificationRepository,
             NotificationSettingRepository settingRepository,
-            PushNotificationPort pushNotificationPort) {
+            PushNotificationPort pushNotificationPort,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.accountLookup = accountLookup;
         this.notificationRepository = notificationRepository;
         this.settingRepository = settingRepository;
         this.pushNotificationPort = pushNotificationPort;
+        this.eventPublisher = eventPublisher;
+        this.clock = clock;
     }
 
     @Override
@@ -89,6 +99,7 @@ public class CreateWorkNotificationService implements CreateWorkNotificationUseC
                 command.rejectionReasonNote());
         Notification saved = notificationRepository.save(Notification.create(
                 accountId, command.organizationId(), command.type(), command.workId(), message, command.occurredAt()));
+        eventPublisher.publishEvent(new NotificationCreated(saved.recipientAccountId(), clock.instant()));
         if (saved.type().pushes() && settingOf(accountId).allowsPush(saved.type())) {
             pushNotificationPort.send(saved);
         }
