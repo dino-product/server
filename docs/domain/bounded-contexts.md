@@ -109,7 +109,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 책임 | 작업 등록부터 완료까지 전체 생애주기. 발주–배정–수행의 최소 단위를 다룸 |
 | 상태 | 구현 중 — 설계·구현 결정·기획 차이는 [schedule 문서](schedule.md#schedule) |
 | 소유 애그리게잇 | **Work**(Root) + AssignmentHistory·CompletionReport(내부 엔티티) + 값객체. 읽기 모델 Timetable/Backlog/ProgressBoard는 애그리게잇이 아님 |
-| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — 이유는 [schedule 문서](schedule.md#schedule)) · `notification` ← 이벤트 발행(작업 상태 변경) |
+| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — 이유는 [schedule 문서](schedule.md#schedule)) · `notification` ← 이벤트 발행(작업 상태 변경) · `realtime` ← 이벤트 발행(작업 저장) |
 
 <a id="notification"></a>
 ### 4. 알림 컨텍스트 (`notification`) — Generic Subdomain
@@ -120,7 +120,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 중 — [notification 문서](notification.md#notification) |
 | 기획 원본 | [알림] 정책 — 트리거 §4(단일 원본), 채널 §5, 알림센터·설정 §6·§6.1, 상태 코드 §8, 권한 §9 |
 | 소유 개념 | **Notification**, **NotificationSetting** — 상세는 notification 문서 |
-| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
+| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `realtime` ← 이벤트 발행(알림 저장·읽음) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
 
 <a id="profile"></a>
 ### 5. 프로필 컨텍스트 (`profile`) — Generic Subdomain
@@ -141,10 +141,10 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 사무실 웹 화면에 다시 조회하라는 신호를 보내는 SSE 연결 관리. 바뀐 내용은 보내지 않음 |
-| 상태 | 구현 중 — [realtime 문서](realtime.md#realtime) |
+| 상태 | 구현 — [realtime 문서](realtime.md#realtime) |
 | 기획 원본 | [현황 파악] 정책 §6, [현장 수행] 정책 §5·§13, [알림] 기능명세 §7 |
 | 소유 개념 | 연결(인스턴스 메모리에만 있음). 애그리게잇 없음 |
-| 관계 | `organization` → 참조(ID) (`OrganizationMemberLookup`으로 연결 요청자가 직원인지 확인, Conformist) · `auth` → 요청 계정(`AccountPrincipal`) · 예정: `schedule`·`notification` ← 이벤트 구독(작업 저장·알림 변경, HM-281) |
+| 관계 | `organization` → 참조(ID) (`OrganizationMemberLookup`으로 연결 요청자가 직원인지 확인, Conformist) · `auth` → 요청 계정(`AccountPrincipal`) · `schedule`·`notification` ← 이벤트 구독(작업 저장 `WorkChanged`, 알림 저장·읽음 `NotificationCreated`·`NotificationRead`, 커밋 뒤 신호, Conformist) |
 
 ## P2 — 다음 확장 (미착수, 코드 없음)
 

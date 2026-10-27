@@ -8,6 +8,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -20,7 +22,9 @@ import org.junit.jupiter.api.Test;
 import com.orbit.realtime.domain.ClientType;
 import com.orbit.realtime.domain.RealtimeMessage.Closed;
 import com.orbit.realtime.domain.RealtimeMessage.Connected;
+import com.orbit.realtime.domain.RealtimeMessage.NotificationRead;
 import com.orbit.realtime.domain.RealtimeMessage.Reconnect;
+import com.orbit.realtime.domain.RealtimeMessage.WorkChanged;
 import com.orbit.realtime.fake.RecordingRealtimeChannel;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -242,6 +246,48 @@ class InMemoryRealtimeConnectionsTest {
         } finally {
             connections.stop();
         }
+    }
+
+    @Test
+    @DisplayName("작업 신호는 그 발주사의 연결에만, 알림 신호는 발주사와 관계없이 그 계정의 연결에만 보낸다")
+    void sendsToOrganizationOrAccountConnections() {
+        InMemoryRealtimeConnections connections = started(properties(10, 5));
+        RecordingRealtimeChannel accountInFirst = new RecordingRealtimeChannel();
+        RecordingRealtimeChannel accountInSecond = new RecordingRealtimeChannel();
+        RecordingRealtimeChannel otherInFirst = new RecordingRealtimeChannel();
+        connections.register(1L, ORGANIZATION_ID, ClientType.DESKTOP_WEB, accountInFirst);
+        connections.register(1L, 2L, ClientType.DESKTOP_WEB, accountInSecond);
+        connections.register(3L, ORGANIZATION_ID, ClientType.DESKTOP_WEB, otherInFirst);
+        WorkChanged workChanged = new WorkChanged(List.of(10L), NOW);
+        NotificationRead read = new NotificationRead(NOW);
+
+        connections.sendToOrganization(ORGANIZATION_ID, workChanged);
+        connections.sendToAccount(1L, read);
+
+        assertThat(accountInFirst.sent()).containsExactly(new Connected(), workChanged, read);
+        assertThat(accountInSecond.sent()).containsExactly(new Connected(), read);
+        assertThat(otherInFirst.sent()).containsExactly(new Connected(), workChanged);
+    }
+
+    @Test
+    @DisplayName("보낼 것이 100개를 넘게 밀린 연결은 닫는다")
+    void closesConnectionWhoseOutboxOverflows() {
+        List<Runnable> held = new ArrayList<>();
+        InMemoryRealtimeConnections connections = started(properties(10, 5), held::add);
+        RecordingRealtimeChannel slow = new RecordingRealtimeChannel();
+        connections.register(1L, ORGANIZATION_ID, ClientType.DESKTOP_WEB, slow);
+
+        for (int i = 0; i < 100; i++) {
+            connections.sendToAccount(1L, new NotificationRead(NOW));
+        }
+
+        assertThat(closed("outbox_full")).isEqualTo(1);
+        assertThat(open(ClientType.DESKTOP_WEB)).isZero();
+
+        held.forEach(Runnable::run);
+
+        assertThat(slow.isClosed()).isTrue();
+        assertThat(slow.sent()).isEmpty();
     }
 
     @Test
