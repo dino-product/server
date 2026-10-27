@@ -2,12 +2,17 @@ package com.orbit.notification.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.orbit.notification.NotificationCreated;
 import com.orbit.notification.application.port.in.command.dto.CreateParticipationNotificationCommand;
 import com.orbit.notification.application.service.fake.FakeParticipationRequestLookup;
 import com.orbit.notification.application.service.fake.InMemoryNotificationRepository;
@@ -25,21 +30,24 @@ class CreateParticipationNotificationServiceTest {
     private static final Long ORGANIZATION_ID = 1L;
     private static final Long APPLICANT_ACCOUNT_ID = 70L;
     private static final Instant DECIDED_AT = Instant.parse("2026-10-27T01:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-10-27T01:00:05Z");
 
     private final FakeParticipationRequestLookup requests = new FakeParticipationRequestLookup();
     private final InMemoryNotificationRepository notifications = new InMemoryNotificationRepository();
     private final InMemoryNotificationSettingRepository settings = new InMemoryNotificationSettingRepository();
     private final RecordingPushNotificationPort push = new RecordingPushNotificationPort();
+    private final List<Object> published = new ArrayList<>();
 
     private CreateParticipationNotificationService service;
 
     @BeforeEach
     void setUp() {
-        service = new CreateParticipationNotificationService(requests, notifications, push);
+        service = new CreateParticipationNotificationService(
+                requests, notifications, push, published::add, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
-    @DisplayName("승인 알림을 요청자 계정에 관련 참여 요청과 함께 안 읽음으로 남기고 푸시한다")
+    @DisplayName("승인 알림을 요청자 계정에 관련 참여 요청과 함께 안 읽음으로 남기고 푸시하며 알림 저장을 발행한다")
     void recordsAndPushesApprovalToApplicant() {
         service.create(approved(ParticipationType.TECHNICIAN, ParticipationType.TECHNICIAN));
 
@@ -55,6 +63,7 @@ class CreateParticipationNotificationServiceTest {
         });
         assertThat(push.sent()).singleElement().satisfies(sent -> assertThat(sent.id())
                 .isEqualTo(notifications.all().getFirst().id()));
+        assertThat(published).containsExactly(new NotificationCreated(APPLICANT_ACCOUNT_ID, NOW));
     }
 
     @Test
@@ -104,13 +113,14 @@ class CreateParticipationNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("같은 참여 요청의 결과가 다시 전달되면(이벤트 재전송) 알림도 푸시도 다시 만들지 않는다")
+    @DisplayName("같은 참여 요청의 결과가 다시 전달되면(이벤트 재전송) 알림도 푸시도 다시 만들지 않고 발행하지 않는다")
     void doesNotRecreateNotificationForRedeliveredEvent() {
         service.create(rejected());
         service.create(rejected());
 
         assertThat(notifications.all()).hasSize(1);
         assertThat(push.sent()).hasSize(1);
+        assertThat(published).containsExactly(new NotificationCreated(APPLICANT_ACCOUNT_ID, NOW));
     }
 
     private static CreateParticipationNotificationCommand approved(
