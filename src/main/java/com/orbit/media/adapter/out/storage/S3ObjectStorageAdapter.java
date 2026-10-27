@@ -142,6 +142,9 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
      * 밖의 헤더({@code Content-Disposition}·{@code Cache-Control}·{@code Content-Language} 등)도 업로더가 붙여 저장할 수 있어, 그대로 두면
      * 내려받기 응답에 업로더가 고른 헤더가 쓰인다. 그래서 형식은 발급 때 기록하고 확인한 값, 표시는 {@code inline}, 캐시는 {@link #cacheControl()}로
      * 고정하고 사용자 메타데이터는 버린다.
+     *
+     * <p>복사는 S3 서버 쪽 시간이 객체 크기에 비례하므로 이 요청만 호출·시도 제한 시간을 {@code app.media.storage.copy-timeout}(기본 60초)으로
+     * 바꾼다. 클라이언트 전체의 제한 시간(시도당 3초)을 그대로 두면 큰 사진은 다시 보내도 매번 시간 초과(저장소 장애)로 끝난다.
      */
     @Override
     public boolean copy(String sourceKey, String targetKey, String eTag, String contentType) {
@@ -149,7 +152,10 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
                         Operation.COPY_OBJECT,
                         sourceKey,
                         Set.of(NOT_FOUND, PRECONDITION_FAILED),
-                        () -> s3.copyObject(request -> request.sourceBucket(properties.bucket())
+                        () -> s3.copyObject(request -> request.overrideConfiguration(
+                                        override -> override.apiCallTimeout(properties.copyTimeout())
+                                                .apiCallAttemptTimeout(properties.copyTimeout()))
+                                .sourceBucket(properties.bucket())
                                 .sourceKey(sourceKey)
                                 .copySourceIfMatch(eTag)
                                 .destinationBucket(properties.bucket())

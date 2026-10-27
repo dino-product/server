@@ -3,16 +3,19 @@ package com.orbit.media.adapter.out.storage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 import java.net.URI;
+import java.time.Duration;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
@@ -20,16 +23,22 @@ import com.orbit.media.application.port.out.ObjectStorageUnavailableException;
 
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
@@ -137,6 +146,43 @@ class S3ObjectStorageAdapterStatusTest {
         assertThat(calls("head_object", "success", "none").count()).isEqualTo(1);
     }
 
+    /** 복사는 S3 서버 쪽 시간이 객체 크기에 비례해, 클라이언트 전체의 제한 시간(시도당 3초)이면 큰 사진이 매번 시간 초과로 끝난다. */
+    @Test
+    @DisplayName("복사만 호출·시도 제한 시간을 copy-timeout으로 바꾸고, 다른 저장소 호출은 클라이언트의 제한 시간을 그대로 쓴다")
+    void onlyCopyUsesCopyTimeout() {
+        Duration copyTimeout = Duration.ofSeconds(45);
+        S3ObjectStorageAdapter adapter =
+                new S3ObjectStorageAdapter(s3, mock(S3Presigner.class), properties(copyTimeout), meters);
+        ArgumentCaptor<CopyObjectRequest> copy = ArgumentCaptor.forClass(CopyObjectRequest.class);
+        ArgumentCaptor<HeadObjectRequest> head = ArgumentCaptor.forClass(HeadObjectRequest.class);
+        ArgumentCaptor<GetObjectRequest> read = ArgumentCaptor.forClass(GetObjectRequest.class);
+        ArgumentCaptor<PutObjectTaggingRequest> tagging = ArgumentCaptor.forClass(PutObjectTaggingRequest.class);
+        doReturn(CopyObjectResponse.builder().build()).when(s3).copyObject(copy.capture());
+        doReturn(HeadObjectResponse.builder()
+                        .contentLength(16L)
+                        .contentType("image/png")
+                        .build())
+                .when(s3)
+                .headObject(head.capture());
+        doReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(), new byte[16]))
+                .when(s3)
+                .getObject(read.capture(), any(ResponseTransformer.class));
+        doReturn(PutObjectTaggingResponse.builder().build()).when(s3).putObjectTagging(tagging.capture());
+
+        assertThat(adapter.copy(KEY, "media/1/x", "\"etag\"", "image/png")).isTrue();
+        assertThat(adapter.find(KEY)).isPresent();
+        assertThat(adapter.readFirstBytes(KEY, 16, "\"etag\"")).isPresent();
+        adapter.markExpired("media/1/x");
+
+        AwsRequestOverrideConfiguration copyOverride =
+                copy.getValue().overrideConfiguration().orElseThrow();
+        assertThat(copyOverride.apiCallTimeout()).contains(copyTimeout);
+        assertThat(copyOverride.apiCallAttemptTimeout()).contains(copyTimeout);
+        assertThat(head.getValue().overrideConfiguration()).isEmpty();
+        assertThat(read.getValue().overrideConfiguration()).isEmpty();
+        assertThat(tagging.getValue().overrideConfiguration()).isEmpty();
+    }
+
     @Test
     @DisplayName("자격 증명을 얻지 못해 업로드·내려받기 주소를 서명하지 못하면 저장소 장애이고, 서명 주소 없이 경고와 지표를 남긴다")
     void signingFailure(CapturedOutput output) {
@@ -181,6 +227,10 @@ class S3ObjectStorageAdapterStatusTest {
     }
 
     private static S3StorageProperties properties() {
+        return properties(null);
+    }
+
+    private static S3StorageProperties properties(Duration copyTimeout) {
         return new S3StorageProperties(
                 "bucket",
                 "ap-northeast-2",
@@ -191,6 +241,7 @@ class S3ObjectStorageAdapterStatusTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                copyTimeout);
     }
 }

@@ -190,6 +190,8 @@ app:
       download-url-ttl: PT10M
       api-call-timeout: PT5S
       api-call-attempt-timeout: PT3S
+      # 복사(CopyObject)만 쓰는 호출·시도 제한 시간. 서버 쪽 복사 시간이 사진 크기에 비례한다. api-call-timeout 이상.
+      copy-timeout: PT60S
   events:
     resubmission:
       # 실패한 이벤트 발행을 다시 보내는 주기와 최초 처리를 포함한 최대 처리 시도 횟수

@@ -19,6 +19,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param downloadUrlTtl 내려받기 주소 유효 시간(1분 이상 1시간 이하, 없으면 10분)
  * @param apiCallTimeout 저장소 호출 하나의 전체 제한 시간(재시도 포함, 없으면 5초)
  * @param apiCallAttemptTimeout 시도 한 번의 제한 시간(없으면 3초)
+ * @param copyTimeout 복사(CopyObject)의 호출·시도 제한 시간. S3 서버 쪽 복사 시간이 객체 크기에 비례해 다른 호출의 제한 시간 대신 쓴다.
+ *     {@code apiCallTimeout} 이상이어야 하며 없으면 60초
  */
 @ConfigurationProperties(prefix = "app.media.storage")
 public record S3StorageProperties(
@@ -31,11 +33,13 @@ public record S3StorageProperties(
         Duration uploadUrlTtl,
         Duration downloadUrlTtl,
         Duration apiCallTimeout,
-        Duration apiCallAttemptTimeout) {
+        Duration apiCallAttemptTimeout,
+        Duration copyTimeout) {
 
     static final Duration DEFAULT_URL_TTL = Duration.ofMinutes(10);
     private static final Duration MIN_URL_TTL = Duration.ofMinutes(1);
     private static final Duration MAX_URL_TTL = Duration.ofHours(1);
+    private static final Duration DEFAULT_COPY_TIMEOUT = Duration.ofSeconds(60);
 
     public S3StorageProperties {
         if (bucket == null || bucket.isBlank()) {
@@ -58,6 +62,10 @@ public record S3StorageProperties(
                 || apiCallAttemptTimeout.compareTo(apiCallTimeout) > 0) {
             throw new IllegalArgumentException(
                     "api-call-attempt-timeout must be positive and at most api-call-timeout");
+        }
+        copyTimeout = copyTimeout == null ? DEFAULT_COPY_TIMEOUT : copyTimeout;
+        if (copyTimeout.compareTo(apiCallTimeout) < 0) {
+            throw new IllegalArgumentException("copy-timeout must be at least api-call-timeout");
         }
     }
 

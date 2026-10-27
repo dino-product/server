@@ -266,6 +266,7 @@ class S3ObjectStorageAdapterTest {
                 null,
                 null,
                 Duration.ofSeconds(2),
-                Duration.ofSeconds(1));
+                Duration.ofSeconds(1),
+                null);
     }
 }
