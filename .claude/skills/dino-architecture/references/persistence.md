@@ -24,7 +24,7 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 ## 트랜잭션과 시간
 
 - 변경 UseCase는 `@Transactional`, 조회 UseCase는 `@Transactional(readOnly = true)`를 적용합니다.
-- 예외: DB를 쓰지 않고 Redis·외부 검증기 같은 다른 저장소만 쓰는 UseCase(예: auth의 nonce 발급·Access Token 인증·로그아웃)는 트랜잭션을 붙이지 않고 서비스 Javadoc에 그 사실을 적습니다. JPA 트랜잭션은 시작할 때 DB 커넥션을 잡으므로, 매 요청 토큰 인증처럼 DB가 필요 없는 경로가 커넥션을 점유하거나 DB 장애에 함께 실패하지 않게 하기 위해서입니다. DB 접근이 추가되면 위 규칙을 적용합니다.
+- 예외: DB를 쓰지 않고 Redis·외부 검증기 같은 다른 저장소만 쓰는 UseCase(예: auth의 nonce 발급·Access Token 인증·로그아웃)는 트랜잭션을 붙이지 않고 서비스 Javadoc에 그 사실을 적습니다. 오래 이어지는 요청이 다른 모듈의 조회 계약만 부르는 경우(realtime의 실시간 연결 열기)도 같고, 조회 계약이 자기 읽기 트랜잭션을 끝내므로 연결 중에는 DB 커넥션을 잡지 않습니다(`spring.jpa.open-in-view: false` 전제). JPA 트랜잭션은 시작할 때 DB 커넥션을 잡으므로, 매 요청 토큰 인증처럼 DB가 필요 없는 경로가 커넥션을 점유하거나 DB 장애에 함께 실패하지 않게 하기 위해서입니다. DB 접근이 추가되면 위 규칙을 적용합니다.
 - 예외: DB를 쓰지만 외부 HTTP를 기다리거나 여러 건을 반복해 처리하는 UseCase는 메서드 트랜잭션을 두지 않고, 출력 Port 구현(저장소 Adapter) 메서드마다 트랜잭션을 확정합니다. 외부 응답이나 반복 처리 동안 DB 커넥션을 잡지 않기 위해서입니다. 예: auth의 Apple 로그인, 외부 연결 해제(`UnlinkAccountProvidersService`·`RetryProviderUnlinksService`가 함께 쓰는 `ProviderUnlinker`), 폐쇄 표시 재확정(`ReconfirmClosedAccountsService`, 조회만 저장소의 읽기 트랜잭션이고 Redis 표시는 그 밖). 메서드 사이에 원자성이 없으므로 중간에 실패한 뒤 다시 처리해도 결과가 같게 만들고, 서비스 Javadoc에 그 사실을 적습니다.
 - 날짜·시각은 UTC `Instant`, 테스트 가능한 시간은 주입받은 `Clock`을 사용합니다. 주입되는 `Clock`은 저장소(PostgreSQL) 정밀도인 마이크로초 단위로 끊으므로, 시각 컬럼도 마이크로초 정밀도로 매핑합니다. JPA 감사 컬럼(`BaseTimeEntity`)도 같은 `Clock`에서 시각을 받습니다(`shared.internal.config.JpaAuditingConfig`).
 
