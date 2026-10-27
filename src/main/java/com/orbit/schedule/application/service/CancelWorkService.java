@@ -53,5 +53,6 @@ public class CancelWorkService implements CancelWorkUseCase {
 
         workRepository.save(work);
         eventPublisher.publishEvent(WorkEvents.cancelled(before, work, now));
+        eventPublisher.publishEvent(WorkEvents.changed(work, now));
     }
 }

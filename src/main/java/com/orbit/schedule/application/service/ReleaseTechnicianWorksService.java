@@ -5,7 +5,9 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
@@ -22,6 +24,7 @@ import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
+import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
@@ -41,12 +44,17 @@ public class ReleaseTechnicianWorksService implements ReleaseTechnicianWorksUseC
 
     private final WorkRepository workRepository;
     private final LockTechnicianSchedulePort lockTechnicianSchedulePort;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public ReleaseTechnicianWorksService(
-            WorkRepository workRepository, LockTechnicianSchedulePort lockTechnicianSchedulePort, Clock clock) {
+            WorkRepository workRepository,
+            LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.workRepository = workRepository;
         this.lockTechnicianSchedulePort = lockTechnicianSchedulePort;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -85,6 +93,10 @@ public class ReleaseTechnicianWorksService implements ReleaseTechnicianWorksUseC
         plannedForTechnician.forEach(Work::clearPlannedTechnician);
         released.forEach(workRepository::save);
         plannedForTechnician.forEach(workRepository::save);
+        List<WorkId> changed = Stream.concat(released.stream(), plannedForTechnician.stream())
+                .map(work -> work.id().orElseThrow())
+                .toList();
+        WorkEvents.publishChanged(eventPublisher, organizationId, changed, now);
         return TechnicianWorkReleaseInfo.released(
                 released.stream().map(ReleaseTechnicianWorksService::idOf).toList());
     }

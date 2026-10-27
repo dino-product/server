@@ -2,10 +2,12 @@ package com.orbit.schedule.application.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +19,7 @@ import com.orbit.schedule.application.port.out.AccountTechnicianContractsPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Work;
+import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
@@ -45,16 +48,19 @@ public class ReleaseWithdrawnTechnicianWorksService implements ReleaseWithdrawnT
     private final AccountTechnicianContractsPort accountTechnicianContractsPort;
     private final WorkRepository workRepository;
     private final LockTechnicianSchedulePort lockTechnicianSchedulePort;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public ReleaseWithdrawnTechnicianWorksService(
             AccountTechnicianContractsPort accountTechnicianContractsPort,
             WorkRepository workRepository,
             LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.accountTechnicianContractsPort = accountTechnicianContractsPort;
         this.workRepository = workRepository;
         this.lockTechnicianSchedulePort = lockTechnicianSchedulePort;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -69,11 +75,13 @@ public class ReleaseWithdrawnTechnicianWorksService implements ReleaseWithdrawnT
         for (AccountTechnicianContract contract : contracts) {
             TechnicianScheduleLocks.lock(
                     lockTechnicianSchedulePort, contract.organizationId(), contract.technicianId());
+            List<WorkId> changed = new ArrayList<>();
             for (Work work :
                     workRepository.listActiveByTechnician(contract.organizationId(), contract.technicianId())) {
                 if (work.status() == WorkStatus.PENDING_ACCEPT || work.status() == WorkStatus.ACCEPTED) {
                     work.releaseForWithdrawal(now);
                     workRepository.save(work);
+                    changed.add(work.id().orElseThrow());
                 }
             }
             workRepository.listBacklogPlannedForTechnician(contract.organizationId(), contract.technicianId()).stream()
@@ -81,7 +89,10 @@ public class ReleaseWithdrawnTechnicianWorksService implements ReleaseWithdrawnT
                     .forEach(work -> {
                         work.clearPlannedTechnician();
                         workRepository.save(work);
+                        changed.add(work.id().orElseThrow());
                     });
+            // 한 계정은 한 조직과 기사 계약을 하나만 맺으므로 계약마다 조직이 다르다.
+            WorkEvents.publishChanged(eventPublisher, contract.organizationId(), changed, now);
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.orbit.schedule.application.service;
 
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.domain.ActorRole;
@@ -32,8 +34,8 @@ import com.orbit.schedule.domain.WorkTypeId;
 class UpdateWorkDetailsServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final UpdateWorkDetailsService service =
-            new UpdateWorkDetailsService(fixture.actorPort, fixture.workRepository, fixture.workTypes);
+    private final UpdateWorkDetailsService service = new UpdateWorkDetailsService(
+            fixture.actorPort, fixture.workRepository, fixture.workTypes, fixture.events, fixture.clock);
 
     UpdateWorkDetailsServiceTest() {
         fixture.workTypes.givenSelectable(ORGANIZATION_ID, new WorkTypeId(9L));
@@ -43,7 +45,7 @@ class UpdateWorkDetailsServiceTest {
     @EnumSource(
             value = WorkStatus.class,
             names = {"REGISTERED", "PENDING_ACCEPT", "ACCEPTED"})
-    @DisplayName("시작 전 작업의 기본정보를 교체하고 조직·등록자·상태·배정·이력은 그대로 둔다")
+    @DisplayName("시작 전 작업의 기본정보를 교체하고 조직·등록자·상태·배정·이력은 그대로 두며 작업 변경을 발행한다")
     void changesDetailsBeforeTermination(WorkStatus status) {
         fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(status);
@@ -65,6 +67,8 @@ class UpdateWorkDetailsServiceTest {
         assertThat(saved.assignmentHistory())
                 .usingRecursiveFieldByFieldElementComparator()
                 .isEqualTo(before.assignmentHistory());
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test

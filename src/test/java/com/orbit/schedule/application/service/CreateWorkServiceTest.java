@@ -24,6 +24,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.WorkAssigned;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
@@ -302,12 +303,14 @@ class CreateWorkServiceTest {
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAssigned(
-                        created.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW));
+                .containsExactly(
+                        new WorkAssigned(
+                                created.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(created.workId()), NOW));
     }
 
     @Test
-    @DisplayName("일정을 비우면 대기함에 두고 기사를 잠그거나 확인하지 않으며, 배정이 아니므로 발행하지 않는다")
+    @DisplayName("일정을 비우면 대기함에 두고 기사를 잠그거나 확인하지 않으며, 배정이 아니므로 작업 변경만 발행한다")
     void registersBacklogWithoutLock() {
         fixture.givenManager();
 
@@ -318,11 +321,12 @@ class CreateWorkServiceTest {
         assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.REGISTERED);
         assertThat(fixture.scheduleLock.locks()).isEmpty();
         assertThat(fixture.technicianContracts.checks()).isZero();
-        assertThat(fixture.events.published()).isEmpty();
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(ORGANIZATION_ID.value(), List.of(created.workId()), NOW));
     }
 
     @Test
-    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고, 미리 입력한 담당기사만 잠그며 발행하지 않는다")
+    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고, 미리 입력한 담당기사만 잠그며 작업 변경만 발행한다")
     void keepsPartialScheduleInBacklog() {
         fixture.givenManager();
 
@@ -338,7 +342,10 @@ class CreateWorkServiceTest {
         assertThat(timeOnly.workId()).isNotNull();
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
-        assertThat(fixture.events.published()).isEmpty();
+        assertThat(fixture.events.published())
+                .containsExactly(
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(technicianOnly.workId()), NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(timeOnly.workId()), NOW));
     }
 
     @Test
@@ -446,8 +453,10 @@ class CreateWorkServiceTest {
         CreatedWorkInfo confirmed = service.create(scheduled(TECHNICIAN_ID.value(), TEN, TWO_HOURS, true));
 
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAssigned(
-                        confirmed.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW));
+                .containsExactly(
+                        new WorkAssigned(
+                                confirmed.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(confirmed.workId()), NOW));
     }
 
     @Test

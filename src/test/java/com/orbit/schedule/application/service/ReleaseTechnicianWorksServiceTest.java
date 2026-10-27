@@ -26,6 +26,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.ReleaseTechnicianWorksCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReleaseTechnicianWorksCommand.Cause;
@@ -50,8 +51,8 @@ class ReleaseTechnicianWorksServiceTest {
     private static final MembershipId PROCESSED_BY = new MembershipId(21L);
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final ReleaseTechnicianWorksService service =
-            new ReleaseTechnicianWorksService(fixture.workRepository, fixture.scheduleLock, fixture.clock);
+    private final ReleaseTechnicianWorksService service = new ReleaseTechnicianWorksService(
+            fixture.workRepository, fixture.scheduleLock, fixture.events, fixture.clock);
 
     @AfterEach
     void clearIsolationLevel() {
@@ -60,7 +61,7 @@ class ReleaseTechnicianWorksServiceTest {
 
     @ParameterizedTest
     @EnumSource(Cause.class)
-    @DisplayName("배정됨·작업전 작업을 처리한 관리자의 해제로 끝내고 대기함으로 돌린 뒤 돌린 작업을 식별자 순으로 돌려준다")
+    @DisplayName("배정됨·작업전 작업을 처리한 관리자의 해제로 끝내고 대기함으로 돌린 뒤 돌린 작업을 식별자 순으로 돌려주고 작업 변경 한 건을 발행한다")
     void releasesPendingAndAcceptedWorks(Cause cause) {
         WorkId pending = givenWork(WorkStatus.PENDING_ACCEPT, 0);
         WorkId accepted = givenWork(WorkStatus.ACCEPTED, 3);
@@ -85,6 +86,9 @@ class ReleaseTechnicianWorksServiceTest {
             assertThat(history.ending())
                     .contains(new AssignmentEnding(NOW, PROCESSED_BY, AssignmentEndReason.UNASSIGNED));
         });
+        assertThat(fixture.events.published())
+                .containsExactly(
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(pending.value(), accepted.value()), NOW));
     }
 
     @Test
@@ -117,16 +121,18 @@ class ReleaseTechnicianWorksServiceTest {
                         TechnicianWorkReleaseInfo.blocked(List.of(firstInProgress.value(), secondInProgress.value())));
         assertThat(fixture.workRepository.saved()).isEmpty();
         assertThat(fixture.stored(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
+        assertThat(fixture.events.published()).isEmpty();
     }
 
     @ParameterizedTest
     @EnumSource(Cause.class)
-    @DisplayName("돌릴 예정 작업이 없으면 빈 결과로 성공한다")
+    @DisplayName("돌릴 예정 작업이 없으면 빈 결과로 성공하고 작업 변경을 발행하지 않는다")
     void succeedsWithoutScheduledWorks(Cause cause) {
         givenWork(WorkStatus.COMPLETED, 0);
 
         assertThat(service.release(command(cause))).isEqualTo(TechnicianWorkReleaseInfo.released(List.of()));
         assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.events.published()).isEmpty();
     }
 
     @Test
@@ -153,7 +159,7 @@ class ReleaseTechnicianWorksServiceTest {
 
     @ParameterizedTest
     @EnumSource(Cause.class)
-    @DisplayName("대기함 작업이 미리 입력한 담당기사가 이 기사이면 담당기사만 비우고, 반환한 작업 목록에는 넣지 않는다")
+    @DisplayName("대기함 작업이 미리 입력한 담당기사가 이 기사이면 담당기사만 비우고, 반환한 작업 목록에는 넣지 않되 작업 변경에는 담는다")
     void clearsPlannedTechnicianOfBacklogWorks(Cause cause) {
         WorkId technicianOnly = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, null, null));
         WorkId withTime = givenPlanned(ORGANIZATION_ID, new PlannedSchedule(TECHNICIAN_ID, TEN, null));
@@ -176,6 +182,11 @@ class ReleaseTechnicianWorksServiceTest {
                         .orElseThrow()
                         .plannedSchedule())
                 .contains(new PlannedSchedule(TECHNICIAN_ID, null, null));
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(
+                        ORGANIZATION_ID.value(),
+                        List.of(pending.value(), technicianOnly.value(), withTime.value()),
+                        NOW));
     }
 
     @Test

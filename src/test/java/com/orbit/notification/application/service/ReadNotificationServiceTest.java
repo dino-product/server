@@ -6,11 +6,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.orbit.notification.NotificationRead;
 import com.orbit.notification.application.error.NotificationErrorCode;
 import com.orbit.notification.application.port.in.command.dto.ReadNotificationCommand;
 import com.orbit.notification.application.service.fake.InMemoryNotificationRepository;
@@ -27,16 +30,17 @@ class ReadNotificationServiceTest {
     private static final Long ACCOUNT_ID = 7L;
 
     private final InMemoryNotificationRepository notifications = new InMemoryNotificationRepository();
+    private final List<Object> published = new ArrayList<>();
 
     private ReadNotificationService service;
 
     @BeforeEach
     void setUp() {
-        service = new ReadNotificationService(notifications, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new ReadNotificationService(notifications, published::add, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
-    @DisplayName("본인이 받은 알림을 지금 시각에 읽음으로 바꾼다")
+    @DisplayName("본인이 받은 알림을 지금 시각에 읽음으로 바꾸고 읽음을 발행한다")
     void marksOwnNotificationRead() {
         Long id = save(ACCOUNT_ID);
 
@@ -46,10 +50,11 @@ class ReadNotificationServiceTest {
             assertThat(found.isRead()).isTrue();
             assertThat(found.readAt()).contains(NOW);
         });
+        assertThat(published).containsExactly(new NotificationRead(ACCOUNT_ID, NOW));
     }
 
     @Test
-    @DisplayName("이미 읽은 알림은 그대로 성공하고 처음 읽은 시각을 바꾸지 않는다")
+    @DisplayName("이미 읽은 알림은 그대로 성공하고 처음 읽은 시각을 바꾸지 않으며 다시 발행하지 않는다")
     void keepsFirstReadTime() {
         Long id = save(ACCOUNT_ID);
         Notification read = notifications.findById(id).orElseThrow();
@@ -59,6 +64,7 @@ class ReadNotificationServiceTest {
         service.read(new ReadNotificationCommand(ACCOUNT_ID, id));
 
         assertThat(notifications.findById(id).orElseThrow().readAt()).contains(NOTIFIED_AT.plusSeconds(10));
+        assertThat(published).isEmpty();
     }
 
     @Test
@@ -70,6 +76,7 @@ class ReadNotificationServiceTest {
                 () -> service.read(new ReadNotificationCommand(ACCOUNT_ID, id)),
                 NotificationErrorCode.NOT_NOTIFICATION_RECIPIENT);
         assertThat(notifications.findById(id).orElseThrow().isRead()).isFalse();
+        assertThat(published).isEmpty();
     }
 
     @Test
@@ -86,6 +93,7 @@ class ReadNotificationServiceTest {
         assertError(
                 () -> service.read(new ReadNotificationCommand(ACCOUNT_ID, hidden)),
                 NotificationErrorCode.NOTIFICATION_NOT_FOUND);
+        assertThat(published).isEmpty();
     }
 
     private Long save(Long accountId) {
