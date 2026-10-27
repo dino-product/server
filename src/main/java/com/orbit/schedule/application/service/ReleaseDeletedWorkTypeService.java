@@ -1,12 +1,14 @@
 package com.orbit.schedule.application.service;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
@@ -38,10 +40,13 @@ public class ReleaseDeletedWorkTypeService implements ReleaseDeletedWorkTypeUseC
             .collect(Collectors.toUnmodifiableSet());
 
     private final WorkTypeUsagePort workTypeUsagePort;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    public ReleaseDeletedWorkTypeService(WorkTypeUsagePort workTypeUsagePort, Clock clock) {
+    public ReleaseDeletedWorkTypeService(
+            WorkTypeUsagePort workTypeUsagePort, ApplicationEventPublisher eventPublisher, Clock clock) {
         this.workTypeUsagePort = workTypeUsagePort;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -57,10 +62,17 @@ public class ReleaseDeletedWorkTypeService implements ReleaseDeletedWorkTypeUseC
                             + isolationLevel);
         }
 
-        return workTypeUsagePort.clearWorkType(organizationId, workTypeId, BEFORE_START, clock.instant()).stream()
-                .sorted(Comparator.comparing(cleared -> cleared.workId().value()))
-                .map(ReleaseDeletedWorkTypeService::toInfo)
-                .toList();
+        Instant now = clock.instant();
+        List<ClearedWorkType> cleared =
+                workTypeUsagePort.clearWorkType(organizationId, workTypeId, BEFORE_START, now).stream()
+                        .sorted(Comparator.comparing(work -> work.workId().value()))
+                        .toList();
+        WorkEvents.publishChanged(
+                eventPublisher,
+                organizationId,
+                cleared.stream().map(ClearedWorkType::workId).toList(),
+                now);
+        return cleared.stream().map(ReleaseDeletedWorkTypeService::toInfo).toList();
     }
 
     /** 대기함 작업의 기사 칸은 담당이 아니라 미리 입력한 값이나 마지막 배정이므로 담당 기사로 돌려주지 않는다. */

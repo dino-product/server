@@ -14,12 +14,15 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.WorkCancelled;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.domain.ActorRole;
@@ -63,7 +66,8 @@ class CancelWorkServiceTest {
         assertThat(fixture.scheduleLock.locks()).isEmpty();
         assertThat(fixture.events.published())
                 .containsExactly(
-                        new WorkCancelled(id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", NOW));
+                        new WorkCancelled(id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -80,7 +84,9 @@ class CancelWorkServiceTest {
                 .contains(new Cancellation(NOW, MANAGER_ID, CancellationReason.DUPLICATE_REGISTRATION, null));
         assertThat(saved.assignmentHistory()).isEmpty();
         assertThat(fixture.events.published())
-                .containsExactly(new WorkCancelled(id.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW));
+                .containsExactly(
+                        new WorkCancelled(id.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -107,7 +113,9 @@ class CancelWorkServiceTest {
         assertThat(fixture.events.published())
                 .containsExactly(
                         new WorkCancelled(planned.value(), ORGANIZATION_ID.value(), null, "미리 입력한 작업", NOW),
-                        new WorkCancelled(returned.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW));
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(planned.value()), NOW),
+                        new WorkCancelled(returned.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(returned.value()), NOW));
     }
 
     @ParameterizedTest
