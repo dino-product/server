@@ -135,11 +135,17 @@ public class MediaFilesService implements MediaFiles {
         Set<String> copied = new LinkedHashSet<>();
         try {
             for (UploadedFile file : pending) {
-                Optional<Reason> reason = verifyUploaded(file);
+                Optional<StoredObject> stored = storage.find(file.incomingKey());
+                Optional<Reason> reason =
+                        stored.isEmpty() ? Optional.of(Reason.NOT_UPLOADED) : verifyUploaded(file, stored.get());
                 if (reason.isPresent()) {
                     return rejected(request, new FileRejection(file.id().toString(), reason.get()));
                 }
-                storage.copy(file.incomingKey(), file.mediaKey());
+                // 확인한 내용(ETag)일 때만 복사한다. 그 사이 다시 올리거나 지워졌으면 업로드를 마치지 않은 것으로 본다.
+                if (!storage.copy(
+                        file.incomingKey(), file.mediaKey(), stored.get().eTag())) {
+                    return rejected(request, new FileRejection(file.id().toString(), Reason.NOT_UPLOADED));
+                }
                 copied.add(file.id().toString());
             }
         } catch (ObjectStorageUnavailableException exception) {
@@ -203,25 +209,27 @@ public class MediaFilesService implements MediaFiles {
         }
     }
 
-    /** 업로드가 끝났고 발급 때 밝힌 형식·크기 그대로이며 앞부분이 그 형식의 이미지 시그니처인지. */
-    private Optional<Reason> verifyUploaded(UploadedFile file) {
-        Optional<StoredObject> stored = storage.find(file.incomingKey());
-        if (stored.isEmpty()) {
-            return Optional.of(Reason.NOT_UPLOADED);
-        }
-        if (stored.get().sizeBytes() > file.sizeBytes()) {
+    /**
+     * 올라온 객체가 발급 때 밝힌 형식·크기 그대로이며 앞부분이 그 형식의 이미지 시그니처인지. 앞부분은 메타데이터를 확인한 내용(ETag)에서만 읽으므로, 그 사이 다시
+     * 올렸거나 지워졌으면 업로드를 마치지 않은 것으로 본다.
+     */
+    private Optional<Reason> verifyUploaded(UploadedFile file, StoredObject stored) {
+        if (stored.sizeBytes() > file.sizeBytes()) {
             return Optional.of(Reason.TOO_LARGE);
         }
-        if (stored.get().sizeBytes() != file.sizeBytes()) {
+        if (stored.sizeBytes() != file.sizeBytes()) {
             return Optional.of(Reason.NOT_UPLOADED);
         }
-        if (stored.get().contentType() == null
-                || !ImageFormat.normalize(stored.get().contentType()).equals(file.contentType())) {
+        if (stored.contentType() == null
+                || !ImageFormat.normalize(stored.contentType()).equals(file.contentType())) {
             return Optional.of(Reason.CONTENT_TYPE_MISMATCH);
         }
+        Optional<byte[]> head = storage.readFirstBytes(file.incomingKey(), ImageFormat.SIGNATURE_LENGTH, stored.eTag());
+        if (head.isEmpty()) {
+            return Optional.of(Reason.NOT_UPLOADED);
+        }
         Optional<ImageFormat> declared = ImageFormat.ofContentType(file.contentType());
-        Optional<ImageFormat> detected =
-                ImageFormat.detect(storage.readFirstBytes(file.incomingKey(), ImageFormat.SIGNATURE_LENGTH));
+        Optional<ImageFormat> detected = ImageFormat.detect(head.get());
         if (declared.isEmpty() || !declared.equals(detected)) {
             return Optional.of(Reason.CONTENT_TYPE_MISMATCH);
         }

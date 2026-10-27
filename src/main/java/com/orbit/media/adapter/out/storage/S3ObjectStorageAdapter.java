@@ -33,9 +33,9 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
  * {@code Content-Length}를 넣어 밝힌 형식·크기로만 올릴 수 있게 한다. 앱 권한에는 객체 삭제가 없다(ADR-006).
  *
  * <p>저장소 호출과 주소 서명마다 걸린 시간과 결과를 타이머 {@value #CALLS_METRIC}(태그 {@code operation}·{@code outcome}·{@code status})로
- * 남긴다. 결과는 {@code success}, 객체가 없음({@code missing}), 저장소 장애({@code error})이고, {@code status}는 S3가 오류로 답한 HTTP 상태 코드이며
- * 오류 응답이 없으면(성공·제한 시간 초과·연결·자격 증명 실패) {@code none}이다. 저장소 장애는 작업 종류·객체 키·상태 코드·S3 오류 코드를 WARN으로 남긴다.
- * 자격 증명과 서명한 주소는 남기지 않는다.
+ * 남긴다. 결과는 {@code success}, 객체가 없거나 확인한 뒤 바뀜({@code missing}, 404·412), 저장소 장애({@code error})이고, {@code status}는
+ * S3가 오류로 답한 HTTP 상태 코드이며 오류 응답이 없으면(성공·제한 시간 초과·연결·자격 증명 실패) {@code none}이다. 저장소 장애는 작업 종류·객체 키·상태
+ * 코드·S3 오류 코드를 WARN으로 남긴다. 자격 증명과 서명한 주소는 남기지 않는다.
  */
 @Component
 class S3ObjectStorageAdapter implements ObjectStoragePort {
@@ -45,6 +45,7 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
 
     private static final Logger log = LoggerFactory.getLogger(S3ObjectStorageAdapter.class);
     private static final int NOT_FOUND = 404;
+    private static final int PRECONDITION_FAILED = 412;
     private static final String NO_STATUS = "none";
 
     /** 저장소 작업 종류(지표 태그·로그 값). */
@@ -114,31 +115,37 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
         return call(Operation.HEAD_OBJECT, key, Set.of(NOT_FOUND), () -> {
             HeadObjectResponse head =
                     s3.headObject(request -> request.bucket(properties.bucket()).key(key));
-            return new StoredObject(head.contentLength(), head.contentType());
+            return new StoredObject(head.contentLength(), head.contentType(), head.eTag());
         });
     }
 
+    /** 지워졌으면 404, 확인한 뒤 다른 내용으로 바뀌었으면 {@code If-Match}가 맞지 않아 412다. 둘 다 객체가 없는 것으로 본다. */
     @Override
-    public byte[] readFirstBytes(String key, int length) {
+    public Optional<byte[]> readFirstBytes(String key, int length, String eTag) {
         if (length < 1) {
             throw new IllegalArgumentException("length must be positive");
         }
-        return call(Operation.GET_OBJECT_RANGE, key, Set.of(), () -> s3.getObjectAsBytes(request ->
-                                request.bucket(properties.bucket()).key(key).range("bytes=0-" + (length - 1)))
-                        .asByteArray())
-                .orElseThrow();
+        return call(Operation.GET_OBJECT_RANGE, key, Set.of(NOT_FOUND, PRECONDITION_FAILED), () -> s3.getObjectAsBytes(
+                        request -> request.bucket(properties.bucket())
+                                .key(key)
+                                .range("bytes=0-" + (length - 1))
+                                .ifMatch(eTag))
+                .asByteArray());
     }
 
+    /** 원본이 지워졌으면 404, 확인한 뒤 다른 내용으로 바뀌었으면 {@code x-amz-copy-source-if-match}가 맞지 않아 412다. 둘 다 복사하지 않는다. */
     @Override
-    public void copy(String sourceKey, String targetKey) {
-        call(
-                Operation.COPY_OBJECT,
-                sourceKey,
-                Set.of(),
-                () -> s3.copyObject(request -> request.sourceBucket(properties.bucket())
-                        .sourceKey(sourceKey)
-                        .destinationBucket(properties.bucket())
-                        .destinationKey(targetKey)));
+    public boolean copy(String sourceKey, String targetKey, String eTag) {
+        return call(
+                        Operation.COPY_OBJECT,
+                        sourceKey,
+                        Set.of(NOT_FOUND, PRECONDITION_FAILED),
+                        () -> s3.copyObject(request -> request.sourceBucket(properties.bucket())
+                                .sourceKey(sourceKey)
+                                .copySourceIfMatch(eTag)
+                                .destinationBucket(properties.bucket())
+                                .destinationKey(targetKey)))
+                .isPresent();
     }
 
     @Override

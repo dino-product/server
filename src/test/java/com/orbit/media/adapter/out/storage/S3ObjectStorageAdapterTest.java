@@ -85,13 +85,19 @@ class S3ObjectStorageAdapterTest {
 
         assertThat(put(upload, "image/png", PNG).statusCode()).isEqualTo(200);
 
-        assertThat(adapter.find(key)).contains(new StoredObject(PNG.length, "image/png"));
-        assertThat(adapter.readFirstBytes(key, 8)).isEqualTo(Arrays.copyOf(PNG, 8));
-        assertThat(adapter.readFirstBytes(key, 64)).isEqualTo(PNG);
+        StoredObject stored = adapter.find(key).orElseThrow();
+        assertThat(stored.sizeBytes()).isEqualTo(PNG.length);
+        assertThat(stored.contentType()).isEqualTo("image/png");
+        assertThat(stored.eTag()).isNotBlank();
+        assertThat(adapter.readFirstBytes(key, 8, stored.eTag())).hasValue(Arrays.copyOf(PNG, 8));
+        assertThat(adapter.readFirstBytes(key, 64, stored.eTag())).hasValue(PNG);
 
         String copied = key();
-        adapter.copy(key, copied);
-        assertThat(adapter.find(copied)).contains(new StoredObject(PNG.length, "image/png"));
+        assertThat(adapter.copy(key, copied, stored.eTag())).isTrue();
+        assertThat(adapter.find(copied)).hasValueSatisfying(object -> {
+            assertThat(object.sizeBytes()).isEqualTo(PNG.length);
+            assertThat(object.contentType()).isEqualTo("image/png");
+        });
 
         adapter.markExpired(copied);
         assertThat(s3.getObjectTagging(request ->
@@ -106,6 +112,45 @@ class S3ObjectStorageAdapterTest {
                 HttpResponse.BodyHandlers.ofByteArray());
         assertThat(download.statusCode()).isEqualTo(200);
         assertThat(download.body()).isEqualTo(PNG);
+    }
+
+    @Test
+    @DisplayName("확인한 뒤 같은 키에 다른 내용을 다시 올리면 앞부분 읽기(If-Match)와 복사(copy-source-if-match)가 412로 막혀 하지 않는다")
+    void bindsReadAndCopyToCheckedContent() throws Exception {
+        String key = key();
+        assertThat(put(adapter.presignUpload(key, "image/png", PNG.length), "image/png", PNG)
+                        .statusCode())
+                .isEqualTo(200);
+        StoredObject checked = adapter.find(key).orElseThrow();
+
+        byte[] replaced = PNG.clone();
+        replaced[15] = 'X';
+        assertThat(put(adapter.presignUpload(key, "image/png", replaced.length), "image/png", replaced)
+                        .statusCode())
+                .isEqualTo(200);
+        String target = key();
+
+        assertThat(adapter.readFirstBytes(key, 16, checked.eTag())).isEmpty();
+        assertThat(adapter.copy(key, target, checked.eTag())).isFalse();
+        assertThat(adapter.find(target)).isEmpty();
+
+        String current = adapter.find(key).orElseThrow().eTag();
+        assertThat(current).isNotEqualTo(checked.eTag());
+        assertThat(adapter.readFirstBytes(key, 16, current)).hasValue(replaced);
+        assertThat(adapter.copy(key, target, current)).isTrue();
+    }
+
+    @Test
+    @DisplayName("확인한 뒤 지워진 객체는 앞부분 읽기·복사가 404로 막혀 하지 않는다")
+    void missingObjectIsNotReadOrCopied() {
+        String missing = key();
+        String target = key();
+
+        assertThat(adapter.readFirstBytes(missing, 16, "\"0123456789abcdef0123456789abcdef\""))
+                .isEmpty();
+        assertThat(adapter.copy(missing, target, "\"0123456789abcdef0123456789abcdef\""))
+                .isFalse();
+        assertThat(adapter.find(target)).isEmpty();
     }
 
     @Test
@@ -131,7 +176,8 @@ class S3ObjectStorageAdapterTest {
             S3ObjectStorageAdapter down =
                     new S3ObjectStorageAdapter(client, presigner, unreachable, new SimpleMeterRegistry());
             assertThatThrownBy(() -> down.find(key())).isInstanceOf(ObjectStorageUnavailableException.class);
-            assertThatThrownBy(() -> down.copy(key(), key())).isInstanceOf(ObjectStorageUnavailableException.class);
+            assertThatThrownBy(() -> down.copy(key(), key(), "\"etag\""))
+                    .isInstanceOf(ObjectStorageUnavailableException.class);
             assertThatThrownBy(() -> down.markExpired(key())).isInstanceOf(ObjectStorageUnavailableException.class);
         }
     }

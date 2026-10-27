@@ -180,6 +180,36 @@ class MediaFilesServiceTest {
         }
 
         @Test
+        @DisplayName("메타데이터를 확인한 뒤 같은 키에 다시 올렸거나 지웠으면 앞부분을 읽지 못해 업로드 안 됨이고 복사하지 않는다")
+        void objectChangedOrRemovedBeforeRead() {
+            String replaced = uploaded("image/jpeg", JPEG);
+            storage.afterCall(
+                    "find incoming/" + replaced, () -> storage.put("incoming/" + replaced, "image/jpeg", PDF.clone()));
+            assertRejected(stageRequest(List.of(replaced), null), replaced, Reason.NOT_UPLOADED);
+
+            String removed = uploaded("image/jpeg", JPEG);
+            storage.afterCall("find incoming/" + removed, () -> storage.remove("incoming/" + removed));
+            assertRejected(stageRequest(List.of(removed), null), removed, Reason.NOT_UPLOADED);
+
+            assertThat(storage.calls()).noneMatch(call -> call.startsWith("copy"));
+        }
+
+        @Test
+        @DisplayName("앞부분을 확인한 뒤 다시 올렸거나 지웠으면 복사하지 못해 업로드 안 됨이고 연결 위치에 객체가 없다")
+        void objectChangedOrRemovedBeforeCopy() {
+            String replaced = uploaded("image/jpeg", JPEG);
+            storage.afterCall(
+                    "read incoming/" + replaced, () -> storage.put("incoming/" + replaced, "image/jpeg", PDF.clone()));
+            assertRejected(stageRequest(List.of(replaced), null), replaced, Reason.NOT_UPLOADED);
+            assertThat(storage.has("media/1/" + replaced)).isFalse();
+
+            String removed = uploaded("image/jpeg", JPEG);
+            storage.afterCall("read incoming/" + removed, () -> storage.remove("incoming/" + removed));
+            assertRejected(stageRequest(List.of(removed), null), removed, Reason.NOT_UPLOADED);
+            assertThat(storage.has("media/1/" + removed)).isFalse();
+        }
+
+        @Test
         @DisplayName("이미 같은 대상에 연결된 파일은 업로더와 관계없이 저장소를 다시 부르지 않고 둔다")
         void keepsFilesAttachedToOwner() {
             String fileId = attached(OWNER);

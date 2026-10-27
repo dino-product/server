@@ -23,8 +23,11 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -72,6 +75,40 @@ class S3ObjectStorageAdapterStatusTest {
         assertThat(calls("head_object", "error", String.valueOf(status)).count())
                 .isEqualTo(1);
         assertThat(output).contains("operation=head_object", "key=" + KEY, "status=" + status, "errorCode=SlowDown");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {404, 412})
+    @DisplayName("앞부분 읽기·복사가 404(지워짐)나 412(확인한 뒤 바뀜)면 하지 않고 결과 missing으로 기록한다")
+    void readAndCopyOfMissingOrChangedObject(int status, CapturedOutput output) {
+        S3Exception error =
+                (S3Exception) S3Exception.builder().statusCode(status).build();
+        doThrow(error).when(s3).getObject(any(GetObjectRequest.class), any(ResponseTransformer.class));
+        doThrow(error).when(s3).copyObject(any(CopyObjectRequest.class));
+
+        assertThat(adapter().readFirstBytes(KEY, 16, "\"etag\"")).isEmpty();
+        assertThat(adapter().copy(KEY, "media/1/x", "\"etag\"")).isFalse();
+
+        assertThat(calls("get_object_range", "missing", String.valueOf(status)).count())
+                .isEqualTo(1);
+        assertThat(calls("copy_object", "missing", String.valueOf(status)).count())
+                .isEqualTo(1);
+        assertThat(output).doesNotContain("media storage call failed");
+    }
+
+    @Test
+    @DisplayName("앞부분 읽기·복사의 그 밖의 오류 응답은 저장소 장애다")
+    void readAndCopyErrors() {
+        S3Exception error = (S3Exception) S3Exception.builder().statusCode(500).build();
+        doThrow(error).when(s3).getObject(any(GetObjectRequest.class), any(ResponseTransformer.class));
+        doThrow(error).when(s3).copyObject(any(CopyObjectRequest.class));
+
+        assertThatThrownBy(() -> adapter().readFirstBytes(KEY, 16, "\"etag\""))
+                .isInstanceOf(ObjectStorageUnavailableException.class);
+        assertThatThrownBy(() -> adapter().copy(KEY, "media/1/x", "\"etag\""))
+                .isInstanceOf(ObjectStorageUnavailableException.class);
+        assertThat(calls("get_object_range", "error", "500").count()).isEqualTo(1);
+        assertThat(calls("copy_object", "error", "500").count()).isEqualTo(1);
     }
 
     @Test

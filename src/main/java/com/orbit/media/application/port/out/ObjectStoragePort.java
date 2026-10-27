@@ -14,11 +14,17 @@ public interface ObjectStoragePort {
     /** 객체 메타데이터. 없으면 비어 있다. */
     Optional<StoredObject> find(String key);
 
-    /** 객체 앞부분 최대 {@code length}바이트. 객체가 더 짧으면 그만큼만 돌려준다. */
-    byte[] readFirstBytes(String key, int length);
+    /**
+     * 객체 앞부분 최대 {@code length}바이트. 객체가 더 짧으면 그만큼만 돌려준다. {@link #find}로 확인한 내용({@code eTag})일 때만 읽고, 그 사이 지워졌거나
+     * 다른 내용으로 바뀌었으면 비어 있다.
+     */
+    Optional<byte[]> readFirstBytes(String key, int length, String eTag);
 
-    /** 같은 저장소 안에서 복사한다. 대상이 있으면 덮어쓴다(같은 원본의 재시도는 결과가 같다). */
-    void copy(String sourceKey, String targetKey);
+    /**
+     * 같은 저장소 안에서 복사한다. 원본이 {@link #find}로 확인한 내용({@code eTag})일 때만 복사하고, 그 사이 지워졌거나 다른 내용으로 바뀌었으면 복사하지 않고
+     * false다. 대상이 있으면 덮어쓴다(같은 원본의 재시도는 결과가 같다).
+     */
+    boolean copy(String sourceKey, String targetKey, String eTag);
 
     /** 객체에 만료 표시(태그 {@code status=expired})를 남긴다. */
     void markExpired(String key);
