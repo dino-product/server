@@ -22,5 +22,9 @@ class WebLoginCommandsTest {
                                 URI.create("https://appleid.apple.com"), "secret-binding", Duration.ofMinutes(10))
                         .toString())
                 .doesNotContain("secret-binding");
+        assertThat(WebLoginCompletion.success("https://admin.example.com/login", "secret-exchange")
+                        .toString())
+                .doesNotContain("secret-exchange")
+                .contains("https://admin.example.com/login");
     }
 }

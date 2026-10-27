@@ -13,4 +13,11 @@ public record WebLoginCompletion(String returnUri, String exchangeCode, String e
     public static WebLoginCompletion failure(String returnUri, String errorCode) {
         return new WebLoginCompletion(returnUri, null, errorCode);
     }
+
+    /** 교환 코드가 로그에 남지 않게 한다. */
+    @Override
+    public String toString() {
+        return "WebLoginCompletion[returnUri=" + returnUri + ", exchangeCode=" + (exchangeCode == null ? null : "***")
+                + ", errorCode=" + errorCode + "]";
+    }
 }
