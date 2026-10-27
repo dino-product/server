@@ -18,7 +18,7 @@
 - **삭제는 표시만:** 서버에는 객체 삭제 권한(DeleteObject)이 없습니다. 기본정보 수정으로 빠진 현장 사진은 같은 트랜잭션에서 EXPIRED로 바꾸고, 커밋 뒤 비동기로 객체에 태그 `status=expired`를 붙입니다. 실제 삭제는 버킷 수명 주기 규칙이 합니다. 커밋 전에 태그를 붙이지 않는 것은 업무가 롤백되면 아직 연결된 사진이 지워지기 때문이며, 태그를 붙이지 못하면 객체가 남을 뿐입니다. `incoming/`은 수명 주기 규칙이 1일 뒤 지웁니다.
 - **기록:** `uploaded_files`(id UUID, 발주사·업로더 계정 식별자, 용도, 객체 키, 형식, 크기, 상태 PENDING·ATTACHED·EXPIRED, 연결 대상, 생성·연결 시각, 보관 기한 `retain_until`)는 `media`가 소유합니다. 작업 쪽 사진 테이블은 파일 식별자만 둡니다. 보관 기간 상한은 `MEDIA_RETENTION_MAX_DAYS`로 받아, 용도별 보관 기간(`app.media.retention-days`)이 상한을 넘으면 기동에 실패합니다. 지금은 용도별 보관 기간이 정해지지 않아 비어 있고, 보관 배치는 후속 작업입니다.
 - **기술:** AWS SDK for Java v2(`s3`, presigner)를 BOM으로 관리합니다. 자격 증명은 기본 체인(배포 환경은 노드 역할·IMDS), API 호출 제한 시간은 5초(시도당 3초)입니다. 저장소 장애는 어댑터가 경고 로그와 호출 타이머 `media.storage.calls`(작업·결과·상태 코드 태그)로 남겨, 사용자에게는 503으로만 보이는 원인을 운영에서 구분합니다. 엔드포인트 재정의와 path-style 설정으로 로컬은 Compose의 LocalStack, 저장소 어댑터 테스트와 사진 흐름 통합 테스트는 LocalStack Testcontainers를 씁니다. 그 밖의 테스트는 저장소에 닿지 않는 주소를 둡니다(업로드 기록이 없는 식별자는 저장소를 부르기 전에 거부됨).
-- **공유 계약(infra와 동일):** 환경 변수 `MEDIA_BUCKET`, `MEDIA_REGION`, `MEDIA_RETENTION_MAX_DAYS`. 객체 키 `incoming/{fileId}`, `media/{orgId}/{fileId}`. 앱 권한은 두 접두사의 PutObject·GetObject, `incoming/*` GetObjectTagging, `media/*` PutObjectTagging, 두 접두사로 제한한 ListBucket이며 DeleteObject는 없습니다.
+- **공유 계약(infra와 동일):** 환경 변수 `MEDIA_BUCKET`, `MEDIA_REGION`, `MEDIA_RETENTION_MAX_DAYS`. 객체 키 `incoming/{fileId}`, `media/{orgId}/{fileId}`. 앱 권한은 두 접두사의 PutObject·GetObject, `incoming/*` GetObjectTagging, `media/*` PutObjectTagging, 두 접두사로 제한한 ListBucket이며 DeleteObject는 없습니다. 서버는 ListBucket이 있어 없는 키의 HeadObject가 403이 아니라 404로 온다고 보고 404만 "아직 올라오지 않음"으로 봅니다. 403은 이 전제나 다른 권한이 어긋난 설정 오류이므로 업로드 전으로 가리지 않고 저장소 장애(경고·지표)로 드러냅니다.
 
 ## 검토한 대안
 

@@ -40,22 +40,21 @@ class S3ObjectStorageAdapterStatusTest {
     private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
     private final S3Client s3 = mock(S3Client.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
-    @ParameterizedTest
-    @ValueSource(ints = {403, 404})
-    @DisplayName("없는 키의 HeadObject가 403이나 404면 아직 올라오지 않은 것으로 보고 결과 missing으로 기록한다")
-    void missingObject(int status, CapturedOutput output) {
-        answering(S3Exception.builder().statusCode(status).build());
+    @Test
+    @DisplayName("없는 키의 HeadObject 404는 아직 올라오지 않은 것으로 보고 결과 missing으로 기록한다")
+    void missingObject(CapturedOutput output) {
+        answering(S3Exception.builder().statusCode(404).build());
 
         assertThat(adapter().find(KEY)).isEmpty();
 
-        assertThat(calls("head_object", "missing", String.valueOf(status)).count())
-                .isEqualTo(1);
+        assertThat(calls("head_object", "missing", "404").count()).isEqualTo(1);
         assertThat(output).doesNotContain("media storage call failed");
     }
 
+    /** 앱 역할에 ListBucket이 있어 없는 키는 404로 온다. 403은 권한 설정 오류라 업로드 전으로 가리지 않고 장애로 드러낸다. */
     @ParameterizedTest
-    @ValueSource(ints = {400, 500, 503})
-    @DisplayName("그 밖의 오류 응답은 원인을 이은 저장소 장애이고, 작업·키·상태 코드·S3 오류 코드를 경고와 지표로 남긴다")
+    @ValueSource(ints = {400, 403, 500, 503})
+    @DisplayName("403을 포함한 그 밖의 오류 응답은 원인을 이은 저장소 장애이고, 작업·키·상태 코드·S3 오류 코드를 경고와 지표로 남긴다")
     void otherErrors(int status, CapturedOutput output) {
         S3Exception error = (S3Exception) S3Exception.builder()
                 .statusCode(status)

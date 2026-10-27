@@ -45,7 +45,6 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
 
     private static final Logger log = LoggerFactory.getLogger(S3ObjectStorageAdapter.class);
     private static final int NOT_FOUND = 404;
-    private static final int FORBIDDEN = 403;
     private static final String NO_STATUS = "none";
 
     /** 저장소 작업 종류(지표 태그·로그 값). */
@@ -100,12 +99,12 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
     }
 
     /**
-     * 없는 객체는 404 대신 403으로 올 수 있다. S3는 ListBucket 권한이 없으면 없는 키의 HeadObject를 403으로 답하는데, 앱 권한의 ListBucket은 접두사 조건으로
-     * 제한돼 있어 HeadObject 요청에는 적용되지 않을 수 있다. 있는 객체는 GetObject 권한으로 읽히므로 403도 "아직 올라오지 않음"으로 본다.
+     * 없는 객체는 404다. 앱 역할에 ListBucket 권한이 있어 S3가 없는 키를 404로 답한다(ListBucket이 없으면 403). 403은 "아직 올라오지 않음"이 아니라 권한 설정
+     * 오류이므로 저장소 장애로 보고 경고·지표로 드러낸다.
      */
     @Override
     public Optional<StoredObject> find(String key) {
-        return call(Operation.HEAD_OBJECT, key, Set.of(NOT_FOUND, FORBIDDEN), () -> {
+        return call(Operation.HEAD_OBJECT, key, Set.of(NOT_FOUND), () -> {
             HeadObjectResponse head =
                     s3.headObject(request -> request.bucket(properties.bucket()).key(key));
             return new StoredObject(head.contentLength(), head.contentType());
