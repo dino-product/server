@@ -1,6 +1,5 @@
 package com.orbit.auth.adapter.in.web;
 
-import java.net.URI;
 import java.time.Duration;
 
 import jakarta.validation.Valid;
@@ -17,17 +16,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import com.orbit.auth.adapter.in.web.docs.AppleWebLoginControllerDocs;
 import com.orbit.auth.application.port.in.command.CompleteAppleWebLoginUseCase;
-import com.orbit.auth.application.port.in.command.ExchangeAppleWebLoginUseCase;
+import com.orbit.auth.application.port.in.command.ExchangeWebLoginUseCase;
 import com.orbit.auth.application.port.in.command.StartAppleWebLoginUseCase;
-import com.orbit.auth.application.port.in.command.dto.AppleWebLoginCompletion;
-import com.orbit.auth.application.port.in.command.dto.AppleWebLoginStartInfo;
 import com.orbit.auth.application.port.in.command.dto.CompleteAppleWebLoginCommand;
-import com.orbit.auth.application.port.in.command.dto.ExchangeAppleWebLoginCommand;
+import com.orbit.auth.application.port.in.command.dto.ExchangeWebLoginCommand;
 import com.orbit.auth.application.port.in.command.dto.StartAppleWebLoginCommand;
+import com.orbit.auth.application.port.in.command.dto.WebLoginCompletion;
+import com.orbit.auth.application.port.in.command.dto.WebLoginStartInfo;
+import com.orbit.auth.domain.OAuthProvider;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.error.CommonErrorCode;
 
@@ -45,17 +44,17 @@ public class AppleWebLoginController implements AppleWebLoginControllerDocs {
 
     private final StartAppleWebLoginUseCase startAppleWebLoginUseCase;
     private final CompleteAppleWebLoginUseCase completeAppleWebLoginUseCase;
-    private final ExchangeAppleWebLoginUseCase exchangeAppleWebLoginUseCase;
+    private final ExchangeWebLoginUseCase exchangeWebLoginUseCase;
     private final AppleWebReturnProperties returnProperties;
 
     public AppleWebLoginController(
             StartAppleWebLoginUseCase startAppleWebLoginUseCase,
             CompleteAppleWebLoginUseCase completeAppleWebLoginUseCase,
-            ExchangeAppleWebLoginUseCase exchangeAppleWebLoginUseCase,
+            ExchangeWebLoginUseCase exchangeWebLoginUseCase,
             AppleWebReturnProperties returnProperties) {
         this.startAppleWebLoginUseCase = startAppleWebLoginUseCase;
         this.completeAppleWebLoginUseCase = completeAppleWebLoginUseCase;
-        this.exchangeAppleWebLoginUseCase = exchangeAppleWebLoginUseCase;
+        this.exchangeWebLoginUseCase = exchangeWebLoginUseCase;
         this.returnProperties = returnProperties;
     }
 
@@ -71,7 +70,7 @@ public class AppleWebLoginController implements AppleWebLoginControllerDocs {
         if (!PKCE_METHOD.equals(codeChallengeMethod)) {
             throw new BusinessException(CommonErrorCode.BAD_REQUEST);
         }
-        AppleWebLoginStartInfo started =
+        WebLoginStartInfo started =
                 startAppleWebLoginUseCase.start(new StartAppleWebLoginCommand(returnUri, codeChallenge));
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(started.authorizationUri())
@@ -90,13 +89,10 @@ public class AppleWebLoginController implements AppleWebLoginControllerDocs {
             @RequestParam(name = "id_token", required = false) String idToken,
             @RequestParam(name = "error", required = false) String error,
             @CookieValue(name = BROWSER_BINDING_COOKIE, required = false) String browserBinding) {
-        AppleWebLoginCompletion completion = completeAppleWebLoginUseCase.complete(
+        WebLoginCompletion completion = completeAppleWebLoginUseCase.complete(
                 new CompleteAppleWebLoginCommand(state, browserBinding, idToken, code, error));
-        URI location = completion.exchangeCode() != null
-                ? withQuery(completion.returnUri(), "code", completion.exchangeCode())
-                : withQuery(completion.returnUri(), "error", completion.errorCode());
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(location)
+                .location(WebLoginResponses.callbackLocation(completion))
                 .header(HttpHeaders.SET_COOKIE, bindingCookie("", Duration.ZERO).toString())
                 .build();
     }
@@ -104,25 +100,11 @@ public class AppleWebLoginController implements AppleWebLoginControllerDocs {
     @Override
     @PostMapping("/exchange")
     public LoginResponse exchange(@Valid @RequestBody AppleLoginExchangeRequest request) {
-        return LoginResponse.from(exchangeAppleWebLoginUseCase.exchange(
-                new ExchangeAppleWebLoginCommand(request.code(), request.codeVerifier())));
+        return LoginResponse.from(exchangeWebLoginUseCase.exchange(
+                new ExchangeWebLoginCommand(OAuthProvider.APPLE, request.code(), request.codeVerifier())));
     }
 
     private static ResponseCookie bindingCookie(String value, Duration maxAge) {
-        return ResponseCookie.from(BROWSER_BINDING_COOKIE, value)
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("None")
-                .path(COOKIE_PATH)
-                .maxAge(maxAge)
-                .build();
-    }
-
-    private static URI withQuery(String uri, String name, String value) {
-        return UriComponentsBuilder.fromUriString(uri)
-                .queryParam(name, value)
-                .encode()
-                .build()
-                .toUri();
+        return WebLoginResponses.bindingCookie(BROWSER_BINDING_COOKIE, COOKIE_PATH, "None", value, maxAge);
     }
 }
