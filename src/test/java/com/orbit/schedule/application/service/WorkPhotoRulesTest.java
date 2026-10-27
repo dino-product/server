@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +26,7 @@ import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReport
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.service.fake.FakeMediaFiles.Attachment;
 import com.orbit.schedule.domain.ActorRole;
+import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
@@ -65,6 +67,19 @@ class WorkPhotoRulesTest {
             assertThat(fixture.mediaFiles.attachments())
                     .extracting(Attachment::owner)
                     .containsExactly("work:" + saved.id().orElseThrow().value());
+        }
+
+        @Test
+        @DisplayName("대문자로 보낸 사진 식별자는 소문자로 바꿔 확인하고 저장한다")
+        void normalizesUppercaseIds() {
+            fixture.givenManager();
+
+            fixture.createWorkService().create(create(List.of(PHOTO_1.toUpperCase(Locale.ROOT)), false));
+
+            assertThat(fixture.mediaFiles.stageRequests())
+                    .singleElement()
+                    .satisfies(request -> assertThat(request.fileIds()).containsExactly(PHOTO_1));
+            assertThat(fixture.singleSaved().sitePhotos()).containsExactly(PHOTO_1);
         }
 
         @Test
@@ -179,6 +194,20 @@ class WorkPhotoRulesTest {
         }
 
         @Test
+        @DisplayName("대문자로 보낸 사진 식별자는 소문자로 바꿔 확인하고 저장한다")
+        void normalizesUppercaseIds() {
+            fixture.givenManager(ActorRole.OWNER);
+            WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+
+            fixture.updateWorkDetailsService().update(update(id.value(), List.of(PHOTO_2.toUpperCase(Locale.ROOT))));
+
+            assertThat(fixture.mediaFiles.stageRequests())
+                    .singleElement()
+                    .satisfies(request -> assertThat(request.fileIds()).containsExactly(PHOTO_2));
+            assertThat(fixture.stored(id).sitePhotos()).containsExactly(PHOTO_2);
+        }
+
+        @Test
         @DisplayName("사진을 모두 빼면 빈 목록으로 연결해 그 작업의 사진을 만료시킨다")
         void clearingPhotosAttachesEmptyList() {
             fixture.givenManager(ActorRole.OWNER);
@@ -289,6 +318,26 @@ class WorkPhotoRulesTest {
             assertThat(fixture.mediaFiles.attachments())
                     .extracting(Attachment::owner)
                     .containsExactly("work:" + id.value());
+        }
+
+        @Test
+        @DisplayName("대문자로 보낸 작업 전·후 사진 식별자는 소문자로 바꿔 확인하고 저장한다")
+        void normalizesUppercaseIds() {
+            fixture.givenTechnician(TECHNICIAN_ID);
+            WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+
+            fixture.submitCompletionReportService()
+                    .submit(submit(
+                            id.value(),
+                            List.of(PHOTO_1.toUpperCase(Locale.ROOT)),
+                            List.of(PHOTO_2.toUpperCase(Locale.ROOT))));
+
+            assertThat(fixture.mediaFiles.stageRequests())
+                    .singleElement()
+                    .satisfies(request -> assertThat(request.fileIds()).containsExactly(PHOTO_1, PHOTO_2));
+            CompletionReport report = fixture.stored(id).completionReport().orElseThrow();
+            assertThat(report.beforePhotos()).containsExactly(PHOTO_1);
+            assertThat(report.afterPhotos()).containsExactly(PHOTO_2);
         }
 
         @Test

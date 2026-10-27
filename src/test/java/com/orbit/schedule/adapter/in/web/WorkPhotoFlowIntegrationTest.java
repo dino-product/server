@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -112,6 +113,29 @@ class WorkPhotoFlowIntegrationTest extends ScheduleApiTestSupport {
                         tags("media/" + organization.id() + "/" + second))
                 .containsExactly(Tag.builder().key("status").value("expired").build()));
         assertThat(tags("media/" + organization.id() + "/" + first)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("대문자로 보낸 사진 식별자도 소문자로 바꿔 붙이고 조회 응답은 소문자 식별자로 내려받는다")
+    void acceptsUppercaseIds() throws Exception {
+        Organization organization = organization();
+        String photo = uploadSitePhoto(organization.owner(), organization.id(), JPEG);
+
+        long workId = objectMapper
+                .readTree(create(organization.owner(), organization.id(), List.of(photo.toUpperCase(Locale.ROOT)))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("workId")
+                .asLong();
+
+        assertThat(fileRow(photo)).containsEntry("status", "ATTACHED").containsEntry("owner_ref", "work:" + workId);
+        JsonNode photos =
+                detail(organization.owner(), organization.id(), workId).path("sitePhotos");
+        assertThat(photos.get(0).path("photoId").asString()).isEqualTo(photo);
+        assertThat(download(photos.get(0).path("url").asString())).isEqualTo(JPEG);
     }
 
     @Test

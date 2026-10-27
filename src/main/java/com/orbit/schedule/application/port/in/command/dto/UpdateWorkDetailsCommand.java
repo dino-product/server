@@ -10,7 +10,7 @@ import com.orbit.schedule.domain.PaymentMethod;
  *
  * @param customerAddress 현장 기본주소
  * @param fee 원 단위 요금
- * @param sitePhotoIds 업로드를 마친 현장 사진 식별자(붙인 순서). null이면 모두 지운다
+ * @param sitePhotoIds 업로드를 마친 현장 사진 식별자(붙인 순서). null이면 모두 지운다. 대문자로 보내도 소문자로 바꿔 받는다
  */
 public record UpdateWorkDetailsCommand(
         Long accountId,
@@ -25,4 +25,9 @@ public record UpdateWorkDetailsCommand(
         String customerAddressDetail,
         Long fee,
         PaymentMethod paymentMethod,
-        List<String> sitePhotoIds) {}
+        List<String> sitePhotoIds) {
+
+    public UpdateWorkDetailsCommand {
+        sitePhotoIds = PhotoIds.lowercase(sitePhotoIds);
+    }
+}
