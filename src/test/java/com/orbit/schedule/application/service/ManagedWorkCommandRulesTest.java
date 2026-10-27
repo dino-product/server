@@ -99,7 +99,8 @@ class ManagedWorkCommandRulesTest {
                                 request.validInput() ? TEN.plus(Duration.ofHours(1)) : null,
                                 TWO_HOURS,
                                 false))),
-                new UseCase("배정 해제", (f, request) -> new UnassignWorkService(f.actorPort, f.workRepository, f.clock)
+                new UseCase("배정 해제", (f, request) -> new UnassignWorkService(
+                                f.actorPort, f.workRepository, f.events, f.clock)
                         .unassign(new UnassignWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),

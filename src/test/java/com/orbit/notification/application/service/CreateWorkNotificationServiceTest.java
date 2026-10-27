@@ -2,12 +2,17 @@ package com.orbit.notification.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.orbit.notification.NotificationCreated;
 import com.orbit.notification.application.port.in.command.dto.CreateWorkNotificationCommand;
 import com.orbit.notification.application.service.fake.FakeOrganizationAccountLookup;
 import com.orbit.notification.application.service.fake.InMemoryNotificationRepository;
@@ -29,6 +34,7 @@ class CreateWorkNotificationServiceTest {
     private static final Long REGISTRAR_ACCOUNT_ID = 50L;
     private static final Instant START = Instant.parse("2026-10-21T00:00:00Z");
     private static final Instant OCCURRED_AT = Instant.parse("2026-10-19T01:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-10-19T01:00:05Z");
 
     private final FakeOrganizationAccountLookup accounts = new FakeOrganizationAccountLookup()
             .technician(ORGANIZATION_ID, TECHNICIAN_ID, TECHNICIAN_ACCOUNT_ID)
@@ -36,16 +42,18 @@ class CreateWorkNotificationServiceTest {
     private final InMemoryNotificationRepository notifications = new InMemoryNotificationRepository();
     private final InMemoryNotificationSettingRepository settings = new InMemoryNotificationSettingRepository();
     private final RecordingPushNotificationPort push = new RecordingPushNotificationPort();
+    private final List<Object> published = new ArrayList<>();
 
     private CreateWorkNotificationService service;
 
     @BeforeEach
     void setUp() {
-        service = new CreateWorkNotificationService(accounts, notifications, settings, push);
+        service = new CreateWorkNotificationService(
+                accounts, notifications, settings, push, published::add, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
-    @DisplayName("배정 알림을 담당 기사 계정에 안 읽음으로 남기고 푸시한다")
+    @DisplayName("배정 알림을 담당 기사 계정에 안 읽음으로 남기고 푸시하며 알림 저장을 발행한다")
     void recordsAndPushesAssignmentToTechnician() {
         service.create(assigned(TECHNICIAN_ID, OCCURRED_AT));
 
@@ -60,10 +68,11 @@ class CreateWorkNotificationServiceTest {
         });
         assertThat(push.sent()).singleElement().satisfies(sent -> assertThat(sent.id())
                 .isEqualTo(notifications.all().getFirst().id()));
+        assertThat(published).containsExactly(new NotificationCreated(TECHNICIAN_ACCOUNT_ID, NOW));
     }
 
     @Test
-    @DisplayName("받을 계정이 없으면(비활성·없는 기사 계약이나 소속, 담당 기사 없는 작업의 취소) 알림도 푸시도 만들지 않는다")
+    @DisplayName("받을 계정이 없으면(비활성·없는 기사 계약이나 소속, 담당 기사 없는 작업의 취소) 알림도 푸시도 만들지 않고 발행하지 않는다")
     void skipsWhenRecipientAccountIsMissing() {
         service.create(assigned(99L, OCCURRED_AT));
         service.create(assigned(null, OCCURRED_AT));
@@ -74,6 +83,7 @@ class CreateWorkNotificationServiceTest {
 
         assertThat(notifications.all()).isEmpty();
         assertThat(push.sent()).isEmpty();
+        assertThat(published).isEmpty();
     }
 
     @Test
@@ -82,6 +92,7 @@ class CreateWorkNotificationServiceTest {
         service.create(rescheduled(false));
 
         assertThat(notifications.all()).isEmpty();
+        assertThat(published).isEmpty();
 
         service.create(rescheduled(true));
 
@@ -143,7 +154,7 @@ class CreateWorkNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("수락·완료보고 제출은 등록한 직원 계정의 알림센터에만 남기고 푸시하지 않는다")
+    @DisplayName("수락·완료보고 제출은 등록한 직원 계정의 알림센터에만 남기고 푸시하지 않으며, 저장한 알림마다 발행한다")
     void recordsOfficeNotificationWithoutPush() {
         service.create(CreateWorkNotificationCommand.workAccepted(
                 ORGANIZATION_ID, WORK_ID, WORK_NAME, REGISTRAR_ID, TECHNICIAN_ID, OCCURRED_AT));
@@ -156,6 +167,10 @@ class CreateWorkNotificationServiceTest {
                 .extracting(Notification::type)
                 .containsExactly(NotificationType.WORK_ACCEPTED, NotificationType.COMPLETION_REPORT_SUBMITTED);
         assertThat(push.sent()).isEmpty();
+        assertThat(published)
+                .containsExactly(
+                        new NotificationCreated(REGISTRAR_ACCOUNT_ID, NOW),
+                        new NotificationCreated(REGISTRAR_ACCOUNT_ID, NOW));
     }
 
     @Test
@@ -184,6 +199,11 @@ class CreateWorkNotificationServiceTest {
                     assertThat(notification.type()).isEqualTo(NotificationType.WORK_REJECTED);
                     assertThat(notification.message()).isEqualTo("담당 기사가 [보일러 점검] 작업을 거절했습니다. 사유: 일정이 맞지 않습니다");
                 });
+        assertThat(published)
+                .containsExactly(
+                        new NotificationCreated(TECHNICIAN_ACCOUNT_ID, NOW),
+                        new NotificationCreated(TECHNICIAN_ACCOUNT_ID, NOW),
+                        new NotificationCreated(REGISTRAR_ACCOUNT_ID, NOW));
     }
 
     @Test
@@ -219,7 +239,7 @@ class CreateWorkNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("등록자 계정이 없어도 거절한 기사의 알림은 숨긴다")
+    @DisplayName("등록자 계정이 없어도 거절한 기사의 알림은 숨기고, 숨김은 발행하지 않는다")
     void hidesTechnicianNotificationsEvenWithoutRegistrarAccount() {
         service.create(assigned(TECHNICIAN_ID, OCCURRED_AT));
 
@@ -227,6 +247,7 @@ class CreateWorkNotificationServiceTest {
 
         assertThat(notifications.all()).singleElement().satisfies(notification -> assertThat(notification.isHidden())
                 .isTrue());
+        assertThat(published).containsExactly(new NotificationCreated(TECHNICIAN_ACCOUNT_ID, NOW));
     }
 
     private static CreateWorkNotificationCommand assigned(Long technicianId, Instant occurredAt) {

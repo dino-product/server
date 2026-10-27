@@ -15,7 +15,8 @@ import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
  * 선다([스케줄·배정] §9). 함께 배정하려던 일정이 겹치는데 확인하지 않았으면 작업을 만들지 않는다. 확인 뒤 다시 보낸 요청이 작업을 한 번만 만들게 하기 위해서다. 오류
  * 확인 순서는 schedule 지침의 공통 순서를 따른다. 작업 유형을 지정하면 같은 조직에서 선택할 수 있는 유형이어야 한다. 현장 사진은 요청자가 올린 파일의 식별자로 최대
  * 6장까지 받으며 다른 입력과 함께 검증한다(업로드를 마치지 않았거나 남의 사진이면 400 SCHEDULE-022, 이미지가 아니면 SCHEDULE-020, 밝힌 크기보다 크면
- * SCHEDULE-021). 등록과 함께 배정해 저장했으면 {@link com.orbit.schedule.WorkAssigned}를 발행하고, 대기함에 둔 등록은 발행하지 않는다.
+ * SCHEDULE-021). 등록과 함께 배정해 저장했으면 {@link com.orbit.schedule.WorkAssigned}를 발행하고, 저장한 모든 등록(대기함에 둔 등록 포함)은 이어서
+ * {@link com.orbit.schedule.WorkChanged}를 발행한다.
  *
  * <p>사진 저장소 확인·복사는 DB 연결을 붙잡지 않도록 트랜잭션을 열기 전에 하고(저장소 장애는 503 SCHEDULE-023), 업무 처리와 사진 연결은
  * {@link CreateWorkTransaction}이 한 트랜잭션에서 한다(ADR-006). 그래서 이 메서드에는 트랜잭션이 없다.

@@ -21,7 +21,8 @@ import com.orbit.schedule.domain.WorkStatus;
 
 /**
  * 완료보고 제출의 트랜잭션 부분({@link SubmitCompletionReportService}가 사진 확인을 마친 뒤 부른다). 규칙은
- * {@link SubmitCompletionReportService}가 설명한다. 사진의 확인 결과는 다른 보고 항목과 함께 검증하고, 작업을 저장한 같은 트랜잭션에서 사진을 작업에 연결한다.
+ * {@link SubmitCompletionReportService}가 설명한다. 사진의 확인 결과는 다른 보고 항목과 함께 검증하고, 작업을 저장한 같은 트랜잭션에서 사진을 작업에 연결한 뒤
+ * 이벤트를 발행한다. 같은 보고의 중복 전송은 저장하지 않으므로 발행하지 않는다.
  */
 @Component
 public class SubmitCompletionReportTransaction {
@@ -66,6 +67,7 @@ public class SubmitCompletionReportTransaction {
         workRepository.save(work);
         WorkPhotos.attach(mediaFiles, photos, work.id().orElseThrow());
         eventPublisher.publishEvent(WorkEvents.completionReportSubmitted(work, technician.technicianId(), now));
+        eventPublisher.publishEvent(WorkEvents.changed(work, now));
     }
 
     private static CompletionReport toReport(SubmitCompletionReportCommand command) {

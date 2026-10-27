@@ -13,12 +13,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
@@ -32,11 +34,11 @@ import com.orbit.schedule.domain.WorkStatus;
 class StartWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final StartWorkService service =
-            new StartWorkService(fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.clock);
+    private final StartWorkService service = new StartWorkService(
+            fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.events, fixture.clock);
 
     @Test
-    @DisplayName("담당 기사가 수락한 최신 배정의 작업을 시작하면 지금 시각을 시작 시각으로 남기고, 기사를 잠그되 기사의 다른 작업은 읽지 않는다")
+    @DisplayName("담당 기사가 수락한 최신 배정의 작업을 시작하면 지금 시각을 시작 시각으로 남기고 작업 변경을 발행하며, 기사를 잠그되 기사의 다른 작업은 읽지 않는다")
     void startsAcceptedWork() {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = acceptedWorkStartingAt(NOW);
@@ -48,6 +50,8 @@ class StartWorkServiceTest {
         assertThat(saved.startedAt()).contains(NOW);
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -81,6 +85,7 @@ class StartWorkServiceTest {
 
         assertThat(fixture.workRepository.saved()).isEmpty();
         assertThat(fixture.stored(id).startedAt()).contains(firstStartedAt);
+        assertThat(fixture.events.published()).isEmpty();
     }
 
     @Test

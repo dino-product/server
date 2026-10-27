@@ -13,12 +13,14 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.UnassignWorkCommand;
 import com.orbit.schedule.domain.ActorRole;
@@ -35,10 +37,10 @@ class UnassignWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final UnassignWorkService service =
-            new UnassignWorkService(fixture.actorPort, fixture.workRepository, fixture.clock);
+            new UnassignWorkService(fixture.actorPort, fixture.workRepository, fixture.events, fixture.clock);
 
     @Test
-    @DisplayName("수락대기 작업을 해제하면 대기 중이던 배정을 지금 시각으로 회수하고 대기함으로 돌린다")
+    @DisplayName("수락대기 작업을 해제하면 대기 중이던 배정을 지금 시각으로 회수하고 대기함으로 돌린 뒤 작업 변경을 발행한다")
     void unassignsPendingWork() {
         fixture.givenManager(ActorRole.OWNER);
         WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
@@ -54,6 +56,8 @@ class UnassignWorkServiceTest {
             assertThat(history.ending())
                     .contains(new AssignmentEnding(NOW, MANAGER_ID, AssignmentEndReason.UNASSIGNED));
         });
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test

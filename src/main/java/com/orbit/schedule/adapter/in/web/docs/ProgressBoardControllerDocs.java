@@ -26,7 +26,8 @@ public interface ProgressBoardControllerDocs {
                     + "거절로 돌아온 작업은 returnedByRejection으로 표시합니다. 취소된 작업은 담지 않습니다. "
                     + "화면은 오늘 하루를 조직의 현지 시간대로 바꾼 UTC 구간으로 보내며(최대 31일까지 받음), 일정이 그 구간과 겹치는 "
                     + "작업만 담으므로 이전 날짜에 끝나지 않은 지연 작업은 이어서 보이지 않습니다. 요약의 진행 중은 작업중 작업만 셉니다. "
-                    + "새로고침 없는 갱신은 이 API를 다시 불러 맞추며 서버 푸시는 아직 없습니다. "
+                    + "새로고침 없는 갱신은 실시간 갱신 연결(GET /api/v1/organizations/{organizationId}/events)의 work-changed를 받아 "
+                    + "이 API를 다시 불러 맞춥니다. "
                     + "구간이 없거나 뒤집혔거나 31일을 넘거나 조직 식별자가 양수가 아니면 SCHEDULE-003, 시각 형식 오류는 COMMON-400입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))

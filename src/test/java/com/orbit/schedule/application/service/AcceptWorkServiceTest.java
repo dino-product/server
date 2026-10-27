@@ -13,6 +13,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.UNKN
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.WorkAccepted;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
@@ -60,13 +62,15 @@ class AcceptWorkServiceTest {
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAccepted(
-                        id.value(),
-                        ORGANIZATION_ID.value(),
-                        REGISTRAR_ID.value(),
-                        TECHNICIAN_ID.value(),
-                        "대상 작업",
-                        NOW));
+                .containsExactly(
+                        new WorkAccepted(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                REGISTRAR_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                "대상 작업",
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test

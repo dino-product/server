@@ -3,6 +3,7 @@ package com.orbit.schedule.application.service;
 import java.time.Clock;
 import java.time.Instant;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,16 +39,19 @@ public class StartWorkService implements StartWorkUseCase {
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
     private final LockTechnicianSchedulePort lockTechnicianSchedulePort;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public StartWorkService(
             LoadActorPort loadActorPort,
             WorkRepository workRepository,
             LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
         this.lockTechnicianSchedulePort = lockTechnicianSchedulePort;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -74,6 +78,7 @@ public class StartWorkService implements StartWorkUseCase {
         // 상태·시각 순서를 확인한 뒤 판정한다. 거부하면 바꾼 작업을 저장하지 않고 버린다(저장소는 조회 사본을 돌려준다).
         requireStartableAt(assignment.schedule(), now);
         workRepository.save(work);
+        eventPublisher.publishEvent(WorkEvents.changed(work, now));
     }
 
     private static void requireStartableAt(WorkSchedule schedule, Instant now) {

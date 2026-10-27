@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.WorkAssigned;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.WorkReassigned;
 import com.orbit.schedule.WorkRescheduled;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
@@ -71,8 +73,9 @@ class ChangeWorkAssignmentServiceTest {
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAssigned(
-                        id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", TEN, NOW));
+                .containsExactly(
+                        new WorkAssigned(id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", TEN, NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -92,15 +95,17 @@ class ChangeWorkAssignmentServiceTest {
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, OTHER_TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
         assertThat(fixture.events.published())
-                .containsExactly(new WorkReassigned(
-                        id.value(),
-                        ORGANIZATION_ID.value(),
-                        TECHNICIAN_ID.value(),
-                        OTHER_TECHNICIAN_ID.value(),
-                        true,
-                        "대상 작업",
-                        ELEVEN,
-                        NOW));
+                .containsExactly(
+                        new WorkReassigned(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                OTHER_TECHNICIAN_ID.value(),
+                                true,
+                                "대상 작업",
+                                ELEVEN,
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -112,15 +117,17 @@ class ChangeWorkAssignmentServiceTest {
         service.change(command(id, OTHER_TECHNICIAN_ID.value(), ELEVEN, TWO_HOURS, false));
 
         assertThat(fixture.events.published())
-                .containsExactly(new WorkReassigned(
-                        id.value(),
-                        ORGANIZATION_ID.value(),
-                        TECHNICIAN_ID.value(),
-                        OTHER_TECHNICIAN_ID.value(),
-                        false,
-                        "대상 작업",
-                        ELEVEN,
-                        NOW));
+                .containsExactly(
+                        new WorkReassigned(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                OTHER_TECHNICIAN_ID.value(),
+                                false,
+                                "대상 작업",
+                                ELEVEN,
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -140,8 +147,16 @@ class ChangeWorkAssignmentServiceTest {
         assertThat(fixture.technicianContracts.checks()).isZero();
         assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(fixture.events.published())
-                .containsExactly(new WorkRescheduled(
-                        id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), false, "대상 작업", ELEVEN, NOW));
+                .containsExactly(
+                        new WorkRescheduled(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                false,
+                                "대상 작업",
+                                ELEVEN,
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -159,8 +174,10 @@ class ChangeWorkAssignmentServiceTest {
                 .extracting(AssignmentHistory::result)
                 .containsExactly(AssignmentResult.ACCEPTED, AssignmentResult.ACCEPTED);
         assertThat(fixture.events.published())
-                .containsExactly(new WorkRescheduled(
-                        id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), true, "대상 작업", ELEVEN, NOW));
+                .containsExactly(
+                        new WorkRescheduled(
+                                id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), true, "대상 작업", ELEVEN, NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test

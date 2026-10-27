@@ -115,7 +115,8 @@ final class ScheduleServiceFixture {
 
     UpdateWorkDetailsService updateWorkDetailsService() {
         return new UpdateWorkDetailsService(
-                mediaFiles, new UpdateWorkDetailsTransaction(actorPort, workRepository, workTypes, mediaFiles));
+                mediaFiles,
+                new UpdateWorkDetailsTransaction(actorPort, workRepository, workTypes, mediaFiles, events, clock));
     }
 
     SubmitCompletionReportService submitCompletionReportService() {

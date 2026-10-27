@@ -26,8 +26,9 @@ import com.orbit.schedule.domain.WorkStatus;
  * 타임테이블에서 작업을 놓거나 옮긴 결과(담당기사·시작시각·예상소요시간)를 반영한다. 대기함 작업이면 배정, 지금 담당기사와 같은 기사면 일정 변경, 다른 기사면
  * 재배정으로 처리하고 규칙은 각 업무와 같다. 같은 기사·같은 시간이면 SCHEDULE_UNCHANGED(409)이며 같은 기사로의 재배정 오류는 생기지 않는다. 배정·재배정은
  * 기사를 잠근 뒤 담당기사가 활성 기사 계약인지 확인하고, 일정 변경은 현재 담당기사를 다시 확인하지 않는다. 오류 확인 순서는 schedule 지침의 공통 순서를
- * 따른다. 반영하면 처리한 업무에 맞는 이벤트 하나(배정 {@link com.orbit.schedule.WorkAssigned}, 재배정
- * {@link com.orbit.schedule.WorkReassigned}, 일정 변경 {@link com.orbit.schedule.WorkRescheduled})를 발행한다.
+ * 따른다. 반영하면 처리한 업무에 맞는 사실 이벤트 하나(배정 {@link com.orbit.schedule.WorkAssigned}, 재배정
+ * {@link com.orbit.schedule.WorkReassigned}, 일정 변경 {@link com.orbit.schedule.WorkRescheduled})와 이어서
+ * {@link com.orbit.schedule.WorkChanged}를 발행한다.
  */
 @Service
 public class ChangeWorkAssignmentService implements ChangeWorkAssignmentUseCase {

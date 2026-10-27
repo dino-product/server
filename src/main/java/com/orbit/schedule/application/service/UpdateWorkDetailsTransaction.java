@@ -1,7 +1,9 @@
 package com.orbit.schedule.application.service;
 
+import java.time.Clock;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +23,7 @@ import com.orbit.schedule.domain.WorkTypeId;
 
 /**
  * 기본정보 수정의 트랜잭션 부분({@link UpdateWorkDetailsService}가 사진 확인을 마친 뒤 부른다). 현장 사진의 확인 결과는 다른 입력과 함께 검증하고, 작업을 저장한 같은
- * 트랜잭션에서 보낸 사진을 그 작업의 현장 사진 전체로 확정한다(빠진 사진은 만료).
+ * 트랜잭션에서 보낸 사진을 그 작업의 현장 사진 전체로 확정한다(빠진 사진은 만료). 그 뒤 {@link com.orbit.schedule.WorkChanged}를 발행한다.
  */
 @Component
 public class UpdateWorkDetailsTransaction {
@@ -30,16 +32,22 @@ public class UpdateWorkDetailsTransaction {
     private final WorkRepository workRepository;
     private final WorkTypePort workTypePort;
     private final MediaFiles mediaFiles;
+    private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     public UpdateWorkDetailsTransaction(
             LoadActorPort loadActorPort,
             WorkRepository workRepository,
             WorkTypePort workTypePort,
-            MediaFiles mediaFiles) {
+            MediaFiles mediaFiles,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
         this.workTypePort = workTypePort;
         this.mediaFiles = mediaFiles;
+        this.eventPublisher = eventPublisher;
+        this.clock = clock;
     }
 
     /** @param sitePhotos 트랜잭션 밖에서 확인한 현장 사진 */
@@ -63,6 +71,7 @@ public class UpdateWorkDetailsTransaction {
 
         workRepository.save(work);
         WorkPhotos.attach(mediaFiles, sitePhotos, work.id().orElseThrow());
+        eventPublisher.publishEvent(WorkEvents.changed(work, clock.instant()));
     }
 
     /** 바꿀 값의 형식을 확인해 값객체로 만든다. 도메인 호출만 하므로 {@link DomainRuleViolations}로 감싼다. */
