@@ -6,5 +6,6 @@
 | [ADR-002: 에이전틱 코딩 규칙](002-agentic-coding-rules.md) | 지침·스킬 소유권과 강제 수단, PR 종류·단위, 커밋·검증, 승인·외부 작업 |
 | [ADR-003: 기획 원본과 레포 문서의 역할 분리](003-planning-source-of-truth.md) | 제품 결정(노션 정책서·기능명세)·구현 결정(레포)의 원본, 기획 참조·차이 관리·동기화, #plan 결정 요청 |
 | [ADR-004: 이벤트 발행 기록과 실패 발행 재전송](004-event-publication-registry.md) | 모듈 리스너 이벤트의 발행 기록·완료 보관, 횟수 제한 없는 실패 재전송·멈춘 발행 처리, 리스너 멱등·이벤트 계약, 운영 스키마, 메시지 브로커를 두지 않는 이유와 도입 기준 |
+| [ADR-005: 스키마 마이그레이션](005-schema-migration.md) | 스키마 원본(Flyway SQL)·`ddl-auto: validate`, 기동 시 적용, 파일 번호·수정 금지, 제약 이름·enum CHECK 미사용, expand-contract 호환성 |
 
 각 ADR은 해당 주제의 현재 결정과 선택 이유를 유지하며, 이전 내용은 Git 이력에서 확인합니다. 보완·신규 주제의 구분과 갱신 기준은 [문서와 ADR 관리](../maintenance.md#maintenance)를 따릅니다.
