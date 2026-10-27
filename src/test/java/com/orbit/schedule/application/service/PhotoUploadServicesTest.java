@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.media.MediaStorageUnavailableException;
 import com.orbit.media.UploadNotAllowedException;
 import com.orbit.media.UploadRequest;
 import com.orbit.media.UploadSpec;
@@ -106,6 +107,18 @@ class PhotoUploadServicesTest {
         }
 
         @Test
+        @DisplayName("업로드 주소를 서명하지 못하면 원인을 이은 503 SCHEDULE-023이다")
+        void signingFailure() {
+            fixture.givenManager();
+            fixture.mediaFiles.givenSigningFails();
+
+            assertThatThrownBy(() -> service(null).issue(command("image/jpeg", 1L)))
+                    .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                            .isEqualTo(ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE))
+                    .hasCauseInstanceOf(MediaStorageUnavailableException.class);
+        }
+
+        @Test
         @DisplayName("장당 용량 설정은 1바이트 이상 저장소 한도 이하만 받는다")
         void validatesSetting() {
             assertThatThrownBy(() -> new SitePhotoProperties(0L)).isInstanceOf(IllegalArgumentException.class);
@@ -193,6 +206,18 @@ class PhotoUploadServicesTest {
             assertThatThrownBy(() -> managerService.issue(command(managerWork.value(), "image/jpeg", 1L)))
                     .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
                             .isEqualTo(ScheduleErrorCode.ACTION_NOT_ALLOWED));
+        }
+
+        @Test
+        @DisplayName("업로드 주소를 서명하지 못하면 503 SCHEDULE-023이다")
+        void signingFailure() {
+            fixture.givenTechnician(TECHNICIAN_ID);
+            WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+            fixture.mediaFiles.givenSigningFails();
+
+            assertThatThrownBy(() -> service.issue(command(id.value(), "image/jpeg", 1L)))
+                    .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                            .isEqualTo(ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE));
         }
 
         @Test

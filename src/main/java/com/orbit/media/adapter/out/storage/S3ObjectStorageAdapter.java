@@ -32,10 +32,10 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
  * S3(와 호환 저장소) 구현. 모든 프로필에서 등록하며 로컬·테스트는 설정으로 LocalStack 주소를 준다. 업로드 서명에는 {@code Content-Type}과
  * {@code Content-Length}를 넣어 밝힌 형식·크기로만 올릴 수 있게 한다. 앱 권한에는 객체 삭제가 없다(ADR-006).
  *
- * <p>저장소 호출마다 걸린 시간과 결과를 타이머 {@value #CALLS_METRIC}(태그 {@code operation}·{@code outcome}·{@code status})로 남긴다. 결과는
- * {@code success}, 객체가 없음({@code missing}), 저장소 장애({@code error})이고, {@code status}는 S3가 오류로 답한 HTTP 상태 코드이며 오류 응답이
- * 없으면(성공·제한 시간 초과·연결 실패) {@code none}이다. 저장소 장애는 작업 종류·객체 키·상태 코드·S3 오류 코드를 WARN으로 남긴다. 자격 증명과 서명한 주소는
- * 남기지 않는다.
+ * <p>저장소 호출과 주소 서명마다 걸린 시간과 결과를 타이머 {@value #CALLS_METRIC}(태그 {@code operation}·{@code outcome}·{@code status})로
+ * 남긴다. 결과는 {@code success}, 객체가 없음({@code missing}), 저장소 장애({@code error})이고, {@code status}는 S3가 오류로 답한 HTTP 상태 코드이며
+ * 오류 응답이 없으면(성공·제한 시간 초과·연결·자격 증명 실패) {@code none}이다. 저장소 장애는 작업 종류·객체 키·상태 코드·S3 오류 코드를 WARN으로 남긴다.
+ * 자격 증명과 서명한 주소는 남기지 않는다.
  */
 @Component
 class S3ObjectStorageAdapter implements ObjectStoragePort {
@@ -52,7 +52,10 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
         HEAD_OBJECT("head_object"),
         GET_OBJECT_RANGE("get_object_range"),
         COPY_OBJECT("copy_object"),
-        PUT_OBJECT_TAGGING("put_object_tagging");
+        PUT_OBJECT_TAGGING("put_object_tagging"),
+        /** 저장소를 부르지 않지만 자격 증명을 얻어야 해 실패할 수 있다. */
+        PRESIGN_PUT_OBJECT("presign_put_object"),
+        PRESIGN_GET_OBJECT("presign_get_object");
 
         private final String tag;
 
@@ -83,12 +86,16 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
 
     @Override
     public PresignedUpload presignUpload(String key, String contentType, long contentLength) {
-        PresignedPutObjectRequest presigned =
-                presigner.presignPutObject(request -> request.signatureDuration(properties.uploadUrlTtl())
-                        .putObjectRequest(put -> put.bucket(properties.bucket())
-                                .key(key)
-                                .contentType(contentType)
-                                .contentLength(contentLength)));
+        PresignedPutObjectRequest presigned = call(
+                        Operation.PRESIGN_PUT_OBJECT,
+                        key,
+                        Set.of(),
+                        () -> presigner.presignPutObject(request -> request.signatureDuration(properties.uploadUrlTtl())
+                                .putObjectRequest(put -> put.bucket(properties.bucket())
+                                        .key(key)
+                                        .contentType(contentType)
+                                        .contentLength(contentLength))))
+                .orElseThrow();
         Map<String, String> headers = new LinkedHashMap<>();
         presigned.signedHeaders().forEach((name, values) -> {
             if (!name.equalsIgnoreCase("host")) {
@@ -147,16 +154,18 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
 
     @Override
     public String presignDownload(String key) {
-        return presigner
-                .presignGetObject(request -> request.signatureDuration(properties.downloadUrlTtl())
-                        .getObjectRequest(get -> get.bucket(properties.bucket()).key(key)))
-                .url()
-                .toString();
+        return call(Operation.PRESIGN_GET_OBJECT, key, Set.of(), () -> presigner
+                        .presignGetObject(request -> request.signatureDuration(properties.downloadUrlTtl())
+                                .getObjectRequest(
+                                        get -> get.bucket(properties.bucket()).key(key)))
+                        .url()
+                        .toString())
+                .orElseThrow();
     }
 
     /**
-     * 저장소 호출 하나를 실행하고 시간·결과를 기록한다. {@code missingStatuses}의 상태 코드로 온 S3 오류는 객체가 없는 것으로 보고 빈 결과를 돌려준다. 그 밖의 SDK
-     * 오류(오류 응답, 제한 시간 초과, 연결·자격 증명 실패)는 경고를 남기고 {@link ObjectStorageUnavailableException}으로 바꾼다.
+     * 저장소 호출(또는 주소 서명) 하나를 실행하고 시간·결과를 기록한다. {@code missingStatuses}의 상태 코드로 온 S3 오류는 객체가 없는 것으로 보고 빈 결과를
+     * 돌려준다. 그 밖의 SDK 오류(오류 응답, 제한 시간 초과, 연결·자격 증명 실패)는 경고를 남기고 {@link ObjectStorageUnavailableException}으로 바꾼다.
      *
      * @param key 로그에 남길 객체 키(복사는 원본 키)
      */

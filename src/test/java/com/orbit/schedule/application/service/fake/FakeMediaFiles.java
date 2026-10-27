@@ -19,8 +19,8 @@ import com.orbit.media.UploadRequest;
 import com.orbit.media.UploadTicket;
 
 /**
- * media 공개 계약의 fake. 테스트가 거부·장애를 넣지 않으면 모든 사진을 받아들이고 호출을 기록한다. 계약의 반환 형태와 계약이 정한 실패(확인 거부, 저장소 장애, 연결
- * 충돌, 발급 거부)만 흉내 내고 media의 확인 규칙은 구현하지 않는다.
+ * media 공개 계약의 fake. 테스트가 거부·장애를 넣지 않으면 모든 사진을 받아들이고 호출을 기록한다. 계약의 반환 형태와 계약이 정한 실패(확인 거부, 저장소 장애, 서명
+ * 실패, 연결 충돌, 발급 거부)만 흉내 내고 media의 확인 규칙은 구현하지 않는다.
  */
 public class FakeMediaFiles implements MediaFiles {
 
@@ -34,6 +34,7 @@ public class FakeMediaFiles implements MediaFiles {
     private final List<Attachment> attachments = new ArrayList<>();
     private final List<UploadRequest> uploadRequests = new ArrayList<>();
     private boolean storageDown;
+    private boolean signingFails;
     private boolean attachConflict;
     private UploadNotAllowedException.Reason uploadRejection;
 
@@ -43,6 +44,11 @@ public class FakeMediaFiles implements MediaFiles {
 
     public void givenStorageDown() {
         storageDown = true;
+    }
+
+    /** 업로드·내려받기 주소를 서명하지 못함(자격 증명을 얻지 못함 등). */
+    public void givenSigningFails() {
+        signingFails = true;
     }
 
     public void givenAttachConflict() {
@@ -70,6 +76,9 @@ public class FakeMediaFiles implements MediaFiles {
         uploadRequests.add(request);
         if (uploadRejection != null) {
             throw new UploadNotAllowedException(uploadRejection);
+        }
+        if (signingFails) {
+            throw new MediaStorageUnavailableException(new RuntimeException("no credentials"));
         }
         String fileId = "file-" + uploadRequests.size();
         return new UploadTicket(
@@ -120,6 +129,9 @@ public class FakeMediaFiles implements MediaFiles {
 
     @Override
     public String downloadUrl(Long organizationId, String fileId) {
+        if (signingFails) {
+            throw new MediaStorageUnavailableException(new RuntimeException("no credentials"));
+        }
         return "url/" + organizationId + "/" + fileId;
     }
 }

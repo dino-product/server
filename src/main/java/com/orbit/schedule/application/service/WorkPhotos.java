@@ -123,7 +123,9 @@ final class WorkPhotos {
         }
     }
 
-    /** 업로드 주소를 발급한다. 형식이 이미지가 아니면 400(SCHEDULE-020), 크기가 상한을 넘으면 400(SCHEDULE-021)이다. */
+    /**
+     * 업로드 주소를 발급한다. 형식이 이미지가 아니면 400(SCHEDULE-020), 크기가 상한을 넘으면 400(SCHEDULE-021), 주소를 서명하지 못하면 503(SCHEDULE-023)이다.
+     */
     static PhotoUploadInfo issue(
             MediaFiles mediaFiles,
             OrganizationId organizationId,
@@ -143,6 +145,8 @@ final class WorkPhotos {
                         case CONTENT_TYPE_NOT_ALLOWED -> ScheduleErrorCode.PHOTO_TYPE_NOT_ALLOWED;
                         case SIZE_NOT_ALLOWED -> ScheduleErrorCode.PHOTO_TOO_LARGE;
                     });
+        } catch (MediaStorageUnavailableException exception) {
+            throw new BusinessException(ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE, exception);
         }
     }
 

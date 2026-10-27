@@ -11,7 +11,8 @@ public interface MediaFiles {
 
     /**
      * 업로드 주소를 발급하고 업로드 대기(PENDING) 기록을 남긴다. 호출자의 트랜잭션에 참여한다(없으면 새로 연다). 형식이 허용 형식이 아니거나 크기가 1바이트 미만이거나
-     * {@link UploadSpec#maxBytes()}를 넘으면 {@link UploadNotAllowedException}이다.
+     * {@link UploadSpec#maxBytes()}를 넘으면 {@link UploadNotAllowedException}이다. 주소를 서명하지 못하면(자격 증명을 얻지 못함 등) 기록을 남기지 않고
+     * {@link MediaStorageUnavailableException}이다.
      */
     UploadTicket issueUpload(UploadRequest request);
 
@@ -32,7 +33,8 @@ public interface MediaFiles {
     void attach(StagedFiles staged, String owner);
 
     /**
-     * 연결된 파일을 내려받을 시간 제한 주소. 호출자가 이미 열람 권한을 확인한 파일에만 쓴다. 저장소를 부르지 않고 서명만 한다.
+     * 연결된 파일을 내려받을 시간 제한 주소. 호출자가 이미 열람 권한을 확인한 파일에만 쓴다. 저장소를 부르지 않고 서명만 하며, 서명하지 못하면(자격 증명을 얻지 못함
+     * 등) {@link MediaStorageUnavailableException}이다.
      *
      * @param fileId 연결된 파일의 식별자
      */

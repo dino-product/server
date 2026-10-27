@@ -3,8 +3,8 @@ package com.orbit.media.application.port.out;
 import java.util.Optional;
 
 /**
- * 파일 객체 저장소. 객체 삭제는 하지 않고 만료 표시만 남긴다(삭제는 저장소 수명 주기 규칙이 함). 서명 메서드는 저장소를 부르지 않는다. 그 밖의 메서드는 저장소에 닿지
- * 못하면 {@link ObjectStorageUnavailableException}을 던진다.
+ * 파일 객체 저장소. 객체 삭제는 하지 않고 만료 표시만 남긴다(삭제는 저장소 수명 주기 규칙이 함). 서명 메서드는 저장소를 부르지 않는다. 모든 메서드는 저장소에 닿지
+ * 못하거나 저장소가 오류로 답하거나, 서명에 쓸 자격 증명을 얻지 못하면 {@link ObjectStorageUnavailableException}을 던진다.
  */
 public interface ObjectStoragePort {
 

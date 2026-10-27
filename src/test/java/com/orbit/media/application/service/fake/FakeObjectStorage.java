@@ -15,7 +15,10 @@ import com.orbit.media.application.port.out.ObjectStorageUnavailableException;
 import com.orbit.media.application.port.out.PresignedUpload;
 import com.orbit.media.application.port.out.StoredObject;
 
-/** 메모리 객체 저장소. 테스트가 {@link #put}으로 업로드를 흉내 내고, {@link #failing}으로 장애를 낸다. 호출한 연산을 기록한다. */
+/**
+ * 메모리 객체 저장소. 테스트가 {@link #put}으로 업로드를 흉내 내고, {@link #failing}으로 저장소 호출 장애를, {@link #signingFails}로 서명 실패(자격 증명을
+ * 얻지 못함)를 낸다. 호출한 연산을 기록한다.
+ */
 public class FakeObjectStorage implements ObjectStoragePort {
 
     public static final Instant EXPIRES_AT = Instant.parse("2026-10-21T01:10:00Z");
@@ -26,6 +29,7 @@ public class FakeObjectStorage implements ObjectStoragePort {
     private final Set<String> expired = new LinkedHashSet<>();
     private final List<String> calls = new ArrayList<>();
     private boolean failing;
+    private boolean signingFails;
 
     public void put(String key, String contentType, byte[] bytes) {
         objects.put(key, new Stored(bytes.clone(), contentType));
@@ -33,6 +37,10 @@ public class FakeObjectStorage implements ObjectStoragePort {
 
     public void failing(boolean failing) {
         this.failing = failing;
+    }
+
+    public void signingFails(boolean signingFails) {
+        this.signingFails = signingFails;
     }
 
     public boolean has(String key) {
@@ -49,7 +57,7 @@ public class FakeObjectStorage implements ObjectStoragePort {
 
     @Override
     public PresignedUpload presignUpload(String key, String contentType, long contentLength) {
-        calls.add("presignUpload " + key);
+        sign("presignUpload " + key);
         return new PresignedUpload(
                 "https://storage.test/" + key,
                 Map.of("content-type", contentType, "content-length", String.valueOf(contentLength)),
@@ -84,8 +92,15 @@ public class FakeObjectStorage implements ObjectStoragePort {
 
     @Override
     public String presignDownload(String key) {
-        calls.add("presignDownload " + key);
+        sign("presignDownload " + key);
         return "https://storage.test/get/" + key;
+    }
+
+    private void sign(String call) {
+        calls.add(call);
+        if (signingFails) {
+            throw new ObjectStorageUnavailableException(new RuntimeException("no credentials"));
+        }
     }
 
     private void call(String call) {

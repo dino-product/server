@@ -102,6 +102,18 @@ class GetWorkDetailServiceTest {
     }
 
     @Test
+    @DisplayName("현장 사진 주소를 서명하지 못하면 503 SCHEDULE-023이다")
+    void signingFailure() {
+        fixture.givenManager();
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.REGISTERED));
+        work.replaceSitePhotos(List.of("site-1"));
+        WorkId id = fixture.workRepository.store(work);
+        fixture.mediaFiles.givenSigningFails();
+
+        fixture.assertRejected(() -> service.get(query(id.value())), ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE);
+    }
+
+    @Test
     @DisplayName("관리자는 거절 사유·메모와 취소 기록·취소 종료를 본다")
     void managerSeesRejectionAndCancellation() {
         fixture.givenManager();

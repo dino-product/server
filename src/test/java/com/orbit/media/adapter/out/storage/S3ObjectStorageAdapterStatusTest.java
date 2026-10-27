@@ -22,6 +22,8 @@ import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
@@ -30,6 +32,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
  * 저장소 응답 상태의 해석과 장애 기록(로그·지표). LocalStack은 IAM을 검사하지 않아 403을 만들 수 없고 5xx·제한 시간 초과도 재현하기 어려워 클라이언트를 대체한다.
+ * 서명 실패는 실제 서명기에 자격 증명을 내주지 못하는 공급자를 넣어 만든다.
  */
 @DisplayName("S3 저장소 어댑터의 응답 상태 해석과 장애 기록")
 @ExtendWith(OutputCaptureExtension.class)
@@ -97,6 +100,34 @@ class S3ObjectStorageAdapterStatusTest {
         assertThat(calls("head_object", "success", "none").count()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("자격 증명을 얻지 못해 업로드·내려받기 주소를 서명하지 못하면 저장소 장애이고, 서명 주소 없이 경고와 지표를 남긴다")
+    void signingFailure(CapturedOutput output) {
+        S3StorageProperties properties = properties();
+        try (S3Presigner failing = S3Presigner.builder()
+                .region(Region.of(properties.region()))
+                .endpointOverride(properties.endpoint())
+                .credentialsProvider(() -> {
+                    throw SdkClientException.create(
+                            "Unable to load credentials from any of the providers in the chain");
+                })
+                .build()) {
+            S3ObjectStorageAdapter adapter = new S3ObjectStorageAdapter(s3, failing, properties, meters);
+
+            assertThatThrownBy(() -> adapter.presignUpload(KEY, "image/png", 16))
+                    .isInstanceOf(ObjectStorageUnavailableException.class)
+                    .hasCauseInstanceOf(SdkClientException.class);
+            assertThatThrownBy(() -> adapter.presignDownload("media/1/x"))
+                    .isInstanceOf(ObjectStorageUnavailableException.class);
+        }
+
+        assertThat(calls("presign_put_object", "error", "none").count()).isEqualTo(1);
+        assertThat(calls("presign_get_object", "error", "none").count()).isEqualTo(1);
+        assertThat(output)
+                .contains("operation=presign_put_object", "key=" + KEY, "operation=presign_get_object")
+                .doesNotContain("X-Amz-Signature");
+    }
+
     /** 소비자를 받는 오버로드는 실제 기본 메서드로 두고, 요청 객체를 받는 호출만 대체한다. */
     private void answering(Throwable error) {
         doThrow(error).when(s3).headObject(any(HeadObjectRequest.class));
@@ -109,7 +140,11 @@ class S3ObjectStorageAdapterStatusTest {
     }
 
     private S3ObjectStorageAdapter adapter() {
-        S3StorageProperties properties = new S3StorageProperties(
+        return new S3ObjectStorageAdapter(s3, mock(S3Presigner.class), properties(), meters);
+    }
+
+    private static S3StorageProperties properties() {
+        return new S3StorageProperties(
                 "bucket",
                 "ap-northeast-2",
                 URI.create("http://127.0.0.1:9"),
@@ -120,6 +155,5 @@ class S3ObjectStorageAdapterStatusTest {
                 null,
                 null,
                 null);
-        return new S3ObjectStorageAdapter(s3, mock(S3Presigner.class), properties, meters);
     }
 }

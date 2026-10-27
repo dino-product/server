@@ -85,6 +85,16 @@ class MediaFilesServiceTest {
         }
 
         @Test
+        @DisplayName("주소를 서명하지 못하면(자격 증명을 얻지 못함) 저장소 장애 예외이고 기록을 남기지 않는다")
+        void reportsSigningFailure() {
+            storage.signingFails(true);
+
+            assertThatThrownBy(() -> service.issueUpload(request("image/jpeg", 100, 200)))
+                    .isInstanceOf(MediaStorageUnavailableException.class);
+            assertThat(repository.all()).isEmpty();
+        }
+
+        @Test
         @DisplayName("크기가 1바이트 미만이거나 최대 크기를 넘으면 거부한다(최대 크기는 받는다)")
         void rejectsSize() {
             assertThatThrownBy(() -> service.issueUpload(request("image/jpeg", 201, 200)))
@@ -298,6 +308,14 @@ class MediaFilesServiceTest {
     @DisplayName("내려받기 주소는 media 키를 서명한다")
     void signsDownloadUrl() {
         assertThat(service.downloadUrl(ORG, "abc")).isEqualTo("https://storage.test/get/media/1/abc");
+    }
+
+    @Test
+    @DisplayName("내려받기 주소를 서명하지 못하면 저장소 장애 예외다")
+    void reportsDownloadSigningFailure() {
+        storage.signingFails(true);
+
+        assertThatThrownBy(() -> service.downloadUrl(ORG, "abc")).isInstanceOf(MediaStorageUnavailableException.class);
     }
 
     private UploadRequest request(String contentType, long size, long maxBytes) {

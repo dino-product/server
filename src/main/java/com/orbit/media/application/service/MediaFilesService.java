@@ -67,7 +67,7 @@ public class MediaFilesService implements MediaFiles {
         this.clock = clock;
     }
 
-    /** 서명은 저장소를 부르지 않으므로 호출자 트랜잭션 안에서 해도 된다. */
+    /** 서명은 저장소를 부르지 않으므로 호출자 트랜잭션 안에서 해도 된다. 서명하지 못하면 기록을 남기지 않는다. */
     @Override
     @Transactional
     public UploadTicket issueUpload(UploadRequest request) {
@@ -84,7 +84,12 @@ public class MediaFilesService implements MediaFiles {
                 request.spec().purpose(),
                 request.contentType(),
                 request.sizeBytes());
-        PresignedUpload upload = storage.presignUpload(file.incomingKey(), file.contentType(), file.sizeBytes());
+        PresignedUpload upload;
+        try {
+            upload = storage.presignUpload(file.incomingKey(), file.contentType(), file.sizeBytes());
+        } catch (ObjectStorageUnavailableException exception) {
+            throw new MediaStorageUnavailableException(exception);
+        }
         repository.save(file);
         return new UploadTicket(file.id().toString(), upload.url(), upload.headers(), upload.expiresAt());
     }
@@ -191,7 +196,11 @@ public class MediaFilesService implements MediaFiles {
 
     @Override
     public String downloadUrl(Long organizationId, String fileId) {
-        return storage.presignDownload(ObjectKeys.media(organizationId, fileId));
+        try {
+            return storage.presignDownload(ObjectKeys.media(organizationId, fileId));
+        } catch (ObjectStorageUnavailableException exception) {
+            throw new MediaStorageUnavailableException(exception);
+        }
     }
 
     /** 업로드가 끝났고 발급 때 밝힌 형식·크기 그대로이며 앞부분이 그 형식의 이미지 시그니처인지. */
