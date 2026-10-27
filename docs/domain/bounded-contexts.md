@@ -27,7 +27,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 카카오·Apple OIDC 로그인, 계정(accountId) 발급·조회·폐쇄, Access Token 발급·검증·로그아웃, 탈퇴한 계정의 외부 연결 해제(카카오 연결 끊기·Apple 토큰 철회)와 그를 위한 Apple refresh token 보관. accountId 발급까지가 책임 범위 |
-| 상태 | 구현 — 카카오 앱·Apple iOS의 id_token 제출 로그인, Apple 웹·Android authorize·callback, Bearer 인증·로그아웃, 계정 폐쇄와 외부 연결 해제. 카카오 웹 흐름·Refresh 회전은 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
+| 상태 | 구현 — 카카오 앱·Apple iOS의 id_token 제출 로그인, 카카오 웹·Apple 웹·Android authorize·callback, Bearer 인증·로그아웃, 계정 폐쇄와 외부 연결 해제. Refresh 회전은 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
 | 기획 원본 | [조직·계정] §1·§5 (카카오 로그인만 지원, ORG-001 — Apple 로그인은 [A-10](#auth-gaps)), §13 (ID/PW·구글 로그인 MVP 제외), §5.1 (탈퇴, ORG-009) |
 | 소유 애그리게잇 | **Account**(Root) — 제공자별 외부 식별(`ExternalIdentity`: 카카오·Apple `sub`)과 등록·폐쇄 시각. 닫히면 외부 식별을 모두 끊고 제공자마다 연결 해제 대기(`ProviderUnlink`)를 남김. 프로필·역할 없음. Apple refresh token은 애그리게잇 밖 저장소에 암호화 보관. `AuthSubject`는 예제로만 남음 |
 | 관계 | 다른 모듈의 웹 어댑터가 루트 계약 `AccountPrincipal`로 인증된 계정 식별자를 받음(현재 profile 프로필·약관·탈퇴 API와 가입 공통 검사, organization 요청자 계정, schedule 작업 API, 계획: notification 알림센터) — 이 모듈들이 auth에 의존하므로 auth는 이들을 조회·구독하지 않음 · `profile`이 루트 계약 `AccountClosure`를 탈퇴 트랜잭션 안에서 직접 호출해 계정을 닫음(Conformist, auth는 profile의 탈퇴를 구독하지 않음) · `organization`이 이 모듈의 공개 계약을 참조(ID)해 accountId 유효성을 확인 (Conformist, 계약은 organization 구현 시 추가) |
