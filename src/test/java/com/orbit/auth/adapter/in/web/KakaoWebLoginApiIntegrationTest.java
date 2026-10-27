@@ -208,9 +208,10 @@ class KakaoWebLoginApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
-    @DisplayName("사용자가 카카오 동의 화면에서 취소하면 error=AUTH-008로만 복귀한다")
+    @DisplayName("사용자가 카카오 동의 화면에서 취소하면 카카오 토큰 엔드포인트를 부르지 않고 error=AUTH-008로만 복귀한다")
     void returnsCancellation() throws Exception {
         Started started = start();
+        int tokenRequests = KAKAO.tokenRequests().size();
 
         assertRedirectError(
                 mockMvc.perform(get("/api/v1/auth/kakao/callback")
@@ -219,6 +220,7 @@ class KakaoWebLoginApiIntegrationTest extends AuthApiTestSupport {
                         .param("error", "access_denied")
                         .param("error_description", "User denied access")),
                 "AUTH-008");
+        assertThat(KAKAO.tokenRequests()).hasSize(tokenRequests);
     }
 
     @Test
@@ -292,13 +294,38 @@ class KakaoWebLoginApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
-    @DisplayName("Apple 웹 로그인의 교환 코드로는 카카오 교환 경로에서 토큰을 받을 수 없다")
+    @DisplayName("한 제공자의 교환 코드는 다른 제공자의 교환 경로에서 쓸 수 없고 원래 경로에서는 그대로 쓸 수 있다")
     void rejectsExchangeCodeOfAnotherProvider() throws Exception {
         String appleCode = appleWebLoginCode();
+        String kakaoCode = webLoginCode(kakaoSubject());
 
         exchange(appleCode)
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH-007"));
+        mockMvc.perform(post("/api/v1/auth/apple/exchange")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new AppleLoginExchangeRequest(kakaoCode, VERIFIER))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-007"));
+        exchange(kakaoCode).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Apple 웹 로그인의 state와 연결 쿠키로는 카카오 콜백을 마칠 수 없다")
+    void rejectsStateOfAnotherProvider() throws Exception {
+        MvcResult apple = mockMvc.perform(get("/api/v1/auth/apple/authorize")
+                        .param("client", "web")
+                        .param("code_challenge", CHALLENGE))
+                .andReturn();
+        String appleState = query(URI.create(apple.getResponse().getHeader(HttpHeaders.LOCATION)))
+                .getFirst("state");
+        String appleBinding = apple.getResponse()
+                .getCookie(AppleWebLoginController.BROWSER_BINDING_COOKIE)
+                .getValue();
+
+        callback(new Started(appleState, "unused", appleBinding), "kakao-code")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-003"));
     }
 
     private Started start() throws Exception {
