@@ -15,7 +15,9 @@ public record PhotoUploadResponse(
         String uploadUrl,
 
         @Schema(
-                description = "업로드 요청에 그대로 붙일 헤더(content-type·content-length). 값을 바꾸면 저장소가 403으로 거부한다",
+                description = "업로드 요청에 붙일 서명된 헤더(content-type·content-length). content-type은 이 값 그대로 붙인다. "
+                        + "content-length는 본문 길이와 같아야 하며 HTTP 클라이언트가 붙인다(브라우저는 직접 붙일 수 없으므로 발급 때 밝힌 크기의 "
+                        + "파일을 그대로 본문으로 보낸다). 형식이나 길이가 다르면 저장소가 403으로 거부한다",
                 example = "{\"content-type\":\"image/jpeg\",\"content-length\":\"2457600\"}")
         Map<String, String> requiredHeaders,
 

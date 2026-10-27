@@ -622,10 +622,21 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(create + ".responses['503'].content['application/json']"
                                 + ".examples['SCHEDULE-023'].value.code")
                         .value("SCHEDULE-023"))
+                .andExpect(jsonPath(site + ".responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath(completion + ".description")
+                        .value(org.hamcrest.Matchers.containsString("완료보고 제출 웹 엔드포인트는 아직 없")))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations/{organizationId}/works/{workId}'].get"
+                                + ".responses['503'].content['application/json'].examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
                 .andExpect(jsonPath("$.components.schemas"
                                 + "['com.orbit.schedule.adapter.in.web.photo.PhotoUploadResponse']"
-                                + ".properties.requiredHeaders")
-                        .exists());
+                                + ".properties.requiredHeaders.description")
+                        .value(org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("본문 길이와 같아야"),
+                                org.hamcrest.Matchers.containsString("HTTP 클라이언트가 붙인다"),
+                                org.hamcrest.Matchers.containsString("브라우저는 직접 붙일 수 없"))));
     }
 
     @Test

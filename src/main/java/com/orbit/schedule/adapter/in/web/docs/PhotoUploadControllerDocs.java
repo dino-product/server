@@ -21,7 +21,8 @@ public interface PhotoUploadControllerDocs {
     @Operation(
             summary = "현장 사진 업로드 주소 발급",
             description = "작업 등록·기본정보 수정에 붙일 현장 사진 한 장의 업로드 주소를 발급합니다. 사진 바이트는 서버를 거치지 않고 "
-                    + "uploadUrl에 requiredHeaders를 그대로 붙여 PUT으로 올립니다(10분 안에). 올린 뒤 fileId를 sitePhotoIds에 넣습니다. "
+                    + "uploadUrl에 requiredHeaders를 붙여 PUT으로 올립니다(10분 안에, content-length는 HTTP 클라이언트가 본문 길이로 붙임). "
+                    + "올린 뒤 fileId를 sitePhotoIds에 넣습니다. "
                     + "그 조직의 총관리자·직원만 받을 수 있습니다. 이미지(JPEG·PNG·WebP·HEIC/HEIF)가 아니면 SCHEDULE-020, "
                     + "크기가 현장 사진 상한을 넘으면 SCHEDULE-021, 형식·크기가 없거나 크기가 1 미만이면 SCHEDULE-003입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005입니다. "
@@ -54,8 +55,9 @@ public interface PhotoUploadControllerDocs {
 
     @Operation(
             summary = "완료보고 사진 업로드 주소 발급",
-            description = "완료보고에 붙일 사진(작업 전·후) 한 장의 업로드 주소를 발급합니다. 사진은 uploadUrl에 requiredHeaders를 그대로 붙여 "
-                    + "PUT으로 올리고(10분 안에), 올린 뒤 fileId를 완료보고의 사진 목록에 넣습니다. "
+            description = "완료보고에 붙일 사진(작업 전·후) 한 장의 업로드 주소를 발급합니다. 사진은 uploadUrl에 requiredHeaders를 붙여 "
+                    + "PUT으로 올리고(10분 안에, content-length는 HTTP 클라이언트가 본문 길이로 붙임), 올린 뒤 fileId를 완료보고의 사진 목록에 넣습니다. "
+                    + "완료보고 제출 웹 엔드포인트는 아직 없어(후속 작업), 지금은 발급과 업로드까지만 웹으로 할 수 있습니다. "
                     + "담당 기사 본인이 자기 작업중 작업에만 받을 수 있습니다. 장당 40MB를 넘으면 SCHEDULE-021, "
                     + "이미지(JPEG·PNG·WebP·HEIC/HEIF)가 아니면 SCHEDULE-020, 형식·크기가 없거나 크기가 1 미만이면 SCHEDULE-003, "
                     + "작업중이 아니면 SCHEDULE-002입니다. 요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 관리자면 SCHEDULE-005, "
