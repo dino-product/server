@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -18,8 +19,8 @@ import com.orbit.media.application.port.out.StoredObject;
 
 /**
  * 메모리 객체 저장소. 테스트가 {@link #put}으로 업로드를 흉내 내고, {@link #failing}으로 저장소 호출 장애를, {@link #signingFails}로 서명 실패(자격 증명을
- * 얻지 못함)를 낸다. 객체는 올릴 때마다 새 ETag를 받고, S3처럼 앞부분 읽기·복사는 확인한 ETag와 다르거나(412) 객체가 없으면(404) 하지 않는다. 확인과 읽기·복사
- * 사이에 다시 올리거나 지우는 경합은 {@link #afterCall}로 만든다. 호출한 연산을 기록한다.
+ * 얻지 못함)를, {@link #failingFor}로 한 키의 만료 표시 장애를 낸다. 객체는 올릴 때마다 새 ETag를 받고, S3처럼 앞부분 읽기·복사는 확인한 ETag와
+ * 다르거나(412) 객체가 없으면(404) 하지 않는다. 확인과 읽기·복사 사이에 다시 올리거나 지우는 경합은 {@link #afterCall}로 만든다. 호출한 연산을 기록한다.
  */
 public class FakeObjectStorage implements ObjectStoragePort {
 
@@ -32,6 +33,7 @@ public class FakeObjectStorage implements ObjectStoragePort {
     private final List<String> calls = new ArrayList<>();
     private final Map<String, Runnable> afterCalls = new HashMap<>();
     private int uploads;
+    private final Set<String> failingKeys = new HashSet<>();
     private boolean failing;
     private boolean signingFails;
 
@@ -51,6 +53,11 @@ public class FakeObjectStorage implements ObjectStoragePort {
 
     public void failing(boolean failing) {
         this.failing = failing;
+    }
+
+    /** 이 키에 대한 저장소 호출만 장애로 만든다. */
+    public void failingFor(String key) {
+        failingKeys.add(key);
     }
 
     public void signingFails(boolean signingFails) {
@@ -116,6 +123,9 @@ public class FakeObjectStorage implements ObjectStoragePort {
     @Override
     public void markExpired(String key) {
         call("markExpired " + key);
+        if (failingKeys.contains(key)) {
+            throw new ObjectStorageUnavailableException(new RuntimeException("down"));
+        }
         expired.add(key);
     }
 

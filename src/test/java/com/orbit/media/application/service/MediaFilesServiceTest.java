@@ -192,6 +192,17 @@ class MediaFilesServiceTest {
         }
 
         @Test
+        @DisplayName("밝힌 크기보다 작게 올라왔으면(올리다 끊김 등) 업로드 안 됨이고 앞부분을 읽거나 복사하지 않는다")
+        void rejectsSmallerThanDeclared() {
+            String smaller = issued("image/jpeg", JPEG.length + 1);
+            storage.put("incoming/" + smaller, "image/jpeg", JPEG);
+
+            assertRejected(stageRequest(List.of(smaller), null), smaller, Reason.NOT_UPLOADED);
+            assertThat(storage.calls()).containsOnlyOnce("find incoming/" + smaller);
+            assertThat(storage.calls()).noneMatch(call -> call.startsWith("read") || call.startsWith("copy"));
+        }
+
+        @Test
         @DisplayName("메타데이터를 확인한 뒤 같은 키에 다시 올렸거나 지웠으면 앞부분을 읽지 못해 업로드 안 됨이고 복사하지 않는다")
         void objectChangedOrRemovedBeforeRead() {
             String replaced = uploaded("image/jpeg", JPEG);
