@@ -9,7 +9,7 @@ import jakarta.persistence.Table;
 
 /**
  * {@link BaseTimeEntity}의 감사 컬럼 동작을 확인하기 위한 테스트 전용 Entity. 테스트 클래스패스의 {@code com.orbit} 아래에 있어 Entity 스캔에 포함되며,
- * 운영 코드가 참조하지 않는다.
+ * 운영 코드가 참조하지 않는다. 테이블은 test 프로필만 읽는 {@code db/test-migration}이 만든다.
  */
 @Entity
 @Table(name = "audited_sample")

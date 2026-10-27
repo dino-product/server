@@ -18,14 +18,14 @@ import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 작업 유형 테이블(팀 ERD의 작업 유형). 발주사는 ID로만 둔다. schedule의 작업이 {@code work.job_type_id}로 이 행을 참조하며, 삭제해도 행을 남겨 작업중·완료·취소
- * 작업이 삭제 직전 이름·색상을 계속 보여 준다. 삭제되지 않은 행끼리만 (발주사, 이름)이 유일한 부분 유일 인덱스는 JPA 매핑으로 만들 수 없어
- * {@code db/partial-unique-indexes.sql}이 정의한다.
+ * 작업이 삭제 직전 이름·색상을 계속 보여 준다. 삭제되지 않은 행끼리만 (발주사, 이름)이 유일한 부분 유일 인덱스는 JPA 매핑으로 표현할 수 없어
+ * 마이그레이션({@code db/migration})이 정의한다.
  */
 @Entity
 @Table(name = "work_type")
 class WorkTypeJpaEntity extends BaseTimeEntity {
 
-    /** 삭제되지 않은 행끼리 (발주사, 이름)이 유일한 부분 유일 인덱스. 정의는 {@code db/partial-unique-indexes.sql}에 있다. */
+    /** 삭제되지 않은 행끼리 (발주사, 이름)이 유일한 부분 유일 인덱스. 정의는 {@code db/migration/V1__init.sql}에 있다. */
     static final String UNDELETED_NAME_INDEX = "uk_work_type_undeleted_name";
 
     @Id

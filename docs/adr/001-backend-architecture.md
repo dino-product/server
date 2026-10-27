@@ -34,6 +34,7 @@
 - Apple 계정 삭제 시 토큰 철회가 요구되므로 iOS·웹 로그인 모두 authorization code를 교환해 refresh token을 받아 `apple_refresh_tokens`에 AES-256-GCM으로 암호화해 보관합니다. 교환 실패는 로그인 실패로, Apple이 거절한 code는 401, Apple 장애·설정 오류는 502로 구분해 클라이언트가 재로그인과 재시도를 고를 수 있게 합니다(오류 코드는 Auth 문서). 저장 키 교체·보관 정책은 후속 결정입니다. Apple 토큰 API를 기다리는 로그인 유즈케이스는 DB 커넥션을 잡지 않도록 메서드 트랜잭션을 두지 않습니다([트랜잭션 예외](../../.claude/skills/dino-architecture/references/persistence.md#transactions)).
 - 인증 실패 응답 정책: 토큰이 없으면 401, 토큰이 있는데 폐기·만료·위조됐으면 카카오·Apple 로그인 경로를 뺀 어느 경로든 실제 존재하지 않는 자원과 같은 404 본문으로 응답해 보호 자원의 존재와 실패 이유를 드러내지 않습니다.
 - 인증 필터와 공개 경로는 `shared::security`의 `SecurityFilterChainCustomizer`로 공통 SecurityFilterChain에 덧붙입니다. shared는 비즈니스 모듈에 의존하지 않고 모듈은 별도 SecurityFilterChain을 만들지 않습니다.
+- Actuator는 API와 다른 관리 포트(기본 9090)에 둡니다. health(liveness·readiness 포함)와 prometheus만 인증 없이 열고 info 등 나머지는 Access Token을 요구합니다. 관리 포트는 Ingress·CDN 같은 외부 진입점에 라우팅하지 않고 클러스터 안의 수집기와 kubelet probe만 접근한다는 전제이며, 이 전제가 깨지는 배포에서는 수집 전용 인증을 먼저 둡니다.
 - 다른 모듈은 인증된 계정을 auth 모듈 루트의 공개 계약 `AccountPrincipal`(계정 식별자만)로 받습니다. 계정 식별자의 의미와 발급은 auth가 소유하고 `shared`는 기술 확장점만 공개하므로 `shared::security`로 옮기는 안은 택하지 않았습니다. 계약을 제공 모듈 루트에 두는 [모듈 간 통신](#모듈-간-통신) 원칙과도 맞습니다. 이 계약을 쓰는 모듈은 auth에 의존하므로 auth는 그 모듈을 조회하거나 그 모듈의 이벤트를 구독할 수 없습니다. 그래서 조직 역할 인가는 auth가 organization을 조회해 채우지 않으며, auth가 이미 의존하는 예제 `user`는 이 계약을 쓰지 않습니다.
 - 가입 프로필(이름·연락처)·가입 상태·약관 동의 이력은 비즈니스 모듈 `profile`이 소유합니다. 인증(외부 식별·토큰)과 개인정보(이름·연락처·약관 이력)는 바뀌는 이유가 달라 auth에 넣지 않았고, auth가 이미 의존하는 예제 `user`를 넓히면 `AccountPrincipal`을 쓰는 순간 순환이 생겨 택하지 않았습니다. 이름은 schedule의 조직 구성원 용어·organization `Membership`과 겹치는 `member`, auth `Account`와 겹치는 `account`를 피해 `profile`로 정했습니다(구 BC-001, 2026-10-07 새 모듈 결정, 2026-10-10 이름 확정).
 - profile은 웹 어댑터에서 `AccountPrincipal`을 써 auth에 의존하므로 auth는 profile을 조회·구독하지 않습니다. 로그인 응답에는 가입 단계를 담지 않고 클라이언트가 로그인 뒤 profile API로 확인합니다.
@@ -103,11 +104,11 @@
 ## 영속성과 이벤트
 
 - PostgreSQL·JPA·QueryDSL을 사용하고 DB 검증은 PostgreSQL Testcontainers로 수행합니다. H2로 대체하지 않아 SQL·매핑 차이를 실제 DB에서 확인합니다.
-- 공통·운영 설정은 스키마를 자동 변경하지 않습니다. 로컬 예제·테스트만 임시 스키마를 사용하고 활성 프로필·운영 DB 접속 정보는 실행 환경에서 지정합니다.
+- 스키마는 Flyway 마이그레이션으로 만들고 Hibernate는 매핑만 검증합니다([ADR-005](005-schema-migration.md)). 활성 프로필·운영 DB 접속 정보는 실행 환경에서 지정합니다.
 - 모듈 간 이벤트는 변경 트랜잭션에서 발행하고 커밋 후 비동기로 소비합니다. 시간은 주입받은 `Clock`과 UTC `Instant`를 사용하며, JPA 감사 컬럼도 같은 `Clock`으로 채워 업무 시각과 기준을 맞춥니다.
 - JPA Entity는 팀 ERD를 따르되 Domain과 분리하고 값 검증은 Domain에 맡깁니다. 모듈 간 참조는 FK 없는 식별자 컬럼으로 두어 모듈 분리 때 스키마 의존이 생기지 않게 합니다. 규칙은 [JPA 모델](../../.claude/skills/dino-architecture/references/persistence.md#jpa)이 원본입니다.
 - 모듈 리스너로 가는 이벤트는 발행 트랜잭션 안에서 기록하고, 리스너가 실패하거나 멈추면 다시 보냅니다. 같은 이벤트가 두 번 이상 갈 수 있어 리스너는 멱등하게 만듭니다. 결정과 이유는 [ADR-004](004-event-publication-registry.md)가 소유합니다.
-- nonce·폐기 토큰처럼 만료가 있는 임시 상태는 Redis에 두고 PostgreSQL에는 원본 데이터만 저장합니다. 마이그레이션 도구는 제품 요구에 따라 결정합니다. 운영 적용 전 스키마 준비와 Actuator 접근 정책을 구성해야 합니다.
+- nonce·폐기 토큰처럼 만료가 있는 임시 상태는 Redis에 두고 PostgreSQL에는 원본 데이터만 저장합니다.
 
 프로필·트랜잭션·이벤트의 실행 규칙은 [영속성·이벤트](../../.claude/skills/dino-architecture/references/persistence.md#transactions), 실행 준비는 [빠른 시작](../../README.md#빠른-시작)을 따릅니다.
 

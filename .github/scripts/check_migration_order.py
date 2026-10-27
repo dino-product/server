@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Flyway 마이그레이션 버전 순서 검사 (ADR-004 파일 규칙).
+"""Flyway 마이그레이션 버전 순서 검사 (ADR-005 파일 규칙).
 
 develop 머지가 곧 dev DB 마이그레이션이라(infra 레포 dev 자동 배포), `--base`…`--head` 사이에 추가된
 `V{정수}__{설명}.sql`이 base 최신 버전 다음부터 1씩 이어지는지, base에 있던 버전 파일을 고치거나

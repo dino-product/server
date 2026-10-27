@@ -238,7 +238,6 @@ auth.domain.AccountClosed (auth 안의 사실, 폐쇄 트랜잭션에서 발행)
 - 오류: `AuthErrorCode`의 `AUTH-001`(예제 사용자 없음, 404), `AUTH-002`(id_token 무효, 401), `AUTH-003`(nonce·state 무효, 401), `AUTH-004`(계정 없음·닫힌 계정, 404), `AUTH-005`(Apple code 거절·다른 사용자, 401), `AUTH-006`(Apple 통신 실패·Apple이 보낸 취소 외 오류, 502), `AUTH-007`(Apple 웹 교환 코드·code_verifier 무효, 교환 전에 닫힌 계정, 401), `AUTH-008`(Apple 로그인 취소, 웹 복귀 주소의 `error` 값으로만 사용). 폐기·만료·위조 토큰과 닫힌 계정 토큰의 404는 `CommonErrorCode.NOT_FOUND`와 같은 본문입니다.
 - 미구현·운영 전 과제
   - nonce·authorize 발급 경로의 호출 제한, refresh token 암호화 키 교체 절차, Refresh 회전, 카카오 웹 흐름, 실제 Apple 계정 E2E(Sandbox) 확인.
-  - 스키마 마이그레이션(현재 마이그레이션 도구 없음, [프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)): `accounts`·`oauth_credentials`·`apple_refresh_tokens`(유니크 제약 포함)와 `oauth_credentials.provider`의 `APPLE` 값 허용(Hibernate가 만든 enum check 제약이 있는 DB), `accounts.closed_at`(nullable)과 인덱스 `idx_accounts_closed_at`, `provider_unlinks`(`accounts` 외래 키 `account_id`, provider, nullable `oauth_uid`(Apple 대기는 비움), requested_at, failed_attempts, next_attempt_at, 계정·제공자 유니크 `uk_provider_unlinks_account_provider`, 인덱스 `idx_provider_unlinks_next_attempt_at`).
   - 운영 환경의 `KAKAO_ADMIN_KEY` 값. 없으면 기동하지 않습니다.
   - 정상 토큰의 인증마다 Redis를 두 번 왕복합니다(폐기 목록 다음 폐쇄 표시).
   - 다중 인스턴스로 운영하면 연결 해제 대기 조회에 선점(`SKIP LOCKED`)이 없어 같은 대기를 동시에 처리할 수 있습니다. 결과는 같지만 제공자 호출이 겹칩니다.

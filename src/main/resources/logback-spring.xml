@@ -2,7 +2,7 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <springProperty scope="context" name="applicationName" source="spring.application.name" defaultValue="spring-settings"/>
+    <springProperty scope="context" name="applicationName" source="spring.application.name" defaultValue="orbit-server"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
