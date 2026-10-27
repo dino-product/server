@@ -13,8 +13,8 @@
 
 - id_token 검증은 서명·발급자·허용 앱 키·클라이언트·만료·nonce 존재를 모두 요구합니다.
 - 앱 SDK 흐름의 nonce는 서버 발급 값을 일회성으로 소비하고 미발급·재사용·만료 nonce를 거부하는지 확인합니다. 발급 주체와 따로 묶지 않는 이유는 [카카오 로그인 흐름](../../../../../../docs/domain/auth.md#카카오-로그인-흐름)에 있습니다.
-- 웹 Authorization Code 흐름은 state/nonce를 시작 브라우저와 연결하고 콜백에서 일회성·만료·연결을 검증합니다. 다른 브라우저의 유효한 콜백을 수용하지 않는지, 복귀 주소가 설정에 등록된 값뿐인지, Access Token이 URL에 실리지 않고 교환 코드가 시작 클라이언트의 PKCE code_verifier로만 쓰이는지 확인합니다(Apple은 일회성 교환 코드).
-- Apple 토큰 API 실패는 Apple이 거절한 `invalid_grant`만 AUTH-005, 그 밖의 오류 응답·통신·설정 오류는 AUTH-006으로 구분합니다. 외부 HTTP를 기다리는 유즈케이스의 트랜잭션은 [트랜잭션 예외](../../../../../../.claude/skills/dino-architecture/references/persistence.md#transactions)를 따릅니다.
+- 웹 Authorization Code 흐름은 state/nonce를 시작 브라우저와 연결하고 콜백에서 일회성·만료·연결을 검증합니다. 다른 브라우저의 유효한 콜백을 수용하지 않는지, 복귀 주소가 설정에 등록된 값뿐인지, Access Token이 URL에 실리지 않고 교환 코드가 시작 클라이언트의 PKCE code_verifier로만, 그 코드를 만든 제공자의 교환 경로에서 한 번만 쓰이는지 확인합니다.
+- Apple 토큰 API 실패는 Apple이 거절한 `invalid_grant`만 AUTH-005, 그 밖의 오류 응답·통신·설정 오류는 AUTH-006으로 구분합니다. 카카오 토큰 API는 카카오가 인가 코드를 거절한 `invalid_grant`(설정 문제인 KOE303·KOE310 제외)만 AUTH-002, 그 밖은 AUTH-010입니다. 외부 HTTP를 기다리는 유즈케이스의 트랜잭션은 [트랜잭션 예외](../../../../../../.claude/skills/dino-architecture/references/persistence.md#transactions)를 따릅니다.
 - Apple refresh token은 암호화해 저장하고, 계정을 닫으면 외부 연결 해제(`ProviderUnlinker`)가 `RevokeAppleTokenPort`로 철회한 뒤 지웁니다. 암호문 형식·키를 바꾸면 기존 암호문 복호화 경로를 함께 유지합니다.
 - Access Token은 실제 검증기로 서명·시간과 발급자·`token_use`를 확인합니다. 유효한 서명의 잘못된 claim도 거부되는지 검사합니다.
 - 폐기·만료·위조 토큰은 어느 경로든 실제 404와 같은 본문으로 응답하고 실패 이유를 구분하지 않습니다. 토큰 없음은 401입니다. 정책을 바꾸면 Auth 문서·ADR·통합 테스트를 함께 바꿉니다.
@@ -35,8 +35,8 @@
 - 카카오 웹 로그인 토큰 API: `com.orbit.auth.adapter.out.kakao` 패키지의 `KakaoTokenClientTest`, `KakaoWebAuthorizationAdapterTest`(토큰 엔드포인트는 로컬 스텁, 실제 카카오 E2E 아님).
 - Apple 토큰 API: `com.orbit.auth.adapter.out.apple` 패키지의 `AppleClientSecretFactoryTest`, `AppleTokenClientTest`, `AppleWebAuthorizationAdapterTest`(토큰 엔드포인트는 로컬 스텁, 실제 Apple E2E 아님).
 - 저장소: `com.orbit.auth.adapter.out.persistence` 패키지의 테스트(계정·Apple refresh token·암호화, Testcontainers PostgreSQL), `com.orbit.auth.adapter.out.redis` 패키지의 테스트(Testcontainers Redis).
-- 비밀값 가림·복귀 주소 등록: `com.orbit.auth.application.port.in.command.dto` 패키지의 `AppleLoginCommandsTest`·`WebLoginCommandsTest`, `com.orbit.auth.adapter.in.web.AppleWebReturnPropertiesTest`.
-- 필터·API: `com.orbit.auth.adapter.in.web.security.AccessTokenAuthenticationFilterTest`, `com.orbit.auth.adapter.in.web.AuthApiIntegrationTest`, `AppleLoginApiIntegrationTest`, `AppleWebLoginApiIntegrationTest`(JWKS·토큰 엔드포인트 스텁 서버로 실제 조회·검증·교환 경로 통과, 제공자 E2E 아님).
+- 비밀값 가림·복귀 주소 등록: `com.orbit.auth.application.port.in.command.dto` 패키지의 `AppleLoginCommandsTest`·`KakaoLoginCommandsTest`·`WebLoginCommandsTest`, `com.orbit.auth.adapter.in.web.AppleWebReturnPropertiesTest`.
+- 필터·API: `com.orbit.auth.adapter.in.web.security.AccessTokenAuthenticationFilterTest`, `com.orbit.auth.adapter.in.web.AuthApiIntegrationTest`, `AppleLoginApiIntegrationTest`, `AppleWebLoginApiIntegrationTest`, `KakaoWebLoginApiIntegrationTest`(JWKS·토큰 엔드포인트 스텁 서버로 실제 조회·검증·교환 경로 통과, 제공자 E2E 아님).
 - 경계 변환: `com.orbit.auth.adapter.out.user.UserSubjectAdapterTest`, `com.orbit.auth.adapter.in.event.UserRegisteredListenerTest`.
 - 계정 폐쇄·외부 연결 해제: `com.orbit.auth.AccountClosureIntegrationTest`, `com.orbit.auth.ProviderUnlinkIntegrationTest`(커밋·롤백·비동기 해제, 카카오 관리자 API는 로컬 스텁), `com.orbit.auth.adapter.out.kakao.KakaoUnlinkClientTest`, `com.orbit.auth.adapter.in.scheduler` 패키지의 테스트.
 - 모듈 조립: `com.orbit.auth.AuthModuleTest`.
