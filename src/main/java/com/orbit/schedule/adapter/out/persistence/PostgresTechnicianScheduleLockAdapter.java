@@ -28,7 +28,7 @@ import com.orbit.schedule.domain.TechnicianId;
  *
  * <p>대기 한도({@code lock_timeout})는 잠금에만 적용한다. 한 번의 왕복으로 보내는 익명 블록 안에서 현재 값을 보관했다가 잠근 뒤 그대로 되돌려, 세션이나 같은
  * 트랜잭션이 앞서 정한 값을 바꾸지 않는다. 블록에는 계산한 정수 키와 밀리초만 들어간다. 익명 블록은 파라미터를 받지 못해 조직·기사마다 문장이 달라지므로
- * pg_stat_statements를 쓰면 기사 수만큼 항목이 생긴다. 문제가 되면 마이그레이션 도구 도입 후 {@code SET lock_timeout} 절을 둔 SQL 함수로 바꿔 파라미터화한다.
+ * pg_stat_statements를 쓰면 기사 수만큼 항목이 생긴다. 문제가 되면 마이그레이션으로 {@code SET lock_timeout} 절을 둔 SQL 함수를 만들어 파라미터화한다.
  *
  * <p>서비스 트랜잭션과 같은 연결이어야 잠금이 커밋까지 유지되므로, 이 DataSource에 묶인 트랜잭션 연결이 없으면(다른 트랜잭션 매니저·DataSource 등) 거부한다.
  */

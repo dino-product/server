@@ -5,7 +5,7 @@
 <a id="jpa"></a>
 ## JPA 모델과 생성물
 
-Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분리합니다. 테이블·컬럼의 원본은 팀 ERD([ERDCloud](../../dino-erd/references/erdcloud.md))이며, Entity는 ERD를 따르되 아래 규칙으로 옮깁니다.
+Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분리합니다. 테이블·컬럼의 설계 원본은 팀 ERD([ERDCloud](../../dino-erd/references/erdcloud.md))이며, Entity는 ERD를 따르되 아래 규칙으로 옮깁니다. 실제 DB 스키마는 마이그레이션이 만듭니다([프로필과 실행 환경](#profiles)).
 
 - **구조**: 기본 생성자는 `protected`, 연관관계는 지연 로딩이 기본입니다. 공개 `@Setter`를 두지 않고 변환기가 쓰는 의미 있는 변경 메서드만 둡니다. `equals`/`hashCode`는 정의하지 않습니다(영속화 전 식별자가 없고 컬렉션은 Hibernate가 관리).
 - **이름**: 테이블·컬럼은 소문자 snake_case입니다. ERDCloud 표시명의 대소문자(`Work_Assignments` 등)는 따르지 않습니다. Entity 클래스는 `{Name}JpaEntity`, Spring Data 저장소는 `SpringData{Name}Repository`, 출력 Port 구현은 `{Name}PersistenceAdapter`입니다.
@@ -46,12 +46,12 @@ Entity는 `{module}/adapter/out/persistence`에만 두고 Domain 모델과 분�
 ## 프로필과 실행 환경
 
 - 패키징된 설정은 기본 활성 프로필을 선택하지 않습니다. 환경의 `SPRING_PROFILES_ACTIVE`로 지정합니다.
-- 공통·`prod`의 `ddl-auto`는 `none`, `create-drop`은 로컬 예제·테스트에서만 허용합니다. 로컬 DB에 보존할 데이터를 넣지 않습니다.
+- 스키마는 Flyway 마이그레이션(`src/main/resources/db/migration`)으로만 바꿉니다. 모든 프로필의 `ddl-auto`는 `validate`이며 Hibernate가 스키마를 만들거나 지우는 설정(`create`·`create-drop`·`update`)을 쓰지 않습니다. 파일·호환성 규칙은 [ADR-005](../../../../docs/adr/005-schema-migration.md#결정)가 원본입니다.
 - 운영은 `SPRING_PROFILES_ACTIVE=prod`로 실행합니다. `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`는 기본값 없이 받아 누락 시 시작에 실패하게 합니다. `KAKAO_ALLOWED_AUDIENCES`, `KAKAO_ADMIN_KEY`, `AUTH_JWT_SECRET`, `APPLE_ALLOWED_AUDIENCES`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_REFRESH_TOKEN_ENCRYPTION_KEY`, `APPLE_SERVICES_ID`, `APPLE_WEB_REDIRECT_URI`, `APPLE_WEB_RETURN_URI`, `APPLE_ANDROID_RETURN_URI`는 모든 프로필에서 기본값 없이 받습니다([Auth 설정](../../../../docs/domain/auth.md#설정)).
 - 개발 서버는 `SPRING_PROFILES_ACTIVE=dev`로 실행합니다. `dev`·`prod`는 배포 공통 설정 `deployed`(위 DB·Redis 환경 변수 필수 등)를 프로필 그룹으로 함께 켜고, 자기 파일에는 환경마다 다른 값만 둡니다. 운영 OpenAPI UI는 비활성화하고 `dev`는 켜며 앱 로그를 DEBUG로 둡니다. 그룹으로 켜진 `deployed`가 `dev`·`prod` 파일보다 우선하므로 환경마다 다른 값은 `deployed`에 두지 않습니다.
 - `prod,local`·`dev,local` 동시 지정에도 로컬 설정이 활성화되지 않도록 프로필 표현식(`local & !deployed`)으로 보호합니다.
 - 설정은 `application-{profile}.yml`로 분리하고 공통 설정을 중복하지 않습니다.
-- 현재 마이그레이션 도구는 없습니다. 운영 배포 전에 마이그레이션 전략을 ADR로 결정합니다.
-- 이벤트 발행 기록 테이블(`event_publication`·`event_publication_archive`)은 `local`·`test`만 자동으로 만듭니다. 운영 DB에는 배포 전에 Modulith 스키마를 적용합니다([ADR-004 운영 스키마](../../../../docs/adr/004-event-publication-registry.md#영향과-검증)).
+- 테이블·컬럼·인덱스를 바꾸는 Entity 변경은 같은 PR에 새 버전의 마이그레이션을 추가합니다. develop에 머지된 마이그레이션 파일은 고치지 않습니다.
+- 이벤트 발행 기록 테이블(`event_publication`·`event_publication_archive`)도 마이그레이션이 만들고 Modulith의 스키마 자동 생성은 모든 프로필에서 끕니다. Modulith 버전을 올려 스키마가 바뀌면 새 버전 마이그레이션을 추가합니다([ADR-004 운영 스키마](../../../../docs/adr/004-event-publication-registry.md#영향과-검증)).
 
 실행 명령: [빠른 시작](../../../../README.md#빠른-시작). 참고: [영속성 결정](../../../../docs/adr/001-backend-architecture.md#영속성과-이벤트).

@@ -29,10 +29,9 @@
 - **만료 표시**: 빠진 파일은 같은 트랜잭션에서 EXPIRED로 바꾸고 모듈 내부 사실 `UploadedFilesExpired`를 발행한다. 커밋 뒤 비동기 리스너가 객체에 태그 `status=expired`를 붙이며, 실패하면 경고만 남긴다(객체가 남을 뿐이다). 롤백되면 표시하지 않는다.
 - **저장소**: `S3ObjectStorageAdapter`(모든 프로필). 업로드 서명에 `content-type`·`content-length`를 넣고 `requiredHeaders`로 돌려준다(SDK v2가 소문자 이름으로 서명, LocalStack 서명 검사로 다른 형식·크기 업로드가 403임을 확인). 호출 제한 시간 5초(시도당 3초), 저장소 오류·제한 시간 초과는 `ObjectStorageUnavailableException`. 없는 키의 HeadObject는 ListBucket 권한 범위에 따라 404 대신 403으로 올 수 있어 둘 다 "아직 올라오지 않음"으로 본다. 삭제 권한이 없어 객체를 지우지 않는다.
 - **설정**: `app.media.storage.*`(버킷 `MEDIA_BUCKET`, 리전 `MEDIA_REGION`, S3 호환 주소·path-style·고정 자격 증명은 로컬·테스트 전용, 주소 유효 시간 10분), `app.media.retention-max-days`(`MEDIA_RETENTION_MAX_DAYS`), 용도별 보관 기간 `app.media.retention-days`(지금 비어 있음, 상한을 넘으면 기동 실패). 잘못된 값은 기동 시점에 거부한다.
-- **테이블(ERD 반영용)**: `uploaded_files` — `id`(uuid PK), `version`, `organization_id`·`uploader_account_id`(다른 모듈 ID), `purpose`(50), `object_key`(200, 지금 상태의 객체 위치), `content_type`(100), `size_bytes`, `status`(20), `owner_ref`(100, null), `attached_at`·`retain_until`(null), 감사 컬럼, 인덱스 `ix_uploaded_files_owner(organization_id, purpose, owner_ref)`.
+- **테이블(ERD 반영용)**: `uploaded_files`(마이그레이션 `V2__create_uploaded_files.sql`이 만들고 Entity는 그 매핑, [ADR-005](../adr/005-schema-migration.md#결정)) — `id`(uuid PK), `version`, `organization_id`·`uploader_account_id`(다른 모듈 ID), `purpose`(50), `object_key`(200, 지금 상태의 객체 위치), `content_type`(100), `size_bytes`, `status`(20), `owner_ref`(100, null), `attached_at`·`retain_until`(null), 감사 컬럼, 인덱스 `ix_uploaded_files_owner(organization_id, purpose, owner_ref)`.
 
 <a id="media-gaps"></a>
 ## 남은 작업
 
 - 보관 배치: `retain_until` 채우기와 기간이 지난 파일의 만료, PENDING으로 남은 파일(복사했지만 연결되지 않은 `media/` 객체 포함)의 만료 표시, 실패한 만료 표시의 재시도. 용도별 보관 기간은 기획 결정 뒤 `app.media.retention-days`에 둔다.
-- 운영 DB: `ddl-auto: none`이라 배포 전에 `uploaded_files`를 직접 만든다(정의는 `UploadedFileJpaEntity`). Flyway(HM-338)가 먼저 병합되면 다음 버전 마이그레이션으로 옮긴다.
