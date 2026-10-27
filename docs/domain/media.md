@@ -23,7 +23,7 @@
 <a id="media-implementation"></a>
 ## 구현 결정
 
-- **순서**: 저장소 확인·복사(`stage`)는 DB 트랜잭션 밖, 기록 확정(`attach`)은 업무 트랜잭션 안. 복사 뒤 업무가 실패하면 PENDING으로 남고 같은 요청의 재시도가 다시 복사·연결한다. 기록만으로 거를 수 있는 파일(없음·남의 파일·용도 다름·중복·UUID 아님)은 저장소를 부르기 전에 거르고, 첫 거부에서 멈춘다.
+- **순서**: 저장소 확인·복사(`stage`)는 DB 트랜잭션 밖, 기록 확정(`attach`)은 업무 트랜잭션 안. 복사 뒤 업무가 실패하면 PENDING으로 남고 같은 요청의 재시도가 다시 복사·연결한다. 기록만으로 거를 수 있는 파일(없음·남의 파일·용도 다름·중복·소문자 UUID 정규형 아님)은 저장소를 부르기 전에 거르고, 첫 거부에서 멈춘다.
 - **확인 항목**: HeadObject의 크기·Content-Type이 발급 때 밝힌 값과 같고, 앞 16바이트가 그 형식의 이미지 시그니처(`ImageFormat`: JPEG·PNG·WebP·HEIC/HEIF)인지. 앞 16바이트 읽기와 복사는 HeadObject가 돌려준 ETag 조건(`If-Match`·`x-amz-copy-source-if-match`)으로 확인한 내용에만 한다. 그 사이 같은 키에 다시 올렸거나 지워졌으면(412·404) 업로드 안 됨(`NOT_UPLOADED`)이다(LocalStack 4.4에서 두 조건이 412로 막히는 것을 어댑터 테스트로 확인). 복사할 때 대상 메타데이터를 바꿔(`REPLACE`) 형식은 발급 때 기록한 값, `Cache-Control`은 `private, max-age={내려받기 주소 유효 시간(초)}`(기본 600), `Content-Disposition`은 `inline`으로 고정하고 사용자 메타데이터는 버린다. presigned PUT은 서명 밖 헤더(`Content-Disposition`·`Cache-Control` 등)도 저장하므로, 그대로 복사하면 업로더가 고른 헤더가 내려받기 응답에 쓰인다(LocalStack으로 확인). 허용 형식은 설정 `app.media.image-content-types`이며 시그니처로 확인할 수 없는 형식은 둘 수 없다.
 - **동시성**: `attach`는 요청한 파일 행과 그 대상에 지금 연결된 행을 식별자 순으로 한 번에 잠근다(PESSIMISTIC_WRITE). 같은 파일을 두 대상에 붙이거나 같은 대상을 동시에 바꾸는 요청은 한 줄로 서고, 뒤 요청은 `AttachmentConflictException`이다.
 - **만료 표시**: 빠진 파일은 같은 트랜잭션에서 EXPIRED로 바꾸고 모듈 내부 사실 `UploadedFilesExpired`를 발행한다. 커밋 뒤 비동기 리스너가 객체에 태그 `status=expired`를 붙이며, 실패하면 경고만 남긴다(객체가 남을 뿐이다). 롤백되면 표시하지 않는다.

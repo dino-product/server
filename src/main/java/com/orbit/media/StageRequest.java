@@ -10,7 +10,8 @@ import java.util.Objects;
  * @param organizationId 요청한 발주사. 검증 전 값이어도 되며 맞지 않으면 파일이 거부된다
  * @param accountId 요청한 계정
  * @param purpose 용도 코드({@link UploadSpec#purpose()})
- * @param fileIds 연결할 파일 식별자 목록(순서 유지). 비어 있으면 저장소를 부르지 않는다
+ * @param fileIds 연결할 파일 식별자 목록(순서 유지). 발급한 {@link UploadTicket#fileId()}와 같은 소문자 UUID 정규형만 받고, 대문자 등 다른 표기는
+ *     {@link StagedFiles.Reason#NOT_UPLOADED}로 거부한다. 비어 있으면 저장소를 부르지 않는다
  * @param owner 이미 연결된 대상이 있으면 그 식별 문자열, 새 대상이면 null
  */
 public record StageRequest(Long organizationId, Long accountId, String purpose, List<String> fileIds, String owner) {
