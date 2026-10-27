@@ -28,13 +28,16 @@ import com.orbit.notification.application.port.out.PushNotificationPort;
 import com.orbit.notification.domain.Notification;
 import com.orbit.notification.domain.NotificationType;
 import com.orbit.organization.OrganizationAccountLookup;
+import com.orbit.organization.ParticipationRequestApproved;
+import com.orbit.organization.ParticipationRequestLookup;
+import com.orbit.organization.ParticipationRequestRejected;
 import com.orbit.schedule.WorkAssigned;
 import com.orbit.schedule.WorkReassigned;
 import com.orbit.schedule.WorkRejected;
 import com.orbit.support.SharedContainers;
 
 /**
- * notification만 띄워 schedule 이벤트가 커밋 뒤 알림이 되는지 확인한다. 계정 식별자를 테스트마다 달리해 같은 DB의 다른 테스트 행과 섞이지 않게 한다.
+ * notification만 띄워 schedule·organization 이벤트가 커밋 뒤 알림이 되는지 확인한다. 계정 식별자를 테스트마다 달리해 같은 DB의 다른 테스트 행과 섞이지 않게 한다.
  * 푸시 출력 포트는 호출 여부를 보려고 대체한다.
  */
 @ApplicationModuleTest
@@ -48,6 +51,10 @@ class NotificationModuleTest implements SharedContainers {
     // organization 공개 계약. 조립 테스트는 notification만 띄우므로 대체하며, 넣지 않으면 받을 계정이 없다.
     @MockitoBean
     private OrganizationAccountLookup accountLookup;
+
+    // organization 공개 계약. 넣지 않은 요청은 거절 사유가 없다.
+    @MockitoBean
+    private ParticipationRequestLookup participationRequestLookup;
 
     @MockitoBean
     private PushNotificationPort pushNotificationPort;
@@ -126,6 +133,38 @@ class NotificationModuleTest implements SharedContainers {
                             .extracting(NotificationInfo::message)
                             .containsExactly("[필터 교체] 작업이 다른 기사에게 넘어갔습니다.");
                 });
+    }
+
+    @Test
+    void participationRequestResultsNotifyApplicantWithPushAfterOrganizationCommit(Scenario scenario) {
+        when(participationRequestLookup.findRejectReason(42L)).thenReturn(Optional.of("인원 마감"));
+
+        scenario.publish(new ParticipationRequestApproved(
+                        41L,
+                        104L,
+                        9_207L,
+                        ParticipationRequestApproved.Type.TECHNICIAN,
+                        ParticipationRequestApproved.Type.STAFF,
+                        OCCURRED_AT))
+                .andWaitForStateChange(() -> visible(9_207L), page -> page.totalCount() > 0)
+                .andVerify(
+                        page -> assertThat(page.notifications()).singleElement().satisfies(notification -> {
+                            assertThat(notification.type()).isEqualTo(NotificationType.PARTICIPATION_REQUEST_APPROVED);
+                            assertThat(notification.organizationId()).isEqualTo(104L);
+                            assertThat(notification.participationRequestId()).isEqualTo(41L);
+                            assertThat(notification.workId()).isNull();
+                            assertThat(notification.message()).isEqualTo("참여 요청이 승인되었습니다. 참여 유형: 기사 → 직원");
+                        }));
+
+        scenario.publish(new ParticipationRequestRejected(42L, 105L, 9_208L, OCCURRED_AT))
+                .andWaitForStateChange(() -> visible(9_208L), page -> page.totalCount() > 0)
+                .andVerify(page -> assertThat(page.notifications())
+                        .extracting(NotificationInfo::message)
+                        .containsExactly("참여 요청이 거절되었습니다. 사유: 인원 마감"));
+        verify(pushNotificationPort)
+                .send(argThat(notification -> notification.recipientAccountId().equals(9_207L)));
+        verify(pushNotificationPort)
+                .send(argThat(notification -> notification.recipientAccountId().equals(9_208L)));
     }
 
     /** 리스너가 처리를 마쳐 보관 테이블로 옮겨진, 이 작업의 이벤트 발행 수. */
