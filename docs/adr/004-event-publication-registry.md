@@ -1,7 +1,7 @@
 # ADR-004: 이벤트 발행 기록과 알림 발신 보장
 
 - 상태: Accepted
-- 기준일: 2026-10-15
+- 기준일: 2026-10-27
 - 범위: 모듈 간 이벤트의 발행 기록·완료 보관·실패 재전송·멈춘 발행 처리와, 그 때문에 생기는 리스너·이벤트 계약 규칙, 메시지 브로커를 두지 않는 이유와 도입 기준, 기사 앱 푸시 발신 대기열. 실행 규칙은 [트랜잭션 이벤트](../../.claude/skills/dino-architecture/references/persistence.md#events)가 소유합니다. 알림을 누구에게 어떤 문구로 만들지와 푸시 제공자 선택은 범위 밖입니다([notification 문서](../domain/notification.md#notification-implementation)).
 
 ## 배경과 목적
@@ -50,9 +50,9 @@
 
 ## 영향과 검증
 
-- **운영 스키마:** `notification_deliveries`는 팀 ERD에 없어 Entity 기준으로 ERD와 운영 스키마에 추가해야 합니다. `prod`는 기록 테이블을 자동으로 만들지 않습니다(`spring.modulith.events.jdbc.schema-initialization.enabled: false`, `local`·`test`만 켬). 배포 전에 spring-modulith-events-jdbc jar 안의 `org/springframework/modulith/events/jdbc/schemas/v2/schema-postgresql.sql`과 `schema-postgresql-archive.sql`을 운영 DB에 적용합니다. 테이블이 없으면 모듈 리스너로 가는 이벤트를 발행하는 업무 트랜잭션이 실패할 것으로 봅니다(운영 DB로 확인하지 않음). Modulith 버전을 올릴 때는 스키마 버전이 바뀌었는지 확인합니다.
+- **운영 스키마:** 기록 테이블은 다른 테이블과 같이 Flyway 마이그레이션(`V1__init.sql`, [ADR-005](005-schema-migration.md))이 만들고, 발신 대기열 `notification_deliveries`는 `V2__notification_deliveries.sql`이 만듭니다. Modulith의 자동 생성(`spring.modulith.events.jdbc.schema-initialization.enabled`)은 모든 프로필에서 끕니다. 기록 테이블 정의는 spring-modulith-events-jdbc 2.1.1 jar 안의 `org/springframework/modulith/events/jdbc/schemas/v2/schema-postgresql.sql`·`schema-postgresql-archive.sql`과 같습니다. 테이블이 없으면 모듈 리스너로 가는 이벤트를 발행하는 업무 트랜잭션이 실패할 것으로 봅니다(운영 DB로 확인하지 않음). Modulith 버전을 올릴 때 스키마 버전이 바뀌었으면 새 버전 마이그레이션으로 따라갑니다. `notification_deliveries`는 팀 ERD에 없어 ERD에 추가해야 합니다.
 - **수동 처리:** 계속 실패하는 발행은 원인을 고치면 대기 시간 상한(30분) 안에 다음 재전송으로 처리됩니다. 타입을 찾지 못해 남은 행은 이전 타입을 되살려 배포하거나 내용을 확인한 뒤 지웁니다.
 - **커밋 후 리스너 전체:** Modulith는 기록 대상과 무관하게 모든 커밋 후 리스너(`@TransactionalEventListener`)를 감싸 실행 전에 별도 트랜잭션으로 발행 상태를 갱신하려 합니다. 기록하지 않는 리스너도 DB 연결을 쓰고, 그 갱신이 실패하면 리스너가 돌지 않습니다.
-- **검증:** `EventPublicationRegistryIntegrationTest`(Testcontainers PostgreSQL)가 기록·보관·롤백·실패·재전송·대기 시간 증가·횟수 제한 없음·멈춘 발행을, `EventResubmissionPropertiesTest`가 대기 시간 계산과 설정 검사를, `FailedEventPublicationResubmitSchedulerTest`가 주기 작업의 예약 실행을, `ApplicationProfileConfigurationTest`가 프로필별 스키마 초기화·재전송과 발신 대기열 처리의 활성화·로그 수준을 확인합니다. 발신 대기열은 `PushDeliveryDispatchIntegrationTest`(두 디스패처 동시 실행에서 1회 발신, 횟수 제한 없는 재시도, 점유 만료 회수, 건너뜀·실패, 숨긴 알림), `NotificationDeliveryPersistenceAdapterTest`(알림 저장 트랜잭션 참여, 동시 집기, 점유 만료, 늦은 결과 버림), `DispatchPushDeliveriesServiceTest`, `NotificationDeliveryTest`, `RetryBackoffTest`가 확인합니다. 여러 인스턴스 프로세스의 동시 실행과 운영 스키마 적용은 실행으로 확인하지 않았습니다.
-- **소비 측 멱등:** 알림은 같은 일(받는 계정·종류·작업·일어난 시각)의 알림이 이미 있으면 다시 만들지도 푸시하지도 않고, 동시에 처리되면 유일 제약이 한쪽을 막습니다([notification 문서](../domain/notification.md#notification-implementation)).
+- **검증:** `EventPublicationRegistryIntegrationTest`(Testcontainers PostgreSQL)가 기록·보관·롤백·실패·재전송·대기 시간 증가·횟수 제한 없음·멈춘 발행을, `EventResubmissionPropertiesTest`가 대기 시간 계산과 설정 검사를, `FailedEventPublicationResubmitSchedulerTest`가 주기 작업의 예약 실행을, `ApplicationProfileConfigurationTest`가 모든 프로필에서 Modulith 스키마 초기화가 꺼져 있는지와 재전송·발신 대기열 처리의 활성화·로그 수준을 확인합니다. 테스트의 기록 테이블은 V1이, 발신 대기열은 V2가 만듭니다. 발신 대기열은 `PushDeliveryDispatchIntegrationTest`(두 디스패처 동시 실행에서 1회 발신, 횟수 제한 없는 재시도, 점유 만료 회수, 건너뜀·실패, 숨긴 알림), `NotificationDeliveryPersistenceAdapterTest`(알림 저장 트랜잭션 참여, 동시 집기, 점유 만료, 늦은 결과 버림), `DispatchPushDeliveriesServiceTest`, `NotificationDeliveryTest`, `RetryBackoffTest`가 확인합니다. 여러 인스턴스 프로세스의 동시 실행과 운영 DB의 마이그레이션 적용은 실행으로 확인하지 않았습니다.
+- **소비 측 멱등:** 알림은 같은 일(받는 계정·종류·작업·일어난 시각)의 알림이 이미 있으면 다시 만들지도 푸시하지도 않고, 동시에 처리되면 유일 제약(`V3__notification_idempotency.sql`)이 한쪽을 막습니다([notification 문서](../domain/notification.md#notification-implementation)).
 - **남은 일:** 실제 푸시 제공자 어댑터(notification 문서 N-21)는 알림 구현에서 다룹니다.

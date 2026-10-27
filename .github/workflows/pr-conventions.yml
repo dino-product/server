@@ -40,7 +40,7 @@ jobs:
           --base ${{ github.event.pull_request.base.sha }}
           --head ${{ github.event.pull_request.head.sha }}
 
-      # develop 머지가 곧 dev DB 마이그레이션이라 새 버전 번호를 base 최신 뒤로 강제한다 (ADR-004 파일 규칙)
+      # develop 머지가 곧 dev DB 마이그레이션이라 새 버전 번호를 base 최신 뒤로 강제한다 (ADR-005 파일 규칙)
       - name: Check migration order
         if: always()
         run: >-
