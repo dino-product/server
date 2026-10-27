@@ -11,8 +11,9 @@ spring:
   task:
     scheduling:
       pool:
-        # 외부 연결 해제 재시도가 제공자 장애로 길어져도 폐쇄 표시 재확정이 밀리지 않도록 주기 작업마다 스레드를 둔다
-        size: 2
+        # 주기 작업(폐쇄 표시 재확정, 외부 연결 해제 재시도, 실패 발행 재전송, 멈춘 발행 검사, 발신 대기열 처리)마다 스레드를 둬
+        # 제공자 장애로 한 작업이 길어져도 다른 작업이 밀리지 않게 한다
+        size: 5
   docker:
     compose:
       enabled: ${SPRING_DOCKER_COMPOSE_ENABLED:false}
@@ -172,6 +173,16 @@ app:
   schedule:
     technician-lock:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
+  notification:
+    push-delivery:
+      # 기사 앱 푸시 발신 대기열을 확인하는 주기와 한 번에 집는 건수. 보내는 중인 채로 in-flight-timeout이 지난 발신(인스턴스 중단 등)은 다시 집는다.
+      # 다시 보낼 실패는 횟수 제한 없이 initial-backoff부터 실패마다 두 배, max-backoff까지 기다렸다 다시 보낸다.
+      enabled: true
+      interval: PT5S
+      batch-size: 100
+      in-flight-timeout: PT5M
+      initial-backoff: PT30S
+      max-backoff: PT30M
   events:
     resubmission:
       # 실패한 이벤트 발행을 확인하는 주기. 처리될 때까지 횟수 제한 없이 다시 보내며, 실패한 시도마다 다음 재전송까지 기다리는 시간을 두 배로 늘린다.
