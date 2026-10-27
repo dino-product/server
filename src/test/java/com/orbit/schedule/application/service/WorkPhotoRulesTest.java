@@ -103,15 +103,15 @@ class WorkPhotoRulesTest {
         }
 
         @Test
-        @DisplayName("사진이 7장이면 사진 확인 결과보다 입력 오류가 먼저다")
-        void domainInputComesBeforePhotos() {
+        @DisplayName("사진이 7장이면 저장소를 부르지 않고 입력 오류로 거부한다")
+        void tooManyPhotosSkipStorage() {
             fixture.givenManager();
             fixture.mediaFiles.givenRejected(PHOTO_1, Reason.NOT_UPLOADED);
-            List<String> seven = List.of(PHOTO_1, "a", "b", "c", "d", "e", "f");
 
             fixture.assertRejected(
-                    () -> fixture.createWorkService().create(create(seven, false)),
+                    () -> fixture.createWorkService().create(create(seven(), false)),
                     ScheduleErrorCode.INVALID_WORK_INPUT);
+            assertThat(fixture.mediaFiles.stageRequests()).isEmpty();
         }
 
         @Test
@@ -204,6 +204,18 @@ class WorkPhotoRulesTest {
         }
 
         @Test
+        @DisplayName("사진이 7장이면 저장소를 부르지 않고 입력 오류로 거부한다")
+        void tooManyPhotosSkipStorage() {
+            fixture.givenManager(ActorRole.OWNER);
+            WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+
+            fixture.assertRejected(
+                    () -> fixture.updateWorkDetailsService().update(update(id.value(), seven())),
+                    ScheduleErrorCode.INVALID_WORK_INPUT);
+            assertThat(fixture.mediaFiles.stageRequests()).isEmpty();
+        }
+
+        @Test
         @DisplayName("올리지 않은 사진이면 400 SCHEDULE-022이고 바꾸지 않는다")
         void rejectsNotUploaded() {
             fixture.givenManager(ActorRole.OWNER);
@@ -271,6 +283,22 @@ class WorkPhotoRulesTest {
         }
 
         @Test
+        @DisplayName("작업 전이나 작업 후 사진이 7장이면 저장소를 부르지 않고 입력 오류로 거부한다(합쳐 12장 이하여도)")
+        void tooManyPhotosOnEitherSideSkipStorage() {
+            fixture.givenTechnician(TECHNICIAN_ID);
+            WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+
+            fixture.assertRejected(
+                    () -> fixture.submitCompletionReportService().submit(submit(id.value(), seven(), null)),
+                    ScheduleErrorCode.INVALID_WORK_INPUT);
+            fixture.assertRejected(
+                    () -> fixture.submitCompletionReportService().submit(submit(id.value(), List.of(PHOTO_1), seven())),
+                    ScheduleErrorCode.INVALID_WORK_INPUT);
+            assertThat(fixture.mediaFiles.stageRequests()).isEmpty();
+            assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        }
+
+        @Test
         @DisplayName("빈 사진 식별자는 저장소를 부르지 않고 입력 오류로 거부한다")
         void blankPhotoIsInputError() {
             fixture.givenTechnician(TECHNICIAN_ID);
@@ -280,6 +308,18 @@ class WorkPhotoRulesTest {
                     () -> fixture.submitCompletionReportService().submit(submit(id.value(), List.of(" "), null)),
                     ScheduleErrorCode.INVALID_WORK_INPUT);
         }
+    }
+
+    /** 장수 상한(6장)을 하나 넘는 사진 목록. */
+    private static List<String> seven() {
+        return List.of(
+                PHOTO_1,
+                PHOTO_2,
+                "0b6a1f7e-2a4c-4f6e-9d3b-1c2d3e4f5a63",
+                "0b6a1f7e-2a4c-4f6e-9d3b-1c2d3e4f5a64",
+                "0b6a1f7e-2a4c-4f6e-9d3b-1c2d3e4f5a65",
+                "0b6a1f7e-2a4c-4f6e-9d3b-1c2d3e4f5a66",
+                "0b6a1f7e-2a4c-4f6e-9d3b-1c2d3e4f5a67");
     }
 
     private static CreateWorkCommand create(List<String> photos, boolean withSchedule) {

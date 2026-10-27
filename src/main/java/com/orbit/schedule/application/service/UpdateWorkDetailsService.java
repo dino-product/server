@@ -28,13 +28,8 @@ public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
 
     @Override
     public void update(UpdateWorkDetailsCommand command) {
-        StagedFiles sitePhotos = WorkPhotos.stage(
-                mediaFiles,
-                command.accountId(),
-                command.organizationId(),
-                WorkPhotos.SITE_PHOTO,
-                command.sitePhotoIds(),
-                command.workId());
+        StagedFiles sitePhotos = WorkPhotos.stageSitePhotos(
+                mediaFiles, command.accountId(), command.organizationId(), command.sitePhotoIds(), command.workId());
         transaction.update(command, sitePhotos);
     }
 }

@@ -33,13 +33,8 @@ public class CreateWorkService implements CreateWorkUseCase {
 
     @Override
     public CreatedWorkInfo create(CreateWorkCommand command) {
-        StagedFiles sitePhotos = WorkPhotos.stage(
-                mediaFiles,
-                command.accountId(),
-                command.organizationId(),
-                WorkPhotos.SITE_PHOTO,
-                command.sitePhotoIds(),
-                null);
+        StagedFiles sitePhotos = WorkPhotos.stageSitePhotos(
+                mediaFiles, command.accountId(), command.organizationId(), command.sitePhotoIds(), null);
         return transaction.create(command, sitePhotos);
     }
 }

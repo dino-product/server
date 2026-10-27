@@ -30,12 +30,12 @@ public class SubmitCompletionReportService implements SubmitCompletionReportUseC
 
     @Override
     public void submit(SubmitCompletionReportCommand command) {
-        StagedFiles photos = WorkPhotos.stage(
+        StagedFiles photos = WorkPhotos.stageCompletionPhotos(
                 mediaFiles,
                 command.accountId(),
                 command.organizationId(),
-                WorkPhotos.COMPLETION_PHOTO,
-                WorkPhotos.completionPhotos(command.beforePhotos(), command.afterPhotos()),
+                command.beforePhotos(),
+                command.afterPhotos(),
                 command.workId());
         transaction.submit(command, photos);
     }
