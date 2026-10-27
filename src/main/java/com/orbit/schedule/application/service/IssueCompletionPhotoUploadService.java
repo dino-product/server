@@ -18,8 +18,8 @@ import com.orbit.shared.error.BusinessException;
 
 /**
  * 완료보고 사진 업로드 주소 발급. 담당 기사 본인이 자기 작업중 작업에만 올린다([현장 수행] §6). 장당 용량은 {@link CompletionReport#MAX_PHOTO_BYTES}다. 기사가 볼 수
- * 없는 작업은 404(SCHEDULE-001), 형식·크기를 확인한 뒤 작업중이 아니면 409(SCHEDULE-002)다. 배정 순번은 받지 않으며 완료보고 제출이 확인한다. 업로드 대기 기록을 남기므로 쓰기
- * 트랜잭션이다. 오류 확인 순서는 schedule 지침의 기사 유즈케이스 순서를 따른다.
+ * 없는 작업은 404(SCHEDULE-001), 형식·크기를 확인한 뒤 작업중이 아니면 409(SCHEDULE-002)이고, 같은 트랜잭션의 발급 기록도 롤백된다.
+ * 배정 순번은 받지 않으며 완료보고 제출이 확인한다. 업로드 대기 기록을 남기므로 쓰기 트랜잭션이다. 오류 확인 순서는 schedule 지침의 기사 유즈케이스 순서를 따른다.
  */
 @Service
 public class IssueCompletionPhotoUploadService implements IssueCompletionPhotoUploadUseCase {
