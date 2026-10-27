@@ -110,7 +110,7 @@ logging:
     com.orbit: ${LOGGING_APP_LEVEL:INFO}
     org.hibernate.SQL: WARN
     org.hibernate.orm.jdbc.bind: WARN
-    # 멈춤 검사가 멈춘 발행이 없어도 1분마다 상태별 INFO를 남긴다. 리스너 실패는 비동기 실행기가 ERROR로 남기고, 재전송 중 오류는 실패 발행 지표로 본다.
+    # 멈춤 검사가 멈춘 발행이 없어도 1분마다 상태별 INFO를 남긴다. 리스너 실패는 비동기 실행기가 ERROR로 남기고, 다시 보내지 못한 발행은 event_publication에 FAILED로 남는다.
     org.springframework.modulith.events.core.DefaultEventPublicationRegistry: WARN
 
 app:
@@ -174,7 +174,8 @@ app:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
   events:
     resubmission:
-      # 실패한 이벤트 발행을 다시 보내는 주기와 최초 처리를 포함한 최대 처리 시도 횟수
+      # 실패한 이벤트 발행을 확인하는 주기. 처리될 때까지 횟수 제한 없이 다시 보내며, 실패한 시도마다 다음 재전송까지 기다리는 시간을 두 배로 늘린다.
       enabled: true
       interval: PT1M
-      max-attempts: 10
+      initial-backoff: PT1M
+      max-backoff: PT30M

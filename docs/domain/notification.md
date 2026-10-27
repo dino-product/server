@@ -26,7 +26,7 @@
 - **받는 계정**: 기사 대상은 활성 기사 계약, 사무실 대상은 등록자의 활성 직원 소속의 계정이다. 없으면(비활성·없는 계약·소속) 알림을 만들지 않는다.
 - **푸시**: 출력 포트 `PushNotificationPort`. 지금은 `local`·`test`·`dev` 전용 임시 어댑터(`FakePushNotificationAdapter`, 알림 id·계정·종류만 기록)만 있어 운영(`prod`)과 프로필 없는 실행은 Bean 부재로 기동하지 않는다(schedule 임시 어댑터와 같은 상태). 실제 발송 어댑터(N-21)를 추가할 때 이 어댑터를 지우고 커밋 뒤 발송한다.
 - **공개 이벤트**: 알림을 저장하면 `NotificationCreated`, 읽음으로 바꾸면 `NotificationRead`를 발행한다(조건은 각 record Javadoc). 알림센터·안 읽은 수가 계정 단위라 발주사 없이 받는 계정만 담는다. 거절로 기사 알림을 숨길 때는 발행하지 않는다. 숨김 대상은 기사 대상 알림이고, 직원을 겸하는 계정의 웹 배지는 다음 조회에서 맞춰지면 충분하기 때문이다.
-- **전달 보장**: 이벤트 발행 기록 저장소가 없어 리스너 실패·재시작 때 다시 처리하지 않고, 같은 이벤트가 두 번 오면 알림도 두 번 생긴다([ADR-001](../adr/001-backend-architecture.md#모듈-간-통신)). 리스너 실패는 schedule 커밋을 되돌리지 않는다.
+- **전달 보장**: 리스너가 실패하거나 처리 중에 멈추면 이벤트 발행 기록이 처리될 때까지 횟수 제한 없이 다시 보낸다([ADR-004](../adr/004-event-publication-registry.md)). 그래서 같은 이벤트가 두 번 이상 올 수 있고, 지금은 그때 알림도 두 번 생긴다. 리스너 실패는 schedule 커밋을 되돌리지 않는다.
 - **동시 수정**: 읽음 처리와 거절 숨김이 같은 행을 고칠 수 있어 바뀐 컬럼만 갱신한다(`@DynamicUpdate`). 한쪽이 읽고 있는 사이 다른 쪽이 커밋해도 읽음과 숨김이 함께 남는지 실제 커밋으로 확인한다(`NotificationPersistenceAdapterTest`).
 - **테이블(ERD 반영용)**: `notifications`는 수신 계정(`member_id`)·발주사(`company_id`)·작업(`work_id`)을 ID로만 두고 인덱스 `(member_id, notified_at)`(목록), `(member_id, status)`(안 읽은 수), `(member_id, work_id)`(거절 숨김 대상)를 둔다. `notification_settings`는 `member_id` 유일 제약으로 계정당 한 행이다.
 
