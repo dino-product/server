@@ -173,8 +173,7 @@ public class DecideParticipationRequestsService
         Long accountId = request.accountId().value();
         Instant decidedAt = request.decidedAt().orElseThrow();
         if (request.status() == ParticipationRequestStatus.REJECTED) {
-            return new ParticipationRequestRejected(
-                    requestId, organizationId, accountId, request.rejectReason().orElse(null), decidedAt);
+            return new ParticipationRequestRejected(requestId, organizationId, accountId, decidedAt);
         }
         return new ParticipationRequestApproved(
                 requestId,
