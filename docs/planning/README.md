@@ -27,7 +27,7 @@
 | [[작업] 정책](https://app.notion.com/p/3cef190e116681ffb614e9fa12cd3ae3) | v2.1 | 2026-10-19 01:47 | `schedule` | §9 작업 상태 코드·표시값 |
 | [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v2.1 | 2026-10-19 01:46 | `schedule` | — |
 | [[현장 수행] 정책](https://app.notion.com/p/3d0f190e11668133ba17c64b6d33ba5b) | v1.2 | 2026-10-19 01:43 | `schedule` | — |
-| [[현황 파악] 정책](https://app.notion.com/p/3d0f190e11668148aaf1cbfd9685ef05) | v2.0 | 2026-10-17 13:46 | `schedule` (조회) | — |
+| [[현황 파악] 정책](https://app.notion.com/p/3d0f190e11668148aaf1cbfd9685ef05) | v2.0 | 2026-10-17 13:46 | `schedule` (조회), `realtime` (자동 갱신) | — |
 | [[알림] 정책](https://app.notion.com/p/3d0f190e116681aab442e9e8f237c63e) | v1.4 | 2026-10-19 01:50 | `notification` | §4 알림 트리거 |
 
 정책서 안의 이슈 ID(`ORG-`, `JOB-`, `SCH-`, `FLD-`, `MON-`, `NTF-`)는 각 정책서 마지막 절의 "확정 필요 항목"에 등록되어 있으며, 레포 문서는 이 ID를 그대로 인용한다.

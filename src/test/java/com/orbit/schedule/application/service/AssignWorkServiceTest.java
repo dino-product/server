@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +24,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.WorkAssigned;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AssignWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
@@ -72,8 +74,9 @@ class AssignWorkServiceTest {
         });
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAssigned(
-                        id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", TEN, NOW));
+                .containsExactly(
+                        new WorkAssigned(id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", TEN, NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -137,8 +140,10 @@ class AssignWorkServiceTest {
         assertThat(saved.status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
         assertThat(saved.schedule()).contains(new WorkSchedule(TECHNICIAN_ID, TEN, TWO_HOURS));
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAssigned(
-                        target.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", TEN, NOW));
+                .containsExactly(
+                        new WorkAssigned(
+                                target.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", TEN, NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(target.value()), NOW));
     }
 
     @Test
