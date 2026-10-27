@@ -13,11 +13,14 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.UNKNOWN_WORK_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.WorkRejected;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
@@ -60,15 +63,17 @@ class RejectWorkServiceTest {
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
         assertThat(fixture.events.published())
-                .containsExactly(new WorkRejected(
-                        id.value(),
-                        ORGANIZATION_ID.value(),
-                        REGISTRAR_ID.value(),
-                        TECHNICIAN_ID.value(),
-                        "대상 작업",
-                        "LOCATION_TOO_FAR",
-                        null,
-                        NOW));
+                .containsExactly(
+                        new WorkRejected(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                REGISTRAR_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                "대상 작업",
+                                "LOCATION_TOO_FAR",
+                                null,
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @ParameterizedTest
@@ -87,10 +92,13 @@ class RejectWorkServiceTest {
 
         service.reject(command(id.value(), 1, reason, note));
 
-        assertThat(fixture.events.published()).singleElement().isInstanceOfSatisfying(WorkRejected.class, event -> {
-            assertThat(event.reasonCode()).isEqualTo(expectedCode);
-            assertThat(event.reasonNote()).isEqualTo(expectedNote);
-        });
+        assertThat(fixture.events.published())
+                .hasExactlyElementsOfTypes(WorkRejected.class, WorkChanged.class)
+                .first()
+                .isInstanceOfSatisfying(WorkRejected.class, event -> {
+                    assertThat(event.reasonCode()).isEqualTo(expectedCode);
+                    assertThat(event.reasonNote()).isEqualTo(expectedNote);
+                });
     }
 
     @Test

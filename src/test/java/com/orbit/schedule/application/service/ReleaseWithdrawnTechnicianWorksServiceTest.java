@@ -16,10 +16,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Duration;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.ReleaseWithdrawnTechnicianWorksCommand;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
@@ -45,10 +47,10 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final FakeAccountTechnicianContractsPort contracts = new FakeAccountTechnicianContractsPort();
     private final ReleaseWithdrawnTechnicianWorksService service = new ReleaseWithdrawnTechnicianWorksService(
-            contracts, fixture.workRepository, fixture.scheduleLock, fixture.clock);
+            contracts, fixture.workRepository, fixture.scheduleLock, fixture.events, fixture.clock);
 
     @Test
-    @DisplayName("배정됨·작업전 작업을 처리자 없이 대기함으로 돌리고 작업중·완료 작업은 그대로 둔다")
+    @DisplayName("배정됨·작업전 작업을 처리자 없이 대기함으로 돌리고 작업중·완료 작업은 그대로 두며, 돌린 작업을 작업 변경 한 건으로 발행한다")
     void releasesScheduledWorksWithoutProcessor() {
         contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
         WorkId pending = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.PENDING_ACCEPT, 0);
@@ -71,10 +73,15 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
         assertThat(fixture.stored(accepted).schedule()).isEmpty();
         assertThat(fixture.stored(inProgress).status()).isEqualTo(WorkStatus.IN_PROGRESS);
         assertThat(fixture.stored(completed).status()).isEqualTo(WorkStatus.COMPLETED);
+        assertThat(fixture.events.published()).singleElement().isInstanceOfSatisfying(WorkChanged.class, changed -> {
+            assertThat(changed.organizationId()).isEqualTo(ORGANIZATION_ID.value());
+            assertThat(changed.workIds()).containsExactlyInAnyOrder(pending.value(), accepted.value());
+            assertThat(changed.occurredAt()).isEqualTo(NOW);
+        });
     }
 
     @Test
-    @DisplayName("organization이 먼저 비활성화한 계약까지 모든 조직의 기사 계약에서 돌린다")
+    @DisplayName("organization이 먼저 비활성화한 계약까지 모든 조직의 기사 계약에서 돌리고, 작업 변경은 조직마다 한 건씩 발행한다")
     void releasesAcrossEveryContractIncludingInactive() {
         contracts.givenInactive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
         contracts.givenActive(ACCOUNT_ID, OTHER_ORGANIZATION_ID, OTHER_TECHNICIAN_ID);
@@ -89,6 +96,10 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
                         .orElseThrow()
                         .status())
                 .isEqualTo(WorkStatus.REGISTERED);
+        assertThat(fixture.events.published())
+                .containsExactly(
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(first.value()), NOW),
+                        new WorkChanged(OTHER_ORGANIZATION_ID.value(), List.of(second.value()), NOW));
     }
 
     @Test
@@ -141,6 +152,10 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
         assertThat(fixture.workRepository.saved())
                 .extracting(work -> work.id().orElseThrow())
                 .containsExactly(withTime, otherOrganization);
+        assertThat(fixture.events.published())
+                .containsExactly(
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(withTime.value()), NOW),
+                        new WorkChanged(OTHER_ORGANIZATION_ID.value(), List.of(otherOrganization.value()), NOW));
     }
 
     @Test
@@ -158,7 +173,7 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
     }
 
     @Test
-    @DisplayName("같은 탈퇴를 다시 처리하면 이미 대기함인 작업과 담당기사를 비운 작업은 건너뛰고 성공한다")
+    @DisplayName("같은 탈퇴를 다시 처리하면 이미 대기함인 작업과 담당기사를 비운 작업은 건너뛰고, 바꾼 작업이 없으므로 작업 변경을 다시 발행하지 않는다")
     void isIdempotentOnRedelivery() {
         contracts.givenActive(ACCOUNT_ID, ORGANIZATION_ID, TECHNICIAN_ID);
         WorkId accepted = givenWork(ORGANIZATION_ID, TECHNICIAN_ID, WorkStatus.ACCEPTED, 0);
@@ -173,6 +188,7 @@ class ReleaseWithdrawnTechnicianWorksServiceTest {
 
         assertThat(fixture.workRepository.saved()).hasSize(savedAfterFirst);
         assertThat(fixture.stored(accepted).assignmentHistory()).hasSize(1);
+        assertThat(fixture.events.published()).hasSize(1);
     }
 
     @Test

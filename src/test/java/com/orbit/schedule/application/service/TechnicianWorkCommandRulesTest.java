@@ -67,7 +67,7 @@ class TechnicianWorkCommandRulesTest {
                                 RejectionReason.SCHEDULE_CONFLICT,
                                 null))),
                 new UseCase("시작", true, (f, request) -> new StartWorkService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
+                                f.actorPort, f.workRepository, f.scheduleLock, f.events, f.clock)
                         .start(new StartWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),

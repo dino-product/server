@@ -967,6 +967,28 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsRealtimeStreamAsProtectedEventStream() throws Exception {
+        String open = "$.paths['/api/v1/organizations/{organizationId}/events'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(open + ".summary").value("실시간 갱신 연결"))
+                .andExpect(
+                        jsonPath(open + ".security[0]['Bearer Authentication']").exists())
+                .andExpect(jsonPath(open + ".parameters[*].name")
+                        .value(containsInAnyOrder("organizationId", "X-Orbit-Client")))
+                .andExpect(jsonPath(open + ".responses['200'].content['text/event-stream']")
+                        .exists())
+                .andExpect(jsonPath(open + ".responses['200'].content['application/json']")
+                        .doesNotExist())
+                .andExpect(jsonPath(open + ".responses['403'].content['application/json']"
+                                + ".examples['REALTIME-001'].value.code")
+                        .value("REALTIME-001"))
+                .andExpect(jsonPath(open + ".responses['503'].content['application/json']"
+                                + ".examples['REALTIME-002'].value.code")
+                        .value("REALTIME-002"));
+    }
+
+    @Test
     void documentsNotificationSettingReadAndChange() throws Exception {
         String operations = "$.paths['/api/v1/notification-settings']";
         mockMvc.perform(get("/docs-json"))
