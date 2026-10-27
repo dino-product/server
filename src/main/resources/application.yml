@@ -159,6 +159,9 @@ app:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}
       access-token-ttl: ${AUTH_ACCESS_TOKEN_TTL:PT1H}
+    refresh-token:
+      # 마지막 발급부터 이 기간 동안 재발급하지 않으면 그 기기 세션이 만료된다. 재발급할 때마다 다시 센다.
+      idle-lifetime: ${AUTH_REFRESH_TOKEN_IDLE_LIFETIME:P30D}
   profile:
     terms:
       # 시행 중인 약관 버전. 필수 약관(service·privacy) 값을 올리면 기존 계정은 재동의 전까지 이용이 막힌다.

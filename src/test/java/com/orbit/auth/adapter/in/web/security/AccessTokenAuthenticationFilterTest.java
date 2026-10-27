@@ -33,6 +33,7 @@ import com.orbit.shared.security.ApiErrorResponseWriter;
 class AccessTokenAuthenticationFilterTest {
 
     private static final Instant EXPIRES_AT = Instant.parse("2026-09-27T02:00:00Z");
+    private static final String SESSION_ID = "7f1c2b3a-4d5e-4f60-8a9b-0c1d2e3f4a5b";
 
     @Mock
     private AuthenticateAccessTokenUseCase useCase;
@@ -61,7 +62,7 @@ class AccessTokenAuthenticationFilterTest {
     @DisplayName("유효한 토큰이면 계정 principal로 인증 컨텍스트를 채운다")
     void authenticatesValidToken() throws Exception {
         when(useCase.authenticate(new AuthenticateAccessTokenQuery("token")))
-                .thenReturn(Optional.of(new AccessTokenInfo(7L, "jti", EXPIRES_AT)));
+                .thenReturn(Optional.of(new AccessTokenInfo(7L, "jti", EXPIRES_AT, SESSION_ID)));
         MockFilterChain chain = new MockFilterChain();
 
         filter().doFilter(request("Bearer token"), new MockHttpServletResponse(), chain);
@@ -71,7 +72,7 @@ class AccessTokenAuthenticationFilterTest {
                 .isInstanceOfSatisfying(AccessTokenAuthentication.class, authentication -> {
                     assertThat(authentication.isAuthenticated()).isTrue();
                     assertThat(authentication.getPrincipal())
-                            .isEqualTo(new AuthenticatedAccount(7L, "jti", EXPIRES_AT));
+                            .isEqualTo(new AuthenticatedAccount(7L, "jti", EXPIRES_AT, SESSION_ID));
                 });
     }
 
@@ -118,6 +119,51 @@ class AccessTokenAuthenticationFilterTest {
     }
 
     @Test
+    @DisplayName("토큰 재발급 경로는 만료된 토큰이 붙어 있어도 검사하지 않고 넘긴다")
+    void skipsRefreshPathEvenWithToken() throws Exception {
+        MockFilterChain chain = new MockFilterChain();
+        MockHttpServletRequest request = request("Bearer expired");
+        request.setRequestURI("/api/v1/auth/refresh");
+        request.setMethod("POST");
+
+        filter().doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        verify(useCase, never()).authenticate(any());
+    }
+
+    @Test
+    @DisplayName("로그아웃 경로는 무효 토큰이어도 404로 끝내지 않고 인증 없이 넘긴다")
+    void passesLogoutWithInvalidTokenAnonymously() throws Exception {
+        when(useCase.authenticate(new AuthenticateAccessTokenQuery("expired"))).thenReturn(Optional.empty());
+        MockFilterChain chain = new MockFilterChain();
+        MockHttpServletRequest request = request("Bearer expired");
+        request.setRequestURI("/api/v1/auth/logout");
+        request.setMethod("POST");
+
+        filter().doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertThat(chain.getRequest()).isNotNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(responseWriter, never()).write(any(), any());
+    }
+
+    @Test
+    @DisplayName("로그아웃 경로도 유효한 토큰이면 인증한다")
+    void authenticatesLogoutWithValidToken() throws Exception {
+        when(useCase.authenticate(new AuthenticateAccessTokenQuery("token")))
+                .thenReturn(Optional.of(new AccessTokenInfo(7L, "jti", EXPIRES_AT, SESSION_ID)));
+        MockHttpServletRequest request = request("Bearer token");
+        request.setRequestURI("/api/v1/auth/logout");
+        request.setMethod("POST");
+
+        filter().doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal())
+                .isEqualTo(new AuthenticatedAccount(7L, "jti", EXPIRES_AT, SESSION_ID));
+    }
+
+    @Test
     @DisplayName("인증 처리 중 실패하면 공통 실패 봉투의 500으로 끝낸다")
     void endsRequestWithServerErrorEnvelopeOnFailure() throws Exception {
         when(useCase.authenticate(any())).thenThrow(new IllegalStateException("redis down"));
@@ -135,7 +181,7 @@ class AccessTokenAuthenticationFilterTest {
     @DisplayName("Authentication 이름은 계정 식별자이며 토큰 식별자를 드러내지 않는다")
     void exposesAccountIdAsName() {
         AccessTokenAuthentication authentication =
-                new AccessTokenAuthentication(new AuthenticatedAccount(7L, "secret-jti", EXPIRES_AT));
+                new AccessTokenAuthentication(new AuthenticatedAccount(7L, "secret-jti", EXPIRES_AT, SESSION_ID));
 
         assertThat(authentication.getName()).isEqualTo("7");
     }
@@ -143,7 +189,7 @@ class AccessTokenAuthenticationFilterTest {
     @Test
     @DisplayName("principal을 로그에 남겨도 토큰 식별자를 드러내지 않는다")
     void hidesTokenIdFromPrincipalString() {
-        AuthenticatedAccount principal = new AuthenticatedAccount(7L, "secret-jti", EXPIRES_AT);
+        AuthenticatedAccount principal = new AuthenticatedAccount(7L, "secret-jti", EXPIRES_AT, SESSION_ID);
 
         assertThat(principal.toString()).contains("accountId=7").doesNotContain("secret-jti");
     }
@@ -152,7 +198,7 @@ class AccessTokenAuthenticationFilterTest {
     @DisplayName("다른 모듈은 루트 공개 계약으로 계정 식별자만 받는다")
     void exposesPrincipalOnlyThroughPublicContract() throws Exception {
         when(useCase.authenticate(new AuthenticateAccessTokenQuery("token")))
-                .thenReturn(Optional.of(new AccessTokenInfo(7L, "jti", EXPIRES_AT)));
+                .thenReturn(Optional.of(new AccessTokenInfo(7L, "jti", EXPIRES_AT, SESSION_ID)));
 
         filter().doFilter(request("Bearer token"), new MockHttpServletResponse(), new MockFilterChain());
 

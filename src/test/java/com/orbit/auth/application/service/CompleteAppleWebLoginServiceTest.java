@@ -28,7 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.in.command.dto.AppleWebLoginCompletion;
 import com.orbit.auth.application.port.in.command.dto.CompleteAppleWebLoginCommand;
-import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.AppleCodeExchange;
 import com.orbit.auth.application.port.out.AppleIdTokenClaims;
@@ -89,7 +88,7 @@ class CompleteAppleWebLoginServiceTest {
     private AccountRepository accounts;
 
     @Mock
-    private AccessTokenPort accessTokens;
+    private SessionTokenIssuer tokens;
 
     private CompleteAppleWebLoginService service;
 
@@ -105,7 +104,7 @@ class CompleteAppleWebLoginServiceTest {
                 refreshTokens,
                 loginExchanges,
                 accounts,
-                accessTokens,
+                tokens,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -128,7 +127,7 @@ class CompleteAppleWebLoginServiceTest {
                         eq(new PendingAppleLogin(ACCOUNT_ID, true, CHALLENGE)),
                         eq(CompleteAppleWebLoginService.EXCHANGE_CODE_TTL));
         verify(refreshTokens).save(ACCOUNT_ID, SERVICES_ID, "apple-refresh", NOW);
-        verify(accessTokens, never()).issue(any());
+        verify(tokens, never()).start(any());
         assertThat(completion.returnUri()).isEqualTo(RETURN_URI);
         assertThat(completion.exchangeCode()).isEqualTo(code.getValue()).matches("[A-Za-z0-9_-]{43}");
         assertThat(completion.errorCode()).isNull();

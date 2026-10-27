@@ -9,7 +9,6 @@ import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.in.command.CompleteAppleWebLoginUseCase;
 import com.orbit.auth.application.port.in.command.dto.AppleWebLoginCompletion;
 import com.orbit.auth.application.port.in.command.dto.CompleteAppleWebLoginCommand;
-import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.AppleCodeExchange;
 import com.orbit.auth.application.port.out.AppleIdTokenClaims;
@@ -63,7 +62,7 @@ public class CompleteAppleWebLoginService implements CompleteAppleWebLoginUseCas
             AppleRefreshTokenRepository refreshTokens,
             AppleLoginExchangePort loginExchanges,
             AccountRepository accounts,
-            AccessTokenPort accessTokens,
+            SessionTokenIssuer tokens,
             Clock clock) {
         this.states = states;
         this.authorization = authorization;
@@ -71,7 +70,7 @@ public class CompleteAppleWebLoginService implements CompleteAppleWebLoginUseCas
         this.codeExchange = new AppleAuthorizationCodeExchange(codeExchanges);
         this.refreshTokens = refreshTokens;
         this.loginExchanges = loginExchanges;
-        this.accountLogin = new AccountLogin(accounts, accessTokens, clock);
+        this.accountLogin = new AccountLogin(accounts, tokens, clock);
         this.clock = clock;
     }
 

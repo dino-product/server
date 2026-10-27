@@ -22,13 +22,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.in.command.dto.ExchangeAppleWebLoginCommand;
 import com.orbit.auth.application.port.in.command.dto.LoginInfo;
-import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.AppleLoginExchangePort;
 import com.orbit.auth.application.port.out.ClosedAccountPort;
-import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.application.port.out.PendingAppleLogin;
-import com.orbit.auth.domain.AccessToken;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.PkceChallenge;
 import com.orbit.shared.error.BusinessException;
@@ -49,7 +46,7 @@ class ExchangeAppleWebLoginServiceTest {
     private AccountRepository accounts;
 
     @Mock
-    private AccessTokenPort accessTokens;
+    private SessionTokenIssuer tokens;
 
     @Mock
     private ClosedAccountPort closedAccounts;
@@ -59,13 +56,20 @@ class ExchangeAppleWebLoginServiceTest {
     void issuesAccessTokenForPendingLogin() {
         when(loginExchanges.consume("exchange-code"))
                 .thenReturn(Optional.of(new PendingAppleLogin(ACCOUNT_ID, true, CHALLENGE)));
-        when(accessTokens.issue(ACCOUNT_ID))
-                .thenReturn(new IssuedAccessToken(
-                        "access-token", new AccessToken("jti", ACCOUNT_ID, NOW, NOW.plus(Duration.ofHours(1)))));
+        when(tokens.start(ACCOUNT_ID))
+                .thenReturn(new IssuedSessionTokens(
+                        "access-token", NOW.plus(Duration.ofHours(1)), "refresh-token", NOW.plus(Duration.ofDays(30))));
 
         LoginInfo info = service().exchange(new ExchangeAppleWebLoginCommand("exchange-code", VERIFIER));
 
-        assertThat(info).isEqualTo(new LoginInfo(7L, true, "access-token", NOW.plus(Duration.ofHours(1))));
+        assertThat(info)
+                .isEqualTo(new LoginInfo(
+                        7L,
+                        true,
+                        "access-token",
+                        NOW.plus(Duration.ofHours(1)),
+                        "refresh-token",
+                        NOW.plus(Duration.ofDays(30))));
     }
 
     @Test
@@ -80,7 +84,7 @@ class ExchangeAppleWebLoginServiceTest {
 
     private ExchangeAppleWebLoginService service() {
         return new ExchangeAppleWebLoginService(
-                loginExchanges, closedAccounts, accounts, accessTokens, Clock.fixed(NOW, ZoneOffset.UTC));
+                loginExchanges, closedAccounts, accounts, tokens, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -93,7 +97,7 @@ class ExchangeAppleWebLoginServiceTest {
         assertThatThrownBy(() -> service().exchange(new ExchangeAppleWebLoginCommand("exchange-code", VERIFIER)))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(AuthErrorCode.INVALID_APPLE_LOGIN_EXCHANGE_CODE));
-        verify(accessTokens, never()).issue(any());
+        verify(tokens, never()).start(any());
     }
 
     @Test

@@ -96,8 +96,23 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("AUTH-004"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.security[0]['Bearer Authentication']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.requestBody.required")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.requestBody"
+                                + ".content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.LogoutRequest"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.responses['204']")
-                        .exists());
+                        .exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/refresh'].post.summary").value("토큰 재발급"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.security")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.RefreshedTokensResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.responses['401']"
+                                + ".content['application/json'].examples['AUTH-009'].value.code")
+                        .value("AUTH-009"));
     }
 
     @Test
