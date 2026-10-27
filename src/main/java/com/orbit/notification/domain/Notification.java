@@ -5,8 +5,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * 한 계정이 받은 알림. 수신 계정·발주사·관련 작업은 다른 모듈의 식별자라 값으로만 둔다. 만들면 안 읽음이고 읽음은 되돌리지 않는다. 숨긴 알림은 알림센터 어디에도
- * 보이지 않으며 다시 보이게 하지 않는다.
+ * 한 계정이 받은 알림. 수신 계정·발주사·관련 작업·관련 참여 요청은 다른 모듈의 식별자라 값으로만 둔다. 참여 요청 결과 알림은 관련 참여 요청만, 그 밖의 알림은 관련
+ * 작업만 가리킬 수 있다. 만들면 안 읽음이고 읽음은 되돌리지 않는다. 숨긴 알림은 알림센터 어디에도 보이지 않으며 다시 보이게 하지 않는다.
  */
 public final class Notification {
 
@@ -18,6 +18,7 @@ public final class Notification {
     private final Long organizationId;
     private final NotificationType type;
     private final Long workId;
+    private final Long participationRequestId;
     private final String message;
     private final Instant notifiedAt;
     private NotificationStatus status;
@@ -30,6 +31,7 @@ public final class Notification {
             Long organizationId,
             NotificationType type,
             Long workId,
+            Long participationRequestId,
             String message,
             Instant notifiedAt,
             NotificationStatus status,
@@ -40,6 +42,15 @@ public final class Notification {
         this.organizationId = requirePositive(organizationId, "organizationId");
         this.type = Objects.requireNonNull(type, "type must not be null");
         this.workId = workId == null ? null : requirePositive(workId, "workId");
+        this.participationRequestId = participationRequestId == null
+                ? null
+                : requirePositive(participationRequestId, "participationRequestId");
+        if (type.isParticipationRequestResult() != (participationRequestId != null)) {
+            throw new IllegalArgumentException("only participation request results must have participationRequestId");
+        }
+        if (type.isParticipationRequestResult() && workId != null) {
+            throw new IllegalArgumentException("participation request results must not have workId");
+        }
         this.message = requireMessage(message);
         this.notifiedAt = Objects.requireNonNull(notifiedAt, "notifiedAt must not be null");
         this.status = Objects.requireNonNull(status, "status must not be null");
@@ -51,7 +62,7 @@ public final class Notification {
     }
 
     /**
-     * 안 읽은 새 알림을 만든다.
+     * 참여 요청 결과가 아닌 안 읽은 새 알림을 만든다.
      *
      * @param workId 관련 작업. 작업과 무관한 알림이면 null
      * @param notifiedAt 알림을 일으킨 일이 생긴 시각. 알림센터는 이 시각의 최신순이다
@@ -69,6 +80,34 @@ public final class Notification {
                 organizationId,
                 type,
                 workId,
+                null,
+                message,
+                notifiedAt,
+                NotificationStatus.UNREAD,
+                null,
+                false);
+    }
+
+    /**
+     * 참여 요청 결과의 안 읽은 새 알림을 만든다. 관련 작업은 없다.
+     *
+     * @param participationRequestId 결과가 난 참여 요청
+     * @param notifiedAt 승인·거절 시각
+     */
+    public static Notification createForParticipationRequest(
+            Long recipientAccountId,
+            Long organizationId,
+            NotificationType type,
+            Long participationRequestId,
+            String message,
+            Instant notifiedAt) {
+        return new Notification(
+                null,
+                recipientAccountId,
+                organizationId,
+                type,
+                null,
+                participationRequestId,
                 message,
                 notifiedAt,
                 NotificationStatus.UNREAD,
@@ -82,6 +121,7 @@ public final class Notification {
             Long organizationId,
             NotificationType type,
             Long workId,
+            Long participationRequestId,
             String message,
             Instant notifiedAt,
             NotificationStatus status,
@@ -93,6 +133,7 @@ public final class Notification {
                 organizationId,
                 type,
                 workId,
+                participationRequestId,
                 message,
                 notifiedAt,
                 status,
@@ -154,6 +195,10 @@ public final class Notification {
 
     public Optional<Long> workId() {
         return Optional.ofNullable(workId);
+    }
+
+    public Optional<Long> participationRequestId() {
+        return Optional.ofNullable(participationRequestId);
     }
 
     public String message() {

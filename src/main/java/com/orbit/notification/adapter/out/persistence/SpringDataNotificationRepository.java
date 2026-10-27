@@ -23,4 +23,7 @@ interface SpringDataNotificationRepository extends JpaRepository<NotificationJpa
 
     boolean existsByRecipientAccountIdAndTypeAndWorkIdAndNotifiedAt(
             Long recipientAccountId, NotificationType type, Long workId, Instant notifiedAt);
+
+    boolean existsByRecipientAccountIdAndTypeAndParticipationRequestId(
+            Long recipientAccountId, NotificationType type, Long participationRequestId);
 }

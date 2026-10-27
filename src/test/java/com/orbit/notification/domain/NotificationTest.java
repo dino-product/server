@@ -62,6 +62,61 @@ class NotificationTest {
     }
 
     @Test
+    @DisplayName("참여 요청 결과 알림은 관련 참여 요청을 두고 작업 없이 만든다")
+    void createsParticipationRequestNotification() {
+        Notification notification = Notification.createForParticipationRequest(
+                7L, 1L, NotificationType.PARTICIPATION_REQUEST_REJECTED, 31L, "문구", NOTIFIED_AT);
+
+        assertThat(notification.participationRequestId()).contains(31L);
+        assertThat(notification.workId()).isEmpty();
+        assertThat(notification.status()).isEqualTo(NotificationStatus.UNREAD);
+        assertThat(notification.isReceivedBy(7L)).isTrue();
+    }
+
+    @Test
+    @DisplayName("작업 알림에는 관련 참여 요청이 없다")
+    void workNotificationHasNoParticipationRequest() {
+        assertThat(newNotification().participationRequestId()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("참여 요청 결과 알림과 작업 알림의 종류를 섞어 만들지 않고 참여 요청 식별자는 양수여야 한다")
+    void rejectsMismatchedTypeAndParticipationRequest() {
+        assertThatThrownBy(() -> Notification.create(
+                        7L, 1L, NotificationType.PARTICIPATION_REQUEST_APPROVED, null, "문구", NOTIFIED_AT))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Notification.createForParticipationRequest(
+                        7L, 1L, NotificationType.WORK_ASSIGNED, 31L, "문구", NOTIFIED_AT))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Notification.createForParticipationRequest(
+                        7L, 1L, NotificationType.PARTICIPATION_REQUEST_APPROVED, null, "문구", NOTIFIED_AT))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Notification.createForParticipationRequest(
+                        7L, 1L, NotificationType.PARTICIPATION_REQUEST_APPROVED, 0L, "문구", NOTIFIED_AT))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("저장된 참여 요청 결과 알림을 관련 참여 요청과 함께 복원한다")
+    void reconstitutesParticipationRequestNotification() {
+        Notification notification = Notification.reconstitute(
+                1L,
+                7L,
+                1L,
+                NotificationType.PARTICIPATION_REQUEST_APPROVED,
+                null,
+                31L,
+                "문구",
+                NOTIFIED_AT,
+                NotificationStatus.UNREAD,
+                null,
+                false);
+
+        assertThat(notification.participationRequestId()).contains(31L);
+        assertThat(notification.workId()).isEmpty();
+    }
+
+    @Test
     @DisplayName("식별자가 양수가 아니거나 문구가 비었거나 너무 길면 만들지 않는다")
     void rejectsInvalidValues() {
         assertThatThrownBy(() -> Notification.create(0L, 1L, NotificationType.WORK_ASSIGNED, 10L, "문구", NOTIFIED_AT))
@@ -91,6 +146,7 @@ class NotificationTest {
                         1L,
                         NotificationType.WORK_ASSIGNED,
                         10L,
+                        null,
                         "문구",
                         NOTIFIED_AT,
                         NotificationStatus.READ,
@@ -103,6 +159,7 @@ class NotificationTest {
                         1L,
                         NotificationType.WORK_ASSIGNED,
                         10L,
+                        null,
                         "문구",
                         NOTIFIED_AT,
                         NotificationStatus.UNREAD,

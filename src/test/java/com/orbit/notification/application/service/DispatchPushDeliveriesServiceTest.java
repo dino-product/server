@@ -204,6 +204,7 @@ class DispatchPushDeliveriesServiceTest {
                 1L,
                 NotificationType.WORK_ASSIGNED,
                 300L,
+                null,
                 "배정 알림",
                 NOW,
                 NotificationStatus.UNREAD,

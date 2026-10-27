@@ -83,6 +83,8 @@ class NotificationApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.result.notifications[0].type").value("WORK_ACCEPTED"))
                 .andExpect(jsonPath("$.result.notifications[0].organizationId").value(1))
                 .andExpect(jsonPath("$.result.notifications[0].workId").value(13))
+                .andExpect(jsonPath("$.result.notifications[0].participationRequestId")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.result.notifications[0].message").value("문구 13"))
                 .andExpect(jsonPath("$.result.notifications[0].read").value(false))
                 .andExpect(jsonPath("$.result.notifications[0].createdAt")
@@ -95,6 +97,21 @@ class NotificationApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.result.totalCount").value(2))
                 .andExpect(jsonPath("$.result.notifications[0].id").value(newest))
                 .andExpect(jsonPath("$.result.notifications[1].id").value(oldest));
+    }
+
+    @Test
+    @DisplayName("참여 요청 결과 알림은 관련 참여 요청 식별자를 주고 관련 작업은 비운다")
+    void showsParticipationRequestOfParticipationNotification() throws Exception {
+        long accountId = ACCOUNT_IDS.incrementAndGet();
+        long notificationId = insertParticipation(accountId, "PARTICIPATION_REQUEST_REJECTED", 31L, NOTIFIED_AT);
+
+        mockMvc.perform(authorized(get("/api/v1/notifications"), accountId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.notifications[0].id").value(notificationId))
+                .andExpect(jsonPath("$.result.notifications[0].type").value("PARTICIPATION_REQUEST_REJECTED"))
+                .andExpect(jsonPath("$.result.notifications[0].participationRequestId")
+                        .value(31))
+                .andExpect(jsonPath("$.result.notifications[0].workId").doesNotExist());
     }
 
     @Test
@@ -219,6 +236,24 @@ class NotificationApiIntegrationTest extends IntegrationTestSupport {
                 read ? "READ" : "UNREAD",
                 read ? Timestamp.from(notifiedAt.plusSeconds(1)) : null,
                 hidden,
+                Timestamp.from(notifiedAt),
+                Timestamp.from(notifiedAt));
+    }
+
+    private long insertParticipation(long accountId, String type, long participationRequestId, Instant notifiedAt) {
+        return jdbcTemplate.queryForObject(
+                """
+                insert into notifications
+                    (member_id, company_id, type, participation_request_id, message, notified_at, status, is_hidden,
+                     created_at, updated_at)
+                values (?, 1, ?, ?, '참여 요청이 거절되었습니다.', ?, 'UNREAD', false, ?, ?)
+                returning id
+                """,
+                Long.class,
+                accountId,
+                type,
+                participationRequestId,
+                Timestamp.from(notifiedAt),
                 Timestamp.from(notifiedAt),
                 Timestamp.from(notifiedAt));
     }

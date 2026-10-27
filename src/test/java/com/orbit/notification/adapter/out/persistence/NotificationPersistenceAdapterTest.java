@@ -58,6 +58,7 @@ class NotificationPersistenceAdapterTest extends PersistenceAdapterTestSupport {
             assertThat(found.organizationId()).isEqualTo(1L);
             assertThat(found.type()).isEqualTo(NotificationType.WORK_REJECTED);
             assertThat(found.workId()).contains(10L);
+            assertThat(found.participationRequestId()).isEmpty();
             assertThat(found.message()).isEqualTo("담당 기사가 [보일러 점검] 작업을 거절했습니다. 사유: 기타");
             assertThat(found.notifiedAt()).isEqualTo(NOTIFIED_AT);
             assertThat(found.status()).isEqualTo(NotificationStatus.UNREAD);
@@ -192,6 +193,41 @@ class NotificationPersistenceAdapterTest extends PersistenceAdapterTestSupport {
         assertThatThrownBy(() -> save(9_010L, 10L, NOTIFIED_AT))
                 .as("확인과 저장 사이에 같은 일이 동시에 처리돼도 한쪽은 저장하지 못한다")
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("참여 요청 결과 알림은 관련 참여 요청과 함께 복원되고, 같은 계정·종류·참여 요청의 알림이 있는지 찾으며 두 번 저장하지 못하게 막는다")
+    void savesParticipationRequestNotificationOnce() {
+        Notification saved = inTx(() ->
+                adapter.save(participation(9_020L, NotificationType.PARTICIPATION_REQUEST_REJECTED, 31L, NOTIFIED_AT)));
+
+        assertThat(find(saved.id().orElseThrow())).satisfies(found -> {
+            assertThat(found.type()).isEqualTo(NotificationType.PARTICIPATION_REQUEST_REJECTED);
+            assertThat(found.participationRequestId()).contains(31L);
+            assertThat(found.workId()).isEmpty();
+        });
+        assertThat(inTx(() -> adapter.existsReceivedForParticipationRequest(
+                        9_020L, NotificationType.PARTICIPATION_REQUEST_REJECTED, 31L)))
+                .isTrue();
+        assertThat(inTx(() -> adapter.existsReceivedForParticipationRequest(
+                        9_020L, NotificationType.PARTICIPATION_REQUEST_APPROVED, 31L)))
+                .isFalse();
+        assertThat(inTx(() -> adapter.existsReceivedForParticipationRequest(
+                        9_020L, NotificationType.PARTICIPATION_REQUEST_REJECTED, 32L)))
+                .isFalse();
+        assertThat(inTx(() -> adapter.existsReceivedForParticipationRequest(
+                        9_021L, NotificationType.PARTICIPATION_REQUEST_REJECTED, 31L)))
+                .isFalse();
+        assertThatThrownBy(() -> inTx(() -> adapter.save(participation(
+                        9_020L, NotificationType.PARTICIPATION_REQUEST_REJECTED, 31L, NOTIFIED_AT.plusSeconds(60)))))
+                .as("작업이 없는 알림도 같은 참여 요청의 같은 종류는 동시에 처리돼도 한쪽은 저장하지 못한다")
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private static Notification participation(
+            Long accountId, NotificationType type, Long participationRequestId, Instant notifiedAt) {
+        return Notification.createForParticipationRequest(
+                accountId, 1L, type, participationRequestId, "참여 요청이 거절되었습니다.", notifiedAt);
     }
 
     private Long save(Long accountId, Long workId, Instant notifiedAt) {
