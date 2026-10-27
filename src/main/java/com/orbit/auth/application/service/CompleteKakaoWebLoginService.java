@@ -30,9 +30,9 @@ import lombok.extern.slf4j.Slf4j;
  * 코드({@link WebLoginExchangeCodes})를 만들어 클라이언트 복귀 주소로 돌려보낸다. id_token과 카카오 토큰은 보관하지 않는다.
  *
  * <p>state가 없거나 다른 브라우저에서 온 콜백은 복귀 주소를 믿을 수 없으므로 AUTH-003으로 끝낸다. 그 밖의 실패는 복귀 주소에 오류 코드만 실어 보낸다
- * (카카오가 보낸 오류는 취소면 AUTH-008, 그 밖은 AUTH-010, 인가 코드가 없거나 카카오가 거절했거나 id_token이 유효하지 않으면 AUTH-002, nonce
- * 불일치 AUTH-003, 카카오 장애·설정 오류 AUTH-010, 예상하지 못한 내부 오류 COMMON-500). 카카오 토큰 API 호출 동안 DB 커넥션을 잡지 않도록 메서드
- * 트랜잭션을 두지 않는다.
+ * (카카오가 보낸 오류는 취소면 AUTH-008, 그 밖은 AUTH-010, 인가 코드가 없거나 카카오가 거절했으면 AUTH-002, nonce 불일치 AUTH-003, 카카오 장애·설정
+ * 오류 AUTH-010, 예상하지 못한 내부 오류 COMMON-500). id_token은 서버가 카카오에서 직접 받은 값이므로 검증이 실패하면 사용자 입력이 아니라 JWKS 조회·설정
+ * 문제로 보고 AUTH-010이다. 카카오 토큰 API 호출 동안 DB 커넥션을 잡지 않도록 메서드 트랜잭션을 두지 않는다.
  */
 @Slf4j
 @Service
@@ -86,8 +86,10 @@ public class CompleteKakaoWebLoginService implements CompleteKakaoWebLoginUseCas
         if (authorizationCode == null || authorizationCode.isBlank()) {
             throw new BusinessException(AuthErrorCode.INVALID_ID_TOKEN);
         }
-        KakaoIdTokenClaims claims = idTokens.verify(exchange(authorizationCode))
-                .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_ID_TOKEN));
+        KakaoIdTokenClaims claims = idTokens.verify(exchange(authorizationCode)).orElseThrow(() -> {
+            log.warn("Kakao web login id_token from the token endpoint failed verification");
+            return new BusinessException(AuthErrorCode.KAKAO_UNAVAILABLE);
+        });
         if (!HashedNonce.fromClaim(claims.nonce()).map(pending.nonce()::equals).orElse(false)) {
             throw new BusinessException(AuthErrorCode.INVALID_NONCE);
         }

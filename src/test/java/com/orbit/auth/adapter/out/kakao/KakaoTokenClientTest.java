@@ -5,16 +5,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.ServerSocket;
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import com.nimbusds.jwt.SignedJWT;
 import com.orbit.auth.application.port.out.KakaoTokenApiException;
 import com.orbit.auth.application.port.out.KakaoTokenApiException.Failure;
 import com.orbit.support.KakaoJwksStub;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxyUtil;
+import ch.qos.logback.core.AppenderBase;
 
 @DisplayName("카카오 토큰 API 클라이언트")
 class KakaoTokenClientTest {
@@ -25,6 +35,9 @@ class KakaoTokenClientTest {
     private static KakaoJwksStub kakao;
     private static KakaoTokenClient client;
 
+    private final Logger clientLogger = (Logger) LoggerFactory.getLogger(KakaoTokenClient.class);
+    private final LogCollector logs = new LogCollector();
+
     @BeforeAll
     static void startStub() {
         kakao = KakaoJwksStub.start();
@@ -34,6 +47,17 @@ class KakaoTokenClientTest {
     @AfterAll
     static void stopStub() {
         kakao.close();
+    }
+
+    @BeforeEach
+    void collectLogs() {
+        logs.start();
+        clientLogger.addAppender(logs);
+    }
+
+    @AfterEach
+    void detachLogs() {
+        clientLogger.detachAppender(logs);
     }
 
     @Test
@@ -62,6 +86,10 @@ class KakaoTokenClientTest {
                 .isInstanceOfSatisfying(KakaoTokenApiException.class, exception -> assertThat(exception.failure())
                         .isEqualTo(Failure.REJECTED))
                 .hasMessageNotContaining(code);
+        // 카카오는 error_description에 받은 인가 코드를 싣는다. 로그에는 상태·error·error_code만 남긴다.
+        assertThat(logs.lines()).anySatisfy(line -> assertThat(line).contains("invalid_grant", "KOE320"));
+        assertThat(logs.lines())
+                .allSatisfy(line -> assertThat(line).doesNotContain(code, KakaoJwksStub.CLIENT_SECRET, "not found"));
     }
 
     @Test
@@ -104,6 +132,7 @@ class KakaoTokenClientTest {
         assertThatThrownBy(() -> client.exchange("kakao-code"))
                 .isInstanceOfSatisfying(KakaoTokenApiException.class, exception -> assertThat(exception.failure())
                         .isEqualTo(Failure.UNAVAILABLE));
+        assertThat(logs.lines()).anySatisfy(line -> assertThat(line).contains("id_token"));
     }
 
     @Test
@@ -119,6 +148,23 @@ class KakaoTokenClientTest {
         assertThatThrownBy(() -> unreachable.exchange("kakao-code"))
                 .isInstanceOfSatisfying(KakaoTokenApiException.class, exception -> assertThat(exception.failure())
                         .isEqualTo(Failure.UNAVAILABLE));
+    }
+
+    private static final class LogCollector extends AppenderBase<ILoggingEvent> {
+
+        private final List<String> lines = new CopyOnWriteArrayList<>();
+
+        @Override
+        protected void append(ILoggingEvent event) {
+            lines.add(event.getFormattedMessage()
+                    + (event.getThrowableProxy() == null
+                            ? ""
+                            : ThrowableProxyUtil.asString(event.getThrowableProxy())));
+        }
+
+        List<String> lines() {
+            return List.copyOf(lines);
+        }
     }
 
     private static KakaoWebLoginProperties properties(String tokenUri, String clientSecret) {

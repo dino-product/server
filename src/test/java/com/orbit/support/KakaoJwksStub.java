@@ -135,12 +135,18 @@ public final class KakaoJwksStub implements AutoCloseable {
             return;
         }
         if (!REST_API_KEY.equals(form.get("client_id")) || !CLIENT_SECRET.equals(form.get("client_secret"))) {
-            respondError(exchange, 401, "invalid_client", "KOE010");
+            respondError(exchange, 401, "invalid_client", "KOE010", "Bad client credentials");
             return;
         }
         IssuedCode issued = form.get("code") == null ? null : authorizationCodes.remove(form.get("code"));
         if (!"authorization_code".equals(form.get("grant_type")) || issued == null) {
-            respondError(exchange, 400, "invalid_grant", "KOE320");
+            // 카카오처럼 설명에 받은 인가 코드를 그대로 싣는다(로그에 남기면 안 되는 값).
+            respondError(
+                    exchange,
+                    400,
+                    "invalid_grant",
+                    "KOE320",
+                    "authorization code not found for code=" + form.get("code"));
             return;
         }
         JWTClaimsSet claims =
@@ -167,9 +173,9 @@ public final class KakaoJwksStub implements AutoCloseable {
         return form;
     }
 
-    private static void respondError(HttpExchange exchange, int status, String error, String errorCode)
-            throws IOException {
-        String body = "{\"error\":\"" + error + "\",\"error_description\":\"rejected by stub\",\"error_code\":\""
+    private static void respondError(
+            HttpExchange exchange, int status, String error, String errorCode, String description) throws IOException {
+        String body = "{\"error\":\"" + error + "\",\"error_description\":\"" + description + "\",\"error_code\":\""
                 + errorCode + "\"}";
         respond(exchange, status, body.getBytes(StandardCharsets.UTF_8));
     }

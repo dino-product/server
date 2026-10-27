@@ -57,6 +57,7 @@ class KakaoTokenClient implements ExchangeKakaoAuthorizationCodePort {
         Map<String, Object> response = post(form);
         Object idToken = response == null ? null : response.get("id_token");
         if (!(idToken instanceof String token) || token.isBlank()) {
+            log.warn("Kakao token response has no id_token; check OpenID Connect activation and the openid scope");
             throw new KakaoTokenApiException(Failure.UNAVAILABLE, "Kakao token response has no id_token");
         }
         return token;

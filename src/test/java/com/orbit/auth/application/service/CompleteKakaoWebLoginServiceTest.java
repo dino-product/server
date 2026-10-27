@@ -154,12 +154,13 @@ class CompleteKakaoWebLoginServiceTest {
     }
 
     @Test
-    @DisplayName("교환한 id_token이 유효하지 않으면 AUTH-002, nonce가 이 로그인의 것이 아니면 AUTH-003으로 복귀하고 계정을 만들지 않는다")
+    @DisplayName(
+            "서버가 카카오에서 직접 받은 id_token이 검증되지 않으면 카카오·설정 문제로 보고 AUTH-010, nonce가 이 로그인의 것이 아니면 AUTH-003으로 복귀하고 계정을 만들지 않는다")
     void rejectsInvalidIdTokenOrNonce() {
         givenPendingState();
         when(codeExchanges.exchange("kakao-code")).thenReturn("id-token");
         when(idTokens.verify("id-token")).thenReturn(Optional.empty());
-        assertThat(service.complete(command("kakao-code", null)).errorCode()).isEqualTo("AUTH-002");
+        assertThat(service.complete(command("kakao-code", null)).errorCode()).isEqualTo("AUTH-010");
 
         givenPendingState();
         when(idTokens.verify("id-token"))

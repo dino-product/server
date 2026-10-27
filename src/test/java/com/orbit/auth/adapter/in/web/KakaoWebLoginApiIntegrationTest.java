@@ -233,12 +233,12 @@ class KakaoWebLoginApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
-    @DisplayName("교환한 id_token이 위조됐으면 AUTH-002, nonce가 이 로그인의 것이 아니면 AUTH-003으로 복귀한다")
+    @DisplayName("토큰 엔드포인트가 준 id_token이 JWKS로 검증되지 않으면 AUTH-010, nonce가 이 로그인의 것이 아니면 AUTH-003으로 복귀한다")
     void returnsErrorsForInvalidIdToken() throws Exception {
         Started forged = start();
         assertRedirectError(
                 callback(forged, KAKAO.issueAuthorizationCodeWithForgedIdToken(kakaoSubject(), forged.nonce())),
-                "AUTH-002");
+                "AUTH-010");
 
         assertRedirectError(
                 callback(

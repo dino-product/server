@@ -56,7 +56,7 @@ public interface KakaoWebLoginControllerDocs {
             description = "카카오가 브라우저를 돌려보내는 콜백입니다. "
                     + "state를 시작 브라우저의 연결 쿠키와 함께 한 번만 소비하고 인가 코드를 카카오에서 교환해 받은 id_token·nonce를 검증합니다. "
                     + "성공하면 복귀 주소에 일회성 code를, 실패하면 error를 실어 302로 돌려보냅니다 "
-                    + "(AUTH-002·003, 카카오 장애 AUTH-010, 취소는 AUTH-008, 내부 오류는 COMMON-500). "
+                    + "(인가 코드 거절 AUTH-002, nonce AUTH-003, 카카오 장애·설정 오류 AUTH-010, 취소는 AUTH-008, 내부 오류는 COMMON-500). "
                     + "state가 없거나 다른 브라우저에서 온 콜백은 복귀하지 않고 401로 끝냅니다.")
     @ApiResponse(
             responseCode = "302",
