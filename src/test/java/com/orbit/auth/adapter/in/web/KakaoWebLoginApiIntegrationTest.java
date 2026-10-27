@@ -294,6 +294,33 @@ class KakaoWebLoginApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
+    @DisplayName("탈퇴로 계정이 닫힌 뒤 같은 카카오 계정으로 웹 로그인하면 이전 데이터 없이 새 계정이 된다")
+    void webLoginAfterClosureCreatesNewAccount() throws Exception {
+        String subject = kakaoSubject();
+        long closedAccount = readTree(exchange(webLoginCode(subject))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("accountId")
+                .asLong();
+        accountClosure.close(closedAccount);
+
+        long newAccount = readTree(exchange(webLoginCode(subject))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.result.registered").value(true))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("result")
+                .path("accountId")
+                .asLong();
+
+        assertThat(newAccount).isNotEqualTo(closedAccount);
+    }
+
+    @Test
     @DisplayName("한 제공자의 교환 코드는 다른 제공자의 교환 경로에서 쓸 수 없고 원래 경로에서는 그대로 쓸 수 있다")
     void rejectsExchangeCodeOfAnotherProvider() throws Exception {
         String appleCode = appleWebLoginCode();
