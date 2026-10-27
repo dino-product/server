@@ -15,7 +15,7 @@ import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReport
  *
  * <p>사진은 배정된 기사 본인이 올린 사진만 받고(아니면 400 SCHEDULE-022), 이미지가 아니면 SCHEDULE-020, 밝힌 크기보다 크면 SCHEDULE-021이다. 사진 저장소
  * 확인·복사는 트랜잭션을 열기 전에 하고(저장소 장애는 503 SCHEDULE-023), 업무 처리와 사진 연결은 {@link SubmitCompletionReportTransaction}이 한 트랜잭션에서
- * 한다(ADR-006). 그래서 이 메서드에는 트랜잭션이 없다.
+ * 한다(ADR-007). 그래서 이 메서드에는 트랜잭션이 없다.
  */
 @Service
 public class SubmitCompletionReportService implements SubmitCompletionReportUseCase {

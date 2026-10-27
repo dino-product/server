@@ -18,7 +18,7 @@ import com.orbit.shared.persistence.BaseTimeEntity;
 
 /**
  * 완료보고 사진 한 장. 테이블 구조는 팀 ERD의 {@code Work_Execution_Images}를 따른다. 작업 전·후 구분({@link Kind})과 저장소 식별자를 담고, 같은 구분 안의
- * 순서는 {@code id} 순이다. {@code image_url}은 이름과 달리 주소가 아니라 media 모듈의 파일 식별자(UUID)를 담는다(주소는 조회 때 서명, ADR-006). 컬럼 이름은 ERD를
+ * 순서는 {@code id} 순이다. {@code image_url}은 이름과 달리 주소가 아니라 media 모듈의 파일 식별자(UUID)를 담는다(주소는 조회 때 서명, ADR-007). 컬럼 이름은 ERD를
  * 따르며 바꾸려면 ERD와 함께 바꾼다.
  *
  * <p>ERD에는 {@code created_at}만 있지만 규약대로 {@code BaseTimeEntity}를 상속해 {@code updated_at}도 가진다(ERD에 추가 예정).

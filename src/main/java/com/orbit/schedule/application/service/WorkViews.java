@@ -92,7 +92,7 @@ final class WorkViews {
 
     /**
      * 사진 식별자마다 내려받을 시간 제한 주소를 붙인다. 호출한 조회가 이미 그 작업의 열람 권한을 확인했으므로 여기서 다시 확인하지 않는다. 주소는 서명만 해 저장소를 부르지
-     * 않는다(ADR-006). 서명하지 못하면(자격 증명을 얻지 못함 등) 사진을 쓰는 변경과 같은 503(SCHEDULE-023)이다.
+     * 않는다(ADR-007). 서명하지 못하면(자격 증명을 얻지 못함 등) 사진을 쓰는 변경과 같은 503(SCHEDULE-023)이다.
      */
     static List<PhotoInfo> photos(Work work, List<String> photoIds, MediaFiles mediaFiles) {
         Long organizationId = work.organizationId().value();

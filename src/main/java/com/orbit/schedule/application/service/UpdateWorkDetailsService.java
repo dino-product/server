@@ -13,7 +13,7 @@ import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsComma
  * 새로 올린 사진만 받고(아니면 400 SCHEDULE-022), 빠진 사진은 만료로 바꿔 저장소 수명 주기 규칙이 지우게 한다.
  *
  * <p>사진 저장소 확인·복사는 트랜잭션을 열기 전에 하고(저장소 장애는 503 SCHEDULE-023), 업무 처리와 사진 연결은 {@link UpdateWorkDetailsTransaction}이 한
- * 트랜잭션에서 한다(ADR-006). 그래서 이 메서드에는 트랜잭션이 없다.
+ * 트랜잭션에서 한다(ADR-007). 그래서 이 메서드에는 트랜잭션이 없다.
  */
 @Service
 public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {

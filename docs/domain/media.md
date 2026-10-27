@@ -1,7 +1,7 @@
 <a id="media"></a>
 # 파일 컨텍스트 (`media`) — Generic Subdomain
 
-- 결정 배경: [ADR-006](../adr/006-file-storage.md). 사진 개수·용량·권한 같은 제품 규칙은 파일을 쓰는 업무 모듈의 Notion 정책서가 원본이다(예: [schedule](schedule.md#schedule-product)의 현장 사진·완료보고)
+- 결정 배경: [ADR-007](../adr/007-file-storage.md). 사진 개수·용량·권한 같은 제품 규칙은 파일을 쓰는 업무 모듈의 Notion 정책서가 원본이다(예: [schedule](schedule.md#schedule-product)의 현장 사진·완료보고)
 - 다른 컨텍스트와의 관계: [바운디드 컨텍스트 지도](bounded-contexts.md#media)
 
 이 문서는 `media`의 공개 계약과 구현 결정을 소유한다. 누가 어떤 파일을 올리고 볼 수 있는지는 판단하지 않는다(호출 모듈의 몫).

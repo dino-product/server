@@ -22,7 +22,7 @@ import com.orbit.schedule.domain.WorkId;
 import com.orbit.shared.error.BusinessException;
 
 /**
- * 작업 사진(현장 사진·완료보고 사진)을 media 모듈로 올리고 붙이는 공통 절차(ADR-006). 사진을 받는 유즈케이스는 업무 트랜잭션을 열기 전에
+ * 작업 사진(현장 사진·완료보고 사진)을 media 모듈로 올리고 붙이는 공통 절차(ADR-007). 사진을 받는 유즈케이스는 업무 트랜잭션을 열기 전에
  * {@link #stageSitePhotos}·{@link #stageCompletionPhotos}로 저장소 확인을 끝내고, 트랜잭션 안의 입력 확인 자리에서 {@link #requireAccepted}로 확인
  * 결과를 알린 뒤, 작업을 저장한 같은 트랜잭션에서 {@link #attach}한다. 연결 대상은 {@code work:{workId}}이고 용도로 현장 사진과 완료보고 사진을 나눈다.
  */

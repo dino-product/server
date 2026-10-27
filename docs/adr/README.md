@@ -8,6 +8,6 @@
 | [ADR-004: 이벤트 발행 기록과 실패 발행 재전송](004-event-publication-registry.md) | 모듈 리스너 이벤트의 발행 기록·완료 보관, 실패 재전송·멈춘 발행 처리·감시 지표, 리스너 멱등·이벤트 계약, 운영 스키마 |
 | [ADR-005: 스키마 마이그레이션](005-schema-migration.md) | 스키마 원본(Flyway SQL)·`ddl-auto: validate`, 기동 시 적용, 파일 번호·수정 금지, 제약 이름·enum CHECK 미사용, expand-contract 호환성 |
 | [ADR-006: 웹 실시간 갱신(SSE와 Redis Pub/Sub)](006-web-realtime-sse.md) | 사무실 웹 변경 신호의 전송 방식(SSE, 식별자만 담고 재조회), 연결 상한·유지 신호·수명·종료, 인스턴스 사이 전달(Redis Pub/Sub) |
-| [ADR-006: 사진 파일 저장 방식](006-file-storage.md) | presigned PUT 직접 업로드, 도메인 엔드포인트의 발급 권한과 범용 media 모듈, S3 먼저·DB 나중 연결, 권한 통과 응답의 조회 URL, 태그로 삭제 표시, infra 공유 계약 |
+| [ADR-007: 사진 파일 저장 방식](007-file-storage.md) | presigned PUT 직접 업로드, 도메인 엔드포인트의 발급 권한과 범용 media 모듈, S3 먼저·DB 나중 연결, 권한 통과 응답의 조회 URL, 태그로 삭제 표시, infra 공유 계약 |
 
 각 ADR은 해당 주제의 현재 결정과 선택 이유를 유지하며, 이전 내용은 Git 이력에서 확인합니다. 보완·신규 주제의 구분과 갱신 기준은 [문서와 ADR 관리](../maintenance.md#maintenance)를 따릅니다.

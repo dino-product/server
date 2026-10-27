@@ -1,4 +1,4 @@
--- media: 업로드 파일 기록(ADR-006). 스키마의 원본은 이 파일이고 UploadedFileJpaEntity는 그 매핑이다(ADR-005). 컬럼 설명은 docs/domain/media.md의 테이블 항목.
+-- media: 업로드 파일 기록(ADR-007). 스키마의 원본은 이 파일이고 UploadedFileJpaEntity는 그 매핑이다(ADR-005). 컬럼 설명은 docs/domain/media.md의 테이블 항목.
 -- 식별자는 media가 정하는 UUID라 IDENTITY가 아니다. 발주사·업로더 계정은 다른 모듈의 식별자라 FK를 두지 않는다.
 -- purpose·owner_ref 길이는 공개 계약 UploadSpec.MAX_PURPOSE_LENGTH·StageRequest.MAX_OWNER_LENGTH와 같다.
 create table uploaded_files (

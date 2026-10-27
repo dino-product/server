@@ -19,7 +19,7 @@ import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
  * {@link com.orbit.schedule.WorkChanged}를 발행한다.
  *
  * <p>사진 저장소 확인·복사는 DB 연결을 붙잡지 않도록 트랜잭션을 열기 전에 하고(저장소 장애는 503 SCHEDULE-023), 업무 처리와 사진 연결은
- * {@link CreateWorkTransaction}이 한 트랜잭션에서 한다(ADR-006). 그래서 이 메서드에는 트랜잭션이 없다.
+ * {@link CreateWorkTransaction}이 한 트랜잭션에서 한다(ADR-007). 그래서 이 메서드에는 트랜잭션이 없다.
  */
 @Service
 public class CreateWorkService implements CreateWorkUseCase {

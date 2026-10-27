@@ -31,7 +31,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
 
 /**
  * S3(와 호환 저장소) 구현. 모든 프로필에서 등록하며 로컬·테스트는 설정으로 LocalStack 주소를 준다. 업로드 서명에는 {@code Content-Type}과
- * {@code Content-Length}를 넣어 밝힌 형식·크기로만 올릴 수 있게 한다. 앱 권한에는 객체 삭제가 없다(ADR-006).
+ * {@code Content-Length}를 넣어 밝힌 형식·크기로만 올릴 수 있게 한다. 앱 권한에는 객체 삭제가 없다(ADR-007).
  *
  * <p>저장소 호출과 주소 서명마다 걸린 시간과 결과를 타이머 {@value #CALLS_METRIC}(태그 {@code operation}·{@code outcome}·{@code status})로
  * 남긴다. 결과는 {@code success}, 객체가 없거나 확인한 뒤 바뀜({@code missing}, 404·412), 저장소 장애({@code error})이고, {@code status}는
