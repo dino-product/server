@@ -8,15 +8,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.UUID;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -25,17 +21,13 @@ import com.orbit.auth.application.port.out.AppleRefreshTokenRepository;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.HashedNonce;
 import com.orbit.support.AppleAuthStub;
-import com.orbit.support.IntegrationTestSupport;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** Apple JWKS·토큰 엔드포인트를 로컬 스텁으로 바꾸고 검증기·HTTP 호출·Redis·PostgreSQL은 실제 경로로 지난다. 실제 Apple E2E는 아니다. */
-@AutoConfigureMockMvc
 @DisplayName("Apple iOS 로그인 API")
-class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
-
-    private static final AppleAuthStub APPLE = AppleAuthStub.start();
+class AppleLoginApiIntegrationTest extends AuthApiTestSupport {
 
     @Autowired
     private MockMvc mockMvc;
@@ -45,19 +37,6 @@ class AppleLoginApiIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private AppleRefreshTokenRepository refreshTokens;
-
-    @DynamicPropertySource
-    static void appleEndpoints(DynamicPropertyRegistry registry) {
-        registry.add("app.auth.apple.jwk-set-uri", APPLE::jwkSetUri);
-        registry.add("app.auth.apple.token-api.token-uri", APPLE::tokenUri);
-        registry.add("app.auth.apple.token-api.revoke-uri", APPLE::revokeUri);
-        registry.add("app.auth.apple.client-secret.private-key", APPLE::clientSecretPrivateKeyPem);
-    }
-
-    @AfterAll
-    static void stopStub() {
-        APPLE.close();
-    }
 
     @Test
     @DisplayName("토큰 없이 Apple 로그인 raw nonce를 발급받는다")

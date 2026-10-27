@@ -22,16 +22,16 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.shared.internal.config.JpaAuditingConfig;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.SharedContainers;
 
 /** 감사 컬럼이 주입 Clock의 시각으로 채워지고, 수정 때 created_at은 그대로, updated_at만 바뀌는지 실제 PostgreSQL로 확인한다. */
 @DataJpaTest
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({TestcontainersConfiguration.class, JpaAuditingConfig.class, BaseTimeEntityTest.AdjustableClockConfig.class})
+@Import({JpaAuditingConfig.class, BaseTimeEntityTest.AdjustableClockConfig.class})
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("감사 컬럼 공통 Entity")
-class BaseTimeEntityTest {
+class BaseTimeEntityTest implements SharedContainers {
 
     private static final Instant CREATED = Instant.parse("2030-01-02T03:04:05.123456789Z");
     private static final Instant UPDATED = CREATED.plus(Duration.ofMinutes(10));

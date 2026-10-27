@@ -10,16 +10,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.CompanyCode;
@@ -31,15 +26,10 @@ import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
 import com.orbit.organization.domain.RetiredCompanyCode;
-import com.orbit.support.PersistenceTestConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PersistenceTestConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("발주사·직원 소속 저장")
-class OrganizationPersistenceAdapterTest {
+class OrganizationPersistenceAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant NOW = Instant.parse("2026-10-06T00:00:00.123456Z");
 

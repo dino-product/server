@@ -30,6 +30,7 @@ import com.orbit.organization.application.port.out.ParticipationRequestRepositor
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.CompanyCode;
 import com.orbit.organization.domain.Industry;
+import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.Organization;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.OrganizationName;
@@ -37,6 +38,7 @@ import com.orbit.organization.domain.ParticipationRequest;
 import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
+import com.orbit.organization.domain.RequestChannel;
 import com.orbit.shared.error.BaseCode;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.error.CommonErrorCode;
@@ -137,11 +139,13 @@ class CancelParticipationRequestServiceTest {
                 ORGANIZATION_ID,
                 ACCOUNT_ID,
                 ParticipationType.STAFF,
+                RequestChannel.COMPANY_CODE,
                 null,
                 status,
                 null,
                 REQUESTED_AT,
-                decidedAt);
+                decidedAt,
+                decidedAt == null ? null : new MembershipId(3L));
     }
 
     private static Organization organization() {

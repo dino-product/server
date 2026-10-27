@@ -12,7 +12,7 @@ import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.shared.error.BusinessException;
 
-/** 토큰이 가리키는 계정이 아직 존재하는지 확인해 돌려준다. 토큰 클레임만으로 응답하지 않는다. */
+/** 토큰이 가리키는 계정이 아직 존재하고 닫히지 않았는지 확인해 돌려준다. 토큰 클레임만으로 응답하지 않는다. */
 @Service
 public class GetAccountService implements GetAccountUseCase {
 
@@ -26,6 +26,7 @@ public class GetAccountService implements GetAccountUseCase {
     @Transactional(readOnly = true)
     public AccountInfo getAccount(GetAccountQuery query) {
         Account account = accounts.findById(new AccountId(query.accountId()))
+                .filter(found -> !found.isClosed())
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.ACCOUNT_NOT_FOUND));
         return new AccountInfo(account.id().orElseThrow().value(), account.registeredAt());
     }

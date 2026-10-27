@@ -5,6 +5,7 @@
             "shared::persistence",
             "organization",
             "auth",
+            "profile",
             "media"
         })
 package com.orbit.schedule;

@@ -21,10 +21,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.orbit.organization.application.error.OrganizationErrorCode;
+import com.orbit.organization.application.port.in.command.AssignMemberCategoryUseCase;
 import com.orbit.organization.application.port.in.command.CreateMemberCategoryUseCase;
 import com.orbit.organization.application.port.in.command.CreateOrganizationUseCase;
 import com.orbit.organization.application.port.in.command.DeleteMemberCategoryUseCase;
 import com.orbit.organization.application.port.in.command.UpdateMemberCategoryUseCase;
+import com.orbit.organization.application.port.in.command.dto.AssignMemberCategoryCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateMemberCategoryCommand;
 import com.orbit.organization.application.port.in.command.dto.CreateOrganizationCommand;
 import com.orbit.organization.application.port.in.command.dto.DeleteMemberCategoryCommand;
@@ -39,7 +41,7 @@ import com.orbit.support.IntegrationTestSupport;
 /**
  * 같은 발주사의 유형 변경이 발주사 잠금으로 한 줄로 서는지 두 트랜잭션으로 확인한다. 앞 트랜잭션이 커밋 전에 잠금을 쥔 동안 뒤 요청이 기다리고, 커밋 뒤에는 앞 요청의
  * 결과를 보고 판단해야 한다. 같은 이름 생성은 잠금이 없어도 이름 유일 인덱스가 막으므로 두 방어선을 합친 결과를 본다. 삭제와 수정의 엇갈림은 잠금만 막는다 — 잠금이
- * 없으면 수정이 삭제 전 상태를 읽고 모든 컬럼을 다시 써서 삭제된 유형이 되살아난다.
+ * 없으면 수정이 삭제 전 상태를 읽고 모든 컬럼을 다시 써서 삭제된 유형이 되살아난다. 세부 유형 지정도 잠근 뒤 유형을 확인해 방금 삭제된 유형을 붙이지 않는다.
  */
 @DisplayName("직원·기사 유형 변경 동시성")
 class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
@@ -48,6 +50,8 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
     private static final long OTHER_OWNER = 91_002L;
     private static final long BUSY_OWNER = 91_003L;
     private static final long KEY_SHARE_OWNER = 91_004L;
+    private static final long ASSIGN_OWNER = 91_005L;
+    private static final long ASSIGNED_TECHNICIAN = 91_006L;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
 
@@ -62,6 +66,9 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private DeleteMemberCategoryUseCase deleteMemberCategoryUseCase;
+
+    @Autowired
+    private AssignMemberCategoryUseCase assignMemberCategoryUseCase;
 
     @Autowired
     private OrganizationRepository organizationRepository;
@@ -158,6 +165,58 @@ class MemberCategoryLockIntegrationTest extends IntegrationTestSupport {
                         "select name, is_deleted from company_technician_category where id = ?", categoryId))
                 .containsEntry("name", "전기 기사")
                 .containsEntry("is_deleted", true);
+    }
+
+    @Test
+    @DisplayName("삭제가 커밋되기 전에 들어온 세부 유형 지정은 기다렸다가 삭제된 유형으로 거부되고 기사 계약은 유형 없음으로 남는다")
+    void serializesAssignmentAfterConcurrentDelete() throws Exception {
+        long organizationId = createOrganizationUseCase
+                .create(new CreateOrganizationCommand(ASSIGN_OWNER, "동시성 발주사", Industry.HVAC))
+                .organizationId();
+        long categoryId = createMemberCategoryUseCase
+                .create(new CreateMemberCategoryCommand(
+                        ASSIGN_OWNER, organizationId, MemberCategoryKind.TECHNICIAN, "전기 기사", "#3B82F6"))
+                .categoryId();
+        jdbcTemplate.update("""
+                insert into technician
+                    (company_id, member_id, status, joined_at, status_changed_at, created_at, updated_at)
+                values (?, ?, 'ACTIVE', current_timestamp, current_timestamp, current_timestamp, current_timestamp)
+                """, organizationId, ASSIGNED_TECHNICIAN);
+        long technicianId = jdbcTemplate.queryForObject(
+                "select id from technician where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId,
+                ASSIGNED_TECHNICIAN);
+
+        CountDownLatch firstDeleted = new CountDownLatch(1);
+        CountDownLatch commitFirst = new CountDownLatch(1);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        CompletableFuture<Void> deleteRequest = CompletableFuture.runAsync(
+                () -> transaction.executeWithoutResult(status -> {
+                    deleteMemberCategoryUseCase.delete(new DeleteMemberCategoryCommand(
+                            ASSIGN_OWNER, organizationId, MemberCategoryKind.TECHNICIAN, categoryId));
+                    firstDeleted.countDown();
+                    await(commitFirst);
+                }),
+                executor);
+        assertThat(firstDeleted.await(10, TimeUnit.SECONDS)).isTrue();
+
+        CompletableFuture<Void> assignRequest = CompletableFuture.runAsync(
+                () -> assignMemberCategoryUseCase.assign(new AssignMemberCategoryCommand(
+                        ASSIGN_OWNER, organizationId, MemberCategoryKind.TECHNICIAN, technicianId, categoryId)),
+                executor);
+        assertThatThrownBy(() -> assignRequest.get(500, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+
+        commitFirst.countDown();
+        deleteRequest.get(10, TimeUnit.SECONDS);
+        assertThatThrownBy(() -> assignRequest.get(10, TimeUnit.SECONDS))
+                .isInstanceOf(ExecutionException.class)
+                .cause()
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(OrganizationErrorCode.CATEGORY_NOT_FOUND));
+        assertThat(jdbcTemplate.queryForObject(
+                        "select company_technician_category_id from technician where id = ?", Long.class, technicianId))
+                .isNull();
     }
 
     @Test

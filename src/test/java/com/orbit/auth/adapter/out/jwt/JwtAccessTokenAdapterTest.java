@@ -50,6 +50,12 @@ class JwtAccessTokenAdapterTest {
     }
 
     @Test
+    @DisplayName("발급하는 토큰의 유효 기간은 설정한 수명이다")
+    void exposesConfiguredLifetime() {
+        assertThat(adapter.lifetime()).isEqualTo(TTL);
+    }
+
+    @Test
     @DisplayName("발급 시각을 초 단위로 맞춰 토큰 클레임과 같게 한다")
     void truncatesIssuedAtToSeconds() {
         JwtAccessTokenAdapter fractional = new JwtAccessTokenAdapter(PROPERTIES, fixedClock(NOW.plusMillis(567)));

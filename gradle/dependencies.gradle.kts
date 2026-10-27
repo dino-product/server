@@ -22,6 +22,7 @@ dependencies {
     add("implementation", "org.springframework.boot:spring-boot-starter-actuator")
     add("implementation", "org.springframework.modulith:spring-modulith-starter-core")
     add("implementation", "org.springframework.modulith:spring-modulith-events-api")
+    add("implementation", "org.springframework.modulith:spring-modulith-starter-jdbc")
     add("annotationProcessor", "org.springframework.boot:spring-boot-configuration-processor")
 
     add("implementation", "com.querydsl:querydsl-jpa:${version("querydsl")}:jakarta")

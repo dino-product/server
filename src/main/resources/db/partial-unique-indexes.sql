@@ -3,3 +3,5 @@
 -- 직원 유형·기사 유형: 같은 발주사에서 삭제되지 않은 유형끼리만 이름이 유일하다([조직·계정] 정책 §7, 소프트 삭제).
 create unique index uk_company_membership_category_undeleted_name on company_membership_category (company_id, name) where is_deleted = false;
 create unique index uk_company_technician_category_undeleted_name on company_technician_category (company_id, name) where is_deleted = false;
+-- 작업 유형: 같은 발주사에서 삭제되지 않은 작업 유형끼리만 이름이 유일하다([조직·계정] 정책 §7, 소프트 삭제).
+create unique index uk_work_type_undeleted_name on work_type (company_id, name) where is_deleted = false;

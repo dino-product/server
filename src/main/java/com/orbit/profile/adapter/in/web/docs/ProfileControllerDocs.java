@@ -1,0 +1,156 @@
+package com.orbit.profile.adapter.in.web.docs;
+
+import jakarta.validation.constraints.Positive;
+
+import com.orbit.auth.AccountPrincipal;
+import com.orbit.profile.adapter.in.web.AgreeToTermsRequest;
+import com.orbit.profile.adapter.in.web.ChangeMarketingConsentRequest;
+import com.orbit.profile.adapter.in.web.ProfileResponse;
+import com.orbit.profile.adapter.in.web.SaveProfileRequest;
+import com.orbit.profile.adapter.in.web.WithdrawRequest;
+import com.orbit.profile.adapter.in.web.WithdrawalEligibilityResponse;
+import com.orbit.profile.application.error.ProfileErrorCode;
+import com.orbit.shared.error.CommonErrorCode;
+import com.orbit.shared.openapi.ApiErrorCodes;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Profile", description = "가입 프로필·약관 동의와 가입 단계")
+public interface ProfileControllerDocs {
+
+    @Operation(
+            summary = "내 프로필·가입 단계 조회",
+            description = "본인 계정의 가입 상태와 다음 가입 단계, 입력해 둔 이름·연락처를 돌려줍니다. 카카오 인증 직후에는 가입 미완료이며 다음 단계는 "
+                    + "프로필 입력입니다. 가입 미완료 계정이 다시 로그인하면 입력해 둔 이름·연락처로 프로필 입력 화면을 채워 그 화면부터 시작하고, 활성 "
+                    + "계정의 다음 단계가 약관 동의면 개정된 필수 약관의 재동의입니다. 다른 계정의 ID면 PROFILE-002입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content =
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ProfileResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND"})
+    @ApiErrorCodes(enumClass = ProfileErrorCode.class, includes = "PROFILE_NOT_FOUND")
+    ProfileResponse getProfile(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId);
+
+    @Operation(
+            summary = "프로필 입력·수정",
+            description = "이름·연락처를 저장하고 저장 뒤의 가입 단계를 돌려줍니다. 가입 미완료 계정은 다음 단계가 약관 동의가 되고, 가입을 마친 계정은 "
+                    + "계정 정보 수정으로 쓰입니다. 규칙을 어기면 PROFILE-001, 다른 계정의 ID면 PROFILE-002, 같은 프로필을 다른 요청이 먼저 "
+                    + "저장했으면 COMMON-409입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "저장 성공",
+            content =
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ProfileResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND", "CONFLICT"})
+    @ApiErrorCodes(
+            enumClass = ProfileErrorCode.class,
+            includes = {"INVALID_PROFILE_INPUT", "PROFILE_NOT_FOUND"})
+    ProfileResponse saveProfile(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId,
+            SaveProfileRequest request);
+
+    @Operation(
+            summary = "약관 동의·재동의",
+            description = "필수 약관(서비스 이용약관·개인정보 처리방침) 동의와 선택 약관(마케팅 정보 수신) 값을 받아 약관별 현재 버전과 시각을 기록합니다. "
+                    + "프로필을 입력한 가입 미완료 계정은 가입 완료가 되고, 필수 약관이 개정된 활성 계정은 재동의가 됩니다. 프로필 입력 전이면 PROFILE-003, "
+                    + "필수 약관 중 하나라도 동의하지 않으면 PROFILE-004, 다른 계정의 ID면 PROFILE-002, 같은 프로필을 다른 요청이 먼저 저장했으면 "
+                    + "COMMON-409입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "동의 성공",
+            content =
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ProfileResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND", "CONFLICT"})
+    @ApiErrorCodes(
+            enumClass = ProfileErrorCode.class,
+            includes = {"PROFILE_NOT_FOUND", "PROFILE_REQUIRED", "REQUIRED_TERMS_NOT_AGREED"})
+    ProfileResponse agreeToTerms(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId,
+            AgreeToTermsRequest request);
+
+    @Operation(
+            summary = "마케팅 수신 동의 변경",
+            description =
+                    "가입을 마친 계정이 마이페이지에서 마케팅 정보 수신 동의를 켜거나 끕니다. 호출마다 바뀐 값과 시각을 기록합니다. 켜면 마케팅 약관의 시행 버전과 시각을 동의 이력에 남기고, "
+                            + "끄면 변경 시각만 남깁니다. 값이 그대로면 바꾸지 않습니다. 가입을 마치기 전이면 PROFILE-005, 값이 비면 COMMON-400, 다른 "
+                            + "계정의 ID면 PROFILE-002, 같은 프로필을 다른 요청이 먼저 저장했으면 COMMON-409입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "변경 성공",
+            content =
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ProfileResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND", "CONFLICT"})
+    @ApiErrorCodes(
+            enumClass = ProfileErrorCode.class,
+            includes = {"PROFILE_NOT_FOUND", "SIGNUP_NOT_COMPLETED"})
+    ProfileResponse changeMarketingConsent(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId,
+            ChangeMarketingConsentRequest request);
+
+    @Operation(
+            summary = "탈퇴 가능 여부 확인",
+            description = "탈퇴 확인 화면을 띄우기 전에 탈퇴를 막는 조건이 있는지 확인합니다. 막는 사유가 있으면 사유 코드와 먼저 정리해야 할 "
+                    + "대상의 수를 돌려주므로 차단 안내를 보여 줍니다. 확인 뒤 상태가 바뀔 수 있어 탈퇴 요청 때 다시 판정합니다. 다른 계정의 ID면 "
+                    + "PROFILE-002입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "확인 성공",
+            content =
+                    @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WithdrawalEligibilityResponse.class)))
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND"})
+    @ApiErrorCodes(enumClass = ProfileErrorCode.class, includes = "PROFILE_NOT_FOUND")
+    WithdrawalEligibilityResponse checkWithdrawalEligibility(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId);
+
+    @Operation(
+            summary = "회원 탈퇴",
+            description = "본인 계정을 즉시 탈퇴합니다. 이름·연락처를 지우고 탈퇴 상태와 시각, 선택 입력한 사유(자유 텍스트 200자까지, 넘으면 "
+                    + "PROFILE-007)를 남기며, 같은 카카오·Apple 계정으로 다시 로그인하면 "
+                    + "새 계정으로 가입을 시작합니다. 가입 미완료 계정도 탈퇴할 수 있습니다. 성공하면 지금까지 받은 Access Token은 폐기된 토큰과 같은 "
+                    + "404를 받으므로 로그인 화면으로 돌아갑니다. 이미 탈퇴한 계정의 재요청도 204입니다. 탈퇴를 막는 조건이 생겼으면 "
+                    + "PROFILE-006이므로 탈퇴 가능 여부를 다시 확인해 안내합니다. 다른 계정의 ID면 PROFILE-002입니다. 같은 프로필을 다른 "
+                    + "요청이 먼저 저장했으면 COMMON-409이며, 탈퇴를 두 번 보낸 직후라면 앞선 요청으로 이미 탈퇴된 것이므로 로그인 화면으로 "
+                    + "돌아갑니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(responseCode = "204", description = "탈퇴 성공")
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED", "NOT_FOUND", "CONFLICT"})
+    @ApiErrorCodes(
+            enumClass = ProfileErrorCode.class,
+            includes = {"PROFILE_NOT_FOUND", "WITHDRAWAL_BLOCKED", "INVALID_WITHDRAWAL_REASON"})
+    void withdraw(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "본인 계정 식별자", example = "1", required = true) @Positive Long accountId,
+            WithdrawRequest request);
+}

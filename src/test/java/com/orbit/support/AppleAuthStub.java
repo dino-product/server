@@ -57,6 +57,7 @@ public final class AppleAuthStub implements AutoCloseable {
     private final Map<String, String> authorizationCodes = new ConcurrentHashMap<>();
     private final List<Map<String, String>> tokenRequests = new CopyOnWriteArrayList<>();
     private final List<Map<String, String>> revokeRequests = new CopyOnWriteArrayList<>();
+    private final List<String> issuedRefreshTokens = new CopyOnWriteArrayList<>();
     private final AtomicInteger failingTokenRequests = new AtomicInteger();
     private volatile int failureStatus = 500;
     private volatile String failureBody = "{}";
@@ -136,6 +137,11 @@ public final class AppleAuthStub implements AutoCloseable {
         return List.copyOf(tokenRequests);
     }
 
+    /** 토큰 엔드포인트가 발급한 refresh token을 발급 순서대로 돌려준다. */
+    public List<String> issuedRefreshTokens() {
+        return List.copyOf(issuedRefreshTokens);
+    }
+
     public List<Map<String, String>> revokeRequests() {
         return List.copyOf(revokeRequests);
     }
@@ -171,8 +177,10 @@ public final class AppleAuthStub implements AutoCloseable {
             respondError(exchange, "invalid_grant");
             return;
         }
+        String refreshToken = "apple-refresh-" + UUID.randomUUID();
+        issuedRefreshTokens.add(refreshToken);
         String body = "{\"access_token\":\"apple-access-" + UUID.randomUUID() + "\",\"token_type\":\"Bearer\","
-                + "\"expires_in\":3600,\"refresh_token\":\"apple-refresh-" + UUID.randomUUID() + "\","
+                + "\"expires_in\":3600,\"refresh_token\":\"" + refreshToken + "\","
                 + "\"id_token\":\"" + idToken(subject, null, form.get("client_id")) + "\"}";
         respond(exchange, 200, body.getBytes(StandardCharsets.UTF_8));
     }

@@ -10,26 +10,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.MembershipId;
 import com.orbit.organization.domain.OrganizationId;
 import com.orbit.organization.domain.TechnicianId;
-import com.orbit.support.TestcontainersConfiguration;
+import com.orbit.support.PersistenceAdapterTestSupport;
 
 /** 비활성 소속·기사 계약을 만드는 유즈케이스가 아직 없어 소속·기사 계약 행은 SQL로 넣는다. */
-@DataJpaTest
-@ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(TestcontainersConfiguration.class)
-@Testcontainers(disabledWithoutDocker = true)
 @DisplayName("활성 직원 소속·기사 계약의 계정 조회(PostgreSQL)")
-class MemberAccountQueryAdapterTest {
+class MemberAccountQueryAdapterTest extends PersistenceAdapterTestSupport {
 
     private static final Instant CREATED_AT = Instant.parse("2026-10-01T00:00:00.123456Z");
     private static final Instant CHANGED_AT = Instant.parse("2026-10-05T00:00:00.654321Z");
@@ -149,15 +139,17 @@ class MemberAccountQueryAdapterTest {
         entityManager
                 .createNativeQuery("""
                         insert into technician
-                            (company_id, member_id, status, status_changed_at, created_at, updated_at)
-                        values (?, ?, ?, ?, ?, ?)
+                            (company_id, member_id, status,
+                             joined_at, status_changed_at, created_at, updated_at)
+                        values (?, ?, ?, ?, ?, ?, ?)
                         """)
                 .setParameter(1, organizationId.value())
                 .setParameter(2, accountId.value())
                 .setParameter(3, status)
-                .setParameter(4, CHANGED_AT)
-                .setParameter(5, CREATED_AT)
-                .setParameter(6, CHANGED_AT)
+                .setParameter(4, CREATED_AT)
+                .setParameter(5, CHANGED_AT)
+                .setParameter(6, CREATED_AT)
+                .setParameter(7, CHANGED_AT)
                 .executeUpdate();
         return lastId("technician");
     }

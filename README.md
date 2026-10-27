@@ -21,17 +21,17 @@ set -a && source .env && set +a
 ./gradlew bootRun
 ```
 
-활성 프로필은 자동 선택하지 않습니다. 위 명령은 `.env`의 `SPRING_PROFILES_ACTIVE=local`을 적용합니다. 로컬/테스트는 `create-drop`이므로 보존할 데이터를 넣지 마세요. 카카오 로그인을 실제로 쓰려면 `.env`의 `KAKAO_ALLOWED_AUDIENCES`를 카카오 개발자 콘솔의 앱 키로, `AUTH_JWT_SECRET`을 무작위 값으로 바꿉니다. Apple 로그인은 Apple 개발자 콘솔 값(클라이언트 ID 목록, Team ID·키 ID·`.p8` 개인키, Services ID와 거기에 등록한 HTTPS 콜백 주소)과 직접 정하는 값(`openssl rand -base64 32`로 만든 refresh token 암호화 키, 웹·Android 복귀 주소)으로 `APPLE_*`를 바꿉니다. 자리표시자로도 기동은 되지만 Apple 토큰 교환은 실패하고, 웹·Android 흐름은 Apple이 HTTPS 공개 도메인의 콜백만 받으므로 로컬에서는 HTTPS 터널 등이 필요합니다([Auth 설정](docs/domain/auth.md#설정)).
+활성 프로필은 자동 선택하지 않습니다. 위 명령은 `.env`의 `SPRING_PROFILES_ACTIVE=local`을 적용합니다. 로컬/테스트는 `create-drop`이므로 보존할 데이터를 넣지 마세요. 카카오 로그인을 실제로 쓰려면 `.env`의 `KAKAO_ALLOWED_AUDIENCES`를 카카오 개발자 콘솔의 앱 키로, `AUTH_JWT_SECRET`을 무작위 값으로 바꿉니다. `KAKAO_ADMIN_KEY`는 같은 카카오 앱의 서비스 앱 어드민 키로, 탈퇴한 계정의 카카오 연결을 서버가 끊을 때 씁니다. 기본값이 없는 필수 값이라 비우면 기동에 실패합니다. 자리표시자로도 기동은 되지만 카카오 연결 끊기는 실패해 재시도하다 7일 뒤 포기합니다. 실제 키는 커밋하지 않습니다. Apple 로그인은 Apple 개발자 콘솔 값(클라이언트 ID 목록, Team ID·키 ID·`.p8` 개인키, Services ID와 거기에 등록한 HTTPS 콜백 주소)과 직접 정하는 값(`openssl rand -base64 32`로 만든 refresh token 암호화 키, 웹·Android 복귀 주소)으로 `APPLE_*`를 바꿉니다. 자리표시자로도 기동은 되지만 Apple 토큰 교환은 실패하고, 웹·Android 흐름은 Apple이 HTTPS 공개 도메인의 콜백만 받으므로 로컬에서는 HTTPS 터널 등이 필요합니다([Auth 설정](docs/domain/auth.md#설정)).
 
 사진 업로드(완료보고·현장 사진)는 Compose의 LocalStack(S3 호환, `http://localhost:4566`)에 직접 올라가며 버킷 `orbit-media-local`은 컨테이너가 준비될 때 만들어집니다. 발급받은 업로드 주소로 `PUT`할 때는 응답의 `requiredHeaders`를 그대로 붙입니다([ADR-006](docs/adr/006-file-storage.md)).
 
 기본 포트: API `8080`, Actuator `9090`.
 
 - OpenAPI UI: `http://localhost:8080/docs`
-- Health: `http://localhost:9090/actuator/health`
+- Health: `http://localhost:9090/actuator/health` (probe: `/actuator/health/liveness`, `/actuator/health/readiness`)
 - Prometheus: `http://localhost:9090/actuator/prometheus`
 
-예제 API·카카오·Apple 로그인 경로·Health는 공개이고 그 밖의 API와 Prometheus·Info는 Bearer Access Token이 필요합니다. 실행 전 [Auth의 인증 지원 범위](docs/domain/auth.md#책임과-범위)를 확인하고 운영 수집기의 인증·접근 정책을 구성해야 합니다.
+예제 API·카카오·Apple 로그인 경로·Health·Prometheus는 공개이고 그 밖의 API와 Info는 Bearer Access Token이 필요합니다. Health·Prometheus는 Actuator 포트에만 있으며, 운영에서는 이 포트를 외부로 라우팅하지 않고 클러스터 안의 수집기·probe만 접근하게 둡니다([접근 정책](docs/adr/001-backend-architecture.md#인증과-계정)). 실행 전 [Auth의 인증 지원 범위](docs/domain/auth.md#책임과-범위)를 확인합니다.
 
 ## 예제 API
 

@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
+import org.springframework.boot.micrometer.metrics.autoconfigure.export.prometheus.PrometheusScrapeEndpoint;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -44,8 +45,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         // 모듈 확장점은 공통 공개 경로와 anyRequest().authenticated()보다 먼저 적용해 매처 순서를 보장한다.
         customizers.orderedStream().forEach(customizer -> customizer.customize(http));
+        // health·prometheus는 관리 포트에만 있고, 관리 포트는 외부로 라우팅하지 않는 전제로 인증 없이 연다(ADR-001 인증과 계정).
         http.authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(EndpointRequest.to(HealthEndpoint.class))
+                        .requestMatchers(EndpointRequest.to(HealthEndpoint.class, PrometheusScrapeEndpoint.class))
                         .permitAll()
                         .requestMatchers(
                                 "/api/v1/users/**",
