@@ -26,6 +26,7 @@ import com.orbit.media.application.port.out.PresignedUpload;
 import com.orbit.media.application.port.out.StoredObject;
 import com.orbit.support.LocalStackTestSupport;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Tag;
@@ -52,7 +53,7 @@ class S3ObjectStorageAdapterTest {
         credentials = configuration.mediaCredentialsProvider(properties);
         s3 = configuration.mediaS3Client(properties, credentials);
         presigner = configuration.mediaS3Presigner(properties, credentials);
-        adapter = new S3ObjectStorageAdapter(s3, presigner, properties);
+        adapter = new S3ObjectStorageAdapter(s3, presigner, properties, new SimpleMeterRegistry());
     }
 
     @AfterAll
@@ -127,7 +128,8 @@ class S3ObjectStorageAdapterTest {
         S3StorageProperties unreachable = properties(URI.create("http://127.0.0.1:9"));
         S3ClientConfiguration configuration = new S3ClientConfiguration();
         try (S3Client client = configuration.mediaS3Client(unreachable, credentials)) {
-            S3ObjectStorageAdapter down = new S3ObjectStorageAdapter(client, presigner, unreachable);
+            S3ObjectStorageAdapter down =
+                    new S3ObjectStorageAdapter(client, presigner, unreachable, new SimpleMeterRegistry());
             assertThatThrownBy(() -> down.find(key())).isInstanceOf(ObjectStorageUnavailableException.class);
             assertThatThrownBy(() -> down.copy(key(), key())).isInstanceOf(ObjectStorageUnavailableException.class);
             assertThatThrownBy(() -> down.markExpired(key())).isInstanceOf(ObjectStorageUnavailableException.class);

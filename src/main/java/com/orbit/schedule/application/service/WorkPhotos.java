@@ -96,7 +96,8 @@ final class WorkPhotos {
         try {
             return mediaFiles.stage(new StageRequest(organizationIdValue, accountId, purpose, photoIds, owner));
         } catch (MediaStorageUnavailableException exception) {
-            throw new BusinessException(ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE);
+            // 원인(저장소 작업·상태 코드)은 저장소 어댑터가 경고로 남기고, 여기서는 원인 예외로 이어 둔다.
+            throw new BusinessException(ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE, exception);
         }
     }
 

@@ -9,39 +9,107 @@ import static org.mockito.Mockito.mock;
 import java.net.URI;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import com.orbit.media.application.port.out.ObjectStorageUnavailableException;
 
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
-/** 저장소 응답 상태의 해석. LocalStack은 IAM을 검사하지 않아 403(권한 범위 밖의 없는 키)을 만들 수 없어 클라이언트를 대체한다. */
-@DisplayName("S3 저장소 어댑터의 응답 상태 해석")
+/**
+ * 저장소 응답 상태의 해석과 장애 기록(로그·지표). LocalStack은 IAM을 검사하지 않아 403을 만들 수 없고 5xx·제한 시간 초과도 재현하기 어려워 클라이언트를 대체한다.
+ */
+@DisplayName("S3 저장소 어댑터의 응답 상태 해석과 장애 기록")
+@ExtendWith(OutputCaptureExtension.class)
 class S3ObjectStorageAdapterStatusTest {
+
+    private static final String KEY = "incoming/0b6a1f7e-2a4c-4f6e-9d3b-1c2d3e4f5a61";
+
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
+    private final S3Client s3 = mock(S3Client.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
     @ParameterizedTest
     @ValueSource(ints = {403, 404})
-    @DisplayName("없는 키의 HeadObject가 403이나 404면 아직 올라오지 않은 것으로 본다")
-    void missingObject(int status) {
-        assertThat(adapterAnswering(status).find("incoming/x")).isEmpty();
+    @DisplayName("없는 키의 HeadObject가 403이나 404면 아직 올라오지 않은 것으로 보고 결과 missing으로 기록한다")
+    void missingObject(int status, CapturedOutput output) {
+        answering(S3Exception.builder().statusCode(status).build());
+
+        assertThat(adapter().find(KEY)).isEmpty();
+
+        assertThat(calls("head_object", "missing", String.valueOf(status)).count())
+                .isEqualTo(1);
+        assertThat(output).doesNotContain("media storage call failed");
     }
 
     @ParameterizedTest
     @ValueSource(ints = {400, 500, 503})
-    @DisplayName("그 밖의 오류 응답은 저장소 장애다")
-    void otherErrors(int status) {
-        assertThatThrownBy(() -> adapterAnswering(status).find("incoming/x"))
-                .isInstanceOf(ObjectStorageUnavailableException.class);
+    @DisplayName("그 밖의 오류 응답은 원인을 이은 저장소 장애이고, 작업·키·상태 코드·S3 오류 코드를 경고와 지표로 남긴다")
+    void otherErrors(int status, CapturedOutput output) {
+        S3Exception error = (S3Exception) S3Exception.builder()
+                .statusCode(status)
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("SlowDown").build())
+                .build();
+        answering(error);
+
+        assertThatThrownBy(() -> adapter().find(KEY))
+                .isInstanceOf(ObjectStorageUnavailableException.class)
+                .hasCause(error);
+
+        assertThat(calls("head_object", "error", String.valueOf(status)).count())
+                .isEqualTo(1);
+        assertThat(output).contains("operation=head_object", "key=" + KEY, "status=" + status, "errorCode=SlowDown");
     }
 
-    private static S3ObjectStorageAdapter adapterAnswering(int status) {
-        S3Client s3 = mock(S3Client.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        // 소비자를 받는 오버로드는 실제 기본 메서드로 두고, 요청 객체를 받는 호출만 대체한다.
-        doThrow(S3Exception.builder().statusCode(status).build()).when(s3).headObject(any(HeadObjectRequest.class));
+    @Test
+    @DisplayName("오류 응답 없이 실패하면(제한 시간 초과) 상태 코드 none으로 기록한다")
+    void timeout(CapturedOutput output) {
+        answering(ApiCallTimeoutException.create(2_000));
+
+        assertThatThrownBy(() -> adapter().find(KEY)).isInstanceOf(ObjectStorageUnavailableException.class);
+
+        assertThat(calls("head_object", "error", "none").count()).isEqualTo(1);
+        assertThat(output).contains("operation=head_object", "status=none");
+    }
+
+    @Test
+    @DisplayName("성공한 호출은 결과 success, 상태 코드 none으로 기록한다")
+    void success() {
+        org.mockito.Mockito.doReturn(HeadObjectResponse.builder()
+                        .contentLength(16L)
+                        .contentType("image/png")
+                        .build())
+                .when(s3)
+                .headObject(any(HeadObjectRequest.class));
+
+        assertThat(adapter().find(KEY)).isPresent();
+
+        assertThat(calls("head_object", "success", "none").count()).isEqualTo(1);
+    }
+
+    /** 소비자를 받는 오버로드는 실제 기본 메서드로 두고, 요청 객체를 받는 호출만 대체한다. */
+    private void answering(Throwable error) {
+        doThrow(error).when(s3).headObject(any(HeadObjectRequest.class));
+    }
+
+    private Timer calls(String operation, String outcome, String status) {
+        return meters.get(S3ObjectStorageAdapter.CALLS_METRIC)
+                .tags("operation", operation, "outcome", outcome, "status", status)
+                .timer();
+    }
+
+    private S3ObjectStorageAdapter adapter() {
         S3StorageProperties properties = new S3StorageProperties(
                 "bucket",
                 "ap-northeast-2",
@@ -53,6 +121,6 @@ class S3ObjectStorageAdapterStatusTest {
                 null,
                 null,
                 null);
-        return new S3ObjectStorageAdapter(s3, mock(S3Presigner.class), properties);
+        return new S3ObjectStorageAdapter(s3, mock(S3Presigner.class), properties, meters);
     }
 }

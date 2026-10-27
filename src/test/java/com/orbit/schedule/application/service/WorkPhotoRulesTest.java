@@ -18,6 +18,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import com.orbit.media.MediaStorageUnavailableException;
 import com.orbit.media.StageRequest;
 import com.orbit.media.StagedFiles.Reason;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
@@ -130,7 +131,7 @@ class WorkPhotoRulesTest {
         }
 
         @Test
-        @DisplayName("저장소에 닿지 못하면 503 SCHEDULE-023이고 작업을 만들지 않는다")
+        @DisplayName("저장소에 닿지 못하면 원인을 이은 503 SCHEDULE-023이고 작업을 만들지 않는다")
         void storageDown() {
             fixture.givenManager();
             fixture.mediaFiles.givenStorageDown();
@@ -138,6 +139,9 @@ class WorkPhotoRulesTest {
             fixture.assertRejected(
                     () -> fixture.createWorkService().create(create(List.of(PHOTO_1), false)),
                     ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE);
+            assertThat(org.assertj.core.api.Assertions.catchThrowable(
+                            () -> fixture.createWorkService().create(create(List.of(PHOTO_1), false))))
+                    .hasCauseInstanceOf(MediaStorageUnavailableException.class);
         }
 
         @Test
