@@ -87,7 +87,7 @@ class S3ObjectStorageAdapterStatusTest {
         doThrow(error).when(s3).copyObject(any(CopyObjectRequest.class));
 
         assertThat(adapter().readFirstBytes(KEY, 16, "\"etag\"")).isEmpty();
-        assertThat(adapter().copy(KEY, "media/1/x", "\"etag\"")).isFalse();
+        assertThat(adapter().copy(KEY, "media/1/x", "\"etag\"", "image/png")).isFalse();
 
         assertThat(calls("get_object_range", "missing", String.valueOf(status)).count())
                 .isEqualTo(1);
@@ -105,7 +105,7 @@ class S3ObjectStorageAdapterStatusTest {
 
         assertThatThrownBy(() -> adapter().readFirstBytes(KEY, 16, "\"etag\""))
                 .isInstanceOf(ObjectStorageUnavailableException.class);
-        assertThatThrownBy(() -> adapter().copy(KEY, "media/1/x", "\"etag\""))
+        assertThatThrownBy(() -> adapter().copy(KEY, "media/1/x", "\"etag\"", "image/png"))
                 .isInstanceOf(ObjectStorageUnavailableException.class);
         assertThat(calls("get_object_range", "error", "500").count()).isEqualTo(1);
         assertThat(calls("copy_object", "error", "500").count()).isEqualTo(1);

@@ -142,8 +142,9 @@ public class MediaFilesService implements MediaFiles {
                     return rejected(request, new FileRejection(file.id().toString(), reason.get()));
                 }
                 // 확인한 내용(ETag)일 때만 복사한다. 그 사이 다시 올리거나 지워졌으면 업로드를 마치지 않은 것으로 본다.
+                // 내려받기 응답의 형식은 업로더가 붙인 값이 아니라 발급 때 기록하고 확인한 형식으로 둔다.
                 if (!storage.copy(
-                        file.incomingKey(), file.mediaKey(), stored.get().eTag())) {
+                        file.incomingKey(), file.mediaKey(), stored.get().eTag(), file.contentType())) {
                     return rejected(request, new FileRejection(file.id().toString(), Reason.NOT_UPLOADED));
                 }
                 copied.add(file.id().toString());

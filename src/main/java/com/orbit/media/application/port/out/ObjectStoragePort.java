@@ -22,9 +22,12 @@ public interface ObjectStoragePort {
 
     /**
      * 같은 저장소 안에서 복사한다. 원본이 {@link #find}로 확인한 내용({@code eTag})일 때만 복사하고, 그 사이 지워졌거나 다른 내용으로 바뀌었으면 복사하지 않고
-     * false다. 대상이 있으면 덮어쓴다(같은 원본의 재시도는 결과가 같다).
+     * false다. 대상이 있으면 덮어쓴다(같은 원본의 재시도는 결과가 같다). 대상의 메타데이터는 원본(업로더가 붙인 헤더)을 쓰지 않고 {@code contentType}과 저장소가
+     * 정한 캐시·표시 방식으로 고정한다.
+     *
+     * @param contentType 대상에 둘 형식(발급 때 기록한 값)
      */
-    boolean copy(String sourceKey, String targetKey, String eTag);
+    boolean copy(String sourceKey, String targetKey, String eTag, String contentType);
 
     /** 객체에 만료 표시(태그 {@code status=expired})를 남긴다. */
     void markExpired(String key);

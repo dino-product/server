@@ -61,6 +61,10 @@ public class FakeObjectStorage implements ObjectStoragePort {
         return objects.containsKey(key);
     }
 
+    public String contentType(String key) {
+        return objects.get(key).contentType();
+    }
+
     public Set<String> expired() {
         return Set.copyOf(expired);
     }
@@ -98,12 +102,13 @@ public class FakeObjectStorage implements ObjectStoragePort {
         return read;
     }
 
+    /** S3처럼 대상의 형식은 원본 메타데이터가 아니라 넘긴 형식으로 바꾼다. */
     @Override
-    public boolean copy(String sourceKey, String targetKey, String eTag) {
+    public boolean copy(String sourceKey, String targetKey, String eTag, String contentType) {
         String call = "copy " + sourceKey + " " + targetKey;
         call(call);
         Optional<Stored> source = current(sourceKey, eTag);
-        source.ifPresent(stored -> objects.put(targetKey, stored));
+        source.ifPresent(stored -> objects.put(targetKey, new Stored(stored.bytes(), contentType, stored.eTag())));
         after(call);
         return source.isPresent();
     }

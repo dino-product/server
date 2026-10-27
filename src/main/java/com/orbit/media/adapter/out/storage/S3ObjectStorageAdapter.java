@@ -22,6 +22,7 @@ import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.MetadataDirective;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
@@ -47,6 +48,7 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
     private static final int NOT_FOUND = 404;
     private static final int PRECONDITION_FAILED = 412;
     private static final String NO_STATUS = "none";
+    private static final String INLINE = "inline";
 
     /** 저장소 작업 종류(지표 태그·로그 값). */
     enum Operation {
@@ -133,9 +135,16 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
                 .asByteArray());
     }
 
-    /** 원본이 지워졌으면 404, 확인한 뒤 다른 내용으로 바뀌었으면 {@code x-amz-copy-source-if-match}가 맞지 않아 412다. 둘 다 복사하지 않는다. */
+    /**
+     * 원본이 지워졌으면 404, 확인한 뒤 다른 내용으로 바뀌었으면 {@code x-amz-copy-source-if-match}가 맞지 않아 412다. 둘 다 복사하지 않는다.
+     *
+     * <p>대상 메타데이터는 원본을 복사하지 않고 바꾼다({@code REPLACE}). presigned PUT은 서명한 {@code Content-Type}·{@code Content-Length}
+     * 밖의 헤더({@code Content-Disposition}·{@code Cache-Control}·{@code Content-Language} 등)도 업로더가 붙여 저장할 수 있어, 그대로 두면
+     * 내려받기 응답에 업로더가 고른 헤더가 쓰인다. 그래서 형식은 발급 때 기록하고 확인한 값, 표시는 {@code inline}, 캐시는 {@link #cacheControl()}로
+     * 고정하고 사용자 메타데이터는 버린다.
+     */
     @Override
-    public boolean copy(String sourceKey, String targetKey, String eTag) {
+    public boolean copy(String sourceKey, String targetKey, String eTag, String contentType) {
         return call(
                         Operation.COPY_OBJECT,
                         sourceKey,
@@ -144,7 +153,11 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
                                 .sourceKey(sourceKey)
                                 .copySourceIfMatch(eTag)
                                 .destinationBucket(properties.bucket())
-                                .destinationKey(targetKey)))
+                                .destinationKey(targetKey)
+                                .metadataDirective(MetadataDirective.REPLACE)
+                                .contentType(contentType)
+                                .cacheControl(cacheControl())
+                                .contentDisposition(INLINE)))
                 .isPresent();
     }
 
@@ -168,6 +181,15 @@ class S3ObjectStorageAdapter implements ObjectStoragePort {
                         .url()
                         .toString())
                 .orElseThrow();
+    }
+
+    /**
+     * 연결한 사진의 {@code Cache-Control}. 사진은 권한 확인을 거친 서명 주소로만 열리므로 공유 캐시(프록시·CDN)가 저장하지 않게 {@code private}으로 두고, 브라우저
+     * 캐시는 그 주소가 유효한 동안({@code app.media.storage.download-url-ttl}, 기본 10분)만 쓴다. 서명 주소는 발급마다 달라 그보다 오래 둬도 다시 쓰이지 않고,
+     * 만료된 주소의 응답을 브라우저가 계속 보여 주는 기간만 길어진다. 복사할 때의 값으로 고정되므로 설정을 바꾸면 그 뒤에 연결한 사진부터 적용된다.
+     */
+    private String cacheControl() {
+        return "private, max-age=" + properties.downloadUrlTtl().toSeconds();
     }
 
     /**

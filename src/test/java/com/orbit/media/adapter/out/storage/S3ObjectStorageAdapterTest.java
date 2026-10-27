@@ -29,6 +29,7 @@ import com.orbit.support.LocalStackTestSupport;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
@@ -93,7 +94,7 @@ class S3ObjectStorageAdapterTest {
         assertThat(adapter.readFirstBytes(key, 64, stored.eTag())).hasValue(PNG);
 
         String copied = key();
-        assertThat(adapter.copy(key, copied, stored.eTag())).isTrue();
+        assertThat(adapter.copy(key, copied, stored.eTag(), "image/png")).isTrue();
         assertThat(adapter.find(copied)).hasValueSatisfying(object -> {
             assertThat(object.sizeBytes()).isEqualTo(PNG.length);
             assertThat(object.contentType()).isEqualTo("image/png");
@@ -131,13 +132,48 @@ class S3ObjectStorageAdapterTest {
         String target = key();
 
         assertThat(adapter.readFirstBytes(key, 16, checked.eTag())).isEmpty();
-        assertThat(adapter.copy(key, target, checked.eTag())).isFalse();
+        assertThat(adapter.copy(key, target, checked.eTag(), "image/png")).isFalse();
         assertThat(adapter.find(target)).isEmpty();
 
         String current = adapter.find(key).orElseThrow().eTag();
         assertThat(current).isNotEqualTo(checked.eTag());
         assertThat(adapter.readFirstBytes(key, 16, current)).hasValue(replaced);
-        assertThat(adapter.copy(key, target, current)).isTrue();
+        assertThat(adapter.copy(key, target, current, "image/png")).isTrue();
+    }
+
+    @Test
+    @DisplayName("업로더가 서명 밖 헤더를 붙여 올려도 복사한 객체는 기록한 형식·정한 캐시·inline 표시로만 내려간다")
+    void copyReplacesUploaderMetadata() throws Exception {
+        String key = key();
+        PresignedUpload upload = adapter.presignUpload(key, "image/png", PNG.length);
+        Map<String, String> unsigned = Map.of(
+                "Content-Disposition", "attachment; filename=\"photo.html\"",
+                "Cache-Control", "public, max-age=31536000",
+                "Content-Language", "ko");
+        assertThat(put(upload, "image/png", PNG, unsigned).statusCode()).isEqualTo(200);
+        HeadObjectResponse uploaded = s3.headObject(
+                request -> request.bucket(LocalStackTestSupport.BUCKET).key(key));
+        // 서명하지 않은 헤더도 저장된다(그래서 복사할 때 덮어써야 한다).
+        assertThat(uploaded.contentDisposition()).isEqualTo("attachment; filename=\"photo.html\"");
+        assertThat(uploaded.cacheControl()).isEqualTo("public, max-age=31536000");
+
+        String copied = "media/1/" + UUID.randomUUID();
+        assertThat(adapter.copy(key, copied, uploaded.eTag(), "image/png")).isTrue();
+
+        HeadObjectResponse target = s3.headObject(
+                request -> request.bucket(LocalStackTestSupport.BUCKET).key(copied));
+        assertThat(target.contentType()).isEqualTo("image/png");
+        assertThat(target.cacheControl()).isEqualTo("private, max-age=600");
+        assertThat(target.contentDisposition()).isEqualTo("inline");
+        assertThat(target.contentLanguage()).isNull();
+        HttpResponse<byte[]> download = http.send(
+                HttpRequest.newBuilder(URI.create(adapter.presignDownload(copied)))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertThat(download.headers().firstValue("Content-Type")).hasValue("image/png");
+        assertThat(download.headers().firstValue("Cache-Control")).hasValue("private, max-age=600");
+        assertThat(download.headers().firstValue("Content-Disposition")).hasValue("inline");
     }
 
     @Test
@@ -148,7 +184,7 @@ class S3ObjectStorageAdapterTest {
 
         assertThat(adapter.readFirstBytes(missing, 16, "\"0123456789abcdef0123456789abcdef\""))
                 .isEmpty();
-        assertThat(adapter.copy(missing, target, "\"0123456789abcdef0123456789abcdef\""))
+        assertThat(adapter.copy(missing, target, "\"0123456789abcdef0123456789abcdef\"", "image/png"))
                 .isFalse();
         assertThat(adapter.find(target)).isEmpty();
     }
@@ -176,7 +212,7 @@ class S3ObjectStorageAdapterTest {
             S3ObjectStorageAdapter down =
                     new S3ObjectStorageAdapter(client, presigner, unreachable, new SimpleMeterRegistry());
             assertThatThrownBy(() -> down.find(key())).isInstanceOf(ObjectStorageUnavailableException.class);
-            assertThatThrownBy(() -> down.copy(key(), key(), "\"etag\""))
+            assertThatThrownBy(() -> down.copy(key(), key(), "\"etag\"", "image/png"))
                     .isInstanceOf(ObjectStorageUnavailableException.class);
             assertThatThrownBy(() -> down.markExpired(key())).isInstanceOf(ObjectStorageUnavailableException.class);
         }
@@ -184,8 +220,16 @@ class S3ObjectStorageAdapterTest {
 
     private HttpResponse<Void> put(PresignedUpload upload, String contentType, byte[] body)
             throws IOException, InterruptedException {
+        return put(upload, contentType, body, Map.of());
+    }
+
+    /** {@code extraHeaders}는 서명하지 않은 헤더로 함께 보낸다. */
+    private HttpResponse<Void> put(
+            PresignedUpload upload, String contentType, byte[] body, Map<String, String> extraHeaders)
+            throws IOException, InterruptedException {
         HttpRequest.Builder request =
                 HttpRequest.newBuilder(URI.create(upload.url())).PUT(HttpRequest.BodyPublishers.ofByteArray(body));
+        extraHeaders.forEach(request::header);
         // Content-Length는 HttpClient가 본문 길이로 직접 붙인다(제한 헤더).
         for (Map.Entry<String, String> header : upload.headers().entrySet()) {
             if (header.getKey().equalsIgnoreCase("content-type")) {

@@ -125,6 +125,18 @@ class MediaFilesServiceTest {
         }
 
         @Test
+        @DisplayName("저장된 형식 표기가 달라도(대소문자·매개변수) 복사한 객체는 발급 때 기록한 형식으로 둔다")
+        void copiesWithRecordedContentType() {
+            String fileId = issued("image/jpeg", JPEG.length);
+            storage.put("incoming/" + fileId, "IMAGE/JPEG; charset=binary", JPEG);
+
+            StagedFiles staged = service.stage(stageRequest(List.of(fileId), null));
+
+            assertThat(staged.copied()).containsExactly(fileId);
+            assertThat(storage.contentType("media/1/" + fileId)).isEqualTo("image/jpeg");
+        }
+
+        @Test
         @DisplayName("빈 목록은 저장소를 부르지 않는다")
         void emptyListDoesNothing() {
             StagedFiles staged = service.stage(stageRequest(List.of(), null));
