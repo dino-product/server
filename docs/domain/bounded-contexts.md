@@ -120,7 +120,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 중 — [notification 문서](notification.md#notification) |
 | 기획 원본 | [알림] 정책 — 트리거 §4(단일 원본), 채널 §5, 알림센터·설정 §6·§6.1, 상태 코드 §8, 권한 §9 |
 | 소유 개념 | **Notification**, **NotificationSetting** — 상세는 notification 문서 |
-| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `realtime` ← 이벤트 발행(알림 저장·읽음) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
+| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `profile` ← 이벤트 구독(`AccountWithdrawn`, 탈퇴한 계정의 앱 푸시 기기 삭제, Conformist) · `realtime` ← 이벤트 발행(알림 저장·읽음) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
 
 <a id="profile"></a>
 ### 5. 프로필 컨텍스트 (`profile`) — Generic Subdomain
@@ -131,7 +131,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 — 프로필 입력·수정, 약관 동의·재동의, 마케팅 수신 동의 변경, 탈퇴 가능 여부 확인·탈퇴, 가입 공통 검사, 이름 조회 계약. 프로필 사진은 미착수. 작업 지침은 [profile 지침](../../src/main/java/com/orbit/profile/AGENTS.md), 구현 결정·차이는 [Profile](profile.md#profile) |
 | 기획 원본 | [조직·계정] §5·§5.1·§9·§11 |
 | 소유 애그리게잇 | **Profile**(Root) — auth가 발급한 계정 식별자(값으로만 보관)·이름·연락처·가입 상태·가입일·탈퇴 시각·탈퇴 사유·마케팅 동의, 약관 동의 이력(종류·버전·시각, 추가만). 탈퇴하면 이름·연락처를 지움 |
-| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, 탈퇴 서비스가 `AccountClosure` 호출, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 다른 모듈 ← 이름 조회 계약 `ProfileLookup` 제공(소비자: organization 승인 대기 목록의 신청자 이름·참여 인원 목록의 이름, 계획: schedule 기사 이름, HM-288) · `organization`·`schedule` ← 요구 인터페이스 `WithdrawalBlocker` 구현(탈퇴 차단 판정)과 이벤트 `AccountWithdrawn` 구독(탈퇴 뒤처리) — 연결 예정 HM-319·HM-320 |
+| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, 탈퇴 서비스가 `AccountClosure` 호출, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 다른 모듈 ← 이름 조회 계약 `ProfileLookup` 제공(소비자: organization 승인 대기 목록의 신청자 이름·참여 인원 목록의 이름, 계획: schedule 기사 이름, HM-288) · `organization`·`schedule` ← 요구 인터페이스 `WithdrawalBlocker` 구현(탈퇴 차단 판정)과 이벤트 `AccountWithdrawn` 구독(탈퇴 뒤처리) — 연결 예정 HM-319·HM-320 · `notification` ← 이벤트 `AccountWithdrawn` 구독(앱 푸시 기기 삭제) |
 
 ---
 
