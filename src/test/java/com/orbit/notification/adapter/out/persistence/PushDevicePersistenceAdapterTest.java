@@ -13,7 +13,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,20 +38,13 @@ class PushDevicePersistenceAdapterTest extends PersistenceAdapterTestSupport {
     private static final Instant SECOND = Instant.parse("2026-10-28T02:00:00Z");
 
     @Autowired
-    private SpringDataPushDeviceRepository repository;
+    private PushDevicePersistenceAdapter adapter;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    private PushDevicePersistenceAdapter adapter;
-
-    @BeforeEach
-    void setUp() {
-        adapter = new PushDevicePersistenceAdapter(repository);
-    }
 
     @Test
     @DisplayName("새 토큰은 계정의 기기로 저장하고 같은 토큰을 다시 등록하면 같은 행을 바꾼다")
@@ -122,6 +114,28 @@ class PushDevicePersistenceAdapterTest extends PersistenceAdapterTestSupport {
         assertThat(inTx(() -> adapter.deleteOwnedBy(deviceId, 9_221L))).isTrue();
         assertThat(rowsWithToken(token)).isZero();
         assertThat(inTx(() -> adapter.deleteOwnedBy(deviceId, 9_221L))).isFalse();
+    }
+
+    @Test
+    @DisplayName("트랜잭션 없이도 계정의 기기를 등록 순서로 읽고 받지 않는 토큰의 기기를 지운다")
+    void listsAndRemovesDevicesWithoutCallerTransaction() {
+        String first = newToken();
+        String second = newToken();
+        inTx(() -> adapter.register(PushDevice.register(9_231L, PushPlatform.IOS, first, FIRST)));
+        inTx(() -> adapter.register(PushDevice.register(9_231L, PushPlatform.ANDROID, second, SECOND)));
+        inTx(() -> adapter.register(PushDevice.register(9_232L, PushPlatform.ANDROID, newToken(), SECOND)));
+
+        assertThat(adapter.listByAccountId(9_231L))
+                .extracting(PushDevice::token)
+                .containsExactly(first, second);
+
+        adapter.deleteByToken(first);
+        adapter.deleteByToken(first);
+
+        assertThat(adapter.listByAccountId(9_231L))
+                .extracting(PushDevice::token)
+                .containsExactly(second);
+        assertThat(adapter.listByAccountId(9_232L)).hasSize(1);
     }
 
     private int rowsWithToken(String token) {

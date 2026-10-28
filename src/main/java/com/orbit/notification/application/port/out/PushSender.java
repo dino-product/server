@@ -1,10 +1,10 @@
 package com.orbit.notification.application.port.out;
 
 /**
- * 기사 앱 푸시 발신. 발신 대기열 디스패처가 커밋된 알림을 보낼 때 부른다. 수신 계정의 등록 기기로 보내고 기기별 결과를 하나로 모아 돌려준다. 실제 제공자
- * 어댑터(notification 문서 N-21)가 생기기 전에는 {@code local}·{@code test}·{@code dev} 전용 임시 어댑터만 있다. 예외를 던지면 다시 보낼 실패로 본다.
+ * 기사 앱 푸시를 기기 하나로 보낸다. 발신 대기열 디스패처가 커밋된 알림을 수신 계정의 등록 기기마다 부르고, 기기별 결과를 모아 발신 결과를 정한다. 구현은 다시 보내지
+ * 않고 한 번만 시도한다(재시도는 대기열이 한다). 예외를 던지면 다시 보낼 실패로 본다. 기기 토큰은 로그에 남기지 않는다.
  */
 public interface PushSender {
 
-    PushSendResult send(PushMessage message);
+    PushSendResult send(PushMessage message, String deviceToken);
 }

@@ -1,6 +1,7 @@
 package com.orbit.notification.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,4 +31,10 @@ interface SpringDataPushDeviceRepository extends JpaRepository<PushDeviceJpaEnti
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from PushDeviceJpaEntity d where d.id = :id and d.accountId = :accountId")
     int deleteOwnedBy(@Param("id") Long id, @Param("accountId") Long accountId);
+
+    List<PushDeviceJpaEntity> findByAccountIdOrderById(Long accountId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from PushDeviceJpaEntity d where d.token = :token")
+    int deleteWithToken(@Param("token") String token);
 }
