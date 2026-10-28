@@ -31,6 +31,7 @@ import com.orbit.organization.OrganizationAccountLookup;
 import com.orbit.organization.ParticipationRequestApproved;
 import com.orbit.organization.ParticipationRequestLookup;
 import com.orbit.organization.ParticipationRequestRejected;
+import com.orbit.profile.AccountWithdrawn;
 import com.orbit.schedule.WorkAssigned;
 import com.orbit.schedule.WorkReassigned;
 import com.orbit.schedule.WorkRejected;
@@ -165,6 +166,30 @@ class NotificationModuleTest implements SharedContainers {
                 .send(argThat(notification -> notification.recipientAccountId().equals(9_207L)));
         verify(pushNotificationPort)
                 .send(argThat(notification -> notification.recipientAccountId().equals(9_208L)));
+    }
+
+    @Test
+    void removesPushDevicesOfWithdrawnAccountAfterProfileCommit(Scenario scenario) {
+        insertPushDevice(9_209L, "module-test-token-9209-a");
+        insertPushDevice(9_209L, "module-test-token-9209-b");
+        insertPushDevice(9_210L, "module-test-token-9210");
+
+        scenario.publish(new AccountWithdrawn(9_209L, OCCURRED_AT))
+                .andWaitForStateChange(() -> pushDevicesOf(9_209L), count -> count == 0)
+                .andVerify(count -> assertThat(pushDevicesOf(9_210L)).isEqualTo(1));
+    }
+
+    private void insertPushDevice(Long accountId, String token) {
+        jdbcTemplate.update("""
+                insert into push_devices (member_id, platform, token, registered_at, created_at, updated_at)
+                values (?, 'ANDROID', ?, now(), now(), now())
+                on conflict (token) do nothing
+                """, accountId, token);
+    }
+
+    private long pushDevicesOf(Long accountId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from push_devices where member_id = ?", Long.class, accountId);
     }
 
     /** 리스너가 처리를 마쳐 보관 테이블로 옮겨진, 이 작업의 이벤트 발행 수. */
