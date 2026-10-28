@@ -57,6 +57,13 @@ class NotificationPersistenceAdapter implements NotificationRepository, Notifica
     }
 
     @Override
+    public boolean existsReceivedForParticipationRequest(
+            Long accountId, NotificationType type, Long participationRequestId) {
+        return repository.existsByRecipientAccountIdAndTypeAndParticipationRequestId(
+                accountId, type, participationRequestId);
+    }
+
+    @Override
     public VisibleNotifications listVisible(Long accountId, boolean unreadOnly, int page, int size) {
         if (page < 0 || size < 1 || size > MAX_SIZE || (long) page * size > MAX_OFFSET) {
             throw new IllegalArgumentException(

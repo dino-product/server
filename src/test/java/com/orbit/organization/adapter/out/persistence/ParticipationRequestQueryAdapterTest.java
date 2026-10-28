@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.orbit.organization.application.port.out.AccountParticipationRequest;
 import com.orbit.organization.domain.AccountId;
 import com.orbit.organization.domain.OrganizationId;
+import com.orbit.organization.domain.ParticipationRequestId;
 import com.orbit.organization.domain.ParticipationRequestStatus;
 import com.orbit.organization.domain.ParticipationType;
 import com.orbit.support.PersistenceAdapterTestSupport;
@@ -103,6 +104,35 @@ class ParticipationRequestQueryAdapterTest extends PersistenceAdapterTestSupport
     @DisplayName("승인 대기 요청이 없으면 빈 목록이다")
     void returnsEmptyPendingList() {
         assertThat(adapter.listPending(insertOrganization("EEEEEE", "빈 발주사"))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("거절된 요청의 거절 사유를 읽는다")
+    void readsRejectReasonOfRejectedRequest() {
+        OrganizationId organization = insertOrganization("FFFFFF", "거절 발주사");
+        long rejected = insertRequest(organization, ACCOUNT_ID, "STAFF", null, "REJECTED", "인원 마감", FIRST, SECOND);
+
+        assertThat(adapter.findRejectReason(new ParticipationRequestId(rejected)))
+                .contains("인원 마감");
+    }
+
+    @Test
+    @DisplayName("사유 없이 거절됐거나 거절되지 않은 요청, 없는 요청의 거절 사유는 빈 값이다")
+    void findsNoRejectReasonOtherwise() {
+        OrganizationId organization = insertOrganization("GGGGGG", "다른 결과 발주사");
+        long withoutReason = insertRequest(organization, ACCOUNT_ID, "STAFF", null, "REJECTED", null, FIRST, SECOND);
+        long approved =
+                insertRequest(organization, OTHER_ACCOUNT_ID, "STAFF", "STAFF", "APPROVED", "남은 값", FIRST, SECOND);
+        long pending = insertRequest(organization, new AccountId(9L), "STAFF", null, "PENDING", null, FIRST, null);
+
+        assertThat(adapter.findRejectReason(new ParticipationRequestId(withoutReason)))
+                .isEmpty();
+        assertThat(adapter.findRejectReason(new ParticipationRequestId(approved)))
+                .isEmpty();
+        assertThat(adapter.findRejectReason(new ParticipationRequestId(pending)))
+                .isEmpty();
+        assertThat(adapter.findRejectReason(new ParticipationRequestId(pending + 1_000)))
+                .isEmpty();
     }
 
     private OrganizationId insertOrganization(String code, String name) {

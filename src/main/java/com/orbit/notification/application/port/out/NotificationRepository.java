@@ -23,4 +23,10 @@ public interface NotificationRepository {
      * 같은 일로 만든 알림(받는 계정·종류·작업·알림 시각이 모두 같음)이 이미 있는지 본다. 숨긴 알림도 센다. 이벤트가 다시 전달됐을 때 알림을 또 만들지 않는 데 쓴다.
      */
     boolean existsReceived(Long accountId, NotificationType type, Long workId, Instant notifiedAt);
+
+    /**
+     * 이 계정이 같은 참여 요청에 대해 같은 종류의 알림을 이미 받았는지 본다. 숨긴 알림도 센다. 참여 요청 결과 이벤트가 다시 전달됐을 때 알림을 또 만들지 않는 데
+     * 쓴다.
+     */
+    boolean existsReceivedForParticipationRequest(Long accountId, NotificationType type, Long participationRequestId);
 }
