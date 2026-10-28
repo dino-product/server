@@ -1,6 +1,8 @@
 package com.orbit.notification.application.service.fake;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -28,6 +30,19 @@ public class InMemoryPushDeviceRepository implements PushDeviceRepository {
     public boolean deleteOwnedBy(Long pushDeviceId, Long accountId) {
         return byToken.values()
                 .removeIf(device -> device.id().orElseThrow().equals(pushDeviceId) && device.isOwnedBy(accountId));
+    }
+
+    @Override
+    public List<PushDevice> listByAccountId(Long accountId) {
+        return byToken.values().stream()
+                .filter(device -> device.isOwnedBy(accountId))
+                .sorted(Comparator.comparing(device -> device.id().orElseThrow()))
+                .toList();
+    }
+
+    @Override
+    public void deleteByToken(String token) {
+        byToken.remove(token);
     }
 
     public Optional<PushDevice> findByToken(String token) {

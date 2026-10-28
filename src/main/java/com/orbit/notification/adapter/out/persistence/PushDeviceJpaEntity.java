@@ -9,6 +9,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -23,7 +24,8 @@ import com.orbit.shared.persistence.BaseTimeEntity;
 @Entity
 @Table(
         name = "push_devices",
-        uniqueConstraints = @UniqueConstraint(name = PushDeviceJpaEntity.TOKEN_UNIQUE, columnNames = "token"))
+        uniqueConstraints = @UniqueConstraint(name = PushDeviceJpaEntity.TOKEN_UNIQUE, columnNames = "token"),
+        indexes = @Index(name = "ix_push_devices_member", columnList = "member_id"))
 class PushDeviceJpaEntity extends BaseTimeEntity {
 
     static final String TOKEN_UNIQUE = "uk_push_devices_token";

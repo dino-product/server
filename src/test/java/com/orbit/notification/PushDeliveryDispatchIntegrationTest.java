@@ -32,12 +32,15 @@ import com.orbit.notification.application.port.in.command.DispatchPushDeliveries
 import com.orbit.notification.application.port.in.command.dto.DispatchPushDeliveriesCommand;
 import com.orbit.notification.application.port.out.NotificationDeliveryRepository;
 import com.orbit.notification.application.port.out.NotificationRepository;
+import com.orbit.notification.application.port.out.PushDeviceRepository;
 import com.orbit.notification.application.port.out.PushMessage;
 import com.orbit.notification.application.port.out.PushNotificationPort;
 import com.orbit.notification.application.port.out.PushSendResult;
 import com.orbit.notification.application.port.out.PushSender;
 import com.orbit.notification.domain.Notification;
 import com.orbit.notification.domain.NotificationType;
+import com.orbit.notification.domain.PushDevice;
+import com.orbit.notification.domain.PushPlatform;
 import com.orbit.notification.domain.RetryBackoff;
 import com.orbit.support.IntegrationTestSupport;
 
@@ -46,6 +49,10 @@ import com.orbit.support.IntegrationTestSupport;
 class PushDeliveryDispatchIntegrationTest extends IntegrationTestSupport {
 
     private static final Long RECIPIENT = 20L;
+    private static final Long RECIPIENT_WITH_UNREGISTERED_DEVICE = 21L;
+    private static final Long RECIPIENT_WITHOUT_DEVICE = 22L;
+    private static final String RECIPIENT_TOKEN = "dispatch-test-token-20";
+    private static final String UNREGISTERED_TOKEN = "dispatch-test-token-21";
     private static final Duration IN_FLIGHT_TIMEOUT = Duration.ofMinutes(5);
     private static final RetryBackoff IMMEDIATE_RETRY = new RetryBackoff(Duration.ofMillis(1), Duration.ofMillis(1));
     private static final DispatchPushDeliveriesCommand COMMAND =
@@ -64,6 +71,9 @@ class PushDeliveryDispatchIntegrationTest extends IntegrationTestSupport {
     private NotificationDeliveryRepository deliveries;
 
     @Autowired
+    private PushDeviceRepository pushDevices;
+
+    @Autowired
     private ScriptedPushSender pushSender;
 
     @Autowired
@@ -75,6 +85,12 @@ class PushDeliveryDispatchIntegrationTest extends IntegrationTestSupport {
     @BeforeEach
     void clear() {
         jdbcTemplate.update("delete from notification_deliveries");
+        jdbcTemplate.update(
+                "delete from push_devices where member_id in (?, ?, ?)",
+                RECIPIENT,
+                RECIPIENT_WITH_UNREGISTERED_DEVICE,
+                RECIPIENT_WITHOUT_DEVICE);
+        registerDevice(RECIPIENT, RECIPIENT_TOKEN);
         pushSender.reset();
     }
 
@@ -170,22 +186,42 @@ class PushDeliveryDispatchIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    void recordsSkippedAndFailedDeliveries() {
-        Long noDevice = requestPush();
-        Long malformed = requestPush();
-        pushSender.script(noDevice, new PushSendResult.NoReachableDevice("등록된 기기 없음"));
+    void recordsSkippedAndFailedDeliveriesAndRemovesUnregisteredDevice() {
+        registerDevice(RECIPIENT_WITH_UNREGISTERED_DEVICE, UNREGISTERED_TOKEN);
+        Long unregistered = requestPush(RECIPIENT_WITH_UNREGISTERED_DEVICE);
+        Long noDevice = requestPush(RECIPIENT_WITHOUT_DEVICE);
+        Long malformed = requestPush(RECIPIENT);
+        pushSender.script(unregistered, new PushSendResult.Unregistered("UNREGISTERED"));
         pushSender.script(malformed, new PushSendResult.PermanentFailure("요청 형식 오류"));
 
         dispatcher.dispatch(COMMAND);
         awaitDue();
         dispatcher.dispatch(COMMAND);
 
+        assertThat(statusOf(unregistered)).isEqualTo("SKIPPED");
         assertThat(statusOf(noDevice)).isEqualTo("SKIPPED");
         assertThat(statusOf(malformed)).isEqualTo("FAILED");
         assertThat(pushSender.sendCounts())
-                .as("끝난 발신은 다시 보내지 않는다")
-                .containsEntry(noDevice, 1)
+                .as("끝난 발신은 다시 보내지 않고, 기기가 없으면 보내지 않는다")
+                .containsOnlyKeys(unregistered, malformed)
+                .containsEntry(unregistered, 1)
                 .containsEntry(malformed, 1);
+        assertThat(pushDevices.listByAccountId(RECIPIENT_WITH_UNREGISTERED_DEVICE))
+                .as("제공자가 받지 않는 토큰의 기기는 지운다")
+                .isEmpty();
+        assertThat(pushDevices.listByAccountId(RECIPIENT)).hasSize(1);
+    }
+
+    @Test
+    void sendsToEveryRegisteredDeviceOfRecipient() {
+        registerDevice(RECIPIENT, "dispatch-test-token-20-second");
+        Long notificationId = requestPush();
+
+        dispatcher.dispatch(COMMAND);
+
+        assertThat(statusOf(notificationId)).isEqualTo("SENT");
+        assertThat(pushSender.sendCounts()).containsEntry(notificationId, 2);
+        assertThat(pushSender.tokens()).containsExactlyInAnyOrder(RECIPIENT_TOKEN, "dispatch-test-token-20-second");
     }
 
     @Test
@@ -205,12 +241,22 @@ class PushDeliveryDispatchIntegrationTest extends IntegrationTestSupport {
 
     /** 알림 서비스처럼 알림을 저장하는 트랜잭션에서 푸시를 요청하고 알림 식별자를 돌려준다. */
     private Long requestPush() {
+        return requestPush(RECIPIENT);
+    }
+
+    private Long requestPush(Long recipient) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             Notification saved = notifications.save(
-                    Notification.create(RECIPIENT, 1L, NotificationType.WORK_ASSIGNED, 2L, "배정 알림", Instant.now()));
+                    Notification.create(recipient, 1L, NotificationType.WORK_ASSIGNED, 2L, "배정 알림", Instant.now()));
             pushNotificationPort.send(saved);
             return saved.id().orElseThrow();
         });
+    }
+
+    private void registerDevice(Long accountId, String token) {
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> pushDevices.register(
+                        PushDevice.register(accountId, PushPlatform.ANDROID, token, Instant.now())));
     }
 
     /** 즉시 재시도 대기 시간(1ms)이 지나도록 잠깐 기다린다. */
@@ -238,12 +284,14 @@ class PushDeliveryDispatchIntegrationTest extends IntegrationTestSupport {
 
         private final Map<Long, Queue<PushSendResult>> scripts = new ConcurrentHashMap<>();
         private final Map<Long, AtomicInteger> sends = new ConcurrentHashMap<>();
+        private final Queue<String> tokens = new ConcurrentLinkedQueue<>();
         private volatile Duration delay = Duration.ZERO;
 
         @Override
-        public PushSendResult send(PushMessage message) {
+        public PushSendResult send(PushMessage message, String deviceToken) {
             Long notificationId = message.notificationId();
             sends.computeIfAbsent(notificationId, id -> new AtomicInteger()).incrementAndGet();
+            tokens.add(deviceToken);
             pause();
             Queue<PushSendResult> scripted = scripts.get(notificationId);
             PushSendResult result = scripted == null ? null : scripted.poll();
@@ -264,9 +312,14 @@ class PushDeliveryDispatchIntegrationTest extends IntegrationTestSupport {
             return counts;
         }
 
+        List<String> tokens() {
+            return List.copyOf(tokens);
+        }
+
         void reset() {
             scripts.clear();
             sends.clear();
+            tokens.clear();
             delay = Duration.ZERO;
         }
 
