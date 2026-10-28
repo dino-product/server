@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.orbit.notification.domain.PushDevice;
 import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.support.IntegrationTestSupport;
 
@@ -1010,5 +1011,26 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + "['com.orbit.notification.adapter.in.web.NotificationSettingRequest']"
                                 + ".required.length()")
                         .value(3));
+    }
+
+    @Test
+    void documentsPushDeviceRegistration() throws Exception {
+        String register = "$.paths['/api/v1/push-devices'].post";
+        String request = "$.components.schemas['com.orbit.notification.adapter.in.web.PushDeviceRequest']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(register + ".summary").value("앱 푸시 기기 등록"))
+                .andExpect(jsonPath(register + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(register + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.notification.adapter.in.web."
+                                + "RegisteredPushDeviceResponse"))
+                .andExpect(jsonPath(register + ".responses['400'].content['application/json']"
+                                + ".examples['COMMON-400'].value.code")
+                        .value("COMMON-400"))
+                .andExpect(jsonPath(request + ".required").value(containsInAnyOrder("platform", "token")))
+                .andExpect(jsonPath(request + ".properties.platform.enum").value(containsInAnyOrder("IOS", "ANDROID")))
+                .andExpect(jsonPath(request + ".properties.token.maxLength").value(PushDevice.MAX_TOKEN_LENGTH));
     }
 }
