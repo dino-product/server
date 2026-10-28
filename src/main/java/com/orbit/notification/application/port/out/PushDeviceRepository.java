@@ -22,6 +22,6 @@ public interface PushDeviceRepository {
     /** 제공자가 더 받지 않는 토큰의 기기를 지운다. 이미 없으면 그대로 둔다. 부른 쪽 트랜잭션이 없으면 따로 커밋한다. */
     void deleteByToken(String token);
 
-    /** 계정의 기기를 모두 지운다. 없으면 그대로 둔다. */
+    /** 계정의 기기를 모두 지운다. 없으면 그대로 둔다. 부른 쪽 트랜잭션에 참여한다. */
     void deleteByAccountId(Long accountId);
 }
