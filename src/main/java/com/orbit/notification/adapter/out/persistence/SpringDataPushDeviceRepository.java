@@ -26,4 +26,8 @@ interface SpringDataPushDeviceRepository extends JpaRepository<PushDeviceJpaEnti
             @Param("registeredAt") Instant registeredAt);
 
     Optional<PushDeviceJpaEntity> findByToken(String token);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from PushDeviceJpaEntity d where d.id = :id and d.accountId = :accountId")
+    int deleteOwnedBy(@Param("id") Long id, @Param("accountId") Long accountId);
 }

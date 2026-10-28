@@ -25,4 +25,9 @@ class PushDevicePersistenceAdapter implements PushDeviceRepository {
                 .orElseThrow(() -> new IllegalStateException("registered push device must exist"))
                 .toDomain();
     }
+
+    @Override
+    public boolean deleteOwnedBy(Long pushDeviceId, Long accountId) {
+        return repository.deleteOwnedBy(pushDeviceId, accountId) > 0;
+    }
 }

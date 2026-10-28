@@ -1014,6 +1014,22 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsPushDeviceUnregistration() throws Exception {
+        String unregister = "$.paths['/api/v1/push-devices/{pushDeviceId}'].delete";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(unregister + ".summary").value("앱 푸시 기기 해제"))
+                .andExpect(jsonPath(unregister + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(unregister + ".parameters[0].name").value("pushDeviceId"))
+                .andExpect(jsonPath(unregister + ".requestBody").doesNotExist())
+                .andExpect(jsonPath(unregister + ".responses['204']").exists())
+                .andExpect(jsonPath(unregister + ".responses['404'].content['application/json']"
+                                + ".examples['NOTIFICATION-005'].value.code")
+                        .value("NOTIFICATION-005"));
+    }
+
+    @Test
     void documentsPushDeviceRegistration() throws Exception {
         String register = "$.paths['/api/v1/push-devices'].post";
         String request = "$.components.schemas['com.orbit.notification.adapter.in.web.PushDeviceRequest']";

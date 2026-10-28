@@ -10,4 +10,7 @@ public interface PushDeviceRepository {
      * 남고 나중에 저장한 등록이 이긴다.
      */
     PushDevice register(PushDevice device);
+
+    /** 이 계정의 기기일 때만 지운다. 없거나 다른 계정의 기기면 지우지 않고 false다. */
+    boolean deleteOwnedBy(Long pushDeviceId, Long accountId);
 }

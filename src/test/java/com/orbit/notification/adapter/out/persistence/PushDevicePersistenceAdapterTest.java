@@ -108,6 +108,22 @@ class PushDevicePersistenceAdapterTest extends PersistenceAdapterTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("기기는 그 계정이 지울 때만 지워진다")
+    void deletesOnlyOwnedDevice() {
+        String token = newToken();
+        Long deviceId = inTx(() -> adapter.register(PushDevice.register(9_221L, PushPlatform.IOS, token, FIRST)))
+                .id()
+                .orElseThrow();
+
+        assertThat(inTx(() -> adapter.deleteOwnedBy(deviceId, 9_222L))).isFalse();
+        assertThat(rowsWithToken(token)).isEqualTo(1);
+
+        assertThat(inTx(() -> adapter.deleteOwnedBy(deviceId, 9_221L))).isTrue();
+        assertThat(rowsWithToken(token)).isZero();
+        assertThat(inTx(() -> adapter.deleteOwnedBy(deviceId, 9_221L))).isFalse();
+    }
+
     private int rowsWithToken(String token) {
         return jdbcTemplate.queryForObject("select count(*) from push_devices where token = ?", Integer.class, token);
     }

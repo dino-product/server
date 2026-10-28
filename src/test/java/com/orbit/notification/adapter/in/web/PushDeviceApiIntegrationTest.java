@@ -1,6 +1,7 @@
 package com.orbit.notification.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -122,11 +123,47 @@ class PushDeviceApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("본인 기기를 해제하면 204이고 기기가 사라진다")
+    void unregistersOwnDevice() throws Exception {
+        long accountId = ACCOUNT_IDS.incrementAndGet();
+        String token = newToken();
+        long deviceId = register(accountId, "IOS", token);
+
+        mockMvc.perform(authorized(delete("/api/v1/push-devices/{pushDeviceId}", deviceId), accountId))
+                .andExpect(status().isNoContent());
+
+        assertThat(rowsWithToken(token)).isZero();
+    }
+
+    @Test
+    @DisplayName("다른 계정의 기기나 이미 해제한 기기를 해제하면 NOTIFICATION-005이다")
+    void rejectsUnregisteringOthersOrMissingDevice() throws Exception {
+        long accountId = ACCOUNT_IDS.incrementAndGet();
+        long otherAccountId = ACCOUNT_IDS.incrementAndGet();
+        String token = newToken();
+        long deviceId = register(accountId, "ANDROID", token);
+
+        mockMvc.perform(authorized(delete("/api/v1/push-devices/{pushDeviceId}", deviceId), otherAccountId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOTIFICATION-005"));
+        assertThat(rowsWithToken(token)).isEqualTo(1);
+
+        mockMvc.perform(authorized(delete("/api/v1/push-devices/{pushDeviceId}", deviceId), accountId))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(authorized(delete("/api/v1/push-devices/{pushDeviceId}", deviceId), accountId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOTIFICATION-005"));
+    }
+
+    @Test
     @DisplayName("인증하지 않은 요청은 401로 거부한다")
     void rejectsUnauthenticatedRequest() throws Exception {
         mockMvc.perform(post("/api/v1/push-devices")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"platform\": \"IOS\", \"token\": \"" + newToken() + "\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON-401"));
+        mockMvc.perform(delete("/api/v1/push-devices/{pushDeviceId}", 1L))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("COMMON-401"));
     }
@@ -144,6 +181,10 @@ class PushDeviceApiIntegrationTest extends IntegrationTestSupport {
         assertThat(result.get("pushDeviceId").isIntegralNumber()).isTrue();
         assertThat(body).doesNotContain(token);
         return result.get("pushDeviceId").asLong();
+    }
+
+    private int rowsWithToken(String token) {
+        return jdbcTemplate.queryForObject("select count(*) from push_devices where token = ?", Integer.class, token);
     }
 
     private long ownerOf(String token) {
