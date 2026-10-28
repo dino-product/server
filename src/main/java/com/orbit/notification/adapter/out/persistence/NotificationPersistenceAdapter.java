@@ -1,5 +1,6 @@
 package com.orbit.notification.adapter.out.persistence;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,6 +14,7 @@ import com.orbit.notification.application.port.out.NotificationQueryPort;
 import com.orbit.notification.application.port.out.NotificationRepository;
 import com.orbit.notification.domain.Notification;
 import com.orbit.notification.domain.NotificationStatus;
+import com.orbit.notification.domain.NotificationType;
 
 @Repository
 class NotificationPersistenceAdapter implements NotificationRepository, NotificationQueryPort {
@@ -47,6 +49,11 @@ class NotificationPersistenceAdapter implements NotificationRepository, Notifica
         return repository.findByRecipientAccountIdAndWorkIdOrderByIdAsc(accountId, workId).stream()
                 .map(NotificationJpaEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    public boolean existsReceived(Long accountId, NotificationType type, Long workId, Instant notifiedAt) {
+        return repository.existsByRecipientAccountIdAndTypeAndWorkIdAndNotifiedAt(accountId, type, workId, notifiedAt);
     }
 
     @Override

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +13,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.Scenario;
 import org.springframework.test.context.ActiveProfiles;
@@ -53,6 +55,9 @@ class NotificationModuleTest implements SharedContainers {
     @Autowired
     private ListNotificationsUseCase listNotificationsUseCase;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     void recordsAndPushesAssignmentAfterScheduleCommit(Scenario scenario) {
         when(accountLookup.findActiveTechnicianAccountId(100L, 3L)).thenReturn(Optional.of(9_201L));
@@ -68,6 +73,21 @@ class NotificationModuleTest implements SharedContainers {
                             assertThat(notification.read()).isFalse();
                         }));
         verify(pushNotificationPort).send(any(Notification.class));
+    }
+
+    @Test
+    void redeliveredEventDoesNotCreateSecondNotificationOrPush(Scenario scenario) {
+        when(accountLookup.findActiveTechnicianAccountId(103L, 9L)).thenReturn(Optional.of(9_206L));
+        WorkAssigned event = new WorkAssigned(13L, 103L, 9L, "누수 점검", START, OCCURRED_AT);
+
+        scenario.publish(event).andWaitForStateChange(() -> completedPublicationsOfWork(13L), count -> count >= 1);
+        scenario.publish(event)
+                .andWaitForStateChange(() -> completedPublicationsOfWork(13L), count -> count >= 2)
+                .andVerify(count -> assertThat(visible(9_206L).totalCount())
+                        .as("다시 전달된 같은 이벤트로 알림을 또 만들지 않는다")
+                        .isEqualTo(1));
+        verify(pushNotificationPort, times(1))
+                .send(argThat(notification -> notification.recipientAccountId().equals(9_206L)));
     }
 
     @Test
@@ -106,6 +126,14 @@ class NotificationModuleTest implements SharedContainers {
                             .extracting(NotificationInfo::message)
                             .containsExactly("[필터 교체] 작업이 다른 기사에게 넘어갔습니다.");
                 });
+    }
+
+    /** 리스너가 처리를 마쳐 보관 테이블로 옮겨진, 이 작업의 이벤트 발행 수. */
+    private long completedPublicationsOfWork(Long workId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from event_publication_archive where serialized_event like ?",
+                Long.class,
+                "%\"workId\":" + workId + ",%");
     }
 
     private NotificationPageInfo visible(Long accountId) {

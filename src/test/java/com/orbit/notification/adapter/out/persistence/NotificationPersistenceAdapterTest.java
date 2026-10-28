@@ -1,6 +1,7 @@
 package com.orbit.notification.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.function.Supplier;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
@@ -171,6 +173,25 @@ class NotificationPersistenceAdapterTest extends PersistenceAdapterTestSupport {
         assertThat(inTx(() -> adapter.listReceivedForWork(accountId, 10L)))
                 .extracting(notification -> notification.id().orElseThrow())
                 .containsExactly(first, second);
+    }
+
+    @Test
+    @DisplayName("같은 계정·종류·작업·알림 시각의 알림이 있는지 찾고, 같은 일의 알림을 두 번 저장하지 못하게 막는다")
+    void findsAndRejectsNotificationOfSameEvent() {
+        save(9_010L, 10L, NOTIFIED_AT);
+
+        assertThat(inTx(() -> adapter.existsReceived(9_010L, NotificationType.WORK_ASSIGNED, 10L, NOTIFIED_AT)))
+                .isTrue();
+        assertThat(inTx(() -> adapter.existsReceived(
+                        9_010L, NotificationType.WORK_ASSIGNED, 10L, NOTIFIED_AT.plusNanos(1_000))))
+                .isFalse();
+        assertThat(inTx(() -> adapter.existsReceived(9_010L, NotificationType.WORK_CANCELED, 10L, NOTIFIED_AT)))
+                .isFalse();
+        assertThat(inTx(() -> adapter.existsReceived(9_011L, NotificationType.WORK_ASSIGNED, 10L, NOTIFIED_AT)))
+                .isFalse();
+        assertThatThrownBy(() -> save(9_010L, 10L, NOTIFIED_AT))
+                .as("확인과 저장 사이에 같은 일이 동시에 처리돼도 한쪽은 저장하지 못한다")
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private Long save(Long accountId, Long workId, Instant notifiedAt) {
