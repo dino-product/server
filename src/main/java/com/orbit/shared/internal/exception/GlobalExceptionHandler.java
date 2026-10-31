@@ -105,15 +105,18 @@ public class GlobalExceptionHandler {
 
     /**
      * 커넥션 풀에서 대기 한도 안에 DB 커넥션을 얻지 못했다. 요청이 몰렸거나 DB에 닿을 수 없는 일시적 상태라 503과 {@code Retry-After}로 다시 시도하게
-     * 한다. 요청마다 기록하면 몰릴 때 로그가 넘치므로 기록은 커넥션 풀 지표({@code hikaricp.connections.timeout})에 맡긴다. 그 밖의 트랜잭션 시작
-     * 실패는 서버 오류다.
+     * 한다. 트랜잭션을 시작하지 못했으므로 이 트랜잭션의 변경은 없다. 원인은 Hibernate가 SQL 오류 경고로 남기고 횟수는 커넥션 풀 지표
+     * ({@code hikaricp.connections.timeout})에 남으므로, 몰릴 때 같은 스택을 거듭 남기지 않게 여기서는 메시지만 남긴다. 그 밖의 트랜잭션 시작 실패는 서버
+     * 오류다.
      */
     @ExceptionHandler(CannotCreateTransactionException.class)
     public ResponseEntity<ApiResponse<Void>> handleTransactionStartFailure(CannotCreateTransactionException exception) {
         if (!causedByConnectionTimeout(exception)) {
             return handleUnhandledException(exception);
         }
-        log.debug("Database connection unavailable", exception);
+        log.debug(
+                "Database connection unavailable: {}",
+                exception.getMostSpecificCause().getMessage());
         return ResponseEntity.status(CommonErrorCode.SERVICE_UNAVAILABLE.getHttpStatus())
                 .header(HttpHeaders.RETRY_AFTER, Long.toString(DATABASE_UNAVAILABLE_RETRY_AFTER_SECONDS))
                 .contentType(MediaType.APPLICATION_JSON)
