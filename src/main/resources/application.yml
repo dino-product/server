@@ -2,6 +2,13 @@ server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
   forward-headers-strategy: framework
+  tomcat:
+    threads:
+      # 동시에 처리하는 요청 수와 스레드 스택 메모리의 상한. 넘는 요청은 접속 대기열에서 기다린다. 실시간 연결(SSE)은 비동기라 스레드를 붙잡지 않는다.
+      max: 60
+    mbeanregistry:
+      # 바쁜 스레드 수 같은 Tomcat 지표(tomcat.threads.*)를 내보낸다.
+      enabled: true
 
 spring:
   application:
@@ -27,8 +34,10 @@ spring:
     hikari:
       maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:10}
       minimum-idle: ${HIKARI_MIN_IDLE:2}
-      connection-timeout: 30000
-      validation-timeout: 5000
+      # 커넥션이 모두 쓰이고 있을 때 기다리는 시간. 넘으면 503과 Retry-After로 빨리 거절해, 요청이 몰릴 때 기다리는 요청이 스레드·메모리를 붙잡고 쌓이지 않게 한다.
+      connection-timeout: 3000
+      # 빌려줄 커넥션이 살아 있는지 확인하는 한도. 커넥션 대기 한도보다 짧아야 대기 한도를 넘겨 막히지 않는다.
+      validation-timeout: 2000
       max-lifetime: 1800000
   jpa:
     open-in-view: false

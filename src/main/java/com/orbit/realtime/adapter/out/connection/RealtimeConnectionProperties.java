@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * 인스턴스의 실시간 연결 관리 설정. 잘못된 값은 연결마다 실패하지 않도록 기동 시점에 거부한다.
  *
- * @param maxConnections 인스턴스가 동시에 유지하는 연결 수 상한. 연결마다 응답 버퍼와 전송 줄을 메모리에 두므로 인스턴스 메모리에 맞춘다. 없으면 2,000
+ * @param maxConnections 인스턴스가 동시에 유지하는 연결 수 상한. 연결마다 응답 버퍼와 전송 줄을 메모리에 두므로 인스턴스 메모리에 맞춘다. 없으면 1,000
  * @param maxConnectionsPerAccount 한 계정이 이 인스턴스에 유지하는 연결 수 상한. 넘으면 그 계정의 가장 오래된 연결을 닫는다. 없으면 5
  * @param heartbeatInterval 연결 유지 신호 간격. 앞단(CloudFront 오리진 응답 대기 30초)이 조용한 연결을 끊지 않도록 그보다 짧게 둔다. 없으면 15초
  * @param connectionLifetime 연결을 닫고 다시 연결하게 하는 수명. 연결마다 최대 10% 앞당겨 한꺼번에 다시 연결하지 않게 한다. 유지 신호 간격보다 길어야 하며
@@ -25,7 +25,7 @@ public record RealtimeConnectionProperties(
         Integer deliveryThreads) {
 
     public RealtimeConnectionProperties {
-        maxConnections = maxConnections == null ? 2_000 : maxConnections;
+        maxConnections = maxConnections == null ? 1_000 : maxConnections;
         maxConnectionsPerAccount = maxConnectionsPerAccount == null ? 5 : maxConnectionsPerAccount;
         heartbeatInterval = heartbeatInterval == null ? Duration.ofSeconds(15) : heartbeatInterval;
         connectionLifetime = connectionLifetime == null ? Duration.ofMinutes(30) : connectionLifetime;
