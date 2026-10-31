@@ -179,7 +179,7 @@ class InMemoryRealtimeConnections implements RealtimeConnectionPort, SmartLifecy
         return connection.registered.get();
     }
 
-    /** 연결 수가 상한(기본 2,000)으로 묶여 있고 신호가 드물어, 따로 색인을 두지 않고 목록을 훑어 고른다. */
+    /** 연결 수가 상한(기본 1,000)으로 묶여 있고 신호가 드물어, 따로 색인을 두지 않고 목록을 훑어 고른다. */
     @Override
     public void sendToOrganization(Long organizationId, RealtimeMessage message) {
         for (Connection connection : byId.values()) {

@@ -2,6 +2,13 @@ server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
   forward-headers-strategy: framework
+  tomcat:
+    threads:
+      # 동시에 처리하는 요청 수와 스레드 스택 메모리의 상한. 넘는 요청은 접속 대기열에서 기다린다. 실시간 연결(SSE)은 비동기라 스레드를 붙잡지 않는다.
+      max: 60
+    mbeanregistry:
+      # 바쁜 스레드 수 같은 Tomcat 지표(tomcat.threads.*)를 내보낸다.
+      enabled: true
 
 spring:
   application:

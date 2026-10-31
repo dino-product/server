@@ -24,7 +24,7 @@ import com.orbit.realtime.application.error.RealtimeErrorCode;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.internal.exception.GlobalExceptionHandler;
 
-/** 인스턴스가 연결을 더 받을 수 없는 경우는 연결 2,000개를 채우지 않고 유즈케이스를 대체해 본다. */
+/** 인스턴스가 연결을 더 받을 수 없는 경우는 연결 1,000개를 채우지 않고 유즈케이스를 대체해 본다. */
 @DisplayName("실시간 갱신 연결 응답")
 class RealtimeStreamControllerTest {
 
