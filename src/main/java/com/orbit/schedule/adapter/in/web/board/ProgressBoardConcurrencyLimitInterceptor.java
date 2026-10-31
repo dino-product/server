@@ -17,6 +17,8 @@ import com.orbit.shared.error.CommonErrorCode;
  *
  * <p>컨트롤러가 아니라 인터셉터에서 거르는 것은, 가입 공통 검사(profile)처럼 DB를 쓰는 앞선 인터셉터보다 먼저 거절해 거절할 조회가 커넥션을 기다리지 않게 하기
  * 위해서다. 순서는 {@link ProgressBoardWebConfig}가 정한다. 자리는 이 인터셉터가 통과시킨 요청이 끝날 때만 돌려준다.
+ *
+ * <p>보드 조회가 동기 응답이라는 전제다. 비동기 응답으로 바꾸면 비동기 재디스패치에서 자리를 다시 얻고 첫 디스패치에서는 돌려주지 않으므로 이 인터셉터도 함께 고친다.
  */
 class ProgressBoardConcurrencyLimitInterceptor implements HandlerInterceptor {
 
