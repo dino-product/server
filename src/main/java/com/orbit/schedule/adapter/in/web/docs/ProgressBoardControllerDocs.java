@@ -2,8 +2,6 @@ package com.orbit.schedule.adapter.in.web.docs;
 
 import java.time.Instant;
 
-import jakarta.servlet.http.HttpServletResponse;
-
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.schedule.adapter.in.web.board.ProgressBoardResponse;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
@@ -54,6 +52,5 @@ public interface ProgressBoardControllerDocs {
             @Parameter(description = "구간 시작(포함, ISO-8601 UTC)", example = "2026-12-17T15:00:00Z", required = true)
                     Instant from,
             @Parameter(description = "구간 끝(제외, ISO-8601 UTC)", example = "2026-12-18T15:00:00Z", required = true)
-                    Instant to,
-            @Parameter(hidden = true) HttpServletResponse response);
+                    Instant to);
 }

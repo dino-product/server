@@ -11,6 +11,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,7 @@ import org.springframework.security.web.method.annotation.AuthenticationPrincipa
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.servlet.HandlerInterceptor;
 
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
@@ -29,16 +34,21 @@ import com.orbit.schedule.application.port.in.query.dto.ProgressBoardInfo;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.internal.exception.GlobalExceptionHandler;
 
-/** 동시 처리 상한은 조회를 상한만큼 쌓지 않고 상한 1에서 조회 하나를 유즈케이스 안에 붙잡아 둔 채 본다. */
+/**
+ * 동시 처리 상한은 조회를 상한만큼 쌓지 않고 상한 1에서 조회 하나를 유즈케이스 안에 붙잡아 둔 채 본다. 뒤따르는 인터셉터는 DB를 쓰는 가입 공통 검사 자리이며, 거절한
+ * 조회가 거기까지 가지 않는지 센다.
+ */
 @DisplayName("진행 보드 조회 동시 처리 상한")
-class ProgressBoardControllerTest {
+class ProgressBoardConcurrencyLimitInterceptorTest {
 
     private static final ProgressBoardInfo EMPTY_BOARD =
             new ProgressBoardInfo(List.of(), new ProgressBoardInfo.Summary(0, 0, 0, 0));
 
+    private final AtomicInteger laterInterceptorCalls = new AtomicInteger();
+
     @Test
-    @DisplayName("동시에 처리하는 조회가 상한이면 기다리지 않고 Retry-After와 함께 503(COMMON-503)이며, 앞선 조회가 끝나면 다시 받는다")
-    void rejectsImmediatelyWhileConcurrentRequestsAreAtLimit() throws Exception {
+    @DisplayName("동시에 처리하는 조회가 상한이면 뒤 인터셉터로 넘기지 않고 Retry-After와 함께 503(COMMON-503)이며, 앞선 조회가 끝나면 다시 받는다")
+    void rejectsBeforeLaterInterceptorsWhileConcurrentRequestsAreAtLimit() throws Exception {
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         MockMvc mockMvc = mockMvc(query -> {
@@ -53,6 +63,7 @@ class ProgressBoardControllerTest {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().string(HttpHeaders.RETRY_AFTER, "2"))
                 .andExpect(jsonPath("$.code").value("COMMON-503"));
+        assertThat(laterInterceptorCalls).hasValue(1);
 
         release.countDown();
         assertThat(held.get(5, TimeUnit.SECONDS)).isEqualTo(200);
@@ -74,9 +85,19 @@ class ProgressBoardControllerTest {
         requestBoard(mockMvc).andExpect(status().isOk());
     }
 
-    private static MockMvc mockMvc(GetProgressBoardUseCase useCase) {
-        return MockMvcBuilders.standaloneSetup(
-                        new ProgressBoardController(useCase, new ProgressBoardProperties(1, null)))
+    private MockMvc mockMvc(GetProgressBoardUseCase useCase) {
+        HandlerInterceptor laterInterceptor = new HandlerInterceptor() {
+            @Override
+            public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+                laterInterceptorCalls.incrementAndGet();
+                return true;
+            }
+        };
+        return MockMvcBuilders.standaloneSetup(new ProgressBoardController(useCase))
+                .addMappedInterceptors(
+                        new String[] {ProgressBoardConcurrencyLimitInterceptor.PATH_PATTERN},
+                        new ProgressBoardConcurrencyLimitInterceptor(new ProgressBoardProperties(1, null)),
+                        laterInterceptor)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
