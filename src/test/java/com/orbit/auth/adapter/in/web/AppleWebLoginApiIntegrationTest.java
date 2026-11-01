@@ -3,6 +3,7 @@ package com.orbit.auth.adapter.in.web;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,8 +33,8 @@ import com.orbit.support.AppleAuthStub;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/** 웹·Android Apple 로그인. Apple 엔드포인트는 로컬 스텁이고 state·Redis·PostgreSQL·토큰 교환 경로는 실제 구현을 지난다. 실제 Apple E2E는 아니다. */
-@DisplayName("Apple 웹·Android 로그인 API")
+/** 웹 Apple 로그인. Apple 엔드포인트는 로컬 스텁이고 state·Redis·PostgreSQL·토큰 교환 경로는 실제 구현을 지난다. 실제 Apple E2E는 아니다. */
+@DisplayName("Apple 웹 로그인 API")
 class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
 
     // RFC 7636 부록 B의 code_verifier와 그 S256 challenge
@@ -91,10 +92,21 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
     }
 
     @Test
+    @DisplayName("Apple 로그인은 Apple 기기에서만 노출하므로 Android 앱 클라이언트로는 시작할 수 없다")
+    void rejectsAndroidClient() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/apple/authorize")
+                        .param("client", "android")
+                        .param("code_challenge", CHALLENGE))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"))
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+    }
+
+    @Test
     @DisplayName("무효한 토큰을 붙인 채로도 시작할 수 있다")
     void startsWithStaleTokenAttached() throws Exception {
         mockMvc.perform(get("/api/v1/auth/apple/authorize")
-                        .param("client", "android")
+                        .param("client", "web")
                         .param("code_challenge", CHALLENGE)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer stale"))
                 .andExpect(status().isFound());
@@ -137,22 +149,6 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
         assertThat(APPLE.tokenRequests().getLast())
                 .containsEntry("client_id", AppleAuthStub.SERVICES_ID)
                 .containsEntry("redirect_uri", "http://localhost/api/v1/auth/apple/callback");
-    }
-
-    @Test
-    @DisplayName("Android: 앱 스킴 복귀 주소로 교환 코드를 보낸다")
-    void returnsToAndroidAppScheme() throws Exception {
-        String subject = appleSubject();
-        Started started = start("android");
-
-        String location = callback(
-                        started, APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID), code(subject))
-                .andExpect(status().isFound())
-                .andReturn()
-                .getResponse()
-                .getHeader(HttpHeaders.LOCATION);
-
-        assertThat(location).startsWith("orbit-test://auth/apple?code=");
     }
 
     @Test
@@ -303,7 +299,7 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
     @DisplayName("복귀 주소의 교환 코드를 가로채도 시작한 클라이언트의 code_verifier 없이는 Access Token을 받을 수 없다")
     void rejectsInterceptedExchangeCodeWithoutVerifier() throws Exception {
         String subject = appleSubject();
-        Started started = start("android");
+        Started started = start("web");
         String location = callback(
                         started, APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID), code(subject))
                 .andReturn()

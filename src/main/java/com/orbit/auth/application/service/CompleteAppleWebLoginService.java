@@ -27,7 +27,7 @@ import com.orbit.shared.error.CommonErrorCode;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Apple이 form_post로 보낸 웹·Android 로그인 콜백을 마친다. state를 로그인을 시작한 브라우저의 연결 값과 함께 한 번만 소비한 뒤({@link
+ * Apple이 form_post로 보낸 웹 로그인 콜백을 마친다. state를 로그인을 시작한 브라우저의 연결 값과 함께 한 번만 소비한 뒤({@link
  * WebLoginStates}), id_token(웹 Services ID 대상, state의 nonce)을 검증하고 code를 같은 클라이언트·콜백 주소로 교환해 같은 사용자인지 확인한다.
  * 계정을 찾거나 등록하고 refresh token을 보관한 다음, Access Token 대신 일회성 교환 코드({@link WebLoginExchangeCodes})를 만들어 클라이언트 복귀
  * 주소로 돌려보낸다.
@@ -86,7 +86,7 @@ public class CompleteAppleWebLoginService implements CompleteAppleWebLoginUseCas
             return WebLoginCompletion.failure(
                     pending.returnUri(), exception.getErrorCode().getCode());
         } catch (RuntimeException exception) {
-            // 브라우저(Android Custom Tab)가 콜백 주소의 오류 본문에 멈추지 않도록 복귀 주소로 돌려보낸다.
+            // 브라우저가 콜백 주소의 오류 본문에 멈추지 않도록 복귀 주소로 돌려보낸다.
             log.error("Apple web login callback failed unexpectedly", exception);
             return WebLoginCompletion.failure(pending.returnUri(), CommonErrorCode.INTERNAL_SERVER_ERROR.getCode());
         }

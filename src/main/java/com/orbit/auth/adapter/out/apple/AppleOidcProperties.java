@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Apple OIDC 발급자·JWKS 주소·허용 대상 설정. iOS 앱은 Bundle ID, 웹·Android는 Services ID를 id_token {@code aud}로 받으므로 대상은 목록으로 받는다.
+ * Apple OIDC 발급자·JWKS 주소·허용 대상 설정. iOS 앱은 Bundle ID, 웹은 Services ID를 id_token {@code aud}로 받으므로 대상은 목록으로 받는다.
  * Apple {@code sub}는 개발자 팀 단위로 같으므로 같은 팀의 클라이언트들이 한 계정으로 합쳐지는 것이 정상이다.
  */
 @ConfigurationProperties(prefix = "app.auth.apple")

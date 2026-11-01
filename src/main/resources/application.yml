@@ -165,7 +165,6 @@ app:
         redirect-uri: ${APPLE_WEB_REDIRECT_URI}
         return-uris:
           web: ${APPLE_WEB_RETURN_URI}
-          android: ${APPLE_ANDROID_RETURN_URI}
     closed-account:
       # 커밋 뒤 폐쇄 표시 저장이 실패했을 때를 대비해 최근 폐쇄 계정의 표시를 다시 남기는 주기
       reconfirm-enabled: true

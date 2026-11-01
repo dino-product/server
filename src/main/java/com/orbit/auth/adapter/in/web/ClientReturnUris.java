@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * 웹 로그인이 끝난 뒤 돌아갈 클라이언트 주소 목록. 클라이언트 이름(예: {@code web}, {@code android})별로 등록한 절대 주소로만 보내 임의 주소로의 리다이렉트를
+ * 웹 로그인이 끝난 뒤 돌아갈 클라이언트 주소 목록. 클라이언트 이름(예: {@code web})별로 등록한 절대 주소로만 보내 임의 주소로의 리다이렉트를
  * 막는다. 이름은 대소문자를 구분하지 않는다.
  */
 final class ClientReturnUris {
