@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +13,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.Scenario;
 import org.springframework.test.context.ActiveProfiles;
@@ -26,13 +28,17 @@ import com.orbit.notification.application.port.out.PushNotificationPort;
 import com.orbit.notification.domain.Notification;
 import com.orbit.notification.domain.NotificationType;
 import com.orbit.organization.OrganizationAccountLookup;
+import com.orbit.organization.ParticipationRequestApproved;
+import com.orbit.organization.ParticipationRequestLookup;
+import com.orbit.organization.ParticipationRequestRejected;
+import com.orbit.profile.AccountWithdrawn;
 import com.orbit.schedule.WorkAssigned;
 import com.orbit.schedule.WorkReassigned;
 import com.orbit.schedule.WorkRejected;
 import com.orbit.support.SharedContainers;
 
 /**
- * notification만 띄워 schedule 이벤트가 커밋 뒤 알림이 되는지 확인한다. 계정 식별자를 테스트마다 달리해 같은 DB의 다른 테스트 행과 섞이지 않게 한다.
+ * notification만 띄워 schedule·organization 이벤트가 커밋 뒤 알림이 되는지 확인한다. 계정 식별자를 테스트마다 달리해 같은 DB의 다른 테스트 행과 섞이지 않게 한다.
  * 푸시 출력 포트는 호출 여부를 보려고 대체한다.
  */
 @ApplicationModuleTest
@@ -47,11 +53,18 @@ class NotificationModuleTest implements SharedContainers {
     @MockitoBean
     private OrganizationAccountLookup accountLookup;
 
+    // organization 공개 계약. 넣지 않은 요청은 거절 사유가 없다.
+    @MockitoBean
+    private ParticipationRequestLookup participationRequestLookup;
+
     @MockitoBean
     private PushNotificationPort pushNotificationPort;
 
     @Autowired
     private ListNotificationsUseCase listNotificationsUseCase;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void recordsAndPushesAssignmentAfterScheduleCommit(Scenario scenario) {
@@ -68,6 +81,21 @@ class NotificationModuleTest implements SharedContainers {
                             assertThat(notification.read()).isFalse();
                         }));
         verify(pushNotificationPort).send(any(Notification.class));
+    }
+
+    @Test
+    void redeliveredEventDoesNotCreateSecondNotificationOrPush(Scenario scenario) {
+        when(accountLookup.findActiveTechnicianAccountId(103L, 9L)).thenReturn(Optional.of(9_206L));
+        WorkAssigned event = new WorkAssigned(13L, 103L, 9L, "누수 점검", START, OCCURRED_AT);
+
+        scenario.publish(event).andWaitForStateChange(() -> completedPublicationsOfWork(13L), count -> count >= 1);
+        scenario.publish(event)
+                .andWaitForStateChange(() -> completedPublicationsOfWork(13L), count -> count >= 2)
+                .andVerify(count -> assertThat(visible(9_206L).totalCount())
+                        .as("다시 전달된 같은 이벤트로 알림을 또 만들지 않는다")
+                        .isEqualTo(1));
+        verify(pushNotificationPort, times(1))
+                .send(argThat(notification -> notification.recipientAccountId().equals(9_206L)));
     }
 
     @Test
@@ -106,6 +134,70 @@ class NotificationModuleTest implements SharedContainers {
                             .extracting(NotificationInfo::message)
                             .containsExactly("[필터 교체] 작업이 다른 기사에게 넘어갔습니다.");
                 });
+    }
+
+    @Test
+    void participationRequestResultsNotifyApplicantWithPushAfterOrganizationCommit(Scenario scenario) {
+        when(participationRequestLookup.findRejectReason(42L)).thenReturn(Optional.of("인원 마감"));
+
+        scenario.publish(new ParticipationRequestApproved(
+                        41L,
+                        104L,
+                        9_207L,
+                        ParticipationRequestApproved.Type.TECHNICIAN,
+                        ParticipationRequestApproved.Type.STAFF,
+                        OCCURRED_AT))
+                .andWaitForStateChange(() -> visible(9_207L), page -> page.totalCount() > 0)
+                .andVerify(
+                        page -> assertThat(page.notifications()).singleElement().satisfies(notification -> {
+                            assertThat(notification.type()).isEqualTo(NotificationType.PARTICIPATION_REQUEST_APPROVED);
+                            assertThat(notification.organizationId()).isEqualTo(104L);
+                            assertThat(notification.participationRequestId()).isEqualTo(41L);
+                            assertThat(notification.workId()).isNull();
+                            assertThat(notification.message()).isEqualTo("참여 요청이 승인되었습니다. 참여 유형: 기사 → 직원");
+                        }));
+
+        scenario.publish(new ParticipationRequestRejected(42L, 105L, 9_208L, OCCURRED_AT))
+                .andWaitForStateChange(() -> visible(9_208L), page -> page.totalCount() > 0)
+                .andVerify(page -> assertThat(page.notifications())
+                        .extracting(NotificationInfo::message)
+                        .containsExactly("참여 요청이 거절되었습니다. 사유: 인원 마감"));
+        verify(pushNotificationPort)
+                .send(argThat(notification -> notification.recipientAccountId().equals(9_207L)));
+        verify(pushNotificationPort)
+                .send(argThat(notification -> notification.recipientAccountId().equals(9_208L)));
+    }
+
+    @Test
+    void removesPushDevicesOfWithdrawnAccountAfterProfileCommit(Scenario scenario) {
+        insertPushDevice(9_209L, "module-test-token-9209-a");
+        insertPushDevice(9_209L, "module-test-token-9209-b");
+        insertPushDevice(9_210L, "module-test-token-9210");
+
+        scenario.publish(new AccountWithdrawn(9_209L, OCCURRED_AT))
+                .andWaitForStateChange(() -> pushDevicesOf(9_209L), count -> count == 0)
+                .andVerify(count -> assertThat(pushDevicesOf(9_210L)).isEqualTo(1));
+    }
+
+    private void insertPushDevice(Long accountId, String token) {
+        jdbcTemplate.update("""
+                insert into push_devices (member_id, platform, token, registered_at, created_at, updated_at)
+                values (?, 'ANDROID', ?, now(), now(), now())
+                on conflict (token) do nothing
+                """, accountId, token);
+    }
+
+    private long pushDevicesOf(Long accountId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from push_devices where member_id = ?", Long.class, accountId);
+    }
+
+    /** 리스너가 처리를 마쳐 보관 테이블로 옮겨진, 이 작업의 이벤트 발행 수. */
+    private long completedPublicationsOfWork(Long workId) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from event_publication_archive where serialized_event like ?",
+                Long.class,
+                "%\"workId\":" + workId + ",%");
     }
 
     private NotificationPageInfo visible(Long accountId) {
