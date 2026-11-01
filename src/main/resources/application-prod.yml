@@ -9,3 +9,10 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+app:
+  notification:
+    push:
+      fcm:
+        # 운영은 기사 앱 푸시를 실제로 보낸다. FCM_CREDENTIALS가 없으면 기동하지 않는다.
+        enabled: true
