@@ -15,7 +15,8 @@ public record NotificationResponse(
                 description = "알림 종류. 기사 알림: WORK_ASSIGNED(작업 배정), WORK_RESCHEDULED(일정 변경), "
                         + "WORK_REASSIGNED_AWAY(다른 기사에게 넘어감), WORK_CANCELED(작업 취소), "
                         + "COMPLETION_REPORT_REQUESTED(완료보고 요청). 사무실 알림: WORK_ACCEPTED(수락), WORK_REJECTED(거절), "
-                        + "COMPLETION_REPORT_SUBMITTED(완료보고 제출)",
+                        + "COMPLETION_REPORT_SUBMITTED(완료보고 제출). 참여 요청 결과(요청자): "
+                        + "PARTICIPATION_REQUEST_APPROVED(승인), PARTICIPATION_REQUEST_REJECTED(거절)",
                 example = "WORK_ASSIGNED")
         NotificationType type,
 
@@ -27,6 +28,11 @@ public record NotificationResponse(
                         + "다른 기사에게 넘어간 작업처럼 지금 볼 수 없는 작업이면 작업 상세가 SCHEDULE-001(404)이다",
                 example = "10")
         Long workId,
+
+        @Schema(
+                description = "관련 참여 요청 식별자. 참여 요청 결과 알림을 눌렀을 때 이동할 승인 결과·거절 화면의 대상. 참여 요청 결과가 아닌 알림이면 null",
+                example = "31")
+        Long participationRequestId,
 
         @Schema(description = "알림 문구. 시각은 한국 시간으로 쓴다", example = "10월 21일 09:00 [보일러 점검] 작업이 배정되었습니다.")
         String message,
@@ -42,6 +48,7 @@ public record NotificationResponse(
                 info.type(),
                 info.organizationId(),
                 info.workId(),
+                info.participationRequestId(),
                 info.message(),
                 info.read(),
                 info.notifiedAt());

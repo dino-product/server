@@ -14,7 +14,7 @@ DB·컨테이너 검사는 전용 자원도 삭제할 수 있어 [DB 승인](dat
 | 모듈 경계·공개 계약 | `com.orbit.ModularityTest` |
 | 내부 의존성·Domain의 다른 비즈니스 모듈 참조·JPA Entity·`@MappedSuperclass` 위치 | `com.orbit.ArchitectureTest` |
 | 등록 트랜잭션·이벤트·비동기 설정 | `com.orbit.UserRegistrationEventIntegrationTest` |
-| 이벤트 발행 기록·재전송·멈춘 발행·지표 설정 | `com.orbit.shared.internal.event.EventPublicationRegistryIntegrationTest`, `FailedEventPublicationResubmitSchedulerTest` |
+| 이벤트 발행 기록·재전송·멈춘 발행 설정 | `com.orbit.shared.internal.event.EventPublicationRegistryIntegrationTest`, `EventResubmissionPropertiesTest`, `FailedEventPublicationResubmitSchedulerTest` |
 | HTTP·응답·예외·보안 | `com.orbit.ApiWorkflowIntegrationTest` |
 | Bean 등록·생성자 주입·공통 Security·설정과 소비 모듈 의존성 | 영향받는 `com.orbit.user.UserModuleTest`, `com.orbit.auth.AuthModuleTest`와 위 API 검사 |
 | OpenAPI 계약 | `com.orbit.OpenApiDocumentationIntegrationTest` |
