@@ -62,6 +62,7 @@ public class SubmitCompletionReportService implements SubmitCompletionReportUseC
 
         workRepository.save(work);
         eventPublisher.publishEvent(WorkEvents.completionReportSubmitted(work, technician.technicianId(), now));
+        eventPublisher.publishEvent(WorkEvents.changed(work, now));
     }
 
     private static CompletionReport toReport(SubmitCompletionReportCommand command) {

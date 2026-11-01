@@ -3,6 +3,7 @@ package com.orbit.shared.internal.event;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,7 +22,8 @@ class FailedEventPublicationResubmitSchedulerTest {
                     FailedEventPublicationResubmitter.class,
                     FailedEventPublicationResubmitScheduler.class)
             .withBean(CountingFailedEventPublications.class, CountingFailedEventPublications::new)
-            .withBean(EventResubmissionProperties.class, () -> new EventResubmissionProperties(null))
+            .withBean(EventResubmissionProperties.class, () -> new EventResubmissionProperties(null, null))
+            .withBean(Clock.class, Clock::systemUTC)
             .withPropertyValues("app.events.resubmission.interval=PT0.05S");
 
     @Test

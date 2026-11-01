@@ -45,7 +45,7 @@ class ManagedWorkCommandRulesTest {
     static Stream<UseCase> useCases() {
         return Stream.of(
                 new UseCase("기본정보 수정", (f, request) -> new UpdateWorkDetailsService(
-                                f.actorPort, f.workRepository, f.workTypes)
+                                f.actorPort, f.workRepository, f.workTypes, f.events, f.clock)
                         .update(new UpdateWorkDetailsCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -100,7 +100,8 @@ class ManagedWorkCommandRulesTest {
                                 request.validInput() ? TEN.plus(Duration.ofHours(1)) : null,
                                 TWO_HOURS,
                                 false))),
-                new UseCase("배정 해제", (f, request) -> new UnassignWorkService(f.actorPort, f.workRepository, f.clock)
+                new UseCase("배정 해제", (f, request) -> new UnassignWorkService(
+                                f.actorPort, f.workRepository, f.events, f.clock)
                         .unassign(new UnassignWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),

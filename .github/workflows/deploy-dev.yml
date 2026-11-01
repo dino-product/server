@@ -38,60 +38,71 @@ jobs:
           provenance: false
           tags: ${{ steps.ecr.outputs.registry }}/orbit/server:${{ github.sha }}
 
-  # dev 노드에 SSM Run Command로 배포한다: 번들(차트 · deploy.sh)을 받아 helm upgrade
+  # infra 레포 values-dev.yaml의 이미지 태그를 커밋으로 바꾼다: dev 클러스터의 Argo CD가 감지해 배포
   deploy:
     needs: build
     # 앱이 dev에서 뜨기 전까지는 꺼 둔다. 켜기: gh variable set DEPLOY_DEV --body true
     if: vars.DEPLOY_DEV == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    # AWS를 쓰지 않고 infra 푸시는 deploy key(INFRA_DEPLOY_KEY)로 한다 → 토큰 권한이 필요 없다
+    permissions: {}
     env:
       TAG: ${{ needs.build.outputs.tag }}
-      BUCKET: orbit-deploy-714047901967
+      VALUES: charts/orbit-server/values-dev.yaml
     steps:
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
         with:
-          role-to-assume: arn:aws:iam::714047901967:role/gh-server-dev
-          aws-region: ap-northeast-2
-      - name: dev 노드 확인
-        id: node
+          repository: dino-product/infra
+          ref: main
+          ssh-key: ${{ secrets.INFRA_DEPLOY_KEY }}
+          path: infra
+      - name: 이미지 태그 바꾸기
+        id: bump
+        working-directory: infra
         run: |
-          read -r ID PING <<<"$(aws ssm describe-instance-information \
-            --filters Key=tag:Env,Values=dev Key=tag:Role,Values=k3s \
-            --query 'InstanceInformationList[0].[InstanceId,PingStatus]' --output text)"
-          echo "node=$ID ssm=$PING"
-          if [ "$PING" != "Online" ]; then
-            echo "::error::dev 노드가 꺼져 있거나 SSM에 연결되지 않았습니다. 켜고 Re-run 하세요"
+          OLD=$(yq '.image.tag' "$VALUES")
+          if [ "$OLD" = "$TAG" ]; then
+            echo "infra에 이미 ${TAG::7} 태그가 있어 커밋하지 않습니다"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # yq -i는 파일 전체의 { a: b }를 {a: b}로 다시 쓴다 → 태그 줄의 값만 글자 그대로 바꾸고 결과는 yq로 확인
+          LINE=$(yq '.image.tag | line' "$VALUES")
+          sed -i "${LINE}s/${OLD//./\\.}/$TAG/" "$VALUES"
+          if ! yq -e '.image.tag == strenv(TAG) and (.image.tag | tag) == "!!str"' "$VALUES" >/dev/null; then
+            echo "::error::${VALUES}의 image.tag를 ${TAG}(문자열)로 바꾸지 못했습니다"
             exit 1
           fi
-          echo "id=$ID" >> "$GITHUB_OUTPUT"
-      - name: SSM으로 배포
-        env:
-          NODE: ${{ steps.node.outputs.id }}
+          git diff
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: infra main에 커밋 · 푸시
+        id: push
+        if: steps.bump.outputs.changed == 'true'
+        working-directory: infra
         run: |
-          CMDS=$(jq -nc --arg b "$BUCKET" --arg t "$TAG" '{commands: [
-            "set -e",
-            "aws s3 cp s3://\($b)/bundle/latest.tgz /tmp/bundle.tgz --region ap-northeast-2",
-            "rm -rf /opt/orbit && mkdir -p /opt/orbit && tar xzf /tmp/bundle.tgz -C /opt/orbit",
-            "bash /opt/orbit/scripts/deploy.sh dev \($t)"]}')
-          CID=$(aws ssm send-command --document-name AWS-RunShellScript \
-            --instance-ids "$NODE" --parameters "$CMDS" --timeout-seconds 900 \
-            --comment "deploy dev ${TAG::7}" --query Command.CommandId --output text)
-          echo "command: $CID"
-
-          # 최대 15분 기다린다 (helm 제한 시간 10분 + 이미지 받기)
-          ST=Pending
-          for _ in $(seq 1 90); do
-            sleep 10
-            ST=$(aws ssm get-command-invocation --command-id "$CID" --instance-id "$NODE" \
-              --query Status --output text 2>/dev/null || echo Pending)
-            case "$ST" in Success|Failed|Cancelled|TimedOut) break ;; esac
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$VALUES"
+          git commit -m "chore(dev): orbit-server ${TAG::7}" -m "dino-product/server@$TAG"
+          # 그사이 다른 infra 커밋이 들어와 거절되면 rebase 후 다시 민다 (최대 3번)
+          for i in 1 2 3; do
+            if git push origin HEAD:main; then break; fi
+            if [ "$i" = 3 ]; then echo "::error::infra main 푸시가 3번 실패했습니다"; exit 1; fi
+            git pull --rebase origin main
           done
-
-          # get-command-invocation은 출력을 24,000자까지 준다 (list-command-invocations는 2,500자)
-          aws ssm get-command-invocation --command-id "$CID" --instance-id "$NODE" \
-            --query StandardOutputContent --output text
-          aws ssm get-command-invocation --command-id "$CID" --instance-id "$NODE" \
-            --query StandardErrorContent --output text >&2
-          echo "status: $ST"
-          [ "$ST" = "Success" ]
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: 요약
+        env:
+          CHANGED: ${{ steps.bump.outputs.changed }}
+          INFRA_SHA: ${{ steps.push.outputs.sha }}
+        run: |
+          {
+            echo "### dev 배포 이미지: \`$TAG\`"
+            if [ "$CHANGED" = true ]; then
+              echo "- infra 커밋 [\`${INFRA_SHA::7}\`](https://github.com/dino-product/infra/commit/$INFRA_SHA): \`$VALUES\`의 \`image.tag\`"
+            else
+              echo "- infra에 이미 같은 태그가 있어 커밋하지 않았습니다"
+            fi
+            echo "- 이 job은 커밋까지만 합니다. Argo CD가 Git을 약 3분마다 확인해 반영하니 결과는 [Argo CD orbit-server](https://argocd.dev.orbi-t.com/applications/argocd/orbit-server)에서 확인합니다"
+          } >> "$GITHUB_STEP_SUMMARY"

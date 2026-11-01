@@ -2,11 +2,13 @@ package com.orbit;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -50,6 +52,36 @@ class ApiWorkflowIntegrationTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/v1/auth/examples/subjects/{userId}", Long.MAX_VALUE))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("AUTH-001"));
+    }
+
+    @Test
+    void returnsJsonErrorWhateverTheRequestAccepts() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/examples/subjects/{userId}", Long.MAX_VALUE)
+                        .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("AUTH-001"));
+    }
+
+    @Test
+    void returnsNotAcceptableWithoutBodyWhenSuccessCannotMatchAccept() throws Exception {
+        MvcResult registration = mockMvc.perform(post("/api/v1/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"displayName":"홍길동"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        long userId = objectMapper
+                .readTree(registration.getResponse().getContentAsByteArray())
+                .path("result")
+                .path("id")
+                .asLong();
+
+        mockMvc.perform(get("/api/v1/auth/examples/subjects/{userId}", userId)
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_XML_VALUE))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().string(""));
     }
 
     @Test

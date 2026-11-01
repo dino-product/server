@@ -75,5 +75,6 @@ public class AcceptWorkService implements AcceptWorkUseCase {
 
         workRepository.save(work);
         eventPublisher.publishEvent(WorkEvents.accepted(work, technician.technicianId(), now));
+        eventPublisher.publishEvent(WorkEvents.changed(work, now));
     }
 }
