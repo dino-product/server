@@ -80,6 +80,6 @@ public interface AppleWebLoginControllerDocs {
             description = "교환 성공",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = LoginResponse.class)))
     @ApiErrorCodes(enumClass = CommonErrorCode.class, includes = "BAD_REQUEST")
-    @ApiErrorCodes(enumClass = AuthErrorCode.class, includes = "INVALID_APPLE_LOGIN_EXCHANGE_CODE")
+    @ApiErrorCodes(enumClass = AuthErrorCode.class, includes = "INVALID_LOGIN_EXCHANGE_CODE")
     LoginResponse exchange(AppleLoginExchangeRequest request);
 }

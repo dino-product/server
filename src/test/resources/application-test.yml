@@ -29,11 +29,19 @@ logging:
 app:
   auth:
     kakao:
-      allowed-audiences: test-kakao-app-key
+      allowed-audiences: test-kakao-app-key,test-kakao-rest-api-key
       admin-api:
         # 테스트가 실제 카카오를 부르지 않도록 닫힌 로컬 주소를 둔다. 연결 끊기를 검사하는 테스트는 스텁 주소로 바꾼다.
         unlink-uri: http://127.0.0.1:1/v1/user/unlink
         admin-key: test-kakao-admin-key
+      web:
+        # 토큰 교환도 닫힌 로컬 주소에 둔다. 웹 로그인 API 테스트는 스텁 주소로 바꾼다.
+        token-uri: http://127.0.0.1:1/oauth/token
+        rest-api-key: test-kakao-rest-api-key
+        client-secret: test-kakao-client-secret
+        redirect-uri: http://localhost/api/v1/auth/kakao/callback
+        return-uris:
+          web: http://localhost:3000/login/kakao
     apple:
       allowed-audiences: test-apple-bundle-id,test-apple-services-id
       client-secret:

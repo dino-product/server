@@ -120,6 +120,15 @@ app:
         unlink-uri: https://kapi.kakao.com/v1/user/unlink
         admin-key: ${KAKAO_ADMIN_KEY}
         timeout: PT5S
+      web:
+        authorization-uri: https://kauth.kakao.com/oauth/authorize
+        token-uri: https://kauth.kakao.com/oauth/token
+        rest-api-key: ${KAKAO_REST_API_KEY}
+        client-secret: ${KAKAO_CLIENT_SECRET}
+        redirect-uri: ${KAKAO_WEB_REDIRECT_URI}
+        timeout: PT5S
+        return-uris:
+          web: ${KAKAO_WEB_RETURN_URI}
     apple:
       issuer: https://appleid.apple.com
       jwk-set-uri: https://appleid.apple.com/auth/keys
