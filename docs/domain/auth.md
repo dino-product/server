@@ -4,7 +4,7 @@
 
 카카오·Apple OIDC로 사용자를 인증하고, 제공자 `sub`에 연결된 계정(`Account`)을 발급·조회·폐쇄하며, 자체 Access Token을 발급·검증·폐기합니다. 계정을 닫으면 외부 식별을 끊고 그 계정의 토큰을 거부하며, 커밋 뒤 카카오 연결 끊기·Apple 토큰 철회를 시도합니다. Apple 토큰을 철회할 수 있도록 Apple refresh token을 암호화해 보관합니다. 계정의 식별자 발급까지가 책임이며 이름·연락처 같은 가입 프로필·가입 상태·약관 동의와 탈퇴는 [profile](profile.md#profile), 조직 역할은 organization이 소유합니다.
 
-현재 구현 범위는 카카오 앱(네이티브 SDK)의 id_token 제출 로그인, Apple iOS의 id_token·authorization code 제출 로그인, Apple 웹·Android의 서버 authorize·callback 로그인, Access Token 발급, Bearer 인증, 로그아웃, 탈퇴를 소유한 profile이 부르는 [계정 폐쇄](#계정-폐쇄-흐름)와 [외부 연결 해제](#외부-연결-해제-흐름)입니다. 카카오 웹 흐름, Refresh Token 회전, 조직 역할, organization 공개 계약은 아직 없습니다. Apple 로그인은 Notion 정책서 반영 전에 구현했습니다([A-10](bounded-contexts.md#auth-gaps)). 예제 subject 조회와 등록 이벤트 후속 처리는 user와의 ACL 관계를 보여주는 구조 예제로 남아 있으며 인증 의미가 없습니다. 예제 subject는 인증 증명이 아니며 접근 권한을 부여하지 않습니다.
+현재 구현 범위는 카카오 앱(네이티브 SDK)의 id_token 제출 로그인, 카카오 웹의 서버 authorize·callback 로그인, Apple iOS의 id_token·authorization code 제출 로그인, Apple 웹·Android의 서버 authorize·callback 로그인, Access Token 발급, Bearer 인증, 로그아웃, 탈퇴를 소유한 profile이 부르는 [계정 폐쇄](#계정-폐쇄-흐름)와 [외부 연결 해제](#외부-연결-해제-흐름)입니다. Refresh Token 회전, 조직 역할, organization 공개 계약은 아직 없습니다. Apple 로그인은 Notion 정책서 반영 전에 구현했습니다([A-10](bounded-contexts.md#auth-gaps)). 예제 subject 조회와 등록 이벤트 후속 처리는 user와의 ACL 관계를 보여주는 구조 예제로 남아 있으며 인증 의미가 없습니다. 예제 subject는 인증 증명이 아니며 접근 권한을 부여하지 않습니다.
 
 ## 카카오 로그인 흐름
 
@@ -21,14 +21,32 @@ POST /api/v1/auth/kakao/login {idToken}
   → AccountRepository.findByIdentity / saveNew(Account.register)
   → AccessTokenPort.issue → JwtAccessTokenAdapter (HS256)
   → LoginInfo → LoginResponse
+
+[웹] GET /api/v1/auth/kakao/authorize?client=web&code_challenge={S256}[&code_challenge_method=S256]
+  → StartKakaoWebLoginUseCase → StartKakaoWebLoginService
+  → WebLoginStatePort (KAKAO, (state, 브라우저 연결 해시) → nonce 해시·복귀 주소·PKCE challenge, 10분)
+  → KakaoWebAuthorizationPort → 302 카카오 인가 주소(REST API 키, scope=openid) + 브라우저 연결 쿠키
+
+[웹] GET /api/v1/auth/kakao/callback?state&code | error
+  → CompleteKakaoWebLoginUseCase → CompleteKakaoWebLoginService
+  → state·브라우저 연결로 일회성 소비 → ExchangeKakaoAuthorizationCodePort → KakaoTokenClient (/oauth/token, client_secret)
+  → VerifyKakaoIdTokenPort (교환 응답 id_token, state의 nonce) → 계정 조회/등록
+  → LoginExchangePort (KAKAO, 60초 교환 코드 + PKCE challenge) → 302 복귀 주소?code=… 또는 ?error=…
+
+[웹] POST /api/v1/auth/kakao/exchange {code, codeVerifier}
+  → ExchangeWebLoginUseCase → ExchangeWebLoginService (KAKAO, S256(codeVerifier) = challenge) → LoginResponse
 ```
 
 - 앱은 nonce를 받아 카카오 SDK 로그인에 넘기고, SDK가 돌려준 id_token을 제출합니다. id_token은 로그인 증명일 뿐 보관하지 않으며 카카오 access·refresh 토큰도 받지 않습니다.
 - 검증기는 카카오 JWKS(`https://kauth.kakao.com/.well-known/jwks.json`)의 RS256 키로 서명을, 발급자 `https://kauth.kakao.com`, 허용 앱 키 목록(`aud`), 만료(60초 오차 허용)를 확인하고 `sub`·`nonce` 존재를 요구합니다. 하나라도 어긋나면 `AUTH-002`(HTTP 401)입니다.
 - nonce는 서버가 발급한 값이어야 하고 한 번만 소비됩니다. 미발급·재사용·만료는 `AUTH-003`(HTTP 401)입니다. 서명이 유효하지 않으면 nonce를 소비하지 않습니다. nonce 소비는 Redis 연산이라 이후 단계(계정 저장·토큰 발급)가 실패해도 되돌리지 않으므로, 클라이언트는 실패 시 nonce부터 다시 받아 로그인합니다.
-- 앱 흐름은 브라우저 세션이 없어 nonce를 발급 주체와 따로 묶지 않습니다. nonce 발급은 인증 없는 공개 호출이라 발급 응답에 핸들을 더해도 핸들이 nonce·id_token과 같은 응답·로그인 요청으로 오가므로, id_token을 얻을 수 있는 위치에서는 핸들도 얻을 수 있어 보호가 늘지 않습니다. 재사용은 id_token 서명에 포함된 nonce의 서버 발급 여부·일회성·만료로 막습니다. 웹 흐름을 추가하면 state/nonce를 시작 브라우저와 연결합니다.
+- 앱 흐름은 브라우저 세션이 없어 nonce를 발급 주체와 따로 묶지 않습니다. nonce 발급은 인증 없는 공개 호출이라 발급 응답에 핸들을 더해도 핸들이 nonce·id_token과 같은 응답·로그인 요청으로 오가므로, id_token을 얻을 수 있는 위치에서는 핸들도 얻을 수 있어 보호가 늘지 않습니다. 재사용은 id_token 서명에 포함된 nonce의 서버 발급 여부·일회성·만료로 막습니다. 웹 흐름은 state/nonce를 시작 브라우저와 연결합니다.
 - 같은 `sub`의 첫 로그인이 동시에 들어오면 한쪽만 계정을 만들고 다른 쪽은 유니크 제약 위반을 받아 먼저 만들어진 계정을 다시 조회해 씁니다(`registered: false`).
 - `ExternalIdentity(KAKAO, sub)`에 연결된 계정이 없으면 등록하고 `registered: true`로, 있으면 같은 계정으로 응답합니다. 이메일·닉네임은 식별에 쓰지 않습니다.
+- 웹(총관리자·직원)은 서버가 카카오 인가·콜백을 맡습니다. state·브라우저 연결·PKCE 교환 코드·복귀 주소 등록(`client=web`)·AUTH-007 규칙은 [Apple 웹 흐름](#apple-로그인-흐름)과 같은 공통 단계(`WebLoginStates`, `WebLoginExchangeCodes`, `ExchangeWebLoginService`)입니다. Redis 키 공간이 제공자별이라 한 제공자의 state·교환 코드를 다른 제공자의 콜백·교환 경로에서 쓸 수 없습니다.
+- 카카오 웹의 연결 쿠키는 `kakao_login_binding`(`HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth/kakao`)입니다. 카카오 콜백은 최상위 GET 이동이라 Lax 쿠키가 전송됩니다.
+- 인가 코드는 같은 카카오 앱의 REST API 키·클라이언트 시크릿·콜백 주소로 교환하고, 응답의 id_token을 앱 흐름과 같은 검증기로 확인한 뒤 nonce를 state의 nonce 해시와 대조합니다. REST API 키가 허용 앱 키 목록에 없으면 기동하지 않으며, 같은 앱이라 회원번호가 앱 로그인과 같아 같은 계정이 됩니다. 카카오 access·refresh 토큰은 버립니다.
+- 웹 콜백에서 state가 없거나 다른 브라우저·재사용이면 리다이렉트 없이 AUTH-003(401)입니다. 그 밖의 실패는 복귀 주소에 `error`만 싣습니다(사용자 취소 `access_denied` AUTH-008, 인가 코드 없음·카카오가 code를 거절한 `invalid_grant` AUTH-002, nonce 불일치 AUTH-003, 카카오가 보낸 그 밖의 오류·통신·설정 오류·id_token 없는 응답·교환한 id_token 검증 실패 AUTH-010, 예상하지 못한 내부 오류 COMMON-500). `invalid_grant`라도 `error_code`가 KOE303(콜백 주소 불일치)·KOE310이면 설정 오류로 봅니다. 콜백은 카카오 토큰 API를 기다리므로 메서드 트랜잭션을 두지 않습니다.
 
 ## Apple 로그인 흐름
 
@@ -47,17 +65,17 @@ POST /api/v1/auth/kakao/login {idToken}
 
 [웹·Android] GET /api/v1/auth/apple/authorize?client=web|android&code_challenge={S256}[&code_challenge_method=S256]
   → StartAppleWebLoginUseCase → StartAppleWebLoginService
-  → AppleWebLoginStatePort ((state, 브라우저 연결 해시) → nonce 해시·복귀 주소·PKCE challenge, 10분)
+  → WebLoginStatePort (APPLE, (state, 브라우저 연결 해시) → nonce 해시·복귀 주소·PKCE challenge, 10분)
   → AppleWebAuthorizationPort → 302 Apple 인가 주소 + 브라우저 연결 쿠키
 
 [웹·Android] POST /api/v1/auth/apple/callback (Apple form_post: state, code, id_token, user, error)
   → CompleteAppleWebLoginUseCase → CompleteAppleWebLoginService
   → state·브라우저 연결로 일회성 소비 → id_token(웹 Services ID, state의 nonce) → code 교환(redirect_uri)
-  → 계정 조회/등록 → refresh token 보관 → AppleLoginExchangePort (60초 교환 코드 + PKCE challenge)
+  → 계정 조회/등록 → refresh token 보관 → LoginExchangePort (APPLE, 60초 교환 코드 + PKCE challenge)
   → 302 복귀 주소?code=… 또는 ?error=…
 
 [웹·Android] POST /api/v1/auth/apple/exchange {code, codeVerifier}
-  → ExchangeAppleWebLoginUseCase → ExchangeAppleWebLoginService (S256(codeVerifier) = challenge)
+  → ExchangeWebLoginUseCase → ExchangeWebLoginService (APPLE, S256(codeVerifier) = challenge)
   → AccessTokenPort.issue → LoginResponse
 ```
 
@@ -123,7 +141,7 @@ profile WithdrawService (탈퇴 트랜잭션)
 - 이미 닫힌 계정을 다시 닫으면 DB를 바꾸지 않고 원래 폐쇄 시각으로 폐쇄 사실만 다시 알립니다(멱등). 커밋 뒤 폐쇄 표시 저장이 실패했어도 다시 닫으면 복구됩니다.
 - 외부 식별을 지우기 전에 계정·제공자마다 연결 해제 대기(`ProviderUnlink`)를 남깁니다. 처리는 [외부 연결 해제 흐름](#외부-연결-해제-흐름)입니다.
 - 폐쇄 표시: 인증은 DB 없이 동작하고 계정별 발급 토큰 목록이 없으므로, 커밋 뒤 Redis에 계정 단위 표시를 남겨 매 요청 대조합니다. 보관 기간은 `closedAt + Access Token 수명 + 5분`까지 남은 시간입니다. 5분은 폐쇄 직전에 시작한 로그인이 폐쇄 뒤에 발급한 토큰과 서버 간 시계 차이를 덮는 여유입니다. 남은 기간이 1초 미만이면 저장하지 않습니다. 다시 표시할 때도 원래 폐쇄 시각 기준으로 남은 기간만 남깁니다.
-- 인증 대조: 폐기 목록 다음에 폐쇄 표시를 대조해 닫힌 계정의 토큰을 폐기 토큰과 같은 `COMMON-404`로 끝냅니다. Apple 웹·Android 교환(`/exchange`)은 콜백 뒤 교환 전에 계정이 닫혔으면 `AUTH-007`로 거부합니다. 교환 코드는 이미 소비했으므로 다시 로그인하면 새 계정이 됩니다.
+- 인증 대조: 폐기 목록 다음에 폐쇄 표시를 대조해 닫힌 계정의 토큰을 폐기 토큰과 같은 `COMMON-404`로 끝냅니다. 웹 로그인 교환(카카오·Apple `/exchange`)은 콜백 뒤 교환 전에 계정이 닫혔으면 `AUTH-007`로 거부합니다. 교환 코드는 이미 소비했으므로 다시 로그인하면 새 계정이 됩니다.
 - 표시는 커밋 뒤 같은 스레드에서 남겨 탈퇴 응답 전에 이전 토큰 거부가 확정됩니다. 저장이 실패해도 커밋된 폐쇄는 유지되고 Spring이 오류를 기록합니다. 1분 주기 재확정이 토큰이 남았을 수 있는 최근 폐쇄 계정의 표시를 원래 폐쇄 시각 기준으로 되살립니다.
 
 ## 외부 연결 해제 흐름
@@ -162,7 +180,7 @@ ProviderUnlinker.process(대기)
 - `PkceChallenge`: RFC 7636 S256 code_challenge(base64url 43자). code_verifier의 SHA-256과 일정 시간 비교합니다.
 - `AccessToken(tokenId, accountId, issuedAt, expiresAt)`: 발급·검증 어댑터가 오가는 클레임 값. 유효 구간의 정합성을 소유합니다. 로그아웃 폐기 기간(남은 유효 시간) 계산은 `LogoutService`가 합니다.
 - 테이블은 `accounts`(id, registered_at, closed_at), `oauth_credentials`(id, account_id, provider, oauth_uid, `provider+oauth_uid` 유니크), `apple_refresh_tokens`(id, account_id, client_id, encrypted_token, updated_at, `account_id+client_id` 유니크), `provider_unlinks`(id, account_id, provider, oauth_uid, requested_at, failed_attempts, next_attempt_at)입니다. Apple refresh token은 계정·클라이언트마다 최신 값 하나를 PostgreSQL upsert로 남기고, AES-256-GCM(`v1:` + base64(IV·암호문·태그), 계정·클라이언트 문맥을 AAD로 묶음)으로 암호화합니다. 닫힌 계정의 토큰은 철회하거나 해제를 포기하면 지웁니다.
-- Redis 키는 `auth:login-nonce:{nonce}`(카카오), `auth:apple-login-nonce:{해시}`(Apple iOS, 5분), `auth:apple-web-login:{state}:{연결 해시}`(웹·Android, 10분), `auth:apple-login-exchange:{교환 코드 해시}`(60초), `auth:revoked-access-token:{jti}`, `auth:closed-account:{accountId}`(폐쇄 표시, 폐쇄 시각 + 토큰 수명 + 5분까지)입니다. 교환 코드 값에는 Access Token이 아니라 계정 식별자·등록 여부·PKCE challenge만 둡니다.
+- Redis 키는 `auth:login-nonce:{nonce}`(카카오), `auth:apple-login-nonce:{해시}`(Apple iOS, 5분), `auth:{kakao|apple}-web-login:{state}:{연결 해시}`(웹 로그인 state, 10분), `auth:{kakao|apple}-login-exchange:{교환 코드 해시}`(60초), `auth:revoked-access-token:{jti}`, `auth:closed-account:{accountId}`(폐쇄 표시, 폐쇄 시각 + 토큰 수명 + 5분까지)입니다. 교환 코드 값에는 Access Token이 아니라 계정 식별자·등록 여부·PKCE challenge만 둡니다.
 
 ## 설정
 
@@ -172,6 +190,9 @@ ProviderUnlinker.process(대기)
 | `app.auth.kakao.issuer`, `jwk-set-uri` | — | 카카오 고정값. 테스트는 JWKS 주소만 로컬 스텁으로 바꿉니다 |
 | `app.auth.kakao.admin-api.admin-key` | `KAKAO_ADMIN_KEY` | 같은 카카오 앱의 서비스 앱 어드민 키. 탈퇴한 계정의 카카오 연결 끊기에만 서버에서 씁니다. 기본값이 없고 비면 기동 실패. 클라이언트에 넣지 않고 문자열 표현에서 가립니다 |
 | `app.auth.kakao.admin-api.unlink-uri`, `timeout` | — | 카카오 연결 끊기 엔드포인트 고정값(`https://kapi.kakao.com/v1/user/unlink`)과 호출 제한 시간(5초). 테스트는 닫힌 로컬 주소를 두고, 연결 끊기를 검사하는 테스트만 스텁 주소로 바꿉니다 |
+| `app.auth.kakao.web.rest-api-key`, `client-secret` | `KAKAO_REST_API_KEY`, `KAKAO_CLIENT_SECRET` | 웹 로그인용 같은 카카오 앱의 REST API 키(`KAKAO_ALLOWED_AUDIENCES`에도 있어야 하며 없으면 기동 실패)와 그 키의 클라이언트 시크릿. 기본값이 없고, 시크릿은 문자열 표현에서 가립니다 |
+| `app.auth.kakao.web.redirect-uri`, `return-uris.web` | `KAKAO_WEB_REDIRECT_URI`, `KAKAO_WEB_RETURN_URI` | 카카오 앱에 등록한 이 서버의 콜백 주소와 로그인 뒤 돌아갈 웹 주소(절대 주소). 콜백 주소는 authorize와 같은 HTTPS 호스트의 `/api/v1/auth/kakao` 아래여야 연결 쿠키가 전송됩니다 |
+| `app.auth.kakao.web.authorization-uri`, `token-uri`, `timeout` | — | 카카오 인가·토큰 엔드포인트 고정값과 호출 제한 시간(5초). 테스트는 토큰 주소를 닫힌 로컬 주소로 두고 웹 로그인 API 테스트만 스텁 주소로 바꿉니다 |
 | `app.auth.apple.allowed-audiences` | `APPLE_ALLOWED_AUDIENCES` | id_token `aud`로 허용할 Apple 클라이언트 목록(iOS Bundle ID, 웹·Android Services ID). 같은 Apple 개발자 팀의 클라이언트만 나열합니다 |
 | `app.auth.apple.issuer`, `jwk-set-uri` | — | Apple 고정값. 테스트는 JWKS 주소만 로컬 스텁으로 바꿉니다 |
 | `app.auth.apple.client-secret.team-id`, `key-id`, `private-key`, `ttl` | `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_CLIENT_SECRET_TTL` | client_secret 서명 정보. 개인키는 `.p8` 내용(줄바꿈을 `\n`으로 적은 PEM 또는 base64)이며 처음 쓸 때 해석합니다. TTL 기본 `PT10M`, Apple 상한 15777000초 |
@@ -232,14 +253,14 @@ auth.domain.AccountClosed (auth 안의 사실, 폐쇄 트랜잭션에서 발행)
 ## 패키지와 공개 계약
 
 - 로그인·nonce·웹 로그인 시작·콜백·교환·로그아웃과 계정 폐쇄 뒤처리(토큰 폐기·외부 연결 해제·주기 재시도·폐쇄 표시 재확정) 계약과 값: `application/port/in/command`, `command/dto`. 토큰 인증과 예제 조회: `application/port/in/query`, `query/dto`.
-- 출력 Port: `application/port/out`. 구현은 `adapter/out/oidc`(id_token 검증 공통 골격), `adapter/out/kakao`(카카오 id_token 검증·관리자 API 연결 끊기), `adapter/out/apple`(Apple id_token 검증·client_secret·토큰 교환·철회·웹 인가 주소), `adapter/out/jwt`(Access Token), `adapter/out/redis`(nonce·state·교환 코드·폐기 토큰·폐쇄 표시), `adapter/out/persistence`(계정·Apple refresh token·연결 해제 대기), `adapter/out/user`(예제)에 둡니다.
-- HTTP: `adapter/in/web`의 `KakaoLoginController`, `AppleLoginController`(iOS), `AppleWebLoginController`(웹·Android), `AuthSessionController`, 예제 `AuthExampleController`. 인증 필터·principal·공개 경로 확장점은 `adapter/in/web/security`입니다.
+- 출력 Port: `application/port/out`. 구현은 `adapter/out/oidc`(id_token 검증 공통 골격), `adapter/out/kakao`(카카오 id_token 검증·웹 인가 주소·인가 코드 교환·관리자 API 연결 끊기), `adapter/out/apple`(Apple id_token 검증·client_secret·토큰 교환·철회·웹 인가 주소), `adapter/out/jwt`(Access Token), `adapter/out/redis`(nonce·state·교환 코드·폐기 토큰·폐쇄 표시), `adapter/out/persistence`(계정·Apple refresh token·연결 해제 대기), `adapter/out/user`(예제)에 둡니다.
+- HTTP: `adapter/in/web`의 `KakaoLoginController`(앱), `KakaoWebLoginController`(웹), `AppleLoginController`(iOS), `AppleWebLoginController`(웹·Android), `AuthSessionController`, 예제 `AuthExampleController`. 인증 필터·principal·공개 경로 확장점은 `adapter/in/web/security`입니다.
 - 이벤트: `adapter/in/event`(user 등록 예제, 계정 폐쇄 뒤 토큰 폐기·외부 연결 해제). 주기 작업: `adapter/in/scheduler`(외부 연결 해제 재시도, 폐쇄 표시 재확정).
-- 오류: `AuthErrorCode`의 `AUTH-001`(예제 사용자 없음, 404), `AUTH-002`(id_token 무효, 401), `AUTH-003`(nonce·state 무효, 401), `AUTH-004`(계정 없음·닫힌 계정, 404), `AUTH-005`(Apple code 거절·다른 사용자, 401), `AUTH-006`(Apple 통신 실패·Apple이 보낸 취소 외 오류, 502), `AUTH-007`(Apple 웹 교환 코드·code_verifier 무효, 교환 전에 닫힌 계정, 401), `AUTH-008`(Apple 로그인 취소, 웹 복귀 주소의 `error` 값으로만 사용). 폐기·만료·위조 토큰과 닫힌 계정 토큰의 404는 `CommonErrorCode.NOT_FOUND`와 같은 본문입니다.
+- 오류: `AuthErrorCode`의 `AUTH-001`(예제 사용자 없음, 404), `AUTH-002`(id_token 무효·카카오 웹 인가 코드 거절, 401), `AUTH-003`(nonce·state 무효, 401), `AUTH-004`(계정 없음·닫힌 계정, 404), `AUTH-005`(Apple code 거절·다른 사용자, 401), `AUTH-006`(Apple 통신 실패·Apple이 보낸 취소 외 오류, 502), `AUTH-007`(웹 로그인 교환 코드·code_verifier 무효, 교환 전에 닫힌 계정, 401), `AUTH-008`(카카오·Apple 웹 로그인 취소, 웹 복귀 주소의 `error` 값으로만 사용), `AUTH-010`(카카오 통신·설정 오류·교환한 id_token 검증 실패, 웹 복귀 주소의 `error` 값으로만 사용, 502). 폐기·만료·위조 토큰과 닫힌 계정 토큰의 404는 `CommonErrorCode.NOT_FOUND`와 같은 본문입니다.
 - 미구현·운영 전 과제
-  - nonce·authorize 발급 경로의 호출 제한, refresh token 암호화 키 교체 절차, Refresh 회전, 카카오 웹 흐름, 실제 Apple 계정 E2E(Sandbox) 확인.
+  - nonce·authorize 발급 경로의 호출 제한, refresh token 암호화 키 교체 절차, Refresh 회전, 실제 Apple 계정 E2E(Sandbox)·실제 카카오 웹 로그인 확인.
   - 스키마 마이그레이션(현재 마이그레이션 도구 없음, [프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)): `accounts`·`oauth_credentials`·`apple_refresh_tokens`(유니크 제약 포함)와 `oauth_credentials.provider`의 `APPLE` 값 허용(Hibernate가 만든 enum check 제약이 있는 DB), `accounts.closed_at`(nullable)과 인덱스 `idx_accounts_closed_at`, `provider_unlinks`(`accounts` 외래 키 `account_id`, provider, nullable `oauth_uid`(Apple 대기는 비움), requested_at, failed_attempts, next_attempt_at, 계정·제공자 유니크 `uk_provider_unlinks_account_provider`, 인덱스 `idx_provider_unlinks_next_attempt_at`).
-  - 운영 환경의 `KAKAO_ADMIN_KEY` 값. 없으면 기동하지 않습니다.
+  - 운영 환경의 `KAKAO_ADMIN_KEY`·`KAKAO_REST_API_KEY`·`KAKAO_CLIENT_SECRET`·`KAKAO_WEB_REDIRECT_URI`·`KAKAO_WEB_RETURN_URI` 값. 없으면 기동하지 않습니다. 카카오 디벨로퍼스에서 OpenID Connect·REST API 키 클라이언트 시크릿·콜백 주소 등록이 필요합니다.
   - 정상 토큰의 인증마다 Redis를 두 번 왕복합니다(폐기 목록 다음 폐쇄 표시).
   - 다중 인스턴스로 운영하면 연결 해제 대기 조회에 선점(`SKIP LOCKED`)이 없어 같은 대기를 동시에 처리할 수 있습니다. 결과는 같지만 제공자 호출이 겹칩니다.
 - 모듈 루트 공개 계약은 `AccountPrincipal`과 `AccountClosure`입니다. 허용 의존성은 [도메인 지도](README.md)가 관리합니다.

@@ -76,7 +76,7 @@ public class CompleteAppleWebLoginService implements CompleteAppleWebLoginUseCas
         WebLoginState pending = webLogins.consume(command.state(), command.browserBinding());
         if (command.appleError() != null) {
             AuthErrorCode error = USER_CANCELLED.equals(command.appleError())
-                    ? AuthErrorCode.APPLE_LOGIN_CANCELLED
+                    ? AuthErrorCode.LOGIN_CANCELLED
                     : AuthErrorCode.APPLE_UNAVAILABLE;
             return WebLoginCompletion.failure(pending.returnUri(), error.getCode());
         }
