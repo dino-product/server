@@ -21,6 +21,7 @@ class ApplicationProfileConfigurationTest {
             "spring.modulith.events.jdbc.schema-initialization.enabled";
     private static final String EVENT_RESUBMISSION = "app.events.resubmission.enabled";
     private static final String PUSH_DELIVERY_DISPATCH = "app.notification.push-delivery.enabled";
+    private static final String FCM_PUSH = "app.notification.push.fcm.enabled";
     private static final String EVENT_REGISTRY_LOG_LEVEL =
             "logging.level.org.springframework.modulith.events.core.DefaultEventPublicationRegistry";
 
@@ -98,6 +99,26 @@ class ApplicationProfileConfigurationTest {
         try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=prod")) {
             assertThat(context.getEnvironment().getProperty(PUSH_DELIVERY_DISPATCH))
                     .isEqualTo("true");
+        }
+    }
+
+    @Test
+    void sendsAppPushThroughFcmInProdAndOnlyWhenEnabledElsewhere() {
+        try (ConfigurableApplicationContext context = runApplication()) {
+            assertThat(context.getEnvironment().getProperty(FCM_PUSH)).isEqualTo("false");
+        }
+        try (ConfigurableApplicationContext context =
+                runApplication("--spring.profiles.active=prod", "--FCM_ENABLED=false")) {
+            assertThat(context.getEnvironment().getProperty(FCM_PUSH))
+                    .as("운영은 환경 변수로 끌 수 없다")
+                    .isEqualTo("true");
+        }
+        try (ConfigurableApplicationContext context = runApplication("--spring.profiles.active=dev")) {
+            assertThat(context.getEnvironment().getProperty(FCM_PUSH)).isEqualTo("false");
+        }
+        try (ConfigurableApplicationContext context =
+                runApplication("--spring.profiles.active=dev", "--FCM_ENABLED=true")) {
+            assertThat(context.getEnvironment().getProperty(FCM_PUSH)).isEqualTo("true");
         }
     }
 

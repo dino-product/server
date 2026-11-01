@@ -99,7 +99,7 @@ class ParticipationRequestEventIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("커밋된 거절은 사유를 담은 거절 이벤트로 전달된다")
+    @DisplayName("커밋된 거절은 사유를 싣지 않은 거절 이벤트로 전달된다")
     void deliversRejectedEventAfterCommit() throws Exception {
         long applicant = 93_201L;
         long requestId = request(applicant, ParticipationType.STAFF);
@@ -109,7 +109,7 @@ class ParticipationRequestEventIntegrationTest extends IntegrationTestSupport {
 
         assertThat(recorder.events().poll(5, TimeUnit.SECONDS))
                 .isEqualTo(new ParticipationRequestRejected(
-                        requestId, organization.organizationId(), applicant, "인원 마감", decidedAt(requestId)));
+                        requestId, organization.organizationId(), applicant, decidedAt(requestId)));
     }
 
     @Test

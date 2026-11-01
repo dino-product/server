@@ -77,6 +77,7 @@ public class CreateWorkNotificationService implements CreateWorkNotificationUseC
                         ? Optional.empty()
                         : accountLookup.findActiveStaffAccountId(
                                 command.organizationId(), command.registrarMembershipId());
+            case APPLICANT -> throw new IllegalArgumentException(command.type() + " is not a work notification");
         };
     }
 

@@ -99,6 +99,56 @@ class NotificationMessageTest {
         assertThat(message.length()).isLessThanOrEqualTo(Notification.MAX_MESSAGE_LENGTH);
     }
 
+    @Test
+    @DisplayName("참여 요청 승인 문구는 확정 유형이 희망 유형과 같으면 승인만 알린다")
+    void composesApprovedParticipationMessage() {
+        assertThat(NotificationMessage.composeParticipationApproved(
+                        ParticipationType.TECHNICIAN, ParticipationType.TECHNICIAN))
+                .isEqualTo("참여 요청이 승인되었습니다.");
+    }
+
+    @Test
+    @DisplayName("참여 요청 승인 문구는 확정 유형이 희망 유형과 다르면 희망 → 확정 유형을 덧붙인다")
+    void composesApprovedParticipationMessageWithChangedType() {
+        assertThat(NotificationMessage.composeParticipationApproved(
+                        ParticipationType.TECHNICIAN, ParticipationType.STAFF))
+                .isEqualTo("참여 요청이 승인되었습니다. 참여 유형: 기사 → 직원");
+        assertThat(NotificationMessage.composeParticipationApproved(
+                        ParticipationType.STAFF, ParticipationType.TECHNICIAN))
+                .isEqualTo("참여 요청이 승인되었습니다. 참여 유형: 직원 → 기사");
+    }
+
+    @Test
+    @DisplayName("참여 요청 거절 문구는 거절 사유가 있으면 덧붙인다")
+    void composesRejectedParticipationMessageWithReason() {
+        assertThat(NotificationMessage.composeParticipationRejected("인원 마감")).isEqualTo("참여 요청이 거절되었습니다. 사유: 인원 마감");
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = " ")
+    @DisplayName("참여 요청 거절 문구는 거절 사유가 없으면 사유를 쓰지 않는다")
+    void composesRejectedParticipationMessageWithoutReason(String reason) {
+        assertThat(NotificationMessage.composeParticipationRejected(reason)).isEqualTo("참여 요청이 거절되었습니다.");
+    }
+
+    @Test
+    @DisplayName("가장 긴 거절 사유의 참여 요청 거절 문구도 알림 문구 길이 안에 든다")
+    void longestRejectedParticipationMessageFitsMessageLength() {
+        assertThat(NotificationMessage.composeParticipationRejected("가".repeat(255))
+                        .length())
+                .isLessThanOrEqualTo(Notification.MAX_MESSAGE_LENGTH);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = NotificationType.class,
+            names = {"PARTICIPATION_REQUEST_APPROVED", "PARTICIPATION_REQUEST_REJECTED"})
+    @DisplayName("참여 요청 결과 알림은 작업 알림 문구로 만들지 않는다")
+    void rejectsParticipationTypesForWorkMessage(NotificationType type) {
+        assertThatThrownBy(() -> compose(type)).isInstanceOf(IllegalArgumentException.class);
+    }
+
     private static String compose(NotificationType type) {
         return NotificationMessage.compose(type, "보일러 점검", null, null, null);
     }

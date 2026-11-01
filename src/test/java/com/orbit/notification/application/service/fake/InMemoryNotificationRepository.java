@@ -58,6 +58,15 @@ public class InMemoryNotificationRepository implements NotificationRepository, N
     }
 
     @Override
+    public boolean existsReceivedForParticipationRequest(
+            Long accountId, NotificationType type, Long participationRequestId) {
+        return all().stream()
+                .anyMatch(notification -> notification.isReceivedBy(accountId)
+                        && notification.type() == type
+                        && notification.participationRequestId().equals(Optional.of(participationRequestId)));
+    }
+
+    @Override
     public VisibleNotifications listVisible(Long accountId, boolean unreadOnly, int page, int size) {
         List<Notification> matched = all().stream()
                 .filter(notification -> notification.isReceivedBy(accountId))
@@ -91,6 +100,7 @@ public class InMemoryNotificationRepository implements NotificationRepository, N
                 notification.organizationId(),
                 notification.type(),
                 notification.workId().orElse(null),
+                notification.participationRequestId().orElse(null),
                 notification.message(),
                 notification.notifiedAt(),
                 notification.status(),

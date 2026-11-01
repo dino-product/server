@@ -53,6 +53,21 @@ class NotificationSettingTest {
     @ParameterizedTest
     @EnumSource(
             value = NotificationType.class,
+            names = {"PARTICIPATION_REQUEST_APPROVED", "PARTICIPATION_REQUEST_REJECTED"})
+    @DisplayName("참여 요청 결과 알림은 요청자에게 가고 모두 꺼도 푸시한다")
+    void alwaysPushesParticipationRequestResults(NotificationType type) {
+        NotificationSetting setting = NotificationSetting.defaults(7L);
+
+        setting.change(false, false, false);
+
+        assertThat(type.audience()).isEqualTo(NotificationAudience.APPLICANT);
+        assertThat(type.category()).isEmpty();
+        assertThat(setting.allowsPush(type)).isTrue();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = NotificationType.class,
             names = {"WORK_ACCEPTED", "WORK_REJECTED", "COMPLETION_REPORT_SUBMITTED"})
     @DisplayName("사무실 알림은 설정과 무관하게 푸시하지 않는다")
     void neverPushesOfficeNotifications(NotificationType type) {
