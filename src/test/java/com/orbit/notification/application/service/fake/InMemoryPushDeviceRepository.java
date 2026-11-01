@@ -45,6 +45,11 @@ public class InMemoryPushDeviceRepository implements PushDeviceRepository {
         byToken.remove(token);
     }
 
+    @Override
+    public void deleteByAccountId(Long accountId) {
+        byToken.values().removeIf(device -> device.isOwnedBy(accountId));
+    }
+
     public Optional<PushDevice> findByToken(String token) {
         return Optional.ofNullable(byToken.get(token));
     }

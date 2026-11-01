@@ -5,6 +5,7 @@
             "shared::persistence",
             "schedule",
             "organization",
-            "auth"
+            "auth",
+            "profile"
         })
 package com.orbit.notification;

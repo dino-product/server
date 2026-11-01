@@ -48,4 +48,9 @@ class PushDevicePersistenceAdapter implements PushDeviceRepository {
     public void deleteByToken(String token) {
         repository.deleteWithToken(token);
     }
+
+    @Override
+    public void deleteByAccountId(Long accountId) {
+        repository.deleteOfAccount(accountId);
+    }
 }

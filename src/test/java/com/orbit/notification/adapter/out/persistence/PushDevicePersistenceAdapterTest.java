@@ -138,6 +138,25 @@ class PushDevicePersistenceAdapterTest extends PersistenceAdapterTestSupport {
         assertThat(adapter.listByAccountId(9_232L)).hasSize(1);
     }
 
+    @Test
+    @DisplayName("계정의 기기를 모두 지우고 다른 계정의 기기는 남긴다")
+    void deletesAllDevicesOfAccount() {
+        String other = newToken();
+        inTx(() -> adapter.register(PushDevice.register(9_241L, PushPlatform.IOS, newToken(), FIRST)));
+        inTx(() -> adapter.register(PushDevice.register(9_241L, PushPlatform.ANDROID, newToken(), FIRST)));
+        inTx(() -> adapter.register(PushDevice.register(9_242L, PushPlatform.ANDROID, other, FIRST)));
+
+        inTx(() -> {
+            adapter.deleteByAccountId(9_241L);
+            return null;
+        });
+
+        assertThat(adapter.listByAccountId(9_241L)).isEmpty();
+        assertThat(adapter.listByAccountId(9_242L))
+                .extracting(PushDevice::token)
+                .containsExactly(other);
+    }
+
     private int rowsWithToken(String token) {
         return jdbcTemplate.queryForObject("select count(*) from push_devices where token = ?", Integer.class, token);
     }
