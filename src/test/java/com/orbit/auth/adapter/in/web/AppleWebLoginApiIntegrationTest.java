@@ -117,6 +117,8 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
         JsonNode login = readTree(exchange(query(location).getFirst("code"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.registered").value(true))
+                .andExpect(jsonPath("$.result.refreshToken").isString())
+                .andExpect(jsonPath("$.result.refreshTokenExpiresAt").isString())
                 .andReturn()
                 .getResponse()
                 .getContentAsString());

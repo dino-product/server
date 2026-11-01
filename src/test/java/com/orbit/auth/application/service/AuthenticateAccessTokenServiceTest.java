@@ -31,7 +31,7 @@ class AuthenticateAccessTokenServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-09-27T01:00:00Z");
     private static final AccessToken TOKEN =
-            new AccessToken("jti", new AccountId(7L), NOW, NOW.plus(Duration.ofHours(1)));
+            new AccessToken("jti", new AccountId(7L), NOW, NOW.plus(Duration.ofHours(1)), null);
     private static final AuthenticateAccessTokenQuery QUERY = new AuthenticateAccessTokenQuery("access-token");
 
     @Mock
@@ -53,7 +53,8 @@ class AuthenticateAccessTokenServiceTest {
         when(revokedTokens.isRevoked("jti")).thenReturn(false);
         when(closedAccounts.isClosed(new AccountId(7L))).thenReturn(false);
 
-        assertThat(service.authenticate(QUERY)).contains(new AccessTokenInfo(7L, "jti", NOW.plus(Duration.ofHours(1))));
+        assertThat(service.authenticate(QUERY))
+                .contains(new AccessTokenInfo(7L, "jti", NOW.plus(Duration.ofHours(1)), null));
     }
 
     @Test

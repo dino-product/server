@@ -29,7 +29,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.in.command.dto.LoginInfo;
 import com.orbit.auth.application.port.in.command.dto.LoginWithAppleCommand;
-import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.AppleCodeExchange;
 import com.orbit.auth.application.port.out.AppleIdTokenClaims;
@@ -40,9 +39,7 @@ import com.orbit.auth.application.port.out.AppleTokenApiException.Failure;
 import com.orbit.auth.application.port.out.AppleWebAuthorizationPort;
 import com.orbit.auth.application.port.out.DuplicateIdentityException;
 import com.orbit.auth.application.port.out.ExchangeAppleAuthorizationCodePort;
-import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.application.port.out.VerifyAppleIdTokenPort;
-import com.orbit.auth.domain.AccessToken;
 import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
@@ -63,8 +60,8 @@ class LoginWithAppleServiceTest {
     private static final LoginWithAppleCommand COMMAND = new LoginWithAppleCommand("id-token", "auth-code");
     private static final AppleIdTokenClaims CLAIMS = new AppleIdTokenClaims(SUBJECT, NONCE.value(), BUNDLE_ID);
     private static final AppleCodeExchange EXCHANGE = new AppleCodeExchange(SUBJECT, BUNDLE_ID, "apple-refresh");
-    private static final IssuedAccessToken ISSUED = new IssuedAccessToken(
-            "access-token", new AccessToken("jti", ACCOUNT_ID, NOW, NOW.plus(Duration.ofHours(1))));
+    private static final IssuedSessionTokens ISSUED = new IssuedSessionTokens(
+            "access-token", NOW.plus(Duration.ofHours(1)), "refresh-token", NOW.plus(Duration.ofDays(30)));
 
     @Mock
     private VerifyAppleIdTokenPort idTokens;
@@ -85,7 +82,7 @@ class LoginWithAppleServiceTest {
     private AccountRepository accounts;
 
     @Mock
-    private AccessTokenPort accessTokens;
+    private SessionTokenIssuer tokens;
 
     private LoginWithAppleService service;
 
@@ -99,7 +96,7 @@ class LoginWithAppleServiceTest {
                 refreshTokens,
                 webAuthorization,
                 accounts,
-                accessTokens,
+                tokens,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -109,7 +106,7 @@ class LoginWithAppleServiceTest {
         givenValidProofs();
         when(accounts.findByIdentity(IDENTITY)).thenReturn(Optional.empty());
         when(accounts.saveNew(any())).thenReturn(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW));
-        when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
+        when(tokens.start(ACCOUNT_ID)).thenReturn(ISSUED);
 
         LoginInfo info = service.login(COMMAND);
 
@@ -118,7 +115,14 @@ class LoginWithAppleServiceTest {
         assertThat(saved.getValue().identities()).containsExactly(IDENTITY);
         verify(codeExchanges).exchange(BUNDLE_ID, "auth-code", null);
         verify(refreshTokens).save(ACCOUNT_ID, BUNDLE_ID, "apple-refresh", NOW);
-        assertThat(info).isEqualTo(new LoginInfo(7L, true, "access-token", NOW.plus(Duration.ofHours(1))));
+        assertThat(info)
+                .isEqualTo(new LoginInfo(
+                        7L,
+                        true,
+                        "access-token",
+                        NOW.plus(Duration.ofHours(1)),
+                        "refresh-token",
+                        NOW.plus(Duration.ofDays(30))));
     }
 
     @Test
@@ -127,7 +131,7 @@ class LoginWithAppleServiceTest {
         givenValidProofs();
         when(accounts.findByIdentity(IDENTITY))
                 .thenReturn(Optional.of(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW)));
-        when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
+        when(tokens.start(ACCOUNT_ID)).thenReturn(ISSUED);
 
         assertThat(service.login(COMMAND).registered()).isFalse();
         verify(accounts, never()).saveNew(any());
@@ -142,7 +146,7 @@ class LoginWithAppleServiceTest {
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW)));
         when(accounts.saveNew(any())).thenThrow(new DuplicateIdentityException(IDENTITY, null));
-        when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
+        when(tokens.start(ACCOUNT_ID)).thenReturn(ISSUED);
 
         LoginInfo info = service.login(COMMAND);
 
@@ -156,7 +160,7 @@ class LoginWithAppleServiceTest {
         givenValidProofs();
         when(accounts.findByIdentity(IDENTITY))
                 .thenReturn(Optional.of(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW)));
-        when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
+        when(tokens.start(ACCOUNT_ID)).thenReturn(ISSUED);
 
         service.login(COMMAND);
 
