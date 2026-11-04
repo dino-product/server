@@ -17,8 +17,8 @@ import com.orbit.shared.error.BusinessException;
 
 /**
  * 웹 로그인 콜백이 넘긴 일회성 교환 코드를 Access Token으로 바꾼다. Access Token이 복귀 URL에 드러나지 않게 하려는 단계이며, 코드는 그 코드를 만든
- * 제공자의 교환 경로에서 한 번만 쓸 수 있고 로그인을 시작한 클라이언트의 PKCE code_verifier가 맞아야 한다(Android 앱 스킴 가로채기·웹 login CSRF
- * 방지). 외부 HTTP를 기다리지 않으므로 기기 세션의 만료 정리와 새 세션 저장을 한 트랜잭션으로 묶는다.
+ * 제공자의 교환 경로에서 한 번만 쓸 수 있고 로그인을 시작한 클라이언트의 PKCE code_verifier가 맞아야 한다(복귀 주소 가로채기·login CSRF 방지).
+ * 외부 HTTP를 기다리지 않으므로 기기 세션의 만료 정리와 새 세션 저장을 한 트랜잭션으로 묶는다.
  */
 @Service
 public class ExchangeWebLoginService implements ExchangeWebLoginUseCase {

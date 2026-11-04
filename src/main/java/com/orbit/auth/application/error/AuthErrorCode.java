@@ -18,7 +18,7 @@ public enum AuthErrorCode implements BaseCode {
             HttpStatus.UNAUTHORIZED, "AUTH-005", "Apple 인증 코드가 유효하지 않거나 만료되었습니다. 다시 로그인해 주세요."),
     APPLE_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "AUTH-006", "Apple 인증 서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요."),
     INVALID_LOGIN_EXCHANGE_CODE(HttpStatus.UNAUTHORIZED, "AUTH-007", "로그인 교환 코드가 유효하지 않거나 만료되었습니다. 다시 로그인해 주세요."),
-    /** 웹·Android 콜백에서 사용자가 카카오·Apple 로그인을 취소했을 때 복귀 주소의 error 값으로만 쓴다. */
+    /** 웹 콜백에서 사용자가 카카오·Apple 로그인을 취소했을 때 복귀 주소의 error 값으로만 쓴다. */
     LOGIN_CANCELLED(HttpStatus.UNAUTHORIZED, "AUTH-008", "로그인이 취소되었습니다."),
     /** 형식 오류·없는 세션·만료·재사용(탈취 의심)·철회를 구분하지 않는다. */
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH-009", "로그인 유지 정보가 유효하지 않거나 만료되었습니다. 다시 로그인해 주세요."),

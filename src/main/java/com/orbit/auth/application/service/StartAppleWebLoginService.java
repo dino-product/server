@@ -11,7 +11,7 @@ import com.orbit.auth.application.service.WebLoginStates.StartedWebLogin;
 import com.orbit.auth.domain.OAuthProvider;
 
 /**
- * 웹·Android의 Apple 로그인을 시작한다. 웹 로그인 state를 보관하고({@link WebLoginStates}), 인가 요청에는 nonce 해시를 실어 id_token의 nonce
+ * 웹의 Apple 로그인을 시작한다. 웹 로그인 state를 보관하고({@link WebLoginStates}), 인가 요청에는 nonce 해시를 실어 id_token의 nonce
  * 클레임과 바로 대조한다. DB 트랜잭션 없이 state 저장소만 사용한다.
  */
 @Service

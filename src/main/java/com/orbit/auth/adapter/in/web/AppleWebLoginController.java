@@ -31,7 +31,7 @@ import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.error.CommonErrorCode;
 
 /**
- * 웹·Android용 Apple 로그인. Apple은 콜백을 다른 사이트에서 보내는 form POST로 전달하므로, 시작한 브라우저를 확인하는 연결 쿠키는 {@code SameSite=None;
+ * 웹용 Apple 로그인. Apple은 콜백을 다른 사이트에서 보내는 form POST로 전달하므로, 시작한 브라우저를 확인하는 연결 쿠키는 {@code SameSite=None;
  * Secure; HttpOnly}로 Apple 로그인 경로에만 보낸다. 콜백은 Access Token 대신 일회성 교환 코드만 복귀 주소에 실어 토큰이 URL·브라우저 기록에 남지 않게 한다.
  */
 @RestController
