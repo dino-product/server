@@ -28,12 +28,13 @@ class MyScheduleApiIntegrationTest extends ScheduleApiTestSupport {
     private static final String MY_SCHEDULE = "/api/v1/organizations/{organizationId}/my-schedule";
 
     @Test
-    @DisplayName("내 일정은 구간과 겹치는 본인 담당 작업을 배정 순번·현장 주소와 함께 시작 시각 순으로 준다")
+    @DisplayName("내 일정은 구간과 겹치는 본인 담당 확정 작업(응답 전 제외)을 배정 순번·고객명과 함께 시작 시각 순으로 준다")
     void listsOwnScheduleInPeriod() throws Exception {
         Fixture fixture = fixture();
         Instant day = Instant.now().plus(Duration.ofDays(2));
-        long later = save(assigned(fixture, "오후 작업", day.plus(Duration.ofHours(4))));
+        long later = save(accepted(fixture, "오후 작업", day.plus(Duration.ofHours(4))));
         long earlier = save(accepted(fixture, "오전 작업", day));
+        save(assigned(fixture, "응답 전 작업", day.plus(Duration.ofHours(2))));
         save(assigned(fixture, "다음 주 작업", day.plus(Duration.ofDays(7))));
 
         mockMvc.perform(get(MY_SCHEDULE, fixture.organization().id())
@@ -44,6 +45,7 @@ class MyScheduleApiIntegrationTest extends ScheduleApiTestSupport {
                 .andExpect(jsonPath("$.result.works[*].workId").value(contains((int) earlier, (int) later)))
                 .andExpect(jsonPath("$.result.works[0].status").value("ACCEPTED"))
                 .andExpect(jsonPath("$.result.works[0].assignmentNumber").value(1))
+                .andExpect(jsonPath("$.result.works[0].customerName").doesNotExist())
                 .andExpect(jsonPath("$.result.works[0].delayed").value(false));
     }
 

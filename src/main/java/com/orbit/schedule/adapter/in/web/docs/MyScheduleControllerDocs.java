@@ -21,9 +21,10 @@ public interface MyScheduleControllerDocs {
 
     @Operation(
             summary = "내 일정 조회",
-            description = "기사 본인의 일정을 조회합니다. 구간 [from, to)와 일정이 겹치는, 지금 본인이 담당인 작업(배정됨·작업전·작업중·완료)을 "
+            description = "기사 본인의 확정 일정을 조회합니다. 구간 [from, to)와 일정이 겹치는, 지금 본인이 담당인 작업(작업전·작업중·완료)을 "
                     + "시작 시각 순으로 돌려줍니다. 화면의 날짜·주를 조직의 현지 시간대로 바꾼 UTC 구간을 보내며 최대 31일입니다. "
-                    + "다른 기사로 바뀌었거나 대기함으로 돌아간 작업은 담지 않습니다. "
+                    + "응답 전(배정됨) 작업은 응답 필요 조회(my-schedule/pending)에 있어 담지 않고, "
+                    + "다른 기사로 바뀌었거나 대기함으로 돌아간 작업도 담지 않습니다. "
                     + "구간이 없거나 뒤집혔거나 31일을 넘거나 조직 식별자가 양수가 아니면 SCHEDULE-003, 시각 형식 오류는 COMMON-400, "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 관리자면 SCHEDULE-005입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))

@@ -28,6 +28,7 @@ final class TechnicianSchedules {
                 work.currentAssignmentNumber(),
                 schedule.startTime(),
                 schedule.endTime(),
+                work.customerInfo().name().orElse(null),
                 work.customerInfo().address().flatMap(SiteAddress::baseAddress).orElse(null),
                 work.customerInfo()
                         .address()

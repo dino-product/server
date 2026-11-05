@@ -37,6 +37,9 @@ public record MyScheduleResponse(
             @Schema(description = "종료 시각", example = "2026-10-21T02:00:00Z")
             Instant endTime,
 
+            @Schema(description = "고객명. 없으면 null", example = "홍길동")
+            String customerName,
+
             @Schema(description = "현장 기본주소. 없으면 null", example = "서울시 중구 세종대로 110")
             String customerAddress,
 
@@ -57,6 +60,7 @@ public record MyScheduleResponse(
                     info.assignmentNumber(),
                     info.startTime(),
                     info.endTime(),
+                    info.customerName(),
                     info.customerAddress(),
                     info.customerAddressDetail(),
                     LocationResponse.from(info.customerLocation()),
