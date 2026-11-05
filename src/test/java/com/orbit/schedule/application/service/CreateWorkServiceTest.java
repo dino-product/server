@@ -11,6 +11,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.WORK
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -41,6 +42,7 @@ import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -50,6 +52,10 @@ import com.orbit.shared.error.BusinessException;
 
 @DisplayName("작업 등록")
 class CreateWorkServiceTest {
+
+    private static final String SITE_ADDRESS = "서울시 마포구 양화로 45";
+    private static final SiteCoordinates SEOUL =
+            new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803"));
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final CreateWorkService service = fixture.createWorkService();
@@ -525,6 +531,64 @@ class CreateWorkServiceTest {
                 () -> service.create(photoCommand(Collections.nCopies(7, "photo"))),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
         assertThat(fixture.workTypes.checks()).isZero();
+    }
+
+    @Test
+    @DisplayName("현장 기본주소가 있으면 그 주소로 구한 좌표를 함께 저장한다")
+    void storesCoordinatesOfBaseAddress() {
+        fixture.givenManager();
+        fixture.siteCoordinates.givenCoordinates(SITE_ADDRESS, SEOUL);
+
+        service.create(customerCommand(null, null, SITE_ADDRESS));
+
+        assertThat(fixture.singleSaved().customerInfo().address().flatMap(SiteAddress::coordinates))
+                .contains(SEOUL);
+        assertThat(fixture.siteCoordinates.lookups()).containsExactly(SITE_ADDRESS);
+    }
+
+    @Test
+    @DisplayName("좌표를 구하지 못해도 좌표 없이 등록한다")
+    void registersWithoutCoordinatesWhenNotFound() {
+        fixture.givenManager();
+
+        service.create(customerCommand(null, null, SITE_ADDRESS));
+
+        assertThat(fixture.singleSaved().customerInfo().address()).contains(new SiteAddress(null, SITE_ADDRESS, null));
+    }
+
+    @Test
+    @DisplayName("기본주소가 없으면 좌표를 찾지 않는다")
+    void skipsLookupWithoutBaseAddress() {
+        fixture.givenManager();
+
+        service.create(customerCommand("이정호", null, null));
+
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("조직의 관리자가 아니면 좌표를 찾지 않고 거부한다")
+    void skipsLookupForNonManager() {
+        fixture.siteCoordinates.givenCoordinates(SITE_ADDRESS, SEOUL);
+
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, SITE_ADDRESS)),
+                ScheduleErrorCode.NOT_ORGANIZATION_MEMBER);
+        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, SITE_ADDRESS)), ScheduleErrorCode.ACTION_NOT_ALLOWED);
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("길이 제한을 넘는 기본주소는 찾지 않고 입력 오류로 거부한다")
+    void skipsLookupForTooLongBaseAddress() {
+        fixture.givenManager();
+
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, "가".repeat(201))),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
     }
 
     private static CreateWorkCommand photoCommand(List<String> sitePhotoIds) {

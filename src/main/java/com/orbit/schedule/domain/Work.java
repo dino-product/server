@@ -620,7 +620,7 @@ public final class Work {
     /**
      * 작업명·작업 유형·고객정보·결제정보·현장 사진 다섯 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된
      * 작업은 바꿀 수 없고, 상태·배정은 그대로 둔다. 작업 유형은 시작 전까지만 바꾸거나 비울 수 있고 작업중에는 지금 유형을 그대로 줘야 한다. 서비스의 공통 오류
-     * 순서(입력 → 상태)에 맞춰 작업명·현장 사진을 상태보다 먼저 검증한다.
+     * 순서(입력 → 상태)에 맞춰 작업명·현장 사진을 상태보다 먼저 검증한다. 현장 기본주소가 그대로면 이전에 구한 좌표를 이어받는다.
      */
     public void changeDetails(
             String newName,
@@ -638,9 +638,28 @@ public final class Work {
         }
         name = newName;
         workType = newWorkType;
-        customerInfo = orEmpty(newCustomerInfo);
+        customerInfo = keepingSiteCoordinates(orEmpty(newCustomerInfo));
         paymentInfo = orEmpty(newPaymentInfo);
         sitePhotos = photos;
+    }
+
+    /** 현장 기본주소에서 구한 좌표를 담는다. 기본주소가 없으면 담을 수 없다. */
+    public void locateSite(SiteCoordinates coordinates) {
+        if (coordinates == null) {
+            throw new IllegalArgumentException("coordinates must not be null");
+        }
+        SiteAddress address = customerInfo
+                .address()
+                .orElseThrow(() -> new IllegalStateException("Cannot locate a site without an address"));
+        customerInfo = customerInfo.withAddress(address.withCoordinates(coordinates));
+    }
+
+    /** 기본주소가 그대로인 수정은 이전에 구한 좌표를 이어받는다. */
+    private CustomerInfo keepingSiteCoordinates(CustomerInfo next) {
+        SiteAddress previous = customerInfo.address().orElse(null);
+        return next.address()
+                .map(address -> next.withAddress(address.keepingCoordinatesOf(previous)))
+                .orElse(next);
     }
 
     /**

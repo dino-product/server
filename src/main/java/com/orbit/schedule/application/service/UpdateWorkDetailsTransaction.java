@@ -22,7 +22,8 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkTypeId;
 
 /**
- * 기본정보 수정의 트랜잭션 부분({@link UpdateWorkDetailsService}가 사진 확인을 마친 뒤 부른다). 현장 사진의 확인 결과는 다른 입력과 함께 검증하고, 작업을 저장한 같은
+ * 기본정보 수정의 트랜잭션 부분({@link UpdateWorkDetailsService}가 사진 확인과 현장 좌표 조회를 마친 뒤 부른다). 현장 기본주소가 그대로면 이전 좌표를
+ * 이어받고, 미리 구한 좌표({@link SiteLookup})는 그 주소 그대로 저장할 때만 담는다. 현장 사진의 확인 결과는 다른 입력과 함께 검증하고, 작업을 저장한 같은
  * 트랜잭션에서 보낸 사진을 그 작업의 현장 사진 전체로 확정한다(빠진 사진은 만료). 그 뒤 {@link com.orbit.schedule.WorkChanged}를 발행한다.
  */
 @Component
@@ -50,9 +51,12 @@ public class UpdateWorkDetailsTransaction {
         this.clock = clock;
     }
 
-    /** @param sitePhotos 트랜잭션 밖에서 확인한 현장 사진 */
+    /**
+     * @param sitePhotos 트랜잭션 밖에서 확인한 현장 사진
+     * @param site 트랜잭션 밖에서 미리 구한 현장 좌표. 그 주소 그대로 저장할 때만 담는다
+     */
     @Transactional
-    public void update(UpdateWorkDetailsCommand command, StagedFiles sitePhotos) {
+    public void update(UpdateWorkDetailsCommand command, StagedFiles sitePhotos, SiteLookup site) {
         ManagerActor actor =
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         Work work = OrganizationWorks.require(workRepository, actor.organizationId(), command.workId());
@@ -64,6 +68,7 @@ public class UpdateWorkDetailsTransaction {
         WorkPhotos.requireAccepted(sitePhotos);
         DomainRuleViolations.run(() -> work.changeDetails(
                 command.name(), details.workType(), details.customer(), details.payment(), command.sitePhotoIds()));
+        site.applyTo(work);
         // 지금 유형을 그대로 보낸 수정은 다시 확인하지 않는다. 작업중 작업이 그 사이 삭제된 유형을 가져도 다른 항목을 고칠 수 있다.
         if (!work.workType().equals(workTypeBefore)) {
             OrganizationReferences.requireSelectableWorkType(workTypePort, work);

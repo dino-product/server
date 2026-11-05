@@ -8,12 +8,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -27,6 +30,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.CancellationReason;
@@ -38,6 +42,7 @@ import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -77,6 +82,29 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
             assertThat(saved.registrarId()).isEqualTo(new MembershipId(organization.ownerMembership()));
             assertThat(saved.customerInfo())
                     .isEqualTo(new CustomerInfo(null, null, new SiteAddress("04043", "서울시 마포구 양화로 45", "3층")));
+        }
+
+        @Test
+        @DisplayName("현장 기본주소의 좌표를 트랜잭션을 열기 전에 구해 함께 저장한다")
+        void storesSiteCoordinates() throws Exception {
+            Organization organization = organization();
+            SiteCoordinates coordinates =
+                    new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803"));
+            List<Boolean> transactionActive = new ArrayList<>();
+            given(siteCoordinatesPort.find("서울시 마포구 양화로 45")).willAnswer(invocation -> {
+                transactionActive.add(TransactionSynchronizationManager.isActualTransactionActive());
+                return Optional.of(coordinates);
+            });
+
+            long workId = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "customer", Map.of("address", "서울시 마포구 양화로 45")))
+                    .andExpect(status().isOk()));
+
+            assertThat(stored(organization, workId).customerInfo().address().flatMap(SiteAddress::coordinates))
+                    .contains(coordinates);
+            assertThat(transactionActive).containsExactly(false);
         }
 
         @Test
@@ -235,6 +263,31 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
     @Nested
     @DisplayName("기본정보 수정")
     class UpdateDetails {
+
+        @Test
+        @DisplayName("새 기본주소의 좌표를 트랜잭션을 열기 전에 구해 함께 저장한다")
+        void storesSiteCoordinatesOfNewAddress() throws Exception {
+            Organization organization = organization();
+            long workId = registeredWork(organization);
+            SiteCoordinates coordinates =
+                    new SiteCoordinates(new BigDecimal("35.169318"), new BigDecimal("129.131957"));
+            List<Boolean> transactionActive = new ArrayList<>();
+            given(siteCoordinatesPort.find("부산시 해운대구 센텀중앙로 79")).willAnswer(invocation -> {
+                transactionActive.add(TransactionSynchronizationManager.isActualTransactionActive());
+                return Optional.of(coordinates);
+            });
+
+            update(
+                            organization.owner(),
+                            organization.id(),
+                            workId,
+                            Map.of("name", "보일러 점검", "customer", Map.of("address", "부산시 해운대구 센텀중앙로 79")))
+                    .andExpect(status().isNoContent());
+
+            assertThat(stored(organization, workId).customerInfo().address().flatMap(SiteAddress::coordinates))
+                    .contains(coordinates);
+            assertThat(transactionActive).containsExactly(false);
+        }
 
         @Test
         @DisplayName("총관리자가 기본정보를 교체하면 204이고, 비운 선택 항목은 지운다")

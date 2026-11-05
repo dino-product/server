@@ -7,6 +7,7 @@ import com.orbit.media.MediaFiles;
 import com.orbit.media.MediaStorageUnavailableException;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
+import com.orbit.schedule.application.port.in.query.dto.LocationInfo;
 import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
 import com.orbit.schedule.domain.AssignmentEnding;
@@ -35,7 +36,16 @@ final class WorkViews {
                 customer.phone().orElse(null),
                 customer.address().flatMap(SiteAddress::postalCode).orElse(null),
                 customer.address().flatMap(SiteAddress::baseAddress).orElse(null),
-                customer.address().flatMap(SiteAddress::detailAddress).orElse(null));
+                customer.address().flatMap(SiteAddress::detailAddress).orElse(null),
+                location(customer));
+    }
+
+    /** 현장 좌표. 기본주소가 없거나 좌표를 구하지 못했으면 null. */
+    static LocationInfo location(CustomerInfo customer) {
+        return customer.address()
+                .flatMap(SiteAddress::coordinates)
+                .map(coordinates -> new LocationInfo(coordinates.latitude(), coordinates.longitude()))
+                .orElse(null);
     }
 
     static WorkDetailInfo.Payment payment(PaymentInfo payment) {

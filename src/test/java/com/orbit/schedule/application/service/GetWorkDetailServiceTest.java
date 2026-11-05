@@ -16,6 +16,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.WORK
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.LabelInfo;
+import com.orbit.schedule.application.port.in.query.dto.LocationInfo;
 import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.StaffInfo;
 import com.orbit.schedule.application.port.in.query.dto.TechnicianInfo;
@@ -41,6 +43,7 @@ import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -398,6 +401,26 @@ class GetWorkDetailServiceTest {
                 .isFalse();
         assertThat(service.get(query(accepted.value())).completionReportRequestable())
                 .isFalse();
+    }
+
+    @Test
+    @DisplayName("현장 주소와 함께 기본주소에서 구한 좌표를 담고, 좌표가 없으면 null이다")
+    void includesSiteLocation() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId unlocated = fixture.givenWork(WorkStatus.ACCEPTED);
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        work.locateSite(new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803")));
+        WorkId located = fixture.workRepository.store(work);
+
+        assertThat(service.get(query(located.value())).customer())
+                .isEqualTo(new WorkDetailInfo.Customer(
+                        "홍길동",
+                        "010-1234-5678",
+                        "04043",
+                        "서울시",
+                        "3층",
+                        new LocationInfo(new BigDecimal("37.556151"), new BigDecimal("126.922803"))));
+        assertThat(service.get(query(unlocated.value())).customer().location()).isNull();
     }
 
     private static GetWorkDetailQuery query(Long workId) {

@@ -46,7 +46,7 @@ class TechnicianScheduleLockIsolationTest {
                         "AcceptWorkService",
                         "AssignWorkService",
                         "ChangeWorkAssignmentService",
-                        // 등록은 사진 확인을 트랜잭션 밖에서 마친 뒤 이 트랜잭션 부분을 부른다(CreateWorkService).
+                        // 등록은 사진 확인·좌표 조회를 트랜잭션 밖에서 마친 뒤 이 트랜잭션 부분을 부른다(CreateWorkService).
                         "CreateWorkTransaction",
                         "ReassignWorkService",
                         "RescheduleWorkService",

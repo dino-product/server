@@ -31,9 +31,9 @@ import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkTypeId;
 
 /**
- * 작업 등록의 트랜잭션 부분({@link CreateWorkService}가 사진 확인을 마친 뒤 부른다). 규칙은 {@link CreateWorkService}가 설명한다. 현장 사진의 확인 결과는 다른 입력과
- * 함께 검증하고, 작업을 저장한 같은 트랜잭션에서 사진을 작업에 연결한 뒤 이벤트를 발행한다. 겹침을 확인하지 않아 작업을 만들지 않으면 사진도 연결하지 않고 발행하지도
- * 않는다.
+ * 작업 등록의 트랜잭션 부분({@link CreateWorkService}가 사진 확인과 현장 좌표 조회를 마친 뒤 부른다). 규칙은 {@link CreateWorkService}가 설명한다.
+ * 현장 사진의 확인 결과는 다른 입력과 함께 검증하고, 미리 구한 좌표({@link SiteLookup})는 그 주소 그대로 등록할 때만 담는다. 작업을 저장한 같은
+ * 트랜잭션에서 사진을 작업에 연결한 뒤 이벤트를 발행한다. 겹침을 확인하지 않아 작업을 만들지 않으면 사진도 연결하지 않고 발행하지도 않는다.
  */
 @Component
 public class CreateWorkTransaction {
@@ -66,9 +66,12 @@ public class CreateWorkTransaction {
         this.clock = clock;
     }
 
-    /** @param sitePhotos 트랜잭션 밖에서 확인한 현장 사진 */
+    /**
+     * @param sitePhotos 트랜잭션 밖에서 확인한 현장 사진
+     * @param site 트랜잭션 밖에서 미리 구한 현장 좌표. 그 주소 그대로 등록할 때만 담는다
+     */
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public CreatedWorkInfo create(CreateWorkCommand command, StagedFiles sitePhotos) {
+    public CreatedWorkInfo create(CreateWorkCommand command, StagedFiles sitePhotos, SiteLookup site) {
         ManagerActor actor =
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         // 일정을 함께 주면 등록과 배정을 같은 시각으로 남긴다.
@@ -101,6 +104,7 @@ public class CreateWorkTransaction {
         });
         WorkPhotos.requireAccepted(sitePhotos);
 
+        site.applyTo(work);
         OrganizationReferences.requireSelectableWorkType(workTypePort, work);
         work.plannedSchedule()
                 .map(PlannedSchedule::technicianId)

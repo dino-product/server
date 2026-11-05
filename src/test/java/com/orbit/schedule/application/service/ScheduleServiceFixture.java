@@ -15,6 +15,7 @@ import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.service.fake.FakeLoadActorPort;
 import com.orbit.schedule.application.service.fake.FakeLockTechnicianSchedulePort;
 import com.orbit.schedule.application.service.fake.FakeMediaFiles;
+import com.orbit.schedule.application.service.fake.FakeSiteCoordinatesPort;
 import com.orbit.schedule.application.service.fake.FakeStaffProfilesPort;
 import com.orbit.schedule.application.service.fake.FakeTechnicianContractPort;
 import com.orbit.schedule.application.service.fake.FakeTechnicianProfilesPort;
@@ -81,6 +82,8 @@ final class ScheduleServiceFixture {
     final FakeTechnicianContractPort technicianContracts = new FakeTechnicianContractPort();
     /** 요청 조직은 {@link #WORK_TYPE_ID}를 선택할 수 있다. */
     final FakeWorkTypePort workTypes = new FakeWorkTypePort();
+
+    final FakeSiteCoordinatesPort siteCoordinates = new FakeSiteCoordinatesPort();
     // 조회 화면의 표시 정보(기사·등록자·작업유형). 테스트가 넣지 않으면 찾지 못한다.
     final FakeTechnicianProfilesPort technicianProfiles = new FakeTechnicianProfilesPort();
     final FakeStaffProfilesPort staffProfiles = new FakeStaffProfilesPort();
@@ -94,13 +97,15 @@ final class ScheduleServiceFixture {
         workTypes.givenSelectable(ORGANIZATION_ID, WORK_TYPE_ID);
     }
 
-    /** 사진 확인(트랜잭션 밖)과 등록 트랜잭션을 실제 서비스처럼 묶는다. */
+    /** 사진 확인·좌표 조회(트랜잭션 밖)와 등록 트랜잭션을 실제 서비스처럼 묶는다. */
     CreateWorkService createWorkService() {
         return createWorkService(actorPort);
     }
 
     CreateWorkService createWorkService(LoadActorPort loadActorPort) {
         return new CreateWorkService(
+                loadActorPort,
+                siteCoordinates,
                 mediaFiles,
                 new CreateWorkTransaction(
                         loadActorPort,
@@ -115,6 +120,9 @@ final class ScheduleServiceFixture {
 
     UpdateWorkDetailsService updateWorkDetailsService() {
         return new UpdateWorkDetailsService(
+                actorPort,
+                workRepository,
+                siteCoordinates,
                 mediaFiles,
                 new UpdateWorkDetailsTransaction(actorPort, workRepository, workTypes, mediaFiles, events, clock));
     }
