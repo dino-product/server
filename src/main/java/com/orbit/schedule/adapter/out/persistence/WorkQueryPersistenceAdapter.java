@@ -134,6 +134,18 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
 
     @Override
     @Transactional(readOnly = true)
+    public long countCompletedByTechnician(OrganizationId organizationId, TechnicianId technicianId) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        // 완료된 작업의 일정 컬럼은 마지막 담당 기사이므로, 다른 기사로 넘어간 뒤 완료된 작업은 그 기사로 센다.
+        return countOf(WORK.companyId
+                .eq(organizationId.value())
+                .and(WORK.status.eq(WorkStatus.COMPLETED))
+                .and(WORK.technicianId.eq(technicianId.value())));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Work> listBacklog(OrganizationId organizationId) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         return listWithAssignments(

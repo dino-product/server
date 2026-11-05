@@ -144,6 +144,29 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
+    @DisplayName("누적 완료 수는 구간과 관계없이 그 기사가 지금 담당인 채 완료한 그 조직의 작업 수이고, 기사 본인과 관리자에게 같다")
+    void countsTotalCompletedRegardlessOfPeriod() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.givenWork(ORGANIZATION_ID, "구간 안 완료", WorkStatus.COMPLETED, TECHNICIAN_ID, TEN);
+        fixture.givenWork(
+                ORGANIZATION_ID, "지난달 완료", WorkStatus.COMPLETED, TECHNICIAN_ID, FROM.minus(Duration.ofDays(40)));
+        fixture.givenWork(ORGANIZATION_ID, "작업중", WorkStatus.IN_PROGRESS, TECHNICIAN_ID, at(1));
+        fixture.givenWork(ORGANIZATION_ID, "다른 기사 완료", WorkStatus.COMPLETED, OTHER_TECHNICIAN_ID, TEN);
+        fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 완료", WorkStatus.COMPLETED, TECHNICIAN_ID, TEN);
+        Work completedByOther = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "넘겨진 뒤 완료된 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, at(2)));
+        completedByOther.reassign(new WorkSchedule(OTHER_TECHNICIAN_ID, at(2), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        completedByOther.accept(NOW);
+        completedByOther.start(NOW);
+        completedByOther.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        fixture.workRepository.store(completedByOther);
+
+        assertThat(service.get(query(null, FROM, TO)).totalCompleted()).isEqualTo(2);
+        assertThat(service.get(query(null, TO, TO.plus(Duration.ofDays(1)))).totalCompleted())
+                .isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("기사 본인에게는 구간 밖으로 일정이 옮겨져 완료된 작업을 옮겨진 일정의 구간에서만 담는다")
     void technicianSeesCompletedWorkInPeriodOfFinalSchedule() {
         fixture.givenTechnician(TECHNICIAN_ID);

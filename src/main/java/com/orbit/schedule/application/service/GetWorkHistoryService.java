@@ -68,7 +68,11 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                 countCurrentStartedIn(works, WorkStatus.COMPLETED, period),
                 ownHistory ? 0 : countRejectedIn(assigned, technicianId, period),
                 countCurrentStartedIn(works, WorkStatus.CANCELED, period));
-        return new WorkHistoryInfo(technicianId.value(), works, statistics);
+        return new WorkHistoryInfo(
+                technicianId.value(),
+                works,
+                statistics,
+                workQueryPort.countCompletedByTechnician(actor.organizationId(), technicianId));
     }
 
     /** 이력을 볼 기사. 관리자는 반드시 지정하고, 기사는 비우거나 본인만 지정한다. */

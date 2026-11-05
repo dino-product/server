@@ -50,6 +50,9 @@ public interface WorkQueryPort {
     List<Work> listAssignedToTechnician(
             OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to);
 
+    /** 그 기사가 지금 담당인 채 완료한 작업 수. 구간과 관계없이 센다(다른 기사로 넘어간 뒤 완료된 작업은 넣지 않는다). 작업 이력의 누적 완료가 쓴다. */
+    long countCompletedByTechnician(OrganizationId organizationId, TechnicianId technicianId);
+
     /** 대기함 작업(등록 상태). 등록 때 미리 입력한 담당기사·시간이 있어도 대기함이므로 일정 컬럼으로 거르지 않는다. */
     List<Work> listBacklog(OrganizationId organizationId);
 

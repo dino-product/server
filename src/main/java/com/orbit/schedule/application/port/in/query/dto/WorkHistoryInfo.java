@@ -13,8 +13,9 @@ import com.orbit.schedule.domain.WorkStatus;
  *
  * @param technicianId 조회한 기사(기사가 비워 보냈으면 본인)
  * @param works 그 기사의 마지막 배정 시작시각 내림차순(최근 먼저), 작업 식별자 내림차순으로 정렬한 작업
+ * @param totalCompleted 구간과 관계없이 그 기사가 지금 담당인 채 완료한 그 조직의 작업 수(누적 완료)
  */
-public record WorkHistoryInfo(Long technicianId, List<AssignedWork> works, Statistics statistics) {
+public record WorkHistoryInfo(Long technicianId, List<AssignedWork> works, Statistics statistics, long totalCompleted) {
 
     public WorkHistoryInfo {
         works = List.copyOf(works);
