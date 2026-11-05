@@ -60,13 +60,15 @@ class CreateWorkServiceTest {
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final CreateWorkService service = new CreateWorkService(
             fixture.actorPort,
-            fixture.workRepository,
-            fixture.workTypes,
-            fixture.technicianContracts,
-            fixture.scheduleLock,
             fixture.siteCoordinates,
-            fixture.events,
-            fixture.clock);
+            new WorkRegistration(
+                    fixture.actorPort,
+                    fixture.workRepository,
+                    fixture.workTypes,
+                    fixture.technicianContracts,
+                    fixture.scheduleLock,
+                    fixture.events,
+                    fixture.clock));
 
     @ParameterizedTest
     @EnumSource(
@@ -513,13 +515,15 @@ class CreateWorkServiceTest {
                 Optional.of(new ManagerActor(new MembershipId(11L), OTHER_ORGANIZATION_ID, ActorRole.OWNER));
         CreateWorkService serviceWithMisbehavingPort = new CreateWorkService(
                 misbehavingPort,
-                fixture.workRepository,
-                fixture.workTypes,
-                fixture.technicianContracts,
-                fixture.scheduleLock,
                 fixture.siteCoordinates,
-                fixture.events,
-                fixture.clock);
+                new WorkRegistration(
+                        misbehavingPort,
+                        fixture.workRepository,
+                        fixture.workTypes,
+                        fixture.technicianContracts,
+                        fixture.scheduleLock,
+                        fixture.events,
+                        fixture.clock));
 
         assertThatThrownBy(() -> serviceWithMisbehavingPort.create(command("에어컨 수리", null)))
                 .isInstanceOf(IllegalStateException.class)
@@ -583,28 +587,26 @@ class CreateWorkServiceTest {
     }
 
     @Test
-    @DisplayName("입력 형식이 틀린 등록은 좌표를 찾지 않는다")
-    void skipsLookupForInvalidInput() {
+    @DisplayName("조직의 관리자가 아니면 좌표를 찾지 않고 거부한다")
+    void skipsLookupForNonManager() {
+        fixture.siteCoordinates.givenCoordinates(SITE_ADDRESS, SEOUL);
+
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, SITE_ADDRESS)),
+                ScheduleErrorCode.NOT_ORGANIZATION_MEMBER);
+        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, SITE_ADDRESS)), ScheduleErrorCode.ACTION_NOT_ALLOWED);
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("길이 제한을 넘는 기본주소는 찾지 않고 입력 오류로 거부한다")
+    void skipsLookupForTooLongBaseAddress() {
         fixture.givenManager();
 
         fixture.assertRejected(
-                () -> service.create(new CreateWorkCommand(
-                        ACCOUNT_ID,
-                        ORGANIZATION_ID.value(),
-                        " ",
-                        null,
-                        null,
-                        null,
-                        null,
-                        SITE_ADDRESS,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        false)),
+                () -> service.create(customerCommand(null, null, "가".repeat(201))),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
         assertThat(fixture.siteCoordinates.lookups()).isEmpty();
     }

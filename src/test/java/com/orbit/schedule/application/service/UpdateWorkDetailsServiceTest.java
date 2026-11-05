@@ -5,6 +5,9 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.UNKNOWN_WORK_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.WORK_TYPE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,10 +48,9 @@ class UpdateWorkDetailsServiceTest {
     private final UpdateWorkDetailsService service = new UpdateWorkDetailsService(
             fixture.actorPort,
             fixture.workRepository,
-            fixture.workTypes,
             fixture.siteCoordinates,
-            fixture.events,
-            fixture.clock);
+            new WorkDetailsChange(
+                    fixture.actorPort, fixture.workRepository, fixture.workTypes, fixture.events, fixture.clock));
 
     UpdateWorkDetailsServiceTest() {
         fixture.workTypes.givenSelectable(ORGANIZATION_ID, new WorkTypeId(9L));
@@ -362,6 +364,43 @@ class UpdateWorkDetailsServiceTest {
         service.update(customerCommand(id.value(), "김철수", null, null));
 
         assertThat(fixture.singleSaved().customerInfo().address()).isEmpty();
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("다른 조직의 작업이나 없는 작업이면 좌표를 찾지 않고 거부한다")
+    void skipsLookupForUnknownWork() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId otherOrganizationWork =
+                fixture.givenWork(OTHER_ORGANIZATION_ID, "다른 조직 작업", WorkStatus.REGISTERED, TECHNICIAN_ID, TEN);
+        fixture.siteCoordinates.givenCoordinates("부산시", BUSAN);
+
+        fixture.assertRejected(
+                () -> service.update(customerCommand(otherOrganizationWork.value(), null, null, "부산시")),
+                ScheduleErrorCode.WORK_NOT_FOUND);
+        fixture.assertRejected(
+                () -> service.update(customerCommand(UNKNOWN_WORK_ID, null, null, "부산시")),
+                ScheduleErrorCode.WORK_NOT_FOUND);
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("트랜잭션 안에서 거부될 요청(식별자 형식 오류·등록자도 총관리자도 아님·완료된 작업)은 좌표를 찾지 않는다")
+    void skipsLookupForRequestsRejectedLater() {
+        WorkId registered = fixture.givenWork(WorkStatus.REGISTERED);
+        WorkId completed = fixture.givenWork(WorkStatus.COMPLETED);
+        fixture.siteCoordinates.givenCoordinates("부산시", BUSAN);
+
+        fixture.givenManager(ActorRole.OWNER);
+        fixture.assertRejected(
+                () -> service.update(customerCommand(0L, null, null, "부산시")), ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.update(customerCommand(completed.value(), null, null, "부산시")),
+                ScheduleErrorCode.INVALID_WORK_STATE);
+        fixture.givenManager(ActorRole.STAFF);
+        fixture.assertRejected(
+                () -> service.update(customerCommand(registered.value(), null, null, "부산시")),
+                ScheduleErrorCode.ACTION_NOT_ALLOWED);
         assertThat(fixture.siteCoordinates.lookups()).isEmpty();
     }
 
