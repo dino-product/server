@@ -24,6 +24,7 @@ import com.orbit.schedule.WorkAccepted;
 import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.WorkRejected;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianId;
@@ -32,14 +33,15 @@ import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 
-/** 기사 앱의 배정 응답 API를 공통 응답·보안·트랜잭션·영속성·이벤트 발행과 함께 확인한다. 준비물은 {@link ScheduleApiTestSupport}를 따른다. */
-@DisplayName("기사 배정 응답 API")
+/** 기사 앱의 배정 응답·작업 시작 API를 공통 응답·보안·트랜잭션·영속성·이벤트 발행과 함께 확인한다. 준비물은 {@link ScheduleApiTestSupport}를 따른다. */
+@DisplayName("기사 배정 응답·작업 시작 API")
 @RecordApplicationEvents
 class TechnicianWorkApiIntegrationTest extends ScheduleApiTestSupport {
 
     private static final Instant REGISTERED_AT = Instant.parse("2020-01-01T00:00:00Z");
     private static final String ACCEPTANCE = "/api/v1/organizations/{organizationId}/works/{workId}/acceptance";
     private static final String REJECTION = "/api/v1/organizations/{organizationId}/works/{workId}/rejection";
+    private static final String START = "/api/v1/organizations/{organizationId}/works/{workId}/start";
 
     @Autowired
     private ApplicationEvents events;
@@ -219,6 +221,114 @@ class TechnicianWorkApiIntegrationTest extends ScheduleApiTestSupport {
         }
     }
 
+    @Nested
+    @DisplayName("작업 시작")
+    class Start {
+
+        @Test
+        @DisplayName("예정 시작 10분 안의 작업전 작업을 시작하면 204이고 작업중·시작 시각을 저장해 저장 사실을 발행하며, 다시 보내도 204이고 더 발행하지 않는다")
+        void startsAndIgnoresDuplicate() throws Exception {
+            Fixture fixture = fixture();
+            long workId = save(accepted(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().plus(Duration.ofMinutes(5))));
+
+            Instant before = Instant.now();
+            start(fixture.technician(), fixture.organization().id(), workId, 1).andExpect(status().isNoContent());
+            Instant after = Instant.now();
+
+            Work saved = stored(fixture.organization(), workId);
+            assertThat(saved.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+            assertThat(saved.startedAt()).hasValueSatisfying(startedAt -> assertThat(startedAt)
+                    .isBetween(before.minusMillis(1), after.plusMillis(1)));
+            assertThat(events.stream(WorkChanged.class)).hasSize(1);
+
+            start(fixture.technician(), fixture.organization().id(), workId, 1).andExpect(status().isNoContent());
+            assertThat(stored(fixture.organization(), workId).startedAt()).isEqualTo(saved.startedAt());
+            assertThat(events.stream(WorkChanged.class)).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("같은 기사의 다른 작업이 작업중이어도 시작할 수 있다")
+        void startsWhileAnotherWorkIsInProgress() throws Exception {
+            Fixture fixture = fixture();
+            long first = save(accepted(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().plus(Duration.ofMinutes(5))));
+            long second = save(accepted(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().plus(Duration.ofMinutes(8))));
+
+            start(fixture.technician(), fixture.organization().id(), first, 1).andExpect(status().isNoContent());
+            start(fixture.technician(), fixture.organization().id(), second, 1).andExpect(status().isNoContent());
+
+            assertThat(stored(fixture.organization(), second).status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        }
+
+        @Test
+        @DisplayName("예정 시작 10분 전보다 이르면 409 SCHEDULE-017, 예정 종료가 지났으면 409 SCHEDULE-018이고 작업전을 유지한다")
+        void rejectsOutsideStartWindow() throws Exception {
+            Fixture fixture = fixture();
+            long early = save(accepted(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().plus(Duration.ofHours(1))));
+            long late = save(accepted(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().minus(Duration.ofHours(3))));
+
+            start(fixture.technician(), fixture.organization().id(), early, 1)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-017"));
+            start(fixture.technician(), fixture.organization().id(), late, 1)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-018"));
+            assertThat(stored(fixture.organization(), early).status()).isEqualTo(WorkStatus.ACCEPTED);
+            assertThat(stored(fixture.organization(), late).status()).isEqualTo(WorkStatus.ACCEPTED);
+            assertThat(events.stream(WorkChanged.class)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("수락 전·취소된 작업은 409 SCHEDULE-002, 관리자는 403 SCHEDULE-005이다")
+        void rejectsPendingWorkAndManager() throws Exception {
+            Fixture fixture = fixture();
+            long pending = save(assigned(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().plus(Duration.ofMinutes(5))));
+            long acceptedId = save(accepted(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().plus(Duration.ofMinutes(5))));
+            Work cancelled = accepted(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().plus(Duration.ofMinutes(5)));
+            cancelled.cancel(
+                    Instant.now().minusSeconds(10),
+                    new MembershipId(fixture.organization().ownerMembership()),
+                    CancellationReason.CUSTOMER_REQUEST,
+                    null);
+            long cancelledId = save(cancelled);
+
+            start(fixture.technician(), fixture.organization().id(), pending, 1)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-002"));
+            start(fixture.technician(), fixture.organization().id(), cancelledId, 1)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-002"));
+            start(fixture.organization().owner(), fixture.organization().id(), acceptedId, 1)
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-005"));
+            assertThat(stored(fixture.organization(), pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
+            assertThat(stored(fixture.organization(), acceptedId).status()).isEqualTo(WorkStatus.ACCEPTED);
+        }
+    }
+
     /** 발주사와 그 발주사의 활성 기사 계약 하나. */
     private record Fixture(Organization organization, long technician, long technicianId) {}
 
@@ -232,6 +342,11 @@ class TechnicianWorkApiIntegrationTest extends ScheduleApiTestSupport {
     private ResultActions accept(long requester, long organizationId, long workId, int assignmentNumber)
             throws Exception {
         return perform(ACCEPTANCE, requester, organizationId, workId, Map.of("assignmentNumber", assignmentNumber));
+    }
+
+    private ResultActions start(long requester, long organizationId, long workId, int assignmentNumber)
+            throws Exception {
+        return perform(START, requester, organizationId, workId, Map.of("assignmentNumber", assignmentNumber));
     }
 
     private ResultActions reject(
@@ -254,6 +369,17 @@ class TechnicianWorkApiIntegrationTest extends ScheduleApiTestSupport {
 
     /** 주어진 기사에게 하루 뒤부터 2시간 일정으로 배정해 수락을 기다리는 작업. */
     private static Work assigned(Organization organization, long technicianId) {
+        return assigned(organization, technicianId, Instant.now().plus(Duration.ofDays(1)));
+    }
+
+    /** 주어진 기사에게 start부터 2시간 일정으로 배정하고 수락한 작업. */
+    private static Work accepted(Organization organization, long technicianId, Instant start) {
+        Work work = assigned(organization, technicianId, start);
+        work.accept(Instant.now().minusSeconds(30));
+        return work;
+    }
+
+    private static Work assigned(Organization organization, long technicianId, Instant start) {
         Work work = Work.register(
                 new OrganizationId(organization.id()),
                 "보일러 점검",
@@ -263,8 +389,7 @@ class TechnicianWorkApiIntegrationTest extends ScheduleApiTestSupport {
                 null,
                 null);
         work.assign(
-                new WorkSchedule(
-                        new TechnicianId(technicianId), Instant.now().plus(Duration.ofDays(1)), Duration.ofHours(2)),
+                new WorkSchedule(new TechnicianId(technicianId), start, Duration.ofHours(2)),
                 Instant.now().minusSeconds(60),
                 new MembershipId(organization.ownerMembership()));
         return work;
