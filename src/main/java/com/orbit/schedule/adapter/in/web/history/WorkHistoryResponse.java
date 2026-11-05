@@ -3,6 +3,7 @@ package com.orbit.schedule.adapter.in.web.history;
 import java.time.Instant;
 import java.util.List;
 
+import com.orbit.schedule.adapter.in.web.LabelResponse;
 import com.orbit.schedule.application.port.in.query.dto.WorkHistoryInfo;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentResult;
@@ -63,7 +64,17 @@ public record WorkHistoryResponse(
                     description = "관리자 조치나 탈퇴로 배정이 끝났으면 방식. REASSIGNED(재배정), RESCHEDULED(일정 변경), UNASSIGNED(배정 해제), "
                             + "CANCELLED(취소), ACCOUNT_WITHDRAWN(기사 탈퇴). 아니면 null",
                     example = "RESCHEDULED")
-            AssignmentEndReason endReason) {
+            AssignmentEndReason endReason,
+
+            @Schema(description = "작업유형. 없으면 null") LabelResponse workType,
+
+            @Schema(
+                    description = "실제 작업 시작 시각. 그 기사가 지금 담당인 채 완료한 작업만, 아니면 null(소요시간은 completedAt − startedAt)",
+                    example = "2026-10-21T00:05:00Z")
+            Instant startedAt,
+
+            @Schema(description = "완료 시각. 그 기사가 지금 담당인 채 완료한 작업만, 아니면 null", example = "2026-10-21T01:50:00Z")
+            Instant completedAt) {
 
         static AssignedWork from(WorkHistoryInfo.AssignedWork info) {
             return new AssignedWork(
@@ -75,7 +86,10 @@ public record WorkHistoryResponse(
                     info.startTime(),
                     info.endTime(),
                     info.result(),
-                    info.endReason());
+                    info.endReason(),
+                    LabelResponse.from(info.workType()),
+                    info.startedAt(),
+                    info.completedAt());
         }
     }
 

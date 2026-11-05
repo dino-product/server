@@ -2,6 +2,7 @@ package com.orbit.schedule.application.service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import org.springframework.stereotype.Service;
@@ -12,7 +13,9 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.GetWorkHistoryUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkHistoryQuery;
 import com.orbit.schedule.application.port.in.query.dto.WorkHistoryInfo;
+import com.orbit.schedule.application.port.in.query.dto.WorkHistoryStatus;
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.AssignmentEnding;
@@ -23,6 +26,7 @@ import com.orbit.schedule.domain.TechnicianActor;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.schedule.domain.WorkTypeId;
 import com.orbit.shared.error.BusinessException;
 
 /**
@@ -43,10 +47,13 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkQueryPort workQueryPort;
+    private final LoadWorkTypeLabelsPort loadWorkTypeLabelsPort;
 
-    public GetWorkHistoryService(LoadActorPort loadActorPort, WorkQueryPort workQueryPort) {
+    public GetWorkHistoryService(
+            LoadActorPort loadActorPort, WorkQueryPort workQueryPort, LoadWorkTypeLabelsPort loadWorkTypeLabelsPort) {
         this.loadActorPort = loadActorPort;
         this.workQueryPort = workQueryPort;
+        this.loadWorkTypeLabelsPort = loadWorkTypeLabelsPort;
     }
 
     @Override
@@ -55,25 +62,68 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
         Actor actor = OrganizationActors.requireMember(loadActorPort, query.accountId(), query.organizationId());
         TechnicianId technicianId = targetTechnician(actor, query.technicianId());
         QueryPeriod period = QueryPeriod.of(query.from(), query.to());
+        Set<Long> workTypeIds = workTypeIds(query.workTypeIds());
+        Set<WorkHistoryStatus> statuses = query.statuses() == null ? Set.of() : Set.copyOf(query.statuses());
 
         boolean ownHistory = actor instanceof TechnicianActor;
         List<Work> assigned = workQueryPort.listAssignedToTechnician(
                 actor.organizationId(), technicianId, period.from(), period.to());
-        List<WorkHistoryInfo.AssignedWork> works = assigned.stream()
-                .map(work -> assignedWork(work, technicianId, period))
-                .filter(work -> !ownHistory || (work.current() && work.status() == WorkStatus.COMPLETED))
-                .sorted(RECENT_FIRST)
+        DisplayInfos displayInfos = DisplayInfos.ofWorkTypes(loadWorkTypeLabelsPort, actor.organizationId(), assigned);
+        List<Row> rows = assigned.stream()
+                .map(work -> new Row(work, assignedWork(work, technicianId, period, displayInfos)))
+                .filter(row -> !ownHistory || isCompletedByTechnician(row.info()))
+                .sorted(Comparator.comparing(Row::info, RECENT_FIRST))
                 .toList();
+        List<WorkHistoryInfo.AssignedWork> works = rows.stream().map(Row::info).toList();
+        // 통계는 조건과 관계없이 이력 전체로 센다(화면의 통계 카드는 목록 조건 위에 있다).
         WorkHistoryInfo.Statistics statistics = new WorkHistoryInfo.Statistics(
                 works.size(),
                 countCurrentStartedIn(works, WorkStatus.COMPLETED, period),
                 ownHistory ? 0 : countRejectedIn(assigned, technicianId, period),
                 countCurrentStartedIn(works, WorkStatus.CANCELED, period));
+        List<WorkHistoryInfo.AssignedWork> listed = rows.stream()
+                .filter(row -> hasWorkType(row.work(), workTypeIds, displayInfos))
+                .filter(row -> hasStatus(row.info(), statuses))
+                .map(Row::info)
+                .toList();
         return new WorkHistoryInfo(
                 technicianId.value(),
-                works,
+                listed,
                 statistics,
                 workQueryPort.countCompletedByTechnician(actor.organizationId(), technicianId));
+    }
+
+    /** 작업과 그 작업의 이력 행. 작업유형 조건은 작업으로 본다. */
+    private record Row(Work work, WorkHistoryInfo.AssignedWork info) {}
+
+    private static Set<Long> workTypeIds(Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Set.of();
+        }
+        if (ids.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new BusinessException(ScheduleErrorCode.INVALID_WORK_INPUT);
+        }
+        return Set.copyOf(ids);
+    }
+
+    private static boolean hasWorkType(Work work, Set<Long> workTypeIds, DisplayInfos displayInfos) {
+        return workTypeIds.isEmpty()
+                || displayInfos
+                        .shownWorkType(work)
+                        .map(WorkTypeId::value)
+                        .filter(workTypeIds::contains)
+                        .isPresent();
+    }
+
+    private static boolean hasStatus(WorkHistoryInfo.AssignedWork work, Set<WorkHistoryStatus> statuses) {
+        return statuses.isEmpty()
+                || (statuses.contains(WorkHistoryStatus.COMPLETED) && isCompletedByTechnician(work))
+                || (statuses.contains(WorkHistoryStatus.REJECTED) && work.result() == AssignmentResult.REJECTED);
+    }
+
+    /** 그 기사가 지금 담당인 채 완료한 작업인지. */
+    private static boolean isCompletedByTechnician(WorkHistoryInfo.AssignedWork work) {
+        return work.current() && work.status() == WorkStatus.COMPLETED;
     }
 
     /** 이력을 볼 기사. 관리자는 반드시 지정하고, 기사는 비우거나 본인만 지정한다. */
@@ -98,13 +148,15 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
         };
     }
 
-    private static WorkHistoryInfo.AssignedWork assignedWork(Work work, TechnicianId technicianId, QueryPeriod period) {
+    private static WorkHistoryInfo.AssignedWork assignedWork(
+            Work work, TechnicianId technicianId, QueryPeriod period, DisplayInfos displayInfos) {
         int index = assignmentsInPeriod(work, technicianId, period).max().orElseThrow();
         AssignmentHistory history = work.assignmentHistory().get(index);
         // 이 행의 배정이 작업의 마지막 배정이고 작업에 그 일정이 남아 있을 때만 지금 담당이다. 구간 밖에서 일정이 바뀌었거나 다시 배정됐으면 이 행은 지난
         // 배정이고, 거절·배정 해제·기사 반환으로 대기함에 돌아가 일정이 비었으면 담당이 없다.
         boolean current =
                 index == work.assignmentHistory().size() - 1 && work.schedule().isPresent();
+        boolean completedHere = current && work.status() == WorkStatus.COMPLETED;
         return new WorkHistoryInfo.AssignedWork(
                 work.id().orElseThrow().value(),
                 work.name(),
@@ -114,7 +166,10 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                 history.schedule().startTime(),
                 history.schedule().endTime(),
                 history.result(),
-                history.ending().map(AssignmentEnding::reason).orElse(null));
+                history.ending().map(AssignmentEnding::reason).orElse(null),
+                displayInfos.workType(work),
+                completedHere ? work.startedAt().orElseThrow() : null,
+                completedHere ? work.completedAt().orElseThrow() : null);
     }
 
     /** 그 기사의 배정 가운데 일정이 구간과 겹치는 것의 배정 이력 위치(0부터). */

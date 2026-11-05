@@ -95,6 +95,48 @@ class WorkHistoryApiIntegrationTest extends ScheduleApiTestSupport {
     }
 
     @Test
+    @DisplayName("상태 조건은 목록만 거르고, 완료한 작업에는 실제 시작·완료 시각을 담는다. 없는 상태 값은 400 COMMON-400, 양수가 아닌 작업유형은 400 SCHEDULE-003이다")
+    void filtersByStatusAndShowsActualTimes() throws Exception {
+        Fixture fixture = fixture();
+        Instant start = Instant.parse("2026-10-10T01:00:00Z");
+        long done = save(completed(fixture, "완료", start));
+        save(accepted(fixture, "작업전", Instant.parse("2026-10-20T01:00:00Z")));
+
+        mockMvc.perform(authorized(
+                                fixture.organization().owner(),
+                                fixture.organization().id())
+                        .param("technicianId", Long.toString(fixture.technicianId()))
+                        .param("from", FROM.toString())
+                        .param("to", TO.toString())
+                        .param("statuses", "COMPLETED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.works", hasSize(1)))
+                .andExpect(jsonPath("$.result.works[0].workId").value(done))
+                .andExpect(jsonPath("$.result.works[0].startedAt").value(start.toString()))
+                .andExpect(jsonPath("$.result.works[0].completedAt")
+                        .value(start.plus(Duration.ofHours(2)).toString()))
+                .andExpect(jsonPath("$.result.statistics.assigned").value(2));
+        mockMvc.perform(authorized(
+                                fixture.organization().owner(),
+                                fixture.organization().id())
+                        .param("technicianId", Long.toString(fixture.technicianId()))
+                        .param("from", FROM.toString())
+                        .param("to", TO.toString())
+                        .param("statuses", "IN_PROGRESS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON-400"));
+        mockMvc.perform(authorized(
+                                fixture.organization().owner(),
+                                fixture.organization().id())
+                        .param("technicianId", Long.toString(fixture.technicianId()))
+                        .param("from", FROM.toString())
+                        .param("to", TO.toString())
+                        .param("workTypeIds", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+    }
+
+    @Test
     @DisplayName("구간을 빠뜨리면 형식 오류가 아니라 서비스가 확인해 400 SCHEDULE-003이다")
     void rejectsMissingPeriodInService() throws Exception {
         Fixture fixture = fixture();

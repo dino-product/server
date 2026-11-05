@@ -638,6 +638,10 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + ".examples['SCHEDULE-005'].value.code")
                         .value("SCHEDULE-005"))
                 .andExpect(jsonPath(response + ".properties.totalCompleted").exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'statuses')]")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'workTypeIds')]")
+                        .exists())
                 .andExpect(jsonPath(response + ".properties.statistics").exists());
     }
 

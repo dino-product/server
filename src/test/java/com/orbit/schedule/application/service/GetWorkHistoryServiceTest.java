@@ -2,20 +2,25 @@ package com.orbit.schedule.application.service;
 
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCEPTED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ACCOUNT_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.ASSIGNED_AT;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.NOW;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_ORGANIZATION_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.OTHER_TECHNICIAN_ID;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTERED_AT;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGISTRAR_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.SETUP_MANAGER_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECHNICIAN_ID;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
+import static com.orbit.schedule.application.service.ScheduleServiceFixture.WORK_TYPE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkHistoryQuery;
 import com.orbit.schedule.application.port.in.query.dto.WorkHistoryInfo;
+import com.orbit.schedule.application.port.in.query.dto.WorkHistoryStatus;
+import com.orbit.schedule.application.port.out.TypeLabel;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CompletionReport;
@@ -40,7 +47,8 @@ class GetWorkHistoryServiceTest {
     private static final Instant TO = TEN.plus(Duration.ofDays(1));
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final GetWorkHistoryService service = new GetWorkHistoryService(fixture.actorPort, fixture.workRepository);
+    private final GetWorkHistoryService service =
+            new GetWorkHistoryService(fixture.actorPort, fixture.workRepository, fixture.workTypeLabels);
 
     @Test
     @DisplayName("관리자에게는 구간 안 배정이 있는 작업을 지금 상태와 관계없이 최근 순으로 담고, 기사의 마지막 배정과 완료·거절·취소 수를 준다")
@@ -164,6 +172,81 @@ class GetWorkHistoryServiceTest {
         assertThat(service.get(query(null, FROM, TO)).totalCompleted()).isEqualTo(2);
         assertThat(service.get(query(null, TO, TO.plus(Duration.ofDays(1)))).totalCompleted())
                 .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("작업유형·상태(완료·거절) 조건은 목록만 거르고 통계·누적 완료는 거르지 않으며, 완료한 작업에만 실제 시작·완료 시각과 유형을 담는다")
+    void filtersListByWorkTypeAndHistoryStatus() {
+        fixture.givenManager();
+        fixture.workTypeLabels.given(ORGANIZATION_ID, new TypeLabel(WORK_TYPE_ID.value(), "설치", null, false));
+        WorkId completed = fixture.givenWork(ORGANIZATION_ID, "설치 완료", WorkStatus.COMPLETED, TECHNICIAN_ID, TEN);
+        Work rejected = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "거절", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, at(1)));
+        rejected.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        WorkId rejectedId = fixture.workRepository.store(rejected);
+        WorkId accepted = fixture.givenWork(ORGANIZATION_ID, "작업전", WorkStatus.ACCEPTED, TECHNICIAN_ID, at(2));
+        Work untyped = Work.register(ORGANIZATION_ID, "유형 없는 완료", REGISTRAR_ID, REGISTERED_AT, null, null, null);
+        untyped.assign(new WorkSchedule(TECHNICIAN_ID, at(3), TWO_HOURS), ASSIGNED_AT, SETUP_MANAGER_ID);
+        untyped.accept(ACCEPTED_AT);
+        untyped.start(ACCEPTED_AT);
+        untyped.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        WorkId untypedId = fixture.workRepository.store(untyped);
+
+        WorkHistoryInfo all = service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(), Set.of()));
+        WorkHistoryInfo installs =
+                service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(WORK_TYPE_ID.value()), Set.of()));
+        WorkHistoryInfo completedOnly =
+                service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(), Set.of(WorkHistoryStatus.COMPLETED)));
+        WorkHistoryInfo rejectedOnly =
+                service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(), Set.of(WorkHistoryStatus.REJECTED)));
+
+        assertThat(all.works()).hasSize(4);
+        assertThat(installs.works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(accepted.value(), rejectedId.value(), completed.value());
+        assertThat(completedOnly.works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(untypedId.value(), completed.value());
+        assertThat(rejectedOnly.works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(rejectedId.value());
+        assertThat(installs.statistics()).isEqualTo(all.statistics());
+        assertThat(rejectedOnly.totalCompleted())
+                .isEqualTo(all.totalCompleted())
+                .isEqualTo(2);
+
+        assertThat(all.works())
+                .filteredOn(work -> work.workId().equals(completed.value()))
+                .singleElement()
+                .satisfies(work -> {
+                    assertThat(work.workType().name()).isEqualTo("설치");
+                    assertThat(work.startedAt()).isEqualTo(ACCEPTED_AT);
+                    assertThat(work.completedAt()).isEqualTo(ACCEPTED_AT);
+                });
+        assertThat(all.works())
+                .filteredOn(work -> !work.workId().equals(completed.value())
+                        && !work.workId().equals(untypedId.value()))
+                .allSatisfy(work -> {
+                    assertThat(work.startedAt()).isNull();
+                    assertThat(work.completedAt()).isNull();
+                });
+        assertThat(all.works())
+                .filteredOn(work -> work.workId().equals(untypedId.value()))
+                .singleElement()
+                .satisfies(work -> assertThat(work.workType()).isNull());
+    }
+
+    @Test
+    @DisplayName("작업유형 조건에 양수가 아닌 식별자가 있으면 구간 뒤에 입력 오류다")
+    void rejectsInvalidWorkTypeIdsAfterPeriod() {
+        fixture.givenManager();
+
+        fixture.assertRejected(
+                () -> service.get(query(TECHNICIAN_ID.value(), TO, FROM, Set.of(0L), Set.of())),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        fixture.assertRejected(
+                () -> service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(0L), Set.of())),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
     }
 
     @Test
@@ -347,5 +430,11 @@ class GetWorkHistoryServiceTest {
 
     private static GetWorkHistoryQuery query(Long technicianId, Instant from, Instant to) {
         return new GetWorkHistoryQuery(ACCOUNT_ID, ORGANIZATION_ID.value(), technicianId, from, to);
+    }
+
+    private static GetWorkHistoryQuery query(
+            Long technicianId, Instant from, Instant to, Set<Long> workTypeIds, Set<WorkHistoryStatus> statuses) {
+        return new GetWorkHistoryQuery(
+                ACCOUNT_ID, ORGANIZATION_ID.value(), technicianId, from, to, workTypeIds, statuses);
     }
 }
