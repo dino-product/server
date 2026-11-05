@@ -203,6 +203,12 @@ app:
         address-search-uri: https://dapi.kakao.com/v2/local/search/address.json
         rest-api-key: ${KAKAO_REST_API_KEY}
         timeout: PT2S
+    # 진행 보드 캐시(캐시 전용 Redis, allkeys-lru). 주소가 없으면 로컬·테스트는 기본 Redis를 쓴다.
+    # 배포 프로필(application-deployed.yml)은 기본으로 끄고, infra가 BOARD_CACHE_ENABLED와 BOARD_CACHE_REDIS_HOST를 넣으면 켠다.
+    board-cache:
+      enabled: ${BOARD_CACHE_ENABLED:true}
+      redis-host: ${BOARD_CACHE_REDIS_HOST:}
+      redis-port: ${BOARD_CACHE_REDIS_PORT:6379}
   media:
     # 이미지 시그니처로 확인할 수 있는 형식만 둘 수 있다(ImageFormat).
     image-content-types: ${MEDIA_IMAGE_CONTENT_TYPES:image/jpeg,image/png,image/webp,image/heic,image/heif}

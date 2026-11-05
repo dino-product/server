@@ -79,6 +79,9 @@ app:
       api-call-timeout: PT2S
       api-call-attempt-timeout: PT1S
   schedule:
+    # 진행 보드 캐시는 끈다. 테스트가 SQL·저장소로 직접 넣은 작업은 WorkChanged를 내지 않아 캐시가 옛 보드를 돌려줄 수 있다. 캐시 테스트는 따로 켠다.
+    board-cache:
+      enabled: false
     geocoding:
       kakao:
         # 테스트가 실제 카카오를 부르지 않도록 닫힌 로컬 주소를 둔다(연결이 바로 거절돼 좌표 없이 저장). 좌표를 검사하는 테스트는 포트를 바꾼다.
