@@ -625,6 +625,27 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsWorkHistoryWithTotalCompleted() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/work-history'].get";
+        String response = "$.components.schemas['com.orbit.schedule.adapter.in.web.history.WorkHistoryResponse']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("기사 작업 이력 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['200']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath(response + ".properties.totalCompleted").exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'statuses')]")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'workTypeIds')]")
+                        .exists())
+                .andExpect(jsonPath(response + ".properties.statistics").exists());
+    }
+
+    @Test
     void documentsTechnicianSchedulesWithAssignmentNumberAndLocation() throws Exception {
         String base = "$.paths['/api/v1/organizations/{organizationId}/my-schedule";
         String work = "$.components.schemas"

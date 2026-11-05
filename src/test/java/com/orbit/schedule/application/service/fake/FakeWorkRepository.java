@@ -139,6 +139,18 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     }
 
     @Override
+    public long countCompletedByTechnician(OrganizationId organizationId, TechnicianId technicianId) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        return inOrganization(organizationId).stream()
+                .filter(work -> work.status() == WorkStatus.COMPLETED)
+                .filter(work -> work.schedule()
+                        .map(schedule -> schedule.technicianId().equals(technicianId))
+                        .orElse(false))
+                .count();
+    }
+
+    @Override
     public List<Work> listCurrentForTechnician(
             OrganizationId organizationId, TechnicianId technicianId, Set<WorkStatus> statuses) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
