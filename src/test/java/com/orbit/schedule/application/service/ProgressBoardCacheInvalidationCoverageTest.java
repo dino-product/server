@@ -30,9 +30,9 @@ import com.orbit.schedule.application.port.out.WorkTypeUsagePort;
 class ProgressBoardCacheInvalidationCoverageTest {
 
     /**
-     * 각 서비스의 *ServiceTest가 RecordingEventPublisher로 WorkChanged 발행을 확인한다. 트랜잭션 밖에서 사진을 확인한 뒤 저장하는 등록·기본정보
-     * 수정·완료보고 제출은 *Transaction이 저장·발행하며 CreateWorkServiceTest·UpdateWorkDetailsServiceTest·SubmitCompletionReportServiceTest가
-     * 확인한다.
+     * 각 서비스의 *ServiceTest가 RecordingEventPublisher로 WorkChanged 발행을 확인한다. 트랜잭션 밖에서 사진을 확인한 뒤 저장하는
+     * 등록·기본정보 수정·완료보고 제출은 *Transaction이 저장·발행하며, CreateWorkServiceTest·UpdateWorkDetailsServiceTest·
+     * SubmitCompletionReportServiceTest가 확인한다.
      */
     private static final Set<String> WRITERS_PUBLISHING_WORK_CHANGED = Set.of(
             "AcceptWorkService",
