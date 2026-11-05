@@ -83,7 +83,7 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                 countCurrentStartedIn(works, WorkStatus.CANCELED, period));
         List<WorkHistoryInfo.AssignedWork> listed = rows.stream()
                 .filter(row -> hasWorkType(row.work(), workTypeIds, displayInfos))
-                .filter(row -> hasStatus(row.info(), statuses))
+                .filter(row -> hasStatus(row, statuses, technicianId, period))
                 .map(Row::info)
                 .toList();
         return new WorkHistoryInfo(
@@ -115,10 +115,16 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                         .isPresent();
     }
 
-    private static boolean hasStatus(WorkHistoryInfo.AssignedWork work, Set<WorkHistoryStatus> statuses) {
+    /** 완료는 그 기사가 지금 담당인 채 완료, 거절은 그 기사가 구간과 겹치는 배정을 한 번이라도 거절(통계의 거절과 같은 기준). */
+    private static boolean hasStatus(
+            Row row, Set<WorkHistoryStatus> statuses, TechnicianId technicianId, QueryPeriod period) {
         return statuses.isEmpty()
-                || (statuses.contains(WorkHistoryStatus.COMPLETED) && isCompletedByTechnician(work))
-                || (statuses.contains(WorkHistoryStatus.REJECTED) && work.result() == AssignmentResult.REJECTED);
+                || (statuses.contains(WorkHistoryStatus.COMPLETED) && isCompletedByTechnician(row.info()))
+                || (statuses.contains(WorkHistoryStatus.REJECTED)
+                        && assignmentsInPeriod(row.work(), technicianId, period)
+                                .mapToObj(
+                                        index -> row.work().assignmentHistory().get(index))
+                                .anyMatch(history -> history.result() == AssignmentResult.REJECTED));
     }
 
     /** 그 기사가 지금 담당인 채 완료한 작업인지. */

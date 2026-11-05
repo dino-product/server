@@ -56,6 +56,8 @@ public interface WorkHistoryControllerDocs {
             @Parameter(description = "구간 끝(제외, ISO-8601 UTC)", example = "2026-10-31T15:00:00Z", required = true)
                     Instant to,
             @Parameter(description = "이 작업유형 중 하나인 작업만(반복하거나 쉼표로 이어 보냄)", example = "3") Set<Long> workTypeIds,
-            @Parameter(description = "COMPLETED(그 기사가 담당인 채 완료)·REJECTED(그 기사가 거절) 중 하나인 작업만", example = "COMPLETED")
+            @Parameter(
+                            description = "COMPLETED(그 기사가 담당인 채 완료)·REJECTED(그 기사가 구간 안 배정을 거절) 중 하나인 작업만",
+                            example = "COMPLETED")
                     Set<WorkHistoryStatus> statuses);
 }

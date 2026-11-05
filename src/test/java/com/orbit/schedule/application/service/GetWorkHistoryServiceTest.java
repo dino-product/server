@@ -237,16 +237,37 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
-    @DisplayName("작업유형 조건에 양수가 아닌 식별자가 있으면 구간 뒤에 입력 오류다")
-    void rejectsInvalidWorkTypeIdsAfterPeriod() {
-        fixture.givenManager();
+    @DisplayName("작업유형 조건은 기사 확인·구간 뒤에 확인해, 남의 이력을 지정한 기사는 유형이 틀려도 권한 오류다")
+    void checksWorkTypeIdsAfterTechnicianAndPeriod() {
+        fixture.givenTechnician(TECHNICIAN_ID);
 
         fixture.assertRejected(
-                () -> service.get(query(TECHNICIAN_ID.value(), TO, FROM, Set.of(0L), Set.of())),
-                ScheduleErrorCode.INVALID_WORK_INPUT);
+                () -> service.get(query(OTHER_TECHNICIAN_ID.value(), FROM, TO, Set.of(0L), Set.of())),
+                ScheduleErrorCode.ACTION_NOT_ALLOWED);
         fixture.assertRejected(
-                () -> service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(0L), Set.of())),
-                ScheduleErrorCode.INVALID_WORK_INPUT);
+                () -> service.get(query(null, FROM, TO, Set.of(0L), Set.of())), ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("거절 조건은 구간 안 배정을 한 번이라도 거절한 작업을 담아, 거절 뒤 다시 배정받아 완료한 작업도 통계의 거절 수와 같이 담는다")
+    void rejectedFilterMatchesRejectedStatistic() {
+        fixture.givenManager();
+        Work rejectedThenCompleted = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "거절 뒤 완료", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, at(1)));
+        rejectedThenCompleted.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        rejectedThenCompleted.assign(new WorkSchedule(TECHNICIAN_ID, at(2), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        rejectedThenCompleted.accept(NOW);
+        rejectedThenCompleted.start(NOW);
+        rejectedThenCompleted.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        WorkId id = fixture.workRepository.store(rejectedThenCompleted);
+
+        WorkHistoryInfo rejected =
+                service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(), Set.of(WorkHistoryStatus.REJECTED)));
+
+        assertThat(rejected.works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(id.value());
+        assertThat(rejected.statistics().rejected()).isEqualTo(rejected.works().size());
     }
 
     @Test
