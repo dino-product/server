@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 
 import com.orbit.schedule.adapter.in.web.LabelResponse;
+import com.orbit.schedule.adapter.in.web.LocationResponse;
 import com.orbit.schedule.adapter.in.web.StaffResponse;
 import com.orbit.schedule.adapter.in.web.TechnicianResponse;
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
@@ -123,10 +124,19 @@ public record WorkDetailResponse(
             String address,
 
             @Schema(description = "현장 상세주소", example = "3층 302호")
-            String addressDetail) {
+            String addressDetail,
+
+            @Schema(description = "현장 좌표. 길찾기에 쓴다. 기본주소가 없거나 서버가 좌표를 구하지 못했으면 null이며, 그때는 주소로 길찾기한다")
+            LocationResponse location) {
 
         static Customer from(WorkDetailInfo.Customer info) {
-            return new Customer(info.name(), info.phone(), info.postalCode(), info.address(), info.addressDetail());
+            return new Customer(
+                    info.name(),
+                    info.phone(),
+                    info.postalCode(),
+                    info.address(),
+                    info.addressDetail(),
+                    LocationResponse.from(info.location()));
         }
     }
 

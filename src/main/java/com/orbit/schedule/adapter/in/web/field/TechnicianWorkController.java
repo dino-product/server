@@ -15,8 +15,10 @@ import com.orbit.auth.AccountPrincipal;
 import com.orbit.schedule.adapter.in.web.docs.TechnicianWorkControllerDocs;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.RejectWorkUseCase;
+import com.orbit.schedule.application.port.in.command.StartWorkUseCase;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
+import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 
 @RestController
 @RequestMapping("/api/v1/organizations/{organizationId}/works/{workId}")
@@ -24,10 +26,15 @@ class TechnicianWorkController implements TechnicianWorkControllerDocs {
 
     private final AcceptWorkUseCase acceptWorkUseCase;
     private final RejectWorkUseCase rejectWorkUseCase;
+    private final StartWorkUseCase startWorkUseCase;
 
-    TechnicianWorkController(AcceptWorkUseCase acceptWorkUseCase, RejectWorkUseCase rejectWorkUseCase) {
+    TechnicianWorkController(
+            AcceptWorkUseCase acceptWorkUseCase,
+            RejectWorkUseCase rejectWorkUseCase,
+            StartWorkUseCase startWorkUseCase) {
         this.acceptWorkUseCase = acceptWorkUseCase;
         this.rejectWorkUseCase = rejectWorkUseCase;
+        this.startWorkUseCase = startWorkUseCase;
     }
 
     @Override
@@ -57,5 +64,17 @@ class TechnicianWorkController implements TechnicianWorkControllerDocs {
                 request.assignmentNumber(),
                 request.reason(),
                 request.note()));
+    }
+
+    @Override
+    @PostMapping("/start")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void start(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long organizationId,
+            @PathVariable Long workId,
+            @Valid @RequestBody AssignmentNumberRequest request) {
+        startWorkUseCase.start(
+                new StartWorkCommand(requester.accountId(), organizationId, workId, request.assignmentNumber()));
     }
 }

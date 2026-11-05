@@ -3,6 +3,7 @@ package com.orbit.schedule.adapter.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -38,6 +39,7 @@ import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -431,6 +433,33 @@ class WorkPersistenceAdapterTest extends PersistenceAdapterTestSupport {
                         .assignments()
                         .size()))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("현장 좌표를 위도·경도 컬럼에 소수점 6자리로 저장해 복원하고, 기본주소를 바꿔 좌표가 사라지면 두 컬럼을 비운다")
+    void storesSiteCoordinates() {
+        OrganizationId organization = organization();
+        Work work = registered(organization, "보일러 점검");
+        work.locateSite(new SiteCoordinates(new BigDecimal("-37.5561519"), new BigDecimal("-179.9999994")));
+        WorkId id = inTx(() -> adapter().save(work)).id().orElseThrow();
+
+        assertThat(find(organization, id))
+                .usingRecursiveComparison()
+                .ignoringFields("id")
+                .isEqualTo(work);
+        assertThat(entity(id).customerLatitude()).isEqualByComparingTo("-37.556152");
+        assertThat(entity(id).customerLongitude()).isEqualByComparingTo("-179.999999");
+
+        inTx(() -> {
+            Work loaded = find(organization, id);
+            loaded.changeDetails(
+                    "보일러 점검", null, new CustomerInfo(null, null, new SiteAddress(null, "부산시", null)), null, null);
+            return adapter().save(loaded);
+        });
+
+        assertThat(find(organization, id).customerInfo().address()).contains(new SiteAddress(null, "부산시", null));
+        assertThat(entity(id).customerLatitude()).isNull();
+        assertThat(entity(id).customerLongitude()).isNull();
     }
 
     @Test

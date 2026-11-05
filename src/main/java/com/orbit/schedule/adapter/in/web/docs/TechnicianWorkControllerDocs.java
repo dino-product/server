@@ -13,7 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Technician works", description = "기사 앱의 배정 응답 API")
+@Tag(name = "Technician works", description = "기사 앱의 배정 응답·작업 시작 API")
 public interface TechnicianWorkControllerDocs {
 
     @Operation(
@@ -85,4 +85,43 @@ public interface TechnicianWorkControllerDocs {
             @Parameter(description = "조직(발주사) 식별자", example = "1", required = true) Long organizationId,
             @Parameter(description = "작업 식별자", example = "10", required = true) Long workId,
             RejectWorkRequest request);
+
+    @Operation(
+            summary = "작업 시작",
+            description = "담당 기사 본인이 화면에서 본 배정(assignmentNumber)의 작업전 작업을 작업중으로 바꾸고 지금 시각을 시작 시각으로 남깁니다. "
+                    + "예정 시작 10분 전부터 예정 종료 시각까지만 시작할 수 있어, 이르면 SCHEDULE-017, 예정 종료가 지났으면 SCHEDULE-018입니다"
+                    + "(사무실이 일정을 바꾸면 다시 시작할 수 있음). 같은 기사의 다른 작업이 작업중이어도 시작할 수 있습니다. "
+                    + "배정이 그대로인 채 이미 시작한 작업(완료 포함)에 다시 보내면 아무것도 바꾸지 않고 204입니다(중복 전송). "
+                    + "배정 순번이 없거나 1보다 작으면 SCHEDULE-003, 본문이 없거나 형식이 틀리면 COMMON-400입니다. "
+                    + "그 순번의 배정이 없거나 본인 배정이 아니면 SCHEDULE-009, "
+                    + "그 뒤로 일정이 바뀌었거나 다른 기사·대기함을 거쳐 다시 배정됐으면 SCHEDULE-010, "
+                    + "작업전이 아니면(수락 전·취소) SCHEDULE-002입니다. "
+                    + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 관리자면 SCHEDULE-005, "
+                    + "작업이 없거나 다른 조직의 작업이거나 본인이 볼 수 없는 작업이면 SCHEDULE-001, "
+                    + "조직·작업 식별자가 양수가 아니면 SCHEDULE-003, 숫자가 아니면 COMMON-400입니다. "
+                    + "같은 기사의 다른 요청을 기다리다 대기 한도를 넘기면 SCHEDULE-006입니다.",
+            security = @SecurityRequirement(name = "Bearer Authentication"))
+    @ApiResponse(responseCode = "204", description = "시작함(이미 시작한 작업 포함)")
+    @ApiErrorCodes(
+            enumClass = CommonErrorCode.class,
+            includes = {"BAD_REQUEST", "UNAUTHORIZED"})
+    @ApiErrorCodes(
+            enumClass = ScheduleErrorCode.class,
+            includes = {
+                "INVALID_WORK_INPUT",
+                "NOT_ORGANIZATION_MEMBER",
+                "ACTION_NOT_ALLOWED",
+                "WORK_NOT_FOUND",
+                "NOT_ASSIGNED_TECHNICIAN",
+                "ASSIGNMENT_CHANGED",
+                "INVALID_WORK_STATE",
+                "TOO_EARLY_TO_START",
+                "START_TIME_PASSED",
+                "TECHNICIAN_SCHEDULE_BUSY"
+            })
+    void start(
+            @Parameter(hidden = true) AccountPrincipal requester,
+            @Parameter(description = "조직(발주사) 식별자", example = "1", required = true) Long organizationId,
+            @Parameter(description = "작업 식별자", example = "10", required = true) Long workId,
+            AssignmentNumberRequest request);
 }

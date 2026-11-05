@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +26,7 @@ import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
 import com.orbit.schedule.application.port.in.query.dto.ProgressBoardInfo;
 import com.orbit.schedule.application.port.in.query.dto.TechnicianInfo;
+import com.orbit.schedule.application.port.out.ProgressBoardSnapshot;
 import com.orbit.schedule.application.port.out.TechnicianProfile;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
@@ -33,6 +35,8 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.shared.error.BusinessException;
+import com.orbit.shared.error.CommonErrorCode;
 
 @DisplayName("진행 보드 조회")
 class GetProgressBoardServiceTest {
@@ -41,8 +45,12 @@ class GetProgressBoardServiceTest {
     private static final Instant TO = TEN.plus(Duration.ofDays(1));
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
+    private final FakeProgressBoardSnapshots snapshots = new FakeProgressBoardSnapshots();
     private final GetProgressBoardService service = new GetProgressBoardService(
-            fixture.actorPort, fixture.workRepository, fixture.technicianProfiles, fixture.clock);
+            fixture.actorPort,
+            snapshots,
+            new ProgressBoardSnapshotReader(fixture.workRepository, fixture.technicianProfiles),
+            fixture.clock);
 
     @Test
     @DisplayName("구간의 작업만 등록·배정됨·작업전·작업중·완료 열로 나누고 각 열은 시작시각·작업 식별자 순이며, 카드에 담당 기사·고객 이름을 담고 전체·작업중·지연·완료 수를 센다")
@@ -241,6 +249,60 @@ class GetProgressBoardServiceTest {
                         new ProgressBoardInfo.Card(
                                 rejectedId.value(), "대상 작업", kim, TEN, TEN.plus(TWO_HOURS), "홍길동", false, true));
         assertThat(board.summary()).isEqualTo(new ProgressBoardInfo.Summary(3, 0, 1, 0));
+    }
+
+    @Test
+    @DisplayName("저장해 둔 스냅샷도 지연 여부와 지연 수는 지금 시각으로 다시 판정한다")
+    void judgesDelayOfStoredSnapshotAtNow() {
+        fixture.givenManager();
+        Instant end = NOW.minusSeconds(1);
+        snapshots.given(new ProgressBoardSnapshot(List.of(
+                new ProgressBoardSnapshot.Card(
+                        1L, WorkStatus.IN_PROGRESS, "막 늦은 작업", null, end.minus(TWO_HOURS), end, null, false, end),
+                new ProgressBoardSnapshot.Card(
+                        2L,
+                        WorkStatus.ACCEPTED,
+                        "곧 끝날 작업",
+                        null,
+                        NOW,
+                        NOW.plus(TWO_HOURS),
+                        null,
+                        false,
+                        NOW.plus(TWO_HOURS)),
+                new ProgressBoardSnapshot.Card(
+                        3L,
+                        WorkStatus.COMPLETED,
+                        "늦게 완료",
+                        null,
+                        end.minus(TWO_HOURS),
+                        end,
+                        null,
+                        false,
+                        Instant.EPOCH))));
+
+        ProgressBoardInfo board = service.get(query(FROM, TO));
+
+        assertThat(board.columns().get(3).cards())
+                .extracting(ProgressBoardInfo.Card::delayed)
+                .containsExactly(true);
+        assertThat(board.columns().get(2).cards())
+                .extracting(ProgressBoardInfo.Card::delayed)
+                .containsExactly(false);
+        assertThat(board.columns().get(4).cards())
+                .extracting(ProgressBoardInfo.Card::delayed)
+                .containsExactly(true);
+        assertThat(board.summary()).isEqualTo(new ProgressBoardInfo.Summary(3, 1, 1, 1));
+    }
+
+    @Test
+    @DisplayName("지금 보드를 만들 수 없으면 잠시 뒤 다시 조회하라는 503(COMMON-503)이다")
+    void rejectsWhenBoardCannotBeBuiltNow() {
+        fixture.givenManager();
+        snapshots.busy();
+
+        assertThatThrownBy(() -> service.get(query(FROM, TO)))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
+                        .isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE));
     }
 
     private static GetProgressBoardQuery query(Instant from, Instant to) {
