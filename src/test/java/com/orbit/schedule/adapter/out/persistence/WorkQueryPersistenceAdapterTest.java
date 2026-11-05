@@ -126,6 +126,32 @@ class WorkQueryPersistenceAdapterTest extends PersistenceAdapterTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("기사의 지금 담당 작업 조회는 날짜와 관계없이 지금 일정의 담당이 그 기사이고 상태가 맞는 작업만 담는다")
+    void listsCurrentWorksOfTechnicianByStatus() {
+        OrganizationId organization = organization();
+        WorkId pending = save(assigned(organization, "응답 전", schedule(TECHNICIAN, "2026-12-21T01:00:00Z", 60)));
+        Work rescheduled = accepted(organization, "작업전", schedule(TECHNICIAN, "2026-10-21T03:00:00Z", 60));
+        rescheduled.reschedule(
+                Instant.parse("2026-10-21T04:00:00Z"), Duration.ofMinutes(60), ASSIGNED_AT.plusSeconds(60), MANAGER);
+        WorkId accepted = save(rescheduled);
+        WorkId started = save(started(organization, "작업중", schedule(TECHNICIAN, "2026-10-20T12:00:00Z", 60)));
+        save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));
+        save(planned(organization, "미리 입력한 담당", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));
+        Work movedAway = assigned(organization, "넘어간 작업", schedule(TECHNICIAN, "2026-10-21T07:00:00Z", 60));
+        movedAway.reassign(
+                schedule(OTHER_TECHNICIAN, "2026-10-21T07:00:00Z", 60), ASSIGNED_AT.plusSeconds(60), MANAGER);
+        save(movedAway);
+        save(assigned(organization(), "다른 조직", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
+
+        assertThat(ids(inTx(() ->
+                        adapter.listCurrentForTechnician(organization, TECHNICIAN, Set.of(WorkStatus.PENDING_ACCEPT)))))
+                .containsExactly(pending);
+        assertThat(ids(inTx(() -> adapter.listCurrentForTechnician(
+                        organization, TECHNICIAN, Set.of(WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS)))))
+                .containsExactlyInAnyOrder(accepted, started);
+    }
+
     @Nested
     @DisplayName("기사 배정 이력 조회")
     class AssignedToTechnician {

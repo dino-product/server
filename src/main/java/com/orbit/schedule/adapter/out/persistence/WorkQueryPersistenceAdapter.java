@@ -116,6 +116,24 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Work> listCurrentForTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Set<WorkStatus> statuses) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        if (!SCHEDULED_STATUSES.containsAll(statuses)) {
+            throw new IllegalArgumentException("only scheduled statuses have a current assignee: " + statuses);
+        }
+        if (statuses.isEmpty()) {
+            return List.of();
+        }
+        return listWithAssignments(WORK.companyId
+                .eq(organizationId.value())
+                .and(WORK.technicianId.eq(technicianId.value()))
+                .and(WORK.status.in(statuses)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Work> listAssignedToTechnician(
             OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to) {
         requirePeriod(organizationId, from, to);
