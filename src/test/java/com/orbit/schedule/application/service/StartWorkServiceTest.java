@@ -151,6 +151,25 @@ class StartWorkServiceTest {
         assertThat(fixture.stored(id).startedAt()).isEmpty();
     }
 
+    @Test
+    @DisplayName("예정 종료가 지난 작업을 사무실이 지금 시간대로 옮기면 바뀐 배정의 일정으로 판정해 새 순번으로 시작한다")
+    void startsWithRescheduledTimeAfterScheduledEndPassed() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = acceptedWorkStartingAt(NOW.minus(Duration.ofHours(3)));
+        Work work = fixture.stored(id);
+        work.reschedule(
+                NOW.minus(Duration.ofMinutes(30)), TWO_HOURS, NOW.minus(Duration.ofMinutes(1)), SETUP_MANAGER_ID);
+        fixture.workRepository.store(work);
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.start(command(id.value())), ScheduleErrorCode.ASSIGNMENT_CHANGED);
+        service.start(new StartWorkCommand(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), 2));
+
+        Work saved = fixture.singleSaved();
+        assertThat(saved.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        assertThat(saved.startedAt()).contains(NOW);
+    }
+
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,

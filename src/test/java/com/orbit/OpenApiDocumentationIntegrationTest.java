@@ -642,6 +642,23 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsTechnicianStartWithStartWindowErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/start'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업 시작"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-017'].value.code")
+                        .value("SCHEDULE-017"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-018'].value.code")
+                        .value("SCHEDULE-018"));
+    }
+
+    @Test
     void documentsCompletionReportRequestWithIntervalLimit() throws Exception {
         String operation =
                 "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-report-requests'].post";

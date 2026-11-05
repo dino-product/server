@@ -93,10 +93,11 @@ class ProgressBoardConcurrencyLimitInterceptorTest {
                 return true;
             }
         };
-        return MockMvcBuilders.standaloneSetup(new ProgressBoardController(useCase))
+        ProgressBoardProperties properties = new ProgressBoardProperties(1, null);
+        return MockMvcBuilders.standaloneSetup(new ProgressBoardController(useCase, properties))
                 .addMappedInterceptors(
                         new String[] {ProgressBoardConcurrencyLimitInterceptor.PATH_PATTERN},
-                        new ProgressBoardConcurrencyLimitInterceptor(new ProgressBoardProperties(1, null)),
+                        new ProgressBoardConcurrencyLimitInterceptor(properties),
                         laterInterceptor)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
