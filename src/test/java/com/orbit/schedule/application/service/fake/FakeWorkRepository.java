@@ -143,8 +143,8 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
             OrganizationId organizationId, TechnicianId technicianId, Set<WorkStatus> statuses) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         Objects.requireNonNull(technicianId, "technicianId must not be null");
-        if (statuses.contains(WorkStatus.REGISTERED)) {
-            throw new IllegalArgumentException("REGISTERED works have no current assignee");
+        if (statuses.contains(WorkStatus.REGISTERED) || statuses.contains(WorkStatus.CANCELED)) {
+            throw new IllegalArgumentException("only scheduled statuses have a current assignee: " + statuses);
         }
         return inOrganization(organizationId).stream()
                 .filter(work -> statuses.contains(work.status()))

@@ -53,8 +53,8 @@ public interface WorkQueryPort {
             OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to);
 
     /**
-     * 지금 일정의 담당이 그 기사이고 상태가 statuses 중 하나인 작업. 날짜로 거르지 않는다. 기사의 응답 필요·지금 수행 가능 목록이 쓴다(등록 상태는 미리 입력한
-     * 담당기사가 같은 컬럼에 있으므로 statuses에 넣지 않는다).
+     * 지금 일정의 담당이 그 기사이고 상태가 statuses 중 하나인 작업. 날짜로 거르지 않는다. 기사의 응답 필요·지금 수행 가능 목록이 쓴다. statuses는 배정됨·작업전·작업중·완료만
+     * 받는다(등록은 미리 입력한 담당기사, 취소는 취소 전 기사가 같은 컬럼에 남으므로 지금 담당이 아니다).
      */
     List<Work> listCurrentForTechnician(
             OrganizationId organizationId, TechnicianId technicianId, Set<WorkStatus> statuses);

@@ -131,7 +131,10 @@ class WorkQueryPersistenceAdapterTest extends PersistenceAdapterTestSupport {
     void listsCurrentWorksOfTechnicianByStatus() {
         OrganizationId organization = organization();
         WorkId pending = save(assigned(organization, "응답 전", schedule(TECHNICIAN, "2026-12-21T01:00:00Z", 60)));
-        WorkId accepted = save(accepted(organization, "작업전", schedule(TECHNICIAN, "2026-10-21T03:00:00Z", 60)));
+        Work rescheduled = accepted(organization, "작업전", schedule(TECHNICIAN, "2026-10-21T03:00:00Z", 60));
+        rescheduled.reschedule(
+                Instant.parse("2026-10-21T04:00:00Z"), Duration.ofMinutes(60), ASSIGNED_AT.plusSeconds(60), MANAGER);
+        WorkId accepted = save(rescheduled);
         WorkId started = save(started(organization, "작업중", schedule(TECHNICIAN, "2026-10-20T12:00:00Z", 60)));
         save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));
         save(planned(organization, "미리 입력한 담당", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60)));

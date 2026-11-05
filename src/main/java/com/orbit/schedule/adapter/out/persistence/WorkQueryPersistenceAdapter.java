@@ -120,8 +120,8 @@ class WorkQueryPersistenceAdapter implements WorkQueryPort {
             OrganizationId organizationId, TechnicianId technicianId, Set<WorkStatus> statuses) {
         Objects.requireNonNull(organizationId, "organizationId must not be null");
         Objects.requireNonNull(technicianId, "technicianId must not be null");
-        if (statuses.contains(WorkStatus.REGISTERED)) {
-            throw new IllegalArgumentException("REGISTERED works have no current assignee");
+        if (!SCHEDULED_STATUSES.containsAll(statuses)) {
+            throw new IllegalArgumentException("only scheduled statuses have a current assignee: " + statuses);
         }
         if (statuses.isEmpty()) {
             return List.of();
