@@ -22,7 +22,10 @@ public record UpdateWorkDetailsRequest(
         @Schema(description = "결제 정보. 비우면 모두 지움") @Valid WorkPaymentRequest payment,
 
         @ArraySchema(
-                arraySchema = @Schema(description = "업로드를 마친 현장 사진 식별자(최대 6장, 붙인 순서). 비우면 모두 지움"),
-                schema = @Schema(description = "사진 식별자(최대 500자)", example = "photo-1"),
+                arraySchema =
+                        @Schema(
+                                description = "업로드를 마친 현장 사진 식별자(최대 6장, 붙인 순서). 비우면 모두 지움. "
+                                        + "현장 사진 업로드 주소 발급(site-photo-uploads)의 fileId"),
+                schema = @Schema(description = "사진 파일 식별자(UUID)", example = "0b6a1f7e-2a4c-4f6e-9d3b-1c2d3e4f5a6b"),
                 maxItems = 6)
         List<String> sitePhotoIds) {}

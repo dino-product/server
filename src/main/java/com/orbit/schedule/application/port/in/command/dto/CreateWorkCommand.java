@@ -12,7 +12,7 @@ import com.orbit.schedule.domain.PaymentMethod;
  *
  * @param customerAddress 현장 기본주소
  * @param fee 원 단위 요금
- * @param sitePhotoIds 업로드를 마친 현장 사진 식별자(붙인 순서). null이면 붙이지 않는다
+ * @param sitePhotoIds 업로드를 마친 현장 사진 식별자(붙인 순서). null이면 붙이지 않는다. 대문자로 보내도 소문자로 바꿔 받는다
  * @param conflictConfirmed 배정할 때 같은 기사의 일정 겹침 경고를 확인했는지
  */
 public record CreateWorkCommand(
@@ -31,4 +31,9 @@ public record CreateWorkCommand(
         Long technicianId,
         Instant startTime,
         Duration expectedDuration,
-        boolean conflictConfirmed) {}
+        boolean conflictConfirmed) {
+
+    public CreateWorkCommand {
+        sitePhotoIds = PhotoIds.lowercase(sitePhotoIds);
+    }
+}

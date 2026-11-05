@@ -193,6 +193,9 @@ app:
   schedule:
     technician-lock:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
+    # 현장 사진 장당 용량(바이트). 기획 미정(JOB-003)이라 비우면 저장소 한도(5GiB)만 적용한다.
+    site-photo:
+      max-bytes: ${SCHEDULE_SITE_PHOTO_MAX_BYTES:}
     geocoding:
       # 현장 기본주소의 좌표를 구하는 카카오 로컬 API. 키는 웹 카카오 로그인과 같은 앱의 REST API 키다(그 앱에서 카카오맵 사용 설정 필요).
       # 실패·지연이면 좌표 없이 저장하므로, 제한 시간은 작업 저장을 붙잡는 상한이다.
@@ -206,6 +209,23 @@ app:
       enabled: ${BOARD_CACHE_ENABLED:true}
       redis-host: ${BOARD_CACHE_REDIS_HOST:}
       redis-port: ${BOARD_CACHE_REDIS_PORT:6379}
+  media:
+    # 이미지 시그니처로 확인할 수 있는 형식만 둘 수 있다(ImageFormat).
+    image-content-types: ${MEDIA_IMAGE_CONTENT_TYPES:image/jpeg,image/png,image/webp,image/heic,image/heif}
+    # 저장소 수명 주기 규칙이 허용하는 보관 기간 상한(일, infra와 공유). 용도별 보관 기간(retention-days)이 넘으면 기동에 실패한다.
+    retention-max-days: ${MEDIA_RETENTION_MAX_DAYS}
+    storage:
+      bucket: ${MEDIA_BUCKET}
+      region: ${MEDIA_REGION}
+      # S3 호환 저장소(로컬 LocalStack 등)만 준다. 비우면 AWS 기본 주소와 기본 자격 증명 체인(노드 역할)을 쓴다.
+      endpoint: ${MEDIA_S3_ENDPOINT:}
+      path-style-access: ${MEDIA_S3_PATH_STYLE_ACCESS:false}
+      upload-url-ttl: PT10M
+      download-url-ttl: PT10M
+      api-call-timeout: PT5S
+      api-call-attempt-timeout: PT3S
+      # 복사(CopyObject)만 쓰는 호출·시도 제한 시간. 서버 쪽 복사 시간이 사진 크기에 비례한다. api-call-timeout 이상.
+      copy-timeout: PT60S
   notification:
     push-delivery:
       # 기사 앱 푸시 발신 대기열을 확인하는 주기와 한 번에 집는 건수. 보내는 중인 채로 in-flight-timeout이 지난 발신(인스턴스 중단 등)은 다시 집는다.

@@ -109,7 +109,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 책임 | 작업 등록부터 완료까지 전체 생애주기. 발주–배정–수행의 최소 단위를 다룸 |
 | 상태 | 구현 중 — 설계·구현 결정·기획 차이는 [schedule 문서](schedule.md#schedule) |
 | 소유 애그리게잇 | **Work**(Root) + AssignmentHistory·CompletionReport(내부 엔티티) + 값객체. 읽기 모델 Timetable/Backlog/ProgressBoard는 애그리게잇이 아님 |
-| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — 이유는 [schedule 문서](schedule.md#schedule)) · `notification` ← 이벤트 발행(작업 상태 변경) · `realtime` ← 이벤트 발행(작업 저장) |
+| 관계 | `organization` → 참조(ID) (등록자·담당기사·작업 유형 확인, ACL — 이유는 [schedule 문서](schedule.md#schedule)) · `media` → 참조(사진 업로드·연결·조회 주소, Conformist) · `notification` ← 이벤트 발행(작업 상태 변경) · `realtime` ← 이벤트 발행(작업 저장) |
 
 <a id="notification"></a>
 ### 4. 알림 컨텍스트 (`notification`) — Generic Subdomain
@@ -145,6 +145,16 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 기획 원본 | [현황 파악] 정책 §6, [현장 수행] 정책 §5·§13, [알림] 기능명세 §7 |
 | 소유 개념 | 연결(인스턴스 메모리에만 있음). 애그리게잇 없음 |
 | 관계 | `organization` → 참조(ID) (`OrganizationMemberLookup`으로 연결 요청자가 직원인지 확인, Conformist) · `auth` → 요청 계정(`AccountPrincipal`) · `schedule`·`notification` ← 이벤트 구독(작업 저장 `WorkChanged`, 알림 저장·읽음 `NotificationCreated`·`NotificationRead`, 커밋 뒤 신호, Conformist) |
+
+<a id="media"></a>
+### 7. 파일 컨텍스트 (`media`) — Generic Subdomain
+
+| 항목 | 내용 |
+| --- | --- |
+| 책임 | 사용자가 올리는 파일(지금은 완료보고 사진·현장 사진)의 업로드 주소·연결·내려받기 주소·만료 표시. 권한 판단은 파일을 쓰는 모듈의 몫 |
+| 상태 | 구현 중 — [media 문서](media.md#media), 결정은 [ADR-007](../adr/007-file-storage.md) |
+| 소유 개념 | **UploadedFile** — 업로드 대기·연결·만료 기록 |
+| 관계 | `schedule` → 참조(`MediaFiles`로 사진 업로드 주소 발급·연결·조회 주소, Conformist) |
 
 ## P2 — 다음 확장 (미착수, 코드 없음)
 

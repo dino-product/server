@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -107,17 +108,21 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
-        @DisplayName("현장 사진 식별자를 함께 주면 붙인 순서대로 남긴다")
-        void registersWithSitePhotos() throws Exception {
+        @DisplayName("요청자가 올리지 않은 현장 사진 식별자를 주면 400 SCHEDULE-022이고 만들지 않는다(실제 업로드 흐름은 WorkPhotoFlowIntegrationTest)")
+        void rejectsPhotosNotUploaded() throws Exception {
             Organization organization = organization();
 
-            long workId = createdId(create(
+            create(
                             organization.owner(),
                             organization.id(),
-                            Map.of("name", "에어컨 수리", "sitePhotoIds", List.of("photo-1", "photo-2")))
-                    .andExpect(status().isOk()));
-
-            assertThat(stored(organization, workId).sitePhotos()).containsExactly("photo-1", "photo-2");
+                            Map.of(
+                                    "name",
+                                    "에어컨 수리",
+                                    "sitePhotoIds",
+                                    List.of(UUID.randomUUID().toString(), "photo-2")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-022"));
+            assertThat(worksIn(organization)).isZero();
         }
 
         @Test
@@ -335,7 +340,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
-        @DisplayName("현장 사진을 보낸 식별자로 교체하고, 6장을 넘으면 400 SCHEDULE-003이며 바꾸지 않는다")
+        @DisplayName("올리지 않은 현장 사진이면 400 SCHEDULE-022, 6장을 넘으면 400 SCHEDULE-003이며 바꾸지 않고, 사진을 빼면 비운다")
         void replacesSitePhotos() throws Exception {
             Organization organization = organization();
             long workId = registeredWork(organization);
@@ -345,8 +350,9 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
                             organization.id(),
                             workId,
                             Map.of("name", "보일러 점검", "sitePhotoIds", List.of("site-2", "site-1")))
-                    .andExpect(status().isNoContent());
-            assertThat(stored(organization, workId).sitePhotos()).containsExactly("site-2", "site-1");
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-022"));
+            assertThat(stored(organization, workId).name()).isEqualTo("대기 작업");
 
             update(
                             organization.owner(),
@@ -355,7 +361,7 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
                             Map.of("name", "보일러 점검", "sitePhotoIds", Collections.nCopies(7, "site")))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
-            assertThat(stored(organization, workId).sitePhotos()).containsExactly("site-2", "site-1");
+            assertThat(stored(organization, workId).name()).isEqualTo("대기 작업");
 
             update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검"))
                     .andExpect(status().isNoContent());
