@@ -477,26 +477,29 @@ public final class Work {
 
     /**
      * 주어진 시각에 지연된 작업인지. 지연은 상태가 아니라 조회 시각으로 계산하는 표시값이며, 예정 종료시각이 그 시각이거나 이미 지났는데 끝나지 않은 작업과 늦게 끝난
-     * 작업이다.
-     *
-     * <ul>
-     *   <li>수락대기·수락됨·작업중: 예정 종료시각이 그 시각이거나 이미 지났으면 지연이다.
-     *   <li>완료: 예정 종료시각이나 그 뒤에 완료했으면 지연이다(완료 시점에 이미 지연이었던 작업).
-     *   <li>등록(대기함): {@link #shownSchedule 보일 일정}의 종료시각이 그 시각이거나 이미 지났으면 지연이다. 시작시각이나 예상소요시간을 모르면 지연이 아니다.
-     *   <li>취소: 지연이 아니다.
-     * </ul>
+     * 작업이다. {@link #delayThreshold 지연 기준 시각}이 있고 그 시각이 지났거나 그 시각이면 지연이다.
      */
     public boolean isDelayedAt(Instant now) {
         Objects.requireNonNull(now, "now must not be null");
+        return delayThreshold().map(threshold -> !now.isBefore(threshold)).orElse(false);
+    }
+
+    /**
+     * 이 시각부터 지연으로 보는 기준({@link #isDelayedAt}). 조회 시각과 상관없는 값이라, 조회 결과를 저장해 두고 지연 여부만 나중 시각으로 다시 판정할 때 쓴다.
+     *
+     * <ul>
+     *   <li>수락대기·수락됨·작업중: 예정 종료시각.
+     *   <li>완료: 예정 종료시각이나 그 뒤에 완료했으면 언제 봐도 지연이라 {@link Instant#EPOCH}(완료 시점에 이미 지연이었던 작업), 그 전에 완료했으면 없다.
+     *   <li>등록(대기함): {@link #shownSchedule 보일 일정}의 종료시각. 시작시각이나 예상소요시간을 모르면 없다.
+     *   <li>취소: 없다.
+     * </ul>
+     */
+    public Optional<Instant> delayThreshold() {
         return switch (status) {
-            case PENDING_ACCEPT, ACCEPTED, IN_PROGRESS -> !now.isBefore(schedule.endTime());
-            case COMPLETED -> !completedAt.isBefore(schedule.endTime());
-            case REGISTERED ->
-                shownSchedule()
-                        .flatMap(ShownSchedule::endTime)
-                        .map(endTime -> !now.isBefore(endTime))
-                        .orElse(false);
-            case CANCELED -> false;
+            case PENDING_ACCEPT, ACCEPTED, IN_PROGRESS -> Optional.of(schedule.endTime());
+            case COMPLETED -> completedAt.isBefore(schedule.endTime()) ? Optional.empty() : Optional.of(Instant.EPOCH);
+            case REGISTERED -> shownSchedule().flatMap(ShownSchedule::endTime);
+            case CANCELED -> Optional.empty();
         };
     }
 
