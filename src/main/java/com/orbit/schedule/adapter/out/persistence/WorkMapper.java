@@ -18,6 +18,7 @@ import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.ShownSchedule;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -51,6 +52,8 @@ import com.orbit.schedule.domain.WorkTypeId;
  *   <li>작업 목록의 최근 수정 시각은 감사 컬럼 {@code updated_at}이다. 루트 행이 바뀔 때만 갱신된다. mappedBy 자식 컬렉션의 변경은 기본으로 루트를
  *       갱신하지 않으므로, 루트 컬럼을 바꾸지 않을 수 있는 현장 사진 교체와 완료보고 요청은 컬렉션에 낙관적 잠금을 켜 루트를 함께 갱신한다. 배정 이력·완료보고 사진의
  *       변경은 상태·일정 같은 루트 컬럼을 함께 바꾼다. 기존 자식 행만 고치는 변경(거절 사유 수정 등)을 더하면 루트도 함께 갱신되게 한다.
+ *   <li>현장 좌표는 현장 주소와 같이 {@code work} 컬럼에 인라인({@code customer_latitude}·{@code customer_longitude})이다. 둘 다 있거나 둘 다
+ *       비어 있다.
  *   <li>복원({@link #toDomain})은 {@link Work#reconstitute}를 거치므로 저장값의 정합성 검증은 Domain이 한다. 검증 실패는 그대로 전파한다.
  * </ul>
  */
@@ -78,6 +81,8 @@ final class WorkMapper {
         WorkStatus previousStatus = entity.status();
         CustomerInfo customer = work.customerInfo();
         PaymentInfo payment = work.paymentInfo();
+        SiteCoordinates coordinates =
+                customer.address().flatMap(SiteAddress::coordinates).orElse(null);
         entity.updateDetails(
                 work.name(),
                 work.workType().map(WorkTypeId::value).orElse(null),
@@ -86,6 +91,8 @@ final class WorkMapper {
                 customer.address().flatMap(SiteAddress::postalCode).orElse(null),
                 customer.address().flatMap(SiteAddress::baseAddress).orElse(null),
                 customer.address().flatMap(SiteAddress::detailAddress).orElse(null),
+                coordinates == null ? null : coordinates.latitude(),
+                coordinates == null ? null : coordinates.longitude(),
                 payment.method().orElse(null),
                 payment.fee().map(Money::won).orElse(null));
         // 대기함 작업은 일정 대신 미리 입력한 값이나 마지막 배정 일정을 같은 컬럼에 담는다.
@@ -186,7 +193,10 @@ final class WorkMapper {
                         entity.customerName(),
                         entity.customerPhone(),
                         new SiteAddress(
-                                entity.customerPostalCode(), entity.customerAddress(), entity.customerAddressDetail())),
+                                entity.customerPostalCode(),
+                                entity.customerAddress(),
+                                entity.customerAddressDetail(),
+                                siteCoordinates(entity))),
                 new PaymentInfo(entity.fee() == null ? null : new Money(entity.fee()), entity.paymentMethod()),
                 entity.status(),
                 histories,
@@ -298,6 +308,14 @@ final class WorkMapper {
             }
         }
         return result;
+    }
+
+    /** 위도·경도는 함께 저장하므로 둘 다 비었으면 좌표가 없다. 하나만 있으면 좌표 검증이 실패해 복원을 막는다. */
+    private static SiteCoordinates siteCoordinates(WorkJpaEntity entity) {
+        if (entity.customerLatitude() == null && entity.customerLongitude() == null) {
+            return null;
+        }
+        return new SiteCoordinates(entity.customerLatitude(), entity.customerLongitude());
     }
 
     private static CompletionReport toCompletionReport(WorkJpaEntity entity) {

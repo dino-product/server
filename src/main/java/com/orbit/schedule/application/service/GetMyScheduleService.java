@@ -70,6 +70,7 @@ public class GetMyScheduleService implements GetMyScheduleUseCase {
                         .address()
                         .flatMap(SiteAddress::detailAddress)
                         .orElse(null),
+                WorkViews.location(work.customerInfo()),
                 work.isDelayedAt(now));
     }
 }

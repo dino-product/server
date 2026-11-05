@@ -32,7 +32,7 @@ public interface ProgressBoardControllerDocs {
                     + "이 API를 다시 불러 맞춥니다. "
                     + "구간이 없거나 뒤집혔거나 31일을 넘거나 조직 식별자가 양수가 아니면 SCHEDULE-003, 시각 형식 오류는 COMMON-400입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005입니다. "
-                    + "서버가 동시에 새로 만드는 보드 수를 넘었거나, 같은 보드를 만드는 다른 조회를 기다리다 한도를 넘었거나, "
+                    + "서버가 동시에 받는 조회 수나 새로 만드는 보드 수를 넘었거나, 같은 보드를 만드는 다른 조회를 기다리다 한도를 넘었거나, "
                     + "DB 커넥션을 제때 얻지 못하면 COMMON-503(503)과 Retry-After(초)를 "
                     + "돌려주므로, 화면은 그만큼 기다렸다가(여러 화면이 겹치지 않게 조금씩 흩어) 다시 조회합니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))

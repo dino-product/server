@@ -42,9 +42,14 @@ final class OrganizationActors {
      * 검증보다 먼저 호출한다(권한이 없는 요청에 입력·상태 오류를 드러내지 않는다).
      */
     static void requireRegistrarOrOwner(ManagerActor manager, Work work) {
-        if (manager.role() != ActorRole.OWNER && !work.registrarId().equals(manager.membershipId())) {
+        if (!isRegistrarOrOwner(manager, work)) {
             throw new BusinessException(ScheduleErrorCode.ACTION_NOT_ALLOWED);
         }
+    }
+
+    /** {@link #requireRegistrarOrOwner}가 통과시키는 요청자인지. */
+    static boolean isRegistrarOrOwner(ManagerActor manager, Work work) {
+        return manager.role() == ActorRole.OWNER || work.registrarId().equals(manager.membershipId());
     }
 
     /** 수락·거절·시작·완료보고를 요청한 기사. 그 작업의 담당 기사인지는 작업을 찾은 뒤 따로 확인한다. */

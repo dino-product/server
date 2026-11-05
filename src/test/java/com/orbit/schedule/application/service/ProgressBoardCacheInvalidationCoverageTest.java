@@ -2,8 +2,10 @@ package com.orbit.schedule.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -27,13 +29,15 @@ import com.orbit.schedule.application.port.out.WorkTypeUsagePort;
 @DisplayName("진행 보드 캐시 무효화 대상 쓰기 경로")
 class ProgressBoardCacheInvalidationCoverageTest {
 
-    /** 각 서비스의 *ServiceTest가 RecordingEventPublisher로 WorkChanged 발행을 확인한다. */
+    /**
+     * 각 서비스의 *ServiceTest가 RecordingEventPublisher로 WorkChanged 발행을 확인한다. 등록(WorkRegistration)은 CreateWorkServiceTest가,
+     * 기본정보 수정(WorkDetailsChange)은 UpdateWorkDetailsServiceTest가 확인한다.
+     */
     private static final Set<String> WRITERS_PUBLISHING_WORK_CHANGED = Set.of(
             "AcceptWorkService",
             "AssignWorkService",
             "CancelWorkService",
             "ChangeWorkAssignmentService",
-            "CreateWorkService",
             "ReassignWorkService",
             "RejectWorkService",
             "ReleaseDeletedWorkTypeService",
@@ -44,7 +48,9 @@ class ProgressBoardCacheInvalidationCoverageTest {
             "StartWorkService",
             "SubmitCompletionReportService",
             "UnassignWorkService",
-            "UpdateWorkDetailsService");
+            "UpdateWorkDetailsService",
+            "WorkDetailsChange",
+            "WorkRegistration");
 
     private static final Set<Class<?>> WRITE_PORTS = Set.of(WorkRepository.class, WorkTypeUsagePort.class);
 
@@ -69,12 +75,14 @@ class ProgressBoardCacheInvalidationCoverageTest {
         assertThat(writers).containsExactlyInAnyOrderElementsOf(WRITERS_PUBLISHING_WORK_CHANGED);
     }
 
-    /** 조회 서비스(공개 메서드가 모두 읽기 전용 트랜잭션)는 쓰기 포트로 읽기만 한다. */
+    /** 조회 서비스(공개 메서드가 있고 모두 읽기 전용 트랜잭션)는 쓰기 포트로 읽기만 한다. 공개 메서드가 없으면 조회로 보지 않는다. */
     private static boolean readOnly(Class<?> service) {
         AnnotationTransactionAttributeSource attributes = new AnnotationTransactionAttributeSource();
-        return Arrays.stream(service.getDeclaredMethods())
+        List<Method> publicMethods = Arrays.stream(service.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()) && !method.isSynthetic())
-                .allMatch(method -> {
+                .toList();
+        return !publicMethods.isEmpty()
+                && publicMethods.stream().allMatch(method -> {
                     TransactionAttribute attribute = attributes.getTransactionAttribute(method, service);
                     return attribute != null && attribute.isReadOnly();
                 });

@@ -193,6 +193,13 @@ app:
   schedule:
     technician-lock:
       wait-limit: ${SCHEDULE_TECHNICIAN_LOCK_WAIT_LIMIT:}
+    geocoding:
+      # 현장 기본주소의 좌표를 구하는 카카오 로컬 API. 키는 웹 카카오 로그인과 같은 앱의 REST API 키다(그 앱에서 카카오맵 사용 설정 필요).
+      # 실패·지연이면 좌표 없이 저장하므로, 제한 시간은 작업 저장을 붙잡는 상한이다.
+      kakao:
+        address-search-uri: https://dapi.kakao.com/v2/local/search/address.json
+        rest-api-key: ${KAKAO_REST_API_KEY}
+        timeout: PT2S
     # 진행 보드 캐시(캐시 전용 Redis, allkeys-lru). 주소가 없으면 로컬·테스트는 기본 Redis를 쓴다.
     # 배포 프로필(application-deployed.yml)은 기본으로 끄고, infra가 BOARD_CACHE_ENABLED와 BOARD_CACHE_REDIS_HOST를 넣으면 켠다.
     board-cache:

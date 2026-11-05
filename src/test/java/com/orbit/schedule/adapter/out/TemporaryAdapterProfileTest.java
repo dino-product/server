@@ -50,7 +50,7 @@ class TemporaryAdapterProfileTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    // 모든 프로필에서 등록하는 실제 어댑터(persistence, organization 계약 번역)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에 들어오게 한다.
+    // 모든 프로필에서 등록하는 실제 어댑터(persistence, organization 계약 번역, 카카오 좌표 조회)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에 들어오게 한다.
     @ComponentScan(
             basePackages = "com.orbit.schedule.adapter.out",
             excludeFilters =
@@ -58,6 +58,7 @@ class TemporaryAdapterProfileTest {
                             type = FilterType.REGEX,
                             pattern = {
                                 ".*\\.persistence\\..*",
+                                ".*\\.kakao\\..*",
                                 ".*\\.organization\\.OrganizationActorAdapter",
                                 ".*\\.organization\\.OrganizationTechnicianContractAdapter",
                                 ".*\\.organization\\.OrganizationAccountTechnicianContractsAdapter"

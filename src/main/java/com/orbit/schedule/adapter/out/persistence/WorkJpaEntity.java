@@ -1,5 +1,6 @@
 package com.orbit.schedule.adapter.out.persistence;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.shared.persistence.BaseTimeEntity;
@@ -113,6 +115,12 @@ class WorkJpaEntity extends BaseTimeEntity {
 
     @Column(name = "customer_address_detail", length = SiteAddress.MAX_DETAIL_ADDRESS_LENGTH)
     private String customerAddressDetail;
+
+    @Column(name = "customer_latitude", precision = 8, scale = SiteCoordinates.SCALE)
+    private BigDecimal customerLatitude;
+
+    @Column(name = "customer_longitude", precision = 9, scale = SiteCoordinates.SCALE)
+    private BigDecimal customerLongitude;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method", length = 20)
@@ -251,6 +259,14 @@ class WorkJpaEntity extends BaseTimeEntity {
         return customerAddressDetail;
     }
 
+    BigDecimal customerLatitude() {
+        return customerLatitude;
+    }
+
+    BigDecimal customerLongitude() {
+        return customerLongitude;
+    }
+
     PaymentMethod paymentMethod() {
         return paymentMethod;
     }
@@ -324,6 +340,8 @@ class WorkJpaEntity extends BaseTimeEntity {
             String newCustomerPostalCode,
             String newCustomerAddress,
             String newCustomerAddressDetail,
+            BigDecimal newCustomerLatitude,
+            BigDecimal newCustomerLongitude,
             PaymentMethod newPaymentMethod,
             Long newFee) {
         this.name = newName;
@@ -333,6 +351,8 @@ class WorkJpaEntity extends BaseTimeEntity {
         this.customerPostalCode = newCustomerPostalCode;
         this.customerAddress = newCustomerAddress;
         this.customerAddressDetail = newCustomerAddressDetail;
+        this.customerLatitude = newCustomerLatitude;
+        this.customerLongitude = newCustomerLongitude;
         this.paymentMethod = newPaymentMethod;
         this.fee = newFee;
     }
