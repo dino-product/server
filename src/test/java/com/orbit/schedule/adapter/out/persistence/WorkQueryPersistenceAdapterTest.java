@@ -194,6 +194,7 @@ class WorkQueryPersistenceAdapterTest extends PersistenceAdapterTestSupport {
             save(completed(organization, "완료", schedule(TECHNICIAN, "2026-10-21T01:00:00Z", 60)));
             save(completed(organization, "구간 밖 완료", schedule(TECHNICIAN, "2026-11-05T01:00:00Z", 60)));
             save(started(organization, "작업중", schedule(TECHNICIAN, "2026-10-21T03:00:00Z", 60)));
+            save(cancelled(organization, "취소", schedule(TECHNICIAN, "2026-10-21T07:00:00Z", 60)));
             Work movedAway = accepted(organization, "넘어간 뒤 완료", schedule(TECHNICIAN, "2026-10-21T05:00:00Z", 60));
             movedAway.reassign(
                     schedule(OTHER_TECHNICIAN, "2026-10-21T05:00:00Z", 60), ASSIGNED_AT.plusSeconds(60), MANAGER);

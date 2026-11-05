@@ -60,8 +60,8 @@ public record WorkHistoryResponse(
             AssignmentResult result,
 
             @Schema(
-                    description = "관리자 조치나 탈퇴로 배정이 끝났으면 방식(RESCHEDULED·REASSIGNED·UNASSIGNED·RELEASED·CANCELED·"
-                            + "ACCOUNT_WITHDRAWN 등), 아니면 null",
+                    description = "관리자 조치나 탈퇴로 배정이 끝났으면 방식. REASSIGNED(재배정), RESCHEDULED(일정 변경), UNASSIGNED(배정 해제), "
+                            + "CANCELLED(취소), ACCOUNT_WITHDRAWN(기사 탈퇴). 아니면 null",
                     example = "RESCHEDULED")
             AssignmentEndReason endReason) {
 
@@ -79,7 +79,9 @@ public record WorkHistoryResponse(
         }
     }
 
-    @Schema(description = "구간의 작업 수 집계. 배정 시작 시각이 구간 안인 것만 센다(경계에 걸친 일정은 시작 쪽 구간)")
+    @Schema(
+            description = "구간의 작업 수 집계. assigned는 이력의 작업 수이고, completed·rejected·cancelled는 "
+                    + "배정 시작 시각이 구간 안인 것만 센다(경계에 걸친 일정은 시작 쪽 구간)")
     public record Statistics(
             @Schema(description = "이력의 모든 작업 수", example = "12")
             int assigned,

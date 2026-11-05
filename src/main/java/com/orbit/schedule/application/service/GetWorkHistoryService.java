@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
@@ -30,7 +31,7 @@ import com.orbit.shared.error.BusinessException;
  * 완료·취소된 작업 수, 거절한 작업 수다. 수는 배정 시작시각이 속한 구간에서만 센다(경계에 걸친 일정을 양쪽 구간에서 세지 않게). 기사 본인이 요청하면 그 가운데
  * 본인이 완료한 작업(구간 안 마지막 배정이 지금 담당인 채 완료된 작업)만 담고 통계도 그 작업으로만 세므로 거절·취소 수는 0이다. 거절했거나 다른 기사로 넘어간
  * 작업은 기사에게 보이지 않기 때문이다. 오류 확인 순서는 요청자 → 기사 식별자(관리자는 필수, 형식 400) → 기사가 다른 기사를 요청하면 403(SCHEDULE-005) →
- * 구간 입력이다.
+ * 구간 입력이다. 누적 완료 수는 구간과 관계없이 그 기사가 지금 담당인 채 완료한 작업 수이며, 목록과 같은 시점을 보도록 한 스냅샷에서 읽는다.
  */
 @Service
 public class GetWorkHistoryService implements GetWorkHistoryUseCase {
@@ -49,7 +50,7 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public WorkHistoryInfo get(GetWorkHistoryQuery query) {
         Actor actor = OrganizationActors.requireMember(loadActorPort, query.accountId(), query.organizationId());
         TechnicianId technicianId = targetTechnician(actor, query.technicianId());

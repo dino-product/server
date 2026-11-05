@@ -95,6 +95,16 @@ class WorkHistoryApiIntegrationTest extends ScheduleApiTestSupport {
     }
 
     @Test
+    @DisplayName("구간을 빠뜨리면 형식 오류가 아니라 서비스가 확인해 400 SCHEDULE-003이다")
+    void rejectsMissingPeriodInService() throws Exception {
+        Fixture fixture = fixture();
+
+        mockMvc.perform(authorized(fixture.technician(), fixture.organization().id()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+    }
+
+    @Test
     @DisplayName("형식이 틀린 시각·기사 식별자는 400 COMMON-400, 토큰이 없으면 401이다")
     void rejectsMalformedQueryAndAnonymous() throws Exception {
         Fixture fixture = fixture();
