@@ -264,7 +264,8 @@ def cmd_marker(args) -> int:
         sys.exit(f"리뷰한 head({data['head'][:7]})와 현재 HEAD({head[:7]})가 다릅니다. 현재 HEAD를 다시 리뷰합니다.")
     if not review_recorded(head):
         sys.exit(f"현재 HEAD({head[:7]})에서 dino-review 스킬을 실행한 기록이 없습니다. "
-                 "스킬로 리뷰한 뒤 마커를 남깁니다(결과 JSON만 써서 마커를 만들지 않습니다).")
+                 "스킬로 리뷰한 뒤 마커를 남깁니다(결과 JSON만 써서 마커를 만들지 않습니다). "
+                 f"세션 위치와 다른 워크트리면 스킬 인자에 이 작업 트리 경로({ROOT})를 넣고 다시 실행합니다.")
     dirty = git("status", "--porcelain", "--untracked-files=no")
     if dirty:
         sys.exit("커밋하지 않은 변경이 있어 리뷰한 head와 작업 트리가 다릅니다. 커밋한 뒤 다시 리뷰합니다.\n" + dirty)
