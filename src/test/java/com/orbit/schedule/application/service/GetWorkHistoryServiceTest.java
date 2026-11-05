@@ -345,7 +345,7 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
-    @DisplayName("구간 경계에 걸친 일정은 두 구간 목록에 모두 나오지만 완료·거절은 시작이 속한 구간에서만 센다")
+    @DisplayName("구간 경계에 걸친 일정은 두 구간 목록에 모두 나오지만 완료·거절 수와 거절 조건은 시작이 속한 구간에서만 센다")
     void countsBoundaryWorkOnlyInStartPeriod() {
         fixture.givenManager();
         Instant crossingStart = TO.minus(Duration.ofHours(1));
@@ -367,6 +367,18 @@ class GetWorkHistoryServiceTest {
                 .containsExactly(rejectedId.value(), crossing.value());
         assertThat(startPeriod.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(2, 1, 1, 0));
         assertThat(endPeriod.statistics()).isEqualTo(new WorkHistoryInfo.Statistics(2, 0, 0, 0));
+        assertThat(service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(), Set.of(WorkHistoryStatus.REJECTED)))
+                        .works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(rejectedId.value());
+        assertThat(service.get(query(
+                                TECHNICIAN_ID.value(),
+                                TO,
+                                TO.plus(Duration.ofDays(1)),
+                                Set.of(),
+                                Set.of(WorkHistoryStatus.REJECTED)))
+                        .works())
+                .isEmpty();
     }
 
     @Test
