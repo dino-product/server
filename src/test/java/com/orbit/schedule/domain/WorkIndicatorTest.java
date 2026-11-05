@@ -27,6 +27,7 @@ class WorkIndicatorTest {
 
         assertThat(work.isDelayedAt(END.minusNanos(1_000))).isFalse();
         assertThat(work.isDelayedAt(END)).isTrue();
+        assertThat(work.delayThreshold()).contains(END);
         work.accept(START.minusSeconds(60));
         work.start(START);
         assertThat(work.isDelayedAt(END.plusSeconds(1))).isTrue();
@@ -44,6 +45,8 @@ class WorkIndicatorTest {
         assertThat(onTime.isDelayedAt(muchLater)).isFalse();
         assertThat(late.isDelayedAt(muchLater)).isTrue();
         assertThat(late.isDelayedAt(START)).isTrue();
+        assertThat(onTime.delayThreshold()).isEmpty();
+        assertThat(late.delayThreshold()).as("언제 봐도 지연").contains(Instant.EPOCH);
     }
 
     @Test
@@ -78,6 +81,10 @@ class WorkIndicatorTest {
         });
         assertThat(startOnly.isDelayedAt(muchLater)).isFalse();
         assertThat(nothing.isDelayedAt(muchLater)).isFalse();
+        assertThat(List.of(planned, rejected))
+                .allSatisfy(work -> assertThat(work.delayThreshold()).contains(END));
+        assertThat(startOnly.delayThreshold()).isEmpty();
+        assertThat(nothing.delayThreshold()).isEmpty();
     }
 
     @Test
@@ -87,6 +94,7 @@ class WorkIndicatorTest {
         cancelled.cancel(START, MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null);
 
         assertThat(cancelled.isDelayedAt(END.plus(Duration.ofDays(1)))).isFalse();
+        assertThat(cancelled.delayThreshold()).isEmpty();
     }
 
     @Test

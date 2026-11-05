@@ -200,6 +200,12 @@ app:
         address-search-uri: https://dapi.kakao.com/v2/local/search/address.json
         rest-api-key: ${KAKAO_REST_API_KEY}
         timeout: PT2S
+    # 진행 보드 캐시(캐시 전용 Redis, allkeys-lru). 주소가 없으면 로컬·테스트는 기본 Redis를 쓴다.
+    # 배포 프로필(application-deployed.yml)은 기본으로 끄고, infra가 BOARD_CACHE_ENABLED와 BOARD_CACHE_REDIS_HOST를 넣으면 켠다.
+    board-cache:
+      enabled: ${BOARD_CACHE_ENABLED:true}
+      redis-host: ${BOARD_CACHE_REDIS_HOST:}
+      redis-port: ${BOARD_CACHE_REDIS_PORT:6379}
   notification:
     push-delivery:
       # 기사 앱 푸시 발신 대기열을 확인하는 주기와 한 번에 집는 건수. 보내는 중인 채로 in-flight-timeout이 지난 발신(인스턴스 중단 등)은 다시 집는다.
