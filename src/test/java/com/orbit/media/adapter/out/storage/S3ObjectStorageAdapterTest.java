@@ -28,9 +28,11 @@ import com.orbit.support.LocalStackTestSupport;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @DisplayName("S3 저장소 어댑터(LocalStack)")
@@ -113,6 +115,32 @@ class S3ObjectStorageAdapterTest {
                 HttpResponse.BodyHandlers.ofByteArray());
         assertThat(download.statusCode()).isEqualTo(200);
         assertThat(download.body()).isEqualTo(PNG);
+    }
+
+    @Test
+    @DisplayName("원본에 붙은 태그는 복사하지 않아, 업로더가 만료 표시를 붙여 올려도 연결된 사진에는 태그가 없다")
+    void dropsSourceTagsOnCopy() {
+        String key = key();
+        s3.putObject(
+                request -> request.bucket(LocalStackTestSupport.BUCKET)
+                        .key(key)
+                        .contentType("image/png")
+                        .tagging(Tagging.builder()
+                                .tagSet(Tag.builder()
+                                        .key("status")
+                                        .value("expired")
+                                        .build())
+                                .build()),
+                RequestBody.fromBytes(PNG));
+        StoredObject stored = adapter.find(key).orElseThrow();
+
+        String copied = key();
+        assertThat(adapter.copy(key, copied, stored.eTag(), "image/png")).isTrue();
+
+        assertThat(s3.getObjectTagging(request ->
+                                request.bucket(LocalStackTestSupport.BUCKET).key(copied))
+                        .tagSet())
+                .isEmpty();
     }
 
     @Test
