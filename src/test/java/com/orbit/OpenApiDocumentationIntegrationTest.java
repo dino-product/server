@@ -625,6 +625,23 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsTechnicianSchedulesWithAssignmentNumberAndLocation() throws Exception {
+        String base = "$.paths['/api/v1/organizations/{organizationId}/my-schedule";
+        String work = "$.components.schemas"
+                + "['com.orbit.schedule.adapter.in.web.myschedule.MyScheduleResponse.ScheduledWork']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(base + "'].get.summary").value("내 일정 조회"))
+                .andExpect(jsonPath(base + "/pending'].get.summary").value("응답 필요 작업 조회"))
+                .andExpect(jsonPath(base + "/actionable'].get.summary").value("지금 수행 가능한 작업 조회"))
+                .andExpect(jsonPath(base + "/actionable'].get.responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath(work + ".properties.assignmentNumber").exists())
+                .andExpect(jsonPath(work + ".properties.customerLocation").exists());
+    }
+
+    @Test
     void documentsCompletionReportRequestWithIntervalLimit() throws Exception {
         String operation =
                 "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-report-requests'].post";
