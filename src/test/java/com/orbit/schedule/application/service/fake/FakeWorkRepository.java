@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import com.orbit.schedule.application.port.out.ConcurrentWorkChangeException;
@@ -134,6 +135,22 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
         Objects.requireNonNull(technicianId, "technicianId must not be null");
         return listScheduledBetween(organizationId, from, to).stream()
                 .filter(work -> work.schedule().orElseThrow().technicianId().equals(technicianId))
+                .toList();
+    }
+
+    @Override
+    public List<Work> listCurrentForTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Set<WorkStatus> statuses) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        if (statuses.contains(WorkStatus.REGISTERED)) {
+            throw new IllegalArgumentException("REGISTERED works have no current assignee");
+        }
+        return inOrganization(organizationId).stream()
+                .filter(work -> statuses.contains(work.status()))
+                .filter(work -> work.schedule()
+                        .map(schedule -> schedule.technicianId().equals(technicianId))
+                        .orElse(false))
                 .toList();
     }
 

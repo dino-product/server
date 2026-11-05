@@ -2,10 +2,12 @@ package com.orbit.schedule.application.port.out;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
+import com.orbit.schedule.domain.WorkStatus;
 
 /**
  * 화면 조회용 작업 목록 출력 포트. 변경에 쓰는 {@link WorkRepository}와 달리 여러 작업을 조건으로 읽기만 한다. 조회는 모두 조직 범위이고, 결과는 영속 상태와
@@ -49,6 +51,13 @@ public interface WorkQueryPort {
      */
     List<Work> listAssignedToTechnician(
             OrganizationId organizationId, TechnicianId technicianId, Instant from, Instant to);
+
+    /**
+     * 지금 일정의 담당이 그 기사이고 상태가 statuses 중 하나인 작업. 날짜로 거르지 않는다. 기사의 응답 필요·지금 수행 가능 목록이 쓴다(등록 상태는 미리 입력한
+     * 담당기사가 같은 컬럼에 있으므로 statuses에 넣지 않는다).
+     */
+    List<Work> listCurrentForTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Set<WorkStatus> statuses);
 
     /** 대기함 작업(등록 상태). 등록 때 미리 입력한 담당기사·시간이 있어도 대기함이므로 일정 컬럼으로 거르지 않는다. */
     List<Work> listBacklog(OrganizationId organizationId);

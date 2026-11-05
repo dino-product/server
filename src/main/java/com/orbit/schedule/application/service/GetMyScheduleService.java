@@ -2,7 +2,6 @@ package com.orbit.schedule.application.service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Comparator;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,10 +11,7 @@ import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
 import com.orbit.schedule.application.port.in.query.dto.MyScheduleInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
-import com.orbit.schedule.domain.SiteAddress;
 import com.orbit.schedule.domain.TechnicianActor;
-import com.orbit.schedule.domain.Work;
-import com.orbit.schedule.domain.WorkSchedule;
 
 /**
  * 기사 본인 일정 조회. 구간과 일정이 겹치는, 지금 본인이 담당인 작업(수락대기·수락됨·작업중·완료)을 시작시각 순으로 돌려준다. 다른 기사로 바뀌었거나 대기함으로
@@ -24,10 +20,6 @@ import com.orbit.schedule.domain.WorkSchedule;
  */
 @Service
 public class GetMyScheduleService implements GetMyScheduleUseCase {
-
-    private static final Comparator<MyScheduleInfo.ScheduledWork> ORDER = Comparator.comparing(
-                    MyScheduleInfo.ScheduledWork::startTime)
-            .thenComparing(MyScheduleInfo.ScheduledWork::workId);
 
     private final LoadActorPort loadActorPort;
     private final WorkQueryPort workQueryPort;
@@ -51,26 +43,8 @@ public class GetMyScheduleService implements GetMyScheduleUseCase {
                 .listScheduledForTechnician(
                         technician.organizationId(), technician.technicianId(), period.from(), period.to())
                 .stream()
-                .map(work -> scheduledWork(work, now))
-                .sorted(ORDER)
+                .map(work -> TechnicianSchedules.scheduledWork(work, now))
+                .sorted(TechnicianSchedules.ORDER)
                 .toList());
-    }
-
-    private static MyScheduleInfo.ScheduledWork scheduledWork(Work work, Instant now) {
-        WorkSchedule schedule = work.schedule().orElseThrow();
-        return new MyScheduleInfo.ScheduledWork(
-                work.id().orElseThrow().value(),
-                work.name(),
-                work.status(),
-                work.currentAssignmentNumber(),
-                schedule.startTime(),
-                schedule.endTime(),
-                work.customerInfo().address().flatMap(SiteAddress::baseAddress).orElse(null),
-                work.customerInfo()
-                        .address()
-                        .flatMap(SiteAddress::detailAddress)
-                        .orElse(null),
-                WorkViews.location(work.customerInfo()),
-                work.isDelayedAt(now));
     }
 }
