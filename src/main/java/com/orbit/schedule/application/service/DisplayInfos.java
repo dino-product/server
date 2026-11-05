@@ -91,6 +91,15 @@ final class DisplayInfos {
                 Map.of());
     }
 
+    /** 작업유형 표시 정보만 찾는다(기사·등록자 표시가 없는 화면). */
+    static DisplayInfos ofWorkTypes(
+            LoadWorkTypeLabelsPort workTypeLabels, OrganizationId organizationId, Collection<Work> works) {
+        Set<WorkTypeId> workTypeIds = new HashSet<>();
+        works.forEach(work -> work.workType().ifPresent(workTypeIds::add));
+        return new DisplayInfos(
+                Map.of(), Map.of(), findAll(workTypeIds, ids -> workTypeLabels.findLabels(organizationId, ids)));
+    }
+
     private static DisplayInfos of(
             LoadTechnicianProfilesPort technicianProfiles,
             LoadStaffProfilesPort staffProfiles,
