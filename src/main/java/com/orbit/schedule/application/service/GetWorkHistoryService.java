@@ -2,6 +2,7 @@ package com.orbit.schedule.application.service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
 
@@ -63,7 +64,7 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
         TechnicianId technicianId = targetTechnician(actor, query.technicianId());
         QueryPeriod period = QueryPeriod.of(query.from(), query.to());
         Set<Long> workTypeIds = workTypeIds(query.workTypeIds());
-        Set<WorkHistoryStatus> statuses = query.statuses() == null ? Set.of() : Set.copyOf(query.statuses());
+        Set<WorkHistoryStatus> statuses = statuses(query.statuses());
 
         boolean ownHistory = actor instanceof TechnicianActor;
         List<Work> assigned = workQueryPort.listAssignedToTechnician(
@@ -106,6 +107,16 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
         return Set.copyOf(ids);
     }
 
+    private static Set<WorkHistoryStatus> statuses(Set<WorkHistoryStatus> statuses) {
+        if (statuses == null || statuses.isEmpty()) {
+            return Set.of();
+        }
+        if (statuses.stream().anyMatch(Objects::isNull)) {
+            throw new BusinessException(ScheduleErrorCode.INVALID_WORK_INPUT);
+        }
+        return Set.copyOf(statuses);
+    }
+
     private static boolean hasWorkType(Work work, Set<Long> workTypeIds, DisplayInfos displayInfos) {
         return workTypeIds.isEmpty()
                 || displayInfos
@@ -115,7 +126,7 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                         .isPresent();
     }
 
-    /** 완료는 그 기사가 지금 담당인 채 완료, 거절은 그 기사가 구간과 겹치는 배정을 한 번이라도 거절(통계의 거절과 같은 기준). */
+    /** 완료는 그 기사가 지금 담당인 채 완료, 거절은 그 기사가 시작시각이 구간 안인 배정을 한 번이라도 거절(통계의 거절 수와 같은 기준). */
     private static boolean hasStatus(
             Row row, Set<WorkHistoryStatus> statuses, TechnicianId technicianId, QueryPeriod period) {
         return statuses.isEmpty()
@@ -124,7 +135,8 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                         && assignmentsInPeriod(row.work(), technicianId, period)
                                 .mapToObj(
                                         index -> row.work().assignmentHistory().get(index))
-                                .anyMatch(history -> history.result() == AssignmentResult.REJECTED));
+                                .anyMatch(history -> history.result() == AssignmentResult.REJECTED
+                                        && !history.schedule().startTime().isBefore(period.from())));
     }
 
     /** 그 기사가 지금 담당인 채 완료한 작업인지. */

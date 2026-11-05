@@ -4,6 +4,6 @@ package com.orbit.schedule.application.port.in.query.dto;
 public enum WorkHistoryStatus {
     /** 그 기사가 지금 담당인 채 완료한 작업. */
     COMPLETED,
-    /** 그 기사가 구간과 겹치는 배정을 한 번이라도 거절한 작업(다시 배정받아 완료했어도 담는다). */
+    /** 그 기사가 시작시각이 구간 안인 배정을 한 번이라도 거절한 작업(다시 배정받아 완료했어도 담는다). 통계의 거절 수와 같은 기준이다. */
     REJECTED
 }

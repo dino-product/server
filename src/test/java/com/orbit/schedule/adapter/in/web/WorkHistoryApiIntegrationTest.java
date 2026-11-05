@@ -95,7 +95,7 @@ class WorkHistoryApiIntegrationTest extends ScheduleApiTestSupport {
     }
 
     @Test
-    @DisplayName("상태 조건은 목록만 거르고, 완료한 작업에는 실제 시작·완료 시각을 담는다. 없는 상태 값은 400 COMMON-400, 양수가 아닌 작업유형은 400 SCHEDULE-003이다")
+    @DisplayName("상태 조건은 목록만 거르고 완료한 작업에 실제 시작·완료 시각을 담는다. 없는 상태 400 COMMON-400, 잘못된 유형·빈 상태 400 SCHEDULE-003")
     void filtersByStatusAndShowsActualTimes() throws Exception {
         Fixture fixture = fixture();
         Instant start = Instant.parse("2026-10-10T01:00:00Z");
@@ -132,6 +132,15 @@ class WorkHistoryApiIntegrationTest extends ScheduleApiTestSupport {
                         .param("from", FROM.toString())
                         .param("to", TO.toString())
                         .param("workTypeIds", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
+        mockMvc.perform(authorized(
+                                fixture.organization().owner(),
+                                fixture.organization().id())
+                        .param("technicianId", Long.toString(fixture.technicianId()))
+                        .param("from", FROM.toString())
+                        .param("to", TO.toString())
+                        .param("statuses", "COMPLETED,"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("SCHEDULE-003"));
     }

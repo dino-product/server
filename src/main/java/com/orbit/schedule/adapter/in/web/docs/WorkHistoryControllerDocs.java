@@ -28,7 +28,7 @@ public interface WorkHistoryControllerDocs {
                     + "기사는 technicianId를 비우거나 본인을 주며, 본인이 완료한 작업만 담고 통계도 그 작업으로만 셉니다(거절·취소 수 0). "
                     + "totalCompleted는 구간과 관계없이 그 기사가 지금 담당인 채 완료한 작업 수(누적 완료)입니다. "
                     + "workTypeIds(작업유형)·statuses(COMPLETED 완료, REJECTED 거절)를 주면 목록만 거르고 통계·누적 완료는 거르지 않습니다. "
-                    + "작업유형 식별자가 양수가 아니면 SCHEDULE-003, 목록에 없는 상태 값은 COMMON-400입니다. "
+                    + "작업유형 식별자가 양수가 아니거나 빈 상태 값이 섞이면 SCHEDULE-003, 목록에 없는 상태 값은 COMMON-400입니다. "
                     + "관리자가 technicianId를 비웠거나, 식별자가 양수가 아니거나, 구간이 없거나 뒤집혔거나 31일을 넘으면 SCHEDULE-003, "
                     + "기사가 다른 기사를 지정하면 SCHEDULE-005, 요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, "
                     + "시각·식별자 형식 오류는 COMMON-400입니다. "
@@ -57,7 +57,8 @@ public interface WorkHistoryControllerDocs {
                     Instant to,
             @Parameter(description = "이 작업유형 중 하나인 작업만(반복하거나 쉼표로 이어 보냄)", example = "3") Set<Long> workTypeIds,
             @Parameter(
-                            description = "COMPLETED(그 기사가 담당인 채 완료)·REJECTED(그 기사가 구간 안 배정을 거절) 중 하나인 작업만",
+                            description = "COMPLETED(그 기사가 담당인 채 완료)·REJECTED(그 기사가 시작시각이 구간 안인 배정을 거절, 통계와 같은 기준) "
+                                    + "중 하나인 작업만",
                             example = "COMPLETED")
                     Set<WorkHistoryStatus> statuses);
 }
