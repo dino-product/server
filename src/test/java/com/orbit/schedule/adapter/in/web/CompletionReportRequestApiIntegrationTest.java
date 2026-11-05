@@ -199,14 +199,6 @@ class CompletionReportRequestApiIntegrationTest extends ScheduleApiTestSupport {
                 .orElseThrow();
     }
 
-    private long technicianIdOf(long organizationId, long accountId) {
-        return jdbcTemplate.queryForObject(
-                "select id from technician where company_id = ? and member_id = ?",
-                Long.class,
-                organizationId,
-                accountId);
-    }
-
     private long staffMembershipOf(long organizationId, long accountId) {
         return jdbcTemplate.queryForObject(
                 "select id from company_memberships where company_id = ? and member_id = ?",

@@ -678,14 +678,6 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
         }
     }
 
-    private long technicianIdOf(long organizationId, long accountId) {
-        return jdbcTemplate.queryForObject(
-                "select id from technician where company_id = ? and member_id = ?",
-                Long.class,
-                organizationId,
-                accountId);
-    }
-
     private void givenDisplayInfos(Organization organization) {
         OrganizationId organizationId = new OrganizationId(organization.id());
         TechnicianProfile kim = new TechnicianProfile(TECHNICIAN, "김민수", GENERAL);

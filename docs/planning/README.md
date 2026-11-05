@@ -24,9 +24,9 @@
 | 정책서 | 기준 버전 | 확인 시각 | 관련 모듈 | 이 정책서가 원본인 공통 규칙 |
 | --- | --- | --- | --- | --- |
 | [[조직·계정] 정책](https://app.notion.com/p/3cdf190e116681ffb967c10178f30374) | v1.7 | 2026-10-15 16:10 | `organization`, `auth`, `user` | §10 시스템 전체 권한 매트릭스, §9 참여 요청·소속·계정 상태 코드 |
-| [[작업] 정책](https://app.notion.com/p/3cef190e116681ffb614e9fa12cd3ae3) | v2.1 | 2026-10-19 01:47 | `schedule` | §9 작업 상태 코드·표시값 |
-| [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v2.1 | 2026-10-19 01:46 | `schedule` | — |
-| [[현장 수행] 정책](https://app.notion.com/p/3d0f190e11668133ba17c64b6d33ba5b) | v1.2 | 2026-10-19 01:43 | `schedule` | — |
+| [[작업] 정책](https://app.notion.com/p/3cef190e116681ffb614e9fa12cd3ae3) | v2.2 | 2026-11-05 21:31 | `schedule` | §9 작업 상태 코드·표시값 |
+| [[스케줄·배정] 정책](https://app.notion.com/p/3cef190e1166817d9813d902809d17ae) | v2.1 | 2026-11-05 20:57 | `schedule` | — |
+| [[현장 수행] 정책](https://app.notion.com/p/3d0f190e11668133ba17c64b6d33ba5b) | v1.3 | 2026-11-05 21:31 | `schedule` | — |
 | [[현황 파악] 정책](https://app.notion.com/p/3d0f190e11668148aaf1cbfd9685ef05) | v2.0 | 2026-10-17 13:46 | `schedule` (조회), `realtime` (자동 갱신) | — |
 | [[알림] 정책](https://app.notion.com/p/3d0f190e116681aab442e9e8f237c63e) | v1.4 | 2026-10-19 01:50 | `notification` | §4 알림 트리거 |
 
@@ -109,7 +109,7 @@
 각 BC 문서(예: [schedule](../domain/schedule.md#schedule-gaps))의 제품 규칙 참조·차이·공백 표는 아래 표기를 공유한다.
 
 - **제품 규칙 참조의 차이 칸**: `—`는 Notion 절과 현재 구현을 대조해 일치함, `미구현`은 대조할 구현이 아직 없음, ID는 해당 차이·공백 행을 뜻한다. 대조하지 않은 행은 비워 두지 않고 `미대조`로 적는다.
-- **ID 대역**: 모듈 접두사(`S` schedule, `O` organization 등) 뒤에 `0x` Notion 확정·구현이 다름 / `1x` 구현에서 정한 제품 결정·Notion 결정 필요 / `2x` Notion 확정·미구현 / `3x` Notion도 미정. 분류가 바뀌면 새 대역의 번호로 옮기고 옛 번호는 재사용하지 않는다.
+- **ID 대역**: 모듈 접두사(`S` schedule, `O` organization 등) 뒤에 `0x` Notion 확정·구현이 다름 / `1x` 구현에서 정한 제품 결정·Notion 결정 필요 / `2x` Notion 확정·미구현 / `3x` Notion도 미정. 분류가 바뀌거나 해소된 옛 번호는 재사용하지 않고, 분류가 바뀌면 새 대역의 번호로 옮긴다. 대역의 두 자리 번호를 다 쓰면 세 자리로 늘린다(`1x` → `S-110`부터).
 - **추적 칸**: Notion 정책서 "확정 필요 항목"의 ID(예: `JOB-007`), [기획 결정 요청](#plan-request)의 Slack 메시지 링크, 구현 수정을 맡은 작업 중 하나를 적는다. `미등록`은 아직 아무 곳에도 올리지 않았다는 뜻이다.
 
 <a id="gap-actions"></a>
