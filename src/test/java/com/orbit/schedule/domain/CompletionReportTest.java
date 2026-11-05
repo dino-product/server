@@ -71,7 +71,7 @@ class CompletionReportTest {
 
         assertThatThrownBy(() -> new CompletionReport(beforePhotos, null, null, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("beforePhotos must not contain null");
+                .hasMessage("beforePhotos must be non-blank ids of at most 500 characters");
     }
 
     @Test
@@ -81,7 +81,7 @@ class CompletionReportTest {
 
         assertThatThrownBy(() -> new CompletionReport(null, afterPhotos, null, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("afterPhotos must not contain null");
+                .hasMessage("afterPhotos must be non-blank ids of at most 500 characters");
     }
 
     @Test

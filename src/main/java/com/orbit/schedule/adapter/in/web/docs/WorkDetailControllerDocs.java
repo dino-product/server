@@ -24,7 +24,8 @@ public interface WorkDetailControllerDocs {
                     + "상태 변경 이력은 등록 시각, 배정 이력의 배정·응답·종료 시각, 완료보고 요청 시각, 시작·완료·취소 시각으로 그립니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 작업이 없거나 다른 조직의 작업이거나 기사가 볼 수 없는 작업"
                     + "(배정받은 적 없음, 거절함, 다른 기사로 재배정됨, 배정 해제·반환됨)이면 SCHEDULE-001, 식별자가 양수가 아니면 SCHEDULE-003, "
-                    + "숫자가 아니면 COMMON-400입니다.",
+                    + "숫자가 아니면 COMMON-400입니다. 사진 주소(10분짜리 서명 주소)를 서명하지 못하면(저장소 자격 증명 오류) "
+                    + "SCHEDULE-023(503, 잠시 뒤 다시 시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(
             responseCode = "200",
@@ -38,7 +39,7 @@ public interface WorkDetailControllerDocs {
             includes = {"BAD_REQUEST", "UNAUTHORIZED"})
     @ApiErrorCodes(
             enumClass = ScheduleErrorCode.class,
-            includes = {"INVALID_WORK_INPUT", "NOT_ORGANIZATION_MEMBER", "WORK_NOT_FOUND"})
+            includes = {"INVALID_WORK_INPUT", "NOT_ORGANIZATION_MEMBER", "WORK_NOT_FOUND", "PHOTO_STORAGE_UNAVAILABLE"})
     WorkDetailResponse get(
             @Parameter(hidden = true) AccountPrincipal requester,
             @Parameter(description = "조직(발주사) 식별자", example = "1", required = true) Long organizationId,

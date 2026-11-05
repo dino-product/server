@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbit.media.MediaFiles;
 import com.orbit.schedule.application.port.in.query.GetWorkDetailUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.StaffInfo;
@@ -16,7 +17,6 @@ import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LoadStaffProfilesPort;
 import com.orbit.schedule.application.port.out.LoadTechnicianProfilesPort;
 import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
-import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.ManagerActor;
@@ -33,7 +33,7 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
-    private final PhotoUrlPort photoUrlPort;
+    private final MediaFiles mediaFiles;
     private final LoadTechnicianProfilesPort loadTechnicianProfilesPort;
     private final LoadStaffProfilesPort loadStaffProfilesPort;
     private final LoadWorkTypeLabelsPort loadWorkTypeLabelsPort;
@@ -42,14 +42,14 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
     public GetWorkDetailService(
             LoadActorPort loadActorPort,
             WorkRepository workRepository,
-            PhotoUrlPort photoUrlPort,
+            MediaFiles mediaFiles,
             LoadTechnicianProfilesPort loadTechnicianProfilesPort,
             LoadStaffProfilesPort loadStaffProfilesPort,
             LoadWorkTypeLabelsPort loadWorkTypeLabelsPort,
             Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
-        this.photoUrlPort = photoUrlPort;
+        this.mediaFiles = mediaFiles;
         this.loadTechnicianProfilesPort = loadTechnicianProfilesPort;
         this.loadStaffProfilesPort = loadStaffProfilesPort;
         this.loadWorkTypeLabelsPort = loadWorkTypeLabelsPort;
@@ -127,9 +127,9 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                 work.completedAt().orElse(null),
                 work.cancellation().map(WorkViews::cancellation).orElse(null),
                 work.completionReport()
-                        .map(report -> WorkViews.completionReport(report, photoUrlPort))
+                        .map(report -> WorkViews.completionReport(work, report, mediaFiles))
                         .orElse(null),
-                WorkViews.photos(work.sitePhotos(), photoUrlPort),
+                WorkViews.photos(work, work.sitePhotos(), mediaFiles),
                 completionReportRequests,
                 completionReportRequestable,
                 work.version());

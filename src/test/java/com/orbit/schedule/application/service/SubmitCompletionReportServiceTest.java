@@ -36,8 +36,7 @@ import com.orbit.schedule.domain.WorkStatus;
 class SubmitCompletionReportServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final SubmitCompletionReportService service =
-            new SubmitCompletionReportService(fixture.actorPort, fixture.workRepository, fixture.events, fixture.clock);
+    private final SubmitCompletionReportService service = fixture.submitCompletionReportService();
 
     @Test
     @DisplayName("담당 기사가 작업중인 작업에 보고를 제출하면 보고를 붙여 완료하고 지금 시각을 완료 시각으로 남기며, 저장한 뒤 등록자에게 알릴 제출을 발행한다")

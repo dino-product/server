@@ -21,7 +21,7 @@ public final class Work {
     /** 작업에 붙일 수 있는 현장 사진 수. */
     public static final int MAX_SITE_PHOTO_COUNT = 6;
 
-    /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한, HM-238). */
+    /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자(media 모듈의 UUID)이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한). */
     public static final int MAX_SITE_PHOTO_ID_LENGTH = 500;
 
     /**
@@ -609,6 +609,15 @@ public final class Work {
             throw new IllegalStateException("Cannot change site photos when status is " + status);
         }
         sitePhotos = photos;
+    }
+
+    /**
+     * 기본정보 수정의 작업명·현장 사진 형식({@link #changeDetails}가 상태보다 먼저 하는 입력 확인과 같다). 서비스가 다른 요청 값 확인(사진 업로드 확인 결과)을
+     * 상태 확인보다 먼저 끝내야 할 때 {@link #changeDetails} 전에 부른다.
+     */
+    public static void requireDetailsInput(String newName, List<String> newSitePhotoIds) {
+        requireName(newName);
+        requireSitePhotos(newSitePhotoIds);
     }
 
     /**

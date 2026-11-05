@@ -3,12 +3,12 @@ package com.orbit.schedule.application.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbit.media.MediaFiles;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.GetCompletionReportUseCase;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
 import com.orbit.schedule.application.port.in.query.dto.WorkCompletionReportInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
-import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Actor;
 import com.orbit.schedule.domain.CompletionReport;
@@ -25,13 +25,13 @@ public class GetCompletionReportService implements GetCompletionReportUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
-    private final PhotoUrlPort photoUrlPort;
+    private final MediaFiles mediaFiles;
 
     public GetCompletionReportService(
-            LoadActorPort loadActorPort, WorkRepository workRepository, PhotoUrlPort photoUrlPort) {
+            LoadActorPort loadActorPort, WorkRepository workRepository, MediaFiles mediaFiles) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
-        this.photoUrlPort = photoUrlPort;
+        this.mediaFiles = mediaFiles;
     }
 
     @Override
@@ -49,6 +49,6 @@ public class GetCompletionReportService implements GetCompletionReportUseCase {
                 work.id().orElseThrow().value(),
                 work.schedule().orElseThrow().technicianId().value(),
                 work.completedAt().orElseThrow(),
-                WorkViews.completionReport(report, photoUrlPort));
+                WorkViews.completionReport(work, report, mediaFiles));
     }
 }

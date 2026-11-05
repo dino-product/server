@@ -58,17 +58,7 @@ class CreateWorkServiceTest {
             new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803"));
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final CreateWorkService service = new CreateWorkService(
-            fixture.actorPort,
-            fixture.siteCoordinates,
-            new WorkRegistration(
-                    fixture.actorPort,
-                    fixture.workRepository,
-                    fixture.workTypes,
-                    fixture.technicianContracts,
-                    fixture.scheduleLock,
-                    fixture.events,
-                    fixture.clock));
+    private final CreateWorkService service = fixture.createWorkService();
 
     @ParameterizedTest
     @EnumSource(
@@ -513,17 +503,7 @@ class CreateWorkServiceTest {
     void failsFastWhenActorBelongsToOtherOrganization() {
         LoadActorPort misbehavingPort = (accountId, organizationId) ->
                 Optional.of(new ManagerActor(new MembershipId(11L), OTHER_ORGANIZATION_ID, ActorRole.OWNER));
-        CreateWorkService serviceWithMisbehavingPort = new CreateWorkService(
-                misbehavingPort,
-                fixture.siteCoordinates,
-                new WorkRegistration(
-                        misbehavingPort,
-                        fixture.workRepository,
-                        fixture.workTypes,
-                        fixture.technicianContracts,
-                        fixture.scheduleLock,
-                        fixture.events,
-                        fixture.clock));
+        CreateWorkService serviceWithMisbehavingPort = fixture.createWorkService(misbehavingPort);
 
         assertThatThrownBy(() -> serviceWithMisbehavingPort.create(command("에어컨 수리", null)))
                 .isInstanceOf(IllegalStateException.class)

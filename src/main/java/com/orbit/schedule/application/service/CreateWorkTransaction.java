@@ -5,10 +5,12 @@ import java.time.Instant;
 import java.util.List;
 
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.orbit.media.MediaFiles;
+import com.orbit.media.StagedFiles;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
@@ -29,32 +31,29 @@ import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkTypeId;
 
 /**
- * 작업 등록. 요청한 조직의 총관리자·직원이 작업을 만든다. 작업명만 필수이고 작업 유형·고객·결제 정보는 비워도 된다. 담당기사·시작시각·예상소요시간을 모두
- * 주면 등록과 함께 배정하고(배정과 같은 규칙), 모두 비우면 대기함에 둔다. 일부만 주면 입력한 값을 미리 입력한 일정으로 남겨 대기함에 두며, 그중 담당기사가
- * 있으면 같은 조직의 활성 기사 계약이어야 한다. 그 담당기사를 잠근 뒤 확인해, 같은 기사를 잠그고 미리 입력한 담당기사를 비우는 대기함 반환과 한 줄로
- * 선다([스케줄·배정] §9). 함께 배정하려던 일정이 겹치는데 확인하지 않았으면 작업을 만들지 않는다. 확인 뒤 다시 보낸 요청이 작업을 한 번만 만들게 하기 위해서다. 오류 확인 순서는 schedule
- * 지침의 공통 순서를 따른다. 작업 유형을 지정하면 같은 조직에서 선택할 수 있는 유형이어야 한다. 현장 사진은 업로드를 마친 파일의 식별자로 최대 6장까지 받으며
- * 다른 입력과 함께 검증한다. 현장 좌표는 트랜잭션 밖에서 미리 구한 {@link SiteLookup}을 그 주소 그대로 등록할 때만 담는다. 등록과 함께 배정해 저장했으면
- * {@link com.orbit.schedule.WorkAssigned}를 발행하고, 저장한 모든 등록(대기함에 둔 등록 포함)은 이어서 {@link com.orbit.schedule.WorkChanged}를
- * 발행한다.
+ * 작업 등록의 트랜잭션 부분({@link CreateWorkService}가 사진 확인과 현장 좌표 조회를 마친 뒤 부른다). 규칙은 {@link CreateWorkService}가 설명한다.
+ * 현장 사진의 확인 결과는 다른 입력과 함께 검증하고, 미리 구한 좌표({@link SiteLookup})는 그 주소 그대로 등록할 때만 담는다. 작업을 저장한 같은
+ * 트랜잭션에서 사진을 작업에 연결한 뒤 이벤트를 발행한다. 겹침을 확인하지 않아 작업을 만들지 않으면 사진도 연결하지 않고 발행하지도 않는다.
  */
-@Service
-class WorkRegistration {
+@Component
+public class CreateWorkTransaction {
 
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
     private final WorkTypePort workTypePort;
     private final TechnicianContractPort technicianContractPort;
     private final LockTechnicianSchedulePort lockTechnicianSchedulePort;
+    private final MediaFiles mediaFiles;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    WorkRegistration(
+    public CreateWorkTransaction(
             LoadActorPort loadActorPort,
             WorkRepository workRepository,
             WorkTypePort workTypePort,
             TechnicianContractPort technicianContractPort,
             LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            MediaFiles mediaFiles,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.loadActorPort = loadActorPort;
@@ -62,13 +61,17 @@ class WorkRegistration {
         this.workTypePort = workTypePort;
         this.technicianContractPort = technicianContractPort;
         this.lockTechnicianSchedulePort = lockTechnicianSchedulePort;
+        this.mediaFiles = mediaFiles;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
-    /** {@link CreateWorkService}가 현장 좌표를 미리 구한 뒤 부른다. */
+    /**
+     * @param sitePhotos 트랜잭션 밖에서 확인한 현장 사진
+     * @param site 트랜잭션 밖에서 미리 구한 현장 좌표. 그 주소 그대로 등록할 때만 담는다
+     */
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public CreatedWorkInfo register(CreateWorkCommand command, SiteLookup site) {
+    public CreatedWorkInfo create(CreateWorkCommand command, StagedFiles sitePhotos, SiteLookup site) {
         ManagerActor actor =
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         // 일정을 함께 주면 등록과 배정을 같은 시각으로 남긴다.
@@ -99,6 +102,7 @@ class WorkRegistration {
             registered.replaceSitePhotos(command.sitePhotoIds());
             return registered;
         });
+        WorkPhotos.requireAccepted(sitePhotos);
 
         site.applyTo(work);
         OrganizationReferences.requireSelectableWorkType(workTypePort, work);
@@ -110,6 +114,7 @@ class WorkRegistration {
 
         if (schedule == null) {
             Work saved = workRepository.save(work);
+            WorkPhotos.attach(mediaFiles, sitePhotos, saved.id().orElseThrow());
             eventPublisher.publishEvent(WorkEvents.changed(saved, now));
             return new CreatedWorkInfo(idOf(saved), ScheduleChangeInfo.applied(List.of()));
         }
@@ -122,10 +127,12 @@ class WorkRegistration {
                 () -> OrganizationReferences.requireActiveTechnician(technicianContractPort, work, schedule));
         // 식별자는 저장한 뒤에 생기므로 저장소가 돌려준 작업으로 만든다.
         outcome.saved().ifPresent(saved -> {
+            WorkPhotos.attach(mediaFiles, sitePhotos, saved.id().orElseThrow());
             eventPublisher.publishEvent(WorkEvents.assigned(saved, now));
             eventPublisher.publishEvent(WorkEvents.changed(saved, now));
         });
-        return new CreatedWorkInfo(outcome.saved().map(WorkRegistration::idOf).orElse(null), outcome.info());
+        return new CreatedWorkInfo(
+                outcome.saved().map(CreateWorkTransaction::idOf).orElse(null), outcome.info());
     }
 
     /** 일정 항목을 일부만 주었으면 미리 입력한 일정, 모두 비웠으면 null. 모두 준 경우는 호출하지 않는다. */

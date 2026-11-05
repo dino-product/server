@@ -7,7 +7,14 @@ import java.util.Optional;
 /** Work에 완전히 속하며 제출 후 수정되지 않는 완료보고. 사용부품·수행메모의 빈 문자열·공백은 미입력(null)으로 정규화한다. */
 public final class CompletionReport {
 
-    private static final int MAX_PHOTO_COUNT = 6;
+    /** 작업 전·후 사진 각각의 최대 장수. */
+    public static final int MAX_PHOTO_COUNT = 6;
+
+    /** 사진 한 장의 최대 크기(40MB, [현장 수행] §6 FLD-004). 업로드 주소를 발급할 때 확인한다. */
+    public static final long MAX_PHOTO_BYTES = 40L * 1024 * 1024;
+
+    /** 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한). */
+    public static final int MAX_PHOTO_ID_LENGTH = 500;
     /** 사용 부품 최대 길이. */
     public static final int MAX_USED_PARTS_LENGTH = 255;
 
@@ -118,8 +125,10 @@ public final class CompletionReport {
         if (photos.size() > MAX_PHOTO_COUNT) {
             throw new IllegalArgumentException(fieldName + " must have at most " + MAX_PHOTO_COUNT + " photos");
         }
-        if (photos.stream().anyMatch(Objects::isNull)) {
-            throw new IllegalArgumentException(fieldName + " must not contain null");
+        if (photos.stream()
+                .anyMatch(photo -> photo == null || photo.isBlank() || photo.length() > MAX_PHOTO_ID_LENGTH)) {
+            throw new IllegalArgumentException(
+                    fieldName + " must be non-blank ids of at most " + MAX_PHOTO_ID_LENGTH + " characters");
         }
         return List.copyOf(photos);
     }
