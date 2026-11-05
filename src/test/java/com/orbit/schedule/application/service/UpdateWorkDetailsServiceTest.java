@@ -45,12 +45,7 @@ class UpdateWorkDetailsServiceTest {
             new SiteCoordinates(new BigDecimal("35.179554"), new BigDecimal("129.075642"));
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final UpdateWorkDetailsService service = new UpdateWorkDetailsService(
-            fixture.actorPort,
-            fixture.workRepository,
-            fixture.siteCoordinates,
-            new WorkDetailsChange(
-                    fixture.actorPort, fixture.workRepository, fixture.workTypes, fixture.events, fixture.clock));
+    private final UpdateWorkDetailsService service = fixture.updateWorkDetailsService();
 
     UpdateWorkDetailsServiceTest() {
         fixture.workTypes.givenSelectable(ORGANIZATION_ID, new WorkTypeId(9L));

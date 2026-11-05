@@ -73,8 +73,7 @@ class TechnicianWorkCommandRulesTest {
                                 request.organizationId(),
                                 request.workId(),
                                 request.assignmentNumber()))),
-                new UseCase("완료보고", false, (f, request) -> new SubmitCompletionReportService(
-                                f.actorPort, f.workRepository, f.events, f.clock)
+                new UseCase("완료보고", false, (f, request) -> f.submitCompletionReportService()
                         .submit(new SubmitCompletionReportCommand(
                                 request.accountId(),
                                 request.organizationId(),

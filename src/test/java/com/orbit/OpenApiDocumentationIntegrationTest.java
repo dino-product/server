@@ -693,6 +693,53 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsPhotoUploadsAndPhotoErrors() throws Exception {
+        String site = "$.paths['/api/v1/organizations/{organizationId}/site-photo-uploads'].post";
+        String completion =
+                "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-photo-uploads'].post";
+        String create = "$.paths['/api/v1/organizations/{organizationId}/works'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(site + ".summary").value("현장 사진 업로드 주소 발급"))
+                .andExpect(
+                        jsonPath(site + ".security[0]['Bearer Authentication']").exists())
+                .andExpect(jsonPath(
+                                site + ".responses['200'].content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.schedule.adapter.in.web.photo.PhotoUploadResponse"))
+                .andExpect(jsonPath(site + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-020'].value.code")
+                        .value("SCHEDULE-020"))
+                .andExpect(jsonPath(completion + ".summary").value("완료보고 사진 업로드 주소 발급"))
+                .andExpect(jsonPath(completion + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-021'].value.code")
+                        .value("SCHEDULE-021"))
+                .andExpect(jsonPath(completion + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-002'].value.code")
+                        .value("SCHEDULE-002"))
+                .andExpect(jsonPath(create + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-022'].value.code")
+                        .value("SCHEDULE-022"))
+                .andExpect(jsonPath(create + ".responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath(site + ".responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath(completion + ".description")
+                        .value(org.hamcrest.Matchers.containsString("완료보고 제출 웹 엔드포인트는 아직 없")))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations/{organizationId}/works/{workId}'].get"
+                                + ".responses['503'].content['application/json'].examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.photo.PhotoUploadResponse']"
+                                + ".properties.requiredHeaders.description")
+                        .value(org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("본문 길이와 같아야"),
+                                org.hamcrest.Matchers.containsString("HTTP 클라이언트가 붙인다"),
+                                org.hamcrest.Matchers.containsString("브라우저는 직접 붙일 수 없"))));
+    }
+
+    @Test
     void documentsAppleLoginOperationsWithoutAuthentication() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())

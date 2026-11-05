@@ -33,6 +33,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.orbit.media.MediaFiles;
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.TechnicianMember;
@@ -88,6 +89,10 @@ class TechnicianWorkReleaseIntegrationTest implements SharedContainers {
     // 조립에 필요한 organization 계약. 반환은 요청자와 기사 계약을 확인하지 않고, 기사 요청과의 경합 테스트만 요청자를 기사로 둔다.
     @MockitoBean
     private OrganizationMemberLookup memberLookup;
+
+    // media 공개 계약. 조립 테스트는 schedule만 띄우므로 대체한다. 사진을 보내지 않아 확인은 부르지 않고 빈 목록 연결은 아무것도 하지 않는다.
+    @MockitoBean
+    private MediaFiles mediaFiles;
 
     @MockitoBean
     private TechnicianContractLookup technicianContractLookup;
