@@ -271,6 +271,28 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
+    @DisplayName("기사 본인의 거절 조건은 거절 수 0과 같이 아무것도 담지 않는다(거절 뒤 다시 배정받아 완료한 작업도)")
+    void technicianRejectedFilterIsEmpty() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work rejectedThenCompleted = fixture.stored(
+                fixture.givenWork(ORGANIZATION_ID, "거절 뒤 완료", WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, at(1)));
+        rejectedThenCompleted.reject(new Rejection(RejectionReason.SCHEDULE_CONFLICT, null), ACCEPTED_AT);
+        rejectedThenCompleted.assign(new WorkSchedule(TECHNICIAN_ID, at(2), TWO_HOURS), NOW, SETUP_MANAGER_ID);
+        rejectedThenCompleted.accept(NOW);
+        rejectedThenCompleted.start(NOW);
+        rejectedThenCompleted.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW);
+        WorkId id = fixture.workRepository.store(rejectedThenCompleted);
+
+        WorkHistoryInfo rejected = service.get(query(null, FROM, TO, Set.of(), Set.of(WorkHistoryStatus.REJECTED)));
+
+        assertThat(rejected.works()).isEmpty();
+        assertThat(rejected.statistics().rejected()).isZero();
+        assertThat(service.get(query(null, FROM, TO)).works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(id.value());
+    }
+
+    @Test
     @DisplayName("기사 본인에게는 구간 밖으로 일정이 옮겨져 완료된 작업을 옮겨진 일정의 구간에서만 담는다")
     void technicianSeesCompletedWorkInPeriodOfFinalSchedule() {
         fixture.givenTechnician(TECHNICIAN_ID);
@@ -345,7 +367,7 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
-    @DisplayName("구간 경계에 걸친 일정은 두 구간 목록에 모두 나오지만 완료·거절 수와 거절 조건은 시작이 속한 구간에서만 센다")
+    @DisplayName("구간 경계에 걸친 일정은 두 구간 목록에 모두 나오지만 완료·거절 수와 완료·거절 조건은 시작이 속한 구간에서만 센다")
     void countsBoundaryWorkOnlyInStartPeriod() {
         fixture.givenManager();
         Instant crossingStart = TO.minus(Duration.ofHours(1));
@@ -371,6 +393,18 @@ class GetWorkHistoryServiceTest {
                         .works())
                 .extracting(WorkHistoryInfo.AssignedWork::workId)
                 .containsExactly(rejectedId.value());
+        assertThat(service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(), Set.of(WorkHistoryStatus.COMPLETED)))
+                        .works())
+                .extracting(WorkHistoryInfo.AssignedWork::workId)
+                .containsExactly(crossing.value());
+        assertThat(service.get(query(
+                                TECHNICIAN_ID.value(),
+                                TO,
+                                TO.plus(Duration.ofDays(1)),
+                                Set.of(),
+                                Set.of(WorkHistoryStatus.COMPLETED)))
+                        .works())
+                .isEmpty();
         assertThat(service.get(query(
                                 TECHNICIAN_ID.value(),
                                 TO,

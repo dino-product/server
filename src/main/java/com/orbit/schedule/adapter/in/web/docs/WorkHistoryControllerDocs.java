@@ -57,8 +57,9 @@ public interface WorkHistoryControllerDocs {
                     Instant to,
             @Parameter(description = "이 작업유형 중 하나인 작업만(반복하거나 쉼표로 이어 보냄)", example = "3") Set<Long> workTypeIds,
             @Parameter(
-                            description = "COMPLETED(그 기사가 담당인 채 완료)·REJECTED(그 기사가 시작시각이 구간 안인 배정을 거절, 통계와 같은 기준) "
-                                    + "중 하나인 작업만. 거절 뒤 다시 배정돼 완료한 작업은 거절에도 들고 행은 최신 상태로 보임",
+                            description = "COMPLETED(그 기사가 담당인 채 완료, 배정 시작이 구간 안)·REJECTED(그 기사가 시작시각이 구간 안인 배정을 거절) "
+                                    + "중 하나인 작업만(통계의 완료·거절 수와 같은 기준, 기사 본인의 REJECTED는 빈 결과). "
+                                    + "거절 뒤 다시 배정돼 완료한 작업은 거절에도 들고 행은 최신 상태로 보임",
                             example = "COMPLETED")
                     Set<WorkHistoryStatus> statuses);
 }

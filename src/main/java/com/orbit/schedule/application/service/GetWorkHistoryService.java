@@ -84,7 +84,7 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                 countCurrentStartedIn(works, WorkStatus.CANCELED, period));
         List<WorkHistoryInfo.AssignedWork> listed = rows.stream()
                 .filter(row -> hasWorkType(row.work(), workTypeIds, displayInfos))
-                .filter(row -> hasStatus(row, statuses, technicianId, period))
+                .filter(row -> hasStatus(row, statuses, technicianId, period, ownHistory))
                 .map(Row::info)
                 .toList();
         return new WorkHistoryInfo(
@@ -126,17 +126,22 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
                         .isPresent();
     }
 
-    /** 완료는 그 기사가 지금 담당인 채 완료, 거절은 그 기사가 시작시각이 구간 안인 배정을 한 번이라도 거절(통계의 거절 수와 같은 기준). */
+    /**
+     * 상태 조건은 통계의 완료·거절 수와 같은 기준이다. 완료는 그 기사가 지금 담당인 채 완료한 작업 중 배정 시작시각이 구간 안인 것, 거절은 그 기사가 시작시각이 구간 안인
+     * 배정을 한 번이라도 거절한 작업이다. 기사 본인 이력의 거절 수는 0이므로 거절 조건도 아무것도 담지 않는다.
+     */
     private static boolean hasStatus(
-            Row row, Set<WorkHistoryStatus> statuses, TechnicianId technicianId, QueryPeriod period) {
+            Row row,
+            Set<WorkHistoryStatus> statuses,
+            TechnicianId technicianId,
+            QueryPeriod period,
+            boolean ownHistory) {
         return statuses.isEmpty()
-                || (statuses.contains(WorkHistoryStatus.COMPLETED) && isCompletedByTechnician(row.info()))
+                || (statuses.contains(WorkHistoryStatus.COMPLETED)
+                        && isCurrentStartedIn(row.info(), WorkStatus.COMPLETED, period))
                 || (statuses.contains(WorkHistoryStatus.REJECTED)
-                        && assignmentsInPeriod(row.work(), technicianId, period)
-                                .mapToObj(
-                                        index -> row.work().assignmentHistory().get(index))
-                                .anyMatch(history -> history.result() == AssignmentResult.REJECTED
-                                        && !history.schedule().startTime().isBefore(period.from())));
+                        && !ownHistory
+                        && rejectedIn(row.work(), technicianId, period));
     }
 
     /** 그 기사가 지금 담당인 채 완료한 작업인지. */
@@ -201,19 +206,28 @@ public class GetWorkHistoryService implements GetWorkHistoryUseCase {
     /** 그 기사가 시작시각이 구간 안인 배정을 한 번이라도 거절한 작업 수. */
     private static int countRejectedIn(List<Work> works, TechnicianId technicianId, QueryPeriod period) {
         return (int) works.stream()
-                .filter(work -> assignmentsInPeriod(work, technicianId, period)
-                        .mapToObj(index -> work.assignmentHistory().get(index))
-                        .anyMatch(history -> history.result() == AssignmentResult.REJECTED
-                                && !history.schedule().startTime().isBefore(period.from())))
+                .filter(work -> rejectedIn(work, technicianId, period))
                 .count();
+    }
+
+    /** 그 기사가 시작시각이 구간 안인 배정을 한 번이라도 거절했는지. */
+    private static boolean rejectedIn(Work work, TechnicianId technicianId, QueryPeriod period) {
+        return assignmentsInPeriod(work, technicianId, period)
+                .mapToObj(index -> work.assignmentHistory().get(index))
+                .anyMatch(history -> history.result() == AssignmentResult.REJECTED
+                        && !history.schedule().startTime().isBefore(period.from()));
     }
 
     /** 지금 담당인 채 그 상태가 된 작업 가운데 배정 시작시각이 구간 안인 것. 경계에 걸친 일정을 양쪽 구간에서 세지 않도록 시작이 속한 구간에서만 센다. */
     private static int countCurrentStartedIn(
             List<WorkHistoryInfo.AssignedWork> works, WorkStatus status, QueryPeriod period) {
         return (int) works.stream()
-                .filter(work -> work.current() && work.status() == status)
-                .filter(work -> !work.startTime().isBefore(period.from()))
+                .filter(work -> isCurrentStartedIn(work, status, period))
                 .count();
+    }
+
+    private static boolean isCurrentStartedIn(
+            WorkHistoryInfo.AssignedWork work, WorkStatus status, QueryPeriod period) {
+        return work.current() && work.status() == status && !work.startTime().isBefore(period.from());
     }
 }
