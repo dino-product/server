@@ -142,6 +142,15 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
                 now);
     }
 
+    /** 그 조직에서 계정이 맺은 기사 계약의 식별자. */
+    protected long technicianIdOf(long organizationId, long accountId) {
+        return jdbcTemplate.queryForObject(
+                "select id from technician where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId,
+                accountId);
+    }
+
     protected static long account() {
         return ACCOUNT_IDS.incrementAndGet();
     }
