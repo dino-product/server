@@ -18,12 +18,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.orbit.auth.application.port.in.command.dto.AppleWebLoginStartInfo;
 import com.orbit.auth.application.port.in.command.dto.StartAppleWebLoginCommand;
+import com.orbit.auth.application.port.in.command.dto.WebLoginStartInfo;
 import com.orbit.auth.application.port.out.AppleWebAuthorizationPort;
-import com.orbit.auth.application.port.out.AppleWebLoginState;
-import com.orbit.auth.application.port.out.AppleWebLoginStatePort;
+import com.orbit.auth.application.port.out.WebLoginState;
+import com.orbit.auth.application.port.out.WebLoginStatePort;
 import com.orbit.auth.domain.HashedNonce;
+import com.orbit.auth.domain.OAuthProvider;
 import com.orbit.auth.domain.PkceChallenge;
 import com.orbit.shared.error.BusinessException;
 import com.orbit.shared.error.CommonErrorCode;
@@ -36,7 +37,7 @@ class StartAppleWebLoginServiceTest {
     private static final String CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 
     @Mock
-    private AppleWebLoginStatePort states;
+    private WebLoginStatePort states;
 
     @Mock
     private AppleWebAuthorizationPort authorization;
@@ -49,13 +50,18 @@ class StartAppleWebLoginServiceTest {
                         call -> URI.create("https://appleid.apple.com/auth/authorize?state=" + call.getArgument(0)));
         StartAppleWebLoginService service = new StartAppleWebLoginService(states, authorization);
 
-        AppleWebLoginStartInfo started = service.start(new StartAppleWebLoginCommand(RETURN_URI, CHALLENGE));
+        WebLoginStartInfo started = service.start(new StartAppleWebLoginCommand(RETURN_URI, CHALLENGE));
 
         ArgumentCaptor<String> state = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> bindingHash = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<AppleWebLoginState> saved = ArgumentCaptor.forClass(AppleWebLoginState.class);
+        ArgumentCaptor<WebLoginState> saved = ArgumentCaptor.forClass(WebLoginState.class);
         verify(states)
-                .save(state.capture(), bindingHash.capture(), saved.capture(), eq(StartAppleWebLoginService.STATE_TTL));
+                .save(
+                        eq(OAuthProvider.APPLE),
+                        state.capture(),
+                        bindingHash.capture(),
+                        saved.capture(),
+                        eq(WebLoginStates.TTL));
         ArgumentCaptor<HashedNonce> nonce = ArgumentCaptor.forClass(HashedNonce.class);
         verify(authorization).authorizationUri(eq(state.getValue()), nonce.capture());
         assertThat(state.getValue()).matches("[A-Za-z0-9_-]{43}");
@@ -66,7 +72,7 @@ class StartAppleWebLoginServiceTest {
                 .isEqualTo(HashedNonce.fromRaw(started.browserBinding()).value())
                 .isNotEqualTo(started.browserBinding());
         assertThat(started.authorizationUri()).hasParameter("state", state.getValue());
-        assertThat(started.bindingLifetime()).isEqualTo(StartAppleWebLoginService.STATE_TTL);
+        assertThat(started.bindingLifetime()).isEqualTo(WebLoginStates.TTL);
     }
 
     @Test
@@ -75,8 +81,8 @@ class StartAppleWebLoginServiceTest {
         when(authorization.authorizationUri(anyString(), any())).thenReturn(URI.create("https://appleid.apple.com"));
         StartAppleWebLoginService service = new StartAppleWebLoginService(states, authorization);
 
-        AppleWebLoginStartInfo first = service.start(new StartAppleWebLoginCommand(RETURN_URI, CHALLENGE));
-        AppleWebLoginStartInfo second = service.start(new StartAppleWebLoginCommand(RETURN_URI, CHALLENGE));
+        WebLoginStartInfo first = service.start(new StartAppleWebLoginCommand(RETURN_URI, CHALLENGE));
+        WebLoginStartInfo second = service.start(new StartAppleWebLoginCommand(RETURN_URI, CHALLENGE));
 
         assertThat(first.browserBinding()).isNotEqualTo(second.browserBinding());
     }
@@ -89,6 +95,6 @@ class StartAppleWebLoginServiceTest {
         assertThatThrownBy(() -> service.start(new StartAppleWebLoginCommand(RETURN_URI, "plain")))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> assertThat(exception.getErrorCode())
                         .isEqualTo(CommonErrorCode.BAD_REQUEST));
-        verify(states, never()).save(anyString(), anyString(), any(), any());
+        verify(states, never()).save(any(), anyString(), anyString(), any(), any());
     }
 }

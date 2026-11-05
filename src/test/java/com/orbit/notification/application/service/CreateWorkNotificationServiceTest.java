@@ -72,6 +72,23 @@ class CreateWorkNotificationServiceTest {
     }
 
     @Test
+    @DisplayName("같은 일이 다시 전달되면(이벤트 재전송) 알림도 푸시도 다시 만들지 않고, 다른 시각의 같은 종류 일은 새로 만든다")
+    void doesNotRecreateNotificationForRedeliveredEvent() {
+        service.create(assigned(TECHNICIAN_ID, OCCURRED_AT));
+        service.create(assigned(TECHNICIAN_ID, OCCURRED_AT));
+
+        assertThat(notifications.all()).hasSize(1);
+        assertThat(push.sent()).hasSize(1);
+        assertThat(published).hasSize(1);
+
+        service.create(assigned(TECHNICIAN_ID, OCCURRED_AT.plusSeconds(60)));
+
+        assertThat(notifications.all()).as("다시 배정된 것은 다른 일이다").hasSize(2);
+        assertThat(push.sent()).hasSize(2);
+        assertThat(published).hasSize(2);
+    }
+
+    @Test
     @DisplayName("받을 계정이 없으면(비활성·없는 기사 계약이나 소속, 담당 기사 없는 작업의 취소) 알림도 푸시도 만들지 않고 발행하지 않는다")
     void skipsWhenRecipientAccountIsMissing() {
         service.create(assigned(99L, OCCURRED_AT));

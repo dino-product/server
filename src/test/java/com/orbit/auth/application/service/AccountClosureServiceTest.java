@@ -25,6 +25,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.ProviderUnlinkRepository;
+import com.orbit.auth.application.port.out.RefreshSessionRepository;
 import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountClosed;
 import com.orbit.auth.domain.AccountId;
@@ -49,18 +50,21 @@ class AccountClosureServiceTest {
     private ProviderUnlinkRepository providerUnlinks;
 
     @Mock
+    private RefreshSessionRepository refreshSessions;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private AccountClosureService service;
 
     @BeforeEach
     void setUp() {
-        service =
-                new AccountClosureService(accounts, providerUnlinks, eventPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new AccountClosureService(
+                accounts, providerUnlinks, refreshSessions, eventPublisher, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
-    @DisplayName("잠근 계정을 닫고 외부 식별마다 연결 해제할 일을 남긴 뒤 계정을 저장하고 폐쇄 사실을 알린다")
+    @DisplayName("잠근 계정을 닫고 외부 식별마다 연결 해제할 일을 남긴 뒤 계정을 저장하고 모든 기기 세션을 지운 뒤 폐쇄 사실을 알린다")
     void closesAccountAndKeepsProviderUnlinks() {
         Account account = Account.reconstitute(ACCOUNT_ID, List.of(KAKAO), REGISTERED_AT);
         when(accounts.findByIdForUpdate(ACCOUNT_ID)).thenReturn(Optional.of(account));
@@ -72,6 +76,7 @@ class AccountClosureServiceTest {
         verify(accounts).update(saved.capture());
         assertThat(saved.getValue().closedAt()).contains(NOW);
         assertThat(saved.getValue().identities()).isEmpty();
+        verify(refreshSessions).deleteAllByAccount(ACCOUNT_ID);
         verify(eventPublisher).publishEvent(new AccountClosed(ACCOUNT_ID, NOW));
     }
 
@@ -86,6 +91,7 @@ class AccountClosureServiceTest {
 
         verify(providerUnlinks, never()).saveAll(any());
         verify(accounts, never()).update(any());
+        verify(refreshSessions, never()).deleteAllByAccount(any());
         verify(eventPublisher).publishEvent(new AccountClosed(ACCOUNT_ID, closedAt));
     }
 

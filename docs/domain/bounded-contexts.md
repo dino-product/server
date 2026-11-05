@@ -27,7 +27,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 책임 | 카카오·Apple OIDC 로그인, 계정(accountId) 발급·조회·폐쇄, Access Token 발급·검증·로그아웃, 탈퇴한 계정의 외부 연결 해제(카카오 연결 끊기·Apple 토큰 철회)와 그를 위한 Apple refresh token 보관. accountId 발급까지가 책임 범위 |
-| 상태 | 구현 — 카카오 앱·Apple iOS의 id_token 제출 로그인, Apple 웹·Android authorize·callback, Bearer 인증·로그아웃, 계정 폐쇄와 외부 연결 해제. 카카오 웹 흐름·Refresh 회전은 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
+| 상태 | 구현 — 카카오 앱·Apple iOS의 id_token 제출 로그인, 카카오 웹·Apple 웹·Android authorize·callback, Bearer 인증·로그아웃, 계정 폐쇄와 외부 연결 해제. Refresh 회전은 미착수. 작업 지침은 [auth 지침](../../src/main/java/com/orbit/auth/AGENTS.md), 흐름·계약은 [Auth](auth.md) |
 | 기획 원본 | [조직·계정] §1·§5 (카카오 로그인만 지원, ORG-001 — Apple 로그인은 [A-10](#auth-gaps)), §13 (ID/PW·구글 로그인 MVP 제외), §5.1 (탈퇴, ORG-009) |
 | 소유 애그리게잇 | **Account**(Root) — 제공자별 외부 식별(`ExternalIdentity`: 카카오·Apple `sub`)과 등록·폐쇄 시각. 닫히면 외부 식별을 모두 끊고 제공자마다 연결 해제 대기(`ProviderUnlink`)를 남김. 프로필·역할 없음. Apple refresh token은 애그리게잇 밖 저장소에 암호화 보관. `AuthSubject`는 예제로만 남음 |
 | 관계 | 다른 모듈의 웹 어댑터가 루트 계약 `AccountPrincipal`로 인증된 계정 식별자를 받음(현재 profile 프로필·약관·탈퇴 API와 가입 공통 검사, organization 요청자 계정, schedule 작업 API, realtime 연결 요청, 계획: notification 알림센터) — 이 모듈들이 auth에 의존하므로 auth는 이들을 조회·구독하지 않음 · `profile`이 루트 계약 `AccountClosure`를 탈퇴 트랜잭션 안에서 직접 호출해 계정을 닫음(Conformist, auth는 profile의 탈퇴를 구독하지 않음) · `organization`이 이 모듈의 공개 계약을 참조(ID)해 accountId 유효성을 확인 (Conformist, 계약은 organization 구현 시 추가) |
@@ -52,7 +52,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 중 — 발주사 생성(최초 총관리자 소속·회사 코드 발급), 발주사 정보 조회·수정, 회사 코드 조회·변경, 총관리자 지정·해제, 회사 확인·참여 요청 생성·취소·내 신청 현황, 참여 요청 승인 대기 목록·승인·거절(직원 소속·기사 계약 생성, 비활성 소속 재활성화), schedule용 활성 구성원 조회·기사 계약 조회(계정의 계약 목록·활성 확인), 직원·기사 유형 관리, 참여 인원 목록·세부 유형 지정·비활성화·재활성화(기사 비활성화의 대기함 반환 포함), 작업 유형 관리(삭제 영향 건수·삭제), schedule용 작업 유형·구성원 표시 정보 조회. 작업 규칙은 [organization 지침](../../src/main/java/com/orbit/organization/AGENTS.md) |
 | 기획 원본 | [조직·계정] 정책 |
 | 소유 애그리게잇 | **Organization**(Root) — 조직명·업종·회사 코드, 유형(직원/기사/작업유형) 보유<br>**ParticipationRequest**(Root) — 참여 요청. 사용자가 회사 코드·참여 링크·QR로 찾은 회사에 생성(링크·QR도 회사 코드로 회사를 확인하고, 클라이언트가 요청 경로를 함께 보냄), 희망 유형·요청 경로·확정 유형·처리자 보유<br>**Membership**(Root) — 직원 소속. 직원 유형·총관리자 표시·상태, authAccountId를 불투명 참조로만 보유<br>**Technician**(Root) — 기사 계약. 기사 유형·상태, authAccountId를 불투명 참조로만 보유 |
-| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 루트 계약 `TechnicianContractLookup`으로 계정의 모든 기사 계약(비활성 포함)과 기사 계약의 활성 여부를 제공해 schedule이 ACL 어댑터로 배정할 기사 확인과 탈퇴 차단 판정·뒤처리에 씀; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현; 루트 계약 `WorkTypeLookup`·`MemberDirectory`로 작업 유형 선택 가능 확인·표시 정보와 구성원 표시 정보를 제공; 작업 유형 삭제의 영향 건수·시작 전 작업 유형 해제는 요구 인터페이스 `WorkTypeRelease`를 schedule이 구현) · `profile` → 참조 (승인 대기 목록의 신청자 이름과 참여 인원 목록의 이름을 루트 계약 `ProfileLookup`으로 조회, ACL 어댑터가 계정 식별자를 번역 — organization `AccountId`와 이름이 없는 계정의 표시 판단을 profile 모델과 분리하려고) · `notification` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회) · `realtime` → 참조(ID) (`OrganizationMemberLookup`으로 연결 요청자가 직원인지 확인) · `notification` ← 이벤트 발행(`ParticipationRequestApproved`·`ParticipationRequestRejected`·`WorkTypeDeleted`) |
+| 관계 | `auth` ← 참조(ID) (요청자 계정을 루트 계약 `AccountPrincipal`로 받음, accountId 존재 확인은 계약 추가 예정, Conformist) · `schedule` → 참조(ID) 제공 (루트 계약 `OrganizationMemberLookup`으로 계정·조직의 활성 직원 소속(Membership)·기사 계약(Technician) 조회, schedule은 ACL 어댑터로 요청자에 번역; 루트 계약 `TechnicianContractLookup`으로 계정의 모든 기사 계약(비활성 포함)과 기사 계약의 활성 여부를 제공해 schedule이 ACL 어댑터로 배정할 기사 확인과 탈퇴 차단 판정·뒤처리에 씀; 역할 변경·비활성화의 대기함 반환은 organization이 선언한 요구 인터페이스 `TechnicianWorkRelease`를 schedule이 구현; 루트 계약 `WorkTypeLookup`·`MemberDirectory`로 작업 유형 선택 가능 확인·표시 정보와 구성원 표시 정보를 제공; 작업 유형 삭제의 영향 건수·시작 전 작업 유형 해제는 요구 인터페이스 `WorkTypeRelease`를 schedule이 구현) · `profile` → 참조 (승인 대기 목록의 신청자 이름과 참여 인원 목록의 이름을 루트 계약 `ProfileLookup`으로 조회, ACL 어댑터가 계정 식별자를 번역 — organization `AccountId`와 이름이 없는 계정의 표시 판단을 profile 모델과 분리하려고) · `notification` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, `ParticipationRequestLookup`으로 거절 사유 조회) · `realtime` → 참조(ID) (`OrganizationMemberLookup`으로 연결 요청자가 직원인지 확인) · `notification` ← 이벤트 발행(`ParticipationRequestApproved`·`ParticipationRequestRejected`·`WorkTypeDeleted`) |
 
 <a id="organization-product"></a>
 #### 2.1 제품 규칙 참조
@@ -120,7 +120,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 중 — [notification 문서](notification.md#notification) |
 | 기획 원본 | [알림] 정책 — 트리거 §4(단일 원본), 채널 §5, 알림센터·설정 §6·§6.1, 상태 코드 §8, 권한 §9 |
 | 소유 개념 | **Notification**, **NotificationSetting** — 상세는 notification 문서 |
-| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, Conformist) · `realtime` ← 이벤트 발행(알림 저장·읽음) · `organization`의 조직 트리거(참여 요청·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
+| 관계 | `schedule` ← 이벤트 구독(Conformist) · `organization` → 참조(ID) (`OrganizationAccountLookup`으로 받는 계정 조회, `ParticipationRequestLookup`으로 거절 사유 조회, Conformist) · `organization` ← 이벤트 구독(참여 요청 결과 `ParticipationRequestApproved`·`ParticipationRequestRejected`) · `profile` ← 이벤트 구독(`AccountWithdrawn`, 탈퇴한 계정의 앱 푸시 기기 삭제, Conformist) · `realtime` ← 이벤트 발행(알림 저장·읽음) · 나머지 조직 트리거(참여 요청 접수·역할 변경·작업유형 삭제)는 발행 쪽 기능이 생기면 구독 |
 
 <a id="profile"></a>
 ### 5. 프로필 컨텍스트 (`profile`) — Generic Subdomain
@@ -131,7 +131,7 @@ ID 대역·추적 칸의 뜻은 [차이·공백 표기](../planning/README.md#ga
 | 상태 | 구현 — 프로필 입력·수정, 약관 동의·재동의, 마케팅 수신 동의 변경, 탈퇴 가능 여부 확인·탈퇴, 가입 공통 검사, 이름 조회 계약. 프로필 사진은 미착수. 작업 지침은 [profile 지침](../../src/main/java/com/orbit/profile/AGENTS.md), 구현 결정·차이는 [Profile](profile.md#profile) |
 | 기획 원본 | [조직·계정] §5·§5.1·§9·§11 |
 | 소유 애그리게잇 | **Profile**(Root) — auth가 발급한 계정 식별자(값으로만 보관)·이름·연락처·가입 상태·가입일·탈퇴 시각·탈퇴 사유·마케팅 동의, 약관 동의 이력(종류·버전·시각, 추가만). 탈퇴하면 이름·연락처를 지움 |
-| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, 탈퇴 서비스가 `AccountClosure` 호출, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 다른 모듈 ← 이름 조회 계약 `ProfileLookup` 제공(소비자: organization 승인 대기 목록의 신청자 이름·참여 인원 목록의 이름, 계획: schedule 기사 이름, HM-288) · `organization`·`schedule` ← 요구 인터페이스 `WithdrawalBlocker` 구현(탈퇴 차단 판정)과 이벤트 `AccountWithdrawn` 구독(탈퇴 뒤처리) — 연결 예정 HM-319·HM-320 |
+| 관계 | `auth` → 참조 (웹 어댑터가 `AccountPrincipal` 사용, 탈퇴 서비스가 `AccountClosure` 호출, Conformist — auth는 profile을 조회·구독하지 않음) · 다른 모듈 API ← 가입 공통 검사(웹 계층, 모듈 의존 아님) · 다른 모듈 ← 이름 조회 계약 `ProfileLookup` 제공(소비자: organization 승인 대기 목록의 신청자 이름·참여 인원 목록의 이름, 계획: schedule 기사 이름, HM-288) · `organization`·`schedule` ← 요구 인터페이스 `WithdrawalBlocker` 구현(탈퇴 차단 판정)과 이벤트 `AccountWithdrawn` 구독(탈퇴 뒤처리) — 연결 예정 HM-319·HM-320 · `notification` ← 이벤트 `AccountWithdrawn` 구독(앱 푸시 기기 삭제) |
 
 ---
 

@@ -2,6 +2,13 @@ server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
   forward-headers-strategy: framework
+  tomcat:
+    threads:
+      # 동시에 처리하는 요청 수와 스레드 스택 메모리의 상한. 넘는 요청은 접속 대기열에서 기다린다. 실시간 연결(SSE)은 비동기라 스레드를 붙잡지 않는다.
+      max: 60
+    mbeanregistry:
+      # 바쁜 스레드 수 같은 Tomcat 지표(tomcat.threads.*)를 내보낸다.
+      enabled: true
 
 spring:
   application:
@@ -11,8 +18,9 @@ spring:
   task:
     scheduling:
       pool:
-        # 외부 연결 해제 재시도가 제공자 장애로 길어져도 폐쇄 표시 재확정이 밀리지 않도록 주기 작업마다 스레드를 둔다
-        size: 2
+        # 주기 작업(폐쇄 표시 재확정, 외부 연결 해제 재시도, 실패 발행 재전송, 멈춘 발행 검사, 발신 대기열 처리)마다 스레드를 둬
+        # 제공자 장애로 한 작업이 길어져도 다른 작업이 밀리지 않게 한다
+        size: 5
   docker:
     compose:
       enabled: ${SPRING_DOCKER_COMPOSE_ENABLED:false}
@@ -27,8 +35,10 @@ spring:
     hikari:
       maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:10}
       minimum-idle: ${HIKARI_MIN_IDLE:2}
-      connection-timeout: 30000
-      validation-timeout: 5000
+      # 커넥션이 모두 쓰이고 있을 때 기다리는 시간. 넘으면 503과 Retry-After로 빨리 거절해, 요청이 몰릴 때 기다리는 요청이 스레드·메모리를 붙잡고 쌓이지 않게 한다.
+      connection-timeout: 3000
+      # 빌려줄 커넥션이 살아 있는지 확인하는 한도. 커넥션 대기 한도보다 짧아야 대기 한도를 넘겨 막히지 않는다.
+      validation-timeout: 2000
       max-lifetime: 1800000
   jpa:
     open-in-view: false
@@ -110,7 +120,7 @@ logging:
     com.orbit: ${LOGGING_APP_LEVEL:INFO}
     org.hibernate.SQL: WARN
     org.hibernate.orm.jdbc.bind: WARN
-    # 멈춤 검사가 멈춘 발행이 없어도 1분마다 상태별 INFO를 남긴다. 리스너 실패는 비동기 실행기가 ERROR로 남기고, 재전송 중 오류는 실패 발행 지표로 본다.
+    # 멈춤 검사가 멈춘 발행이 없어도 1분마다 상태별 INFO를 남긴다. 리스너 실패는 비동기 실행기가 ERROR로 남기고, 다시 보내지 못한 발행은 event_publication에 FAILED로 남는다.
     org.springframework.modulith.events.core.DefaultEventPublicationRegistry: WARN
 
 app:
@@ -125,6 +135,15 @@ app:
         unlink-uri: https://kapi.kakao.com/v1/user/unlink
         admin-key: ${KAKAO_ADMIN_KEY}
         timeout: PT5S
+      web:
+        authorization-uri: https://kauth.kakao.com/oauth/authorize
+        token-uri: https://kauth.kakao.com/oauth/token
+        rest-api-key: ${KAKAO_REST_API_KEY}
+        client-secret: ${KAKAO_CLIENT_SECRET}
+        redirect-uri: ${KAKAO_WEB_REDIRECT_URI}
+        timeout: PT5S
+        return-uris:
+          web: ${KAKAO_WEB_RETURN_URI}
     apple:
       issuer: https://appleid.apple.com
       jwk-set-uri: https://appleid.apple.com/auth/keys
@@ -146,7 +165,6 @@ app:
         redirect-uri: ${APPLE_WEB_REDIRECT_URI}
         return-uris:
           web: ${APPLE_WEB_RETURN_URI}
-          android: ${APPLE_ANDROID_RETURN_URI}
     closed-account:
       # 커밋 뒤 폐쇄 표시 저장이 실패했을 때를 대비해 최근 폐쇄 계정의 표시를 다시 남기는 주기
       reconfirm-enabled: true
@@ -159,6 +177,9 @@ app:
       secret: ${AUTH_JWT_SECRET}
       issuer: ${AUTH_JWT_ISSUER:orbit}
       access-token-ttl: ${AUTH_ACCESS_TOKEN_TTL:PT1H}
+    refresh-token:
+      # 마지막 발급부터 이 기간 동안 재발급하지 않으면 그 기기 세션이 만료된다. 재발급할 때마다 다시 센다.
+      idle-lifetime: ${AUTH_REFRESH_TOKEN_IDLE_LIFETIME:P30D}
   profile:
     terms:
       # 시행 중인 약관 버전. 필수 약관(service·privacy) 값을 올리면 기존 계정은 재동의 전까지 이용이 막힌다.
@@ -192,9 +213,29 @@ app:
       api-call-attempt-timeout: PT3S
       # 복사(CopyObject)만 쓰는 호출·시도 제한 시간. 서버 쪽 복사 시간이 사진 크기에 비례한다. api-call-timeout 이상.
       copy-timeout: PT60S
+  notification:
+    push-delivery:
+      # 기사 앱 푸시 발신 대기열을 확인하는 주기와 한 번에 집는 건수. 보내는 중인 채로 in-flight-timeout이 지난 발신(인스턴스 중단 등)은 다시 집는다.
+      # 다시 보낼 실패는 횟수 제한 없이 initial-backoff부터 실패마다 두 배, max-backoff까지 기다렸다 다시 보낸다.
+      enabled: true
+      interval: PT5S
+      batch-size: 100
+      in-flight-timeout: PT5M
+      initial-backoff: PT30S
+      max-backoff: PT30M
+    push:
+      fcm:
+        # 기사 앱 푸시 제공자 FCM(HTTP v1). credentials는 Firebase 서비스 계정 키(JSON)를 base64로 인코딩한 값이며 켰을 때만 필요하다.
+        # 운영(prod)은 항상 켜고, 끄면 local·test·dev는 보내지 않고 기록만 하는 발신기를 쓴다(그 밖의 환경은 발신기가 없어 기동하지 않는다).
+        # timeout은 토큰 발급과 발신 호출의 연결·읽기 제한 시간이다.
+        enabled: ${FCM_ENABLED:false}
+        credentials: ${FCM_CREDENTIALS:}
+        api-uri: https://fcm.googleapis.com
+        timeout: ${FCM_TIMEOUT:PT5S}
   events:
     resubmission:
-      # 실패한 이벤트 발행을 다시 보내는 주기와 최초 처리를 포함한 최대 처리 시도 횟수
+      # 실패한 이벤트 발행을 확인하는 주기. 처리될 때까지 횟수 제한 없이 다시 보내며, 실패한 시도마다 다음 재전송까지 기다리는 시간을 두 배로 늘린다.
       enabled: true
       interval: PT1M
-      max-attempts: 10
+      initial-backoff: PT1M
+      max-backoff: PT30M

@@ -162,16 +162,16 @@ class DecideParticipationRequestsServiceTest {
     }
 
     @Test
-    @DisplayName("거절한 요청마다 사유를 담은 거절 이벤트를 발행한다")
-    void publishesRejectedEventWithReason() {
+    @DisplayName("거절한 요청마다 사유를 싣지 않은 거절 이벤트를 발행한다")
+    void publishesRejectedEventWithoutReason() {
         givenPending(31L, 7L, ParticipationType.STAFF);
         givenPending(32L, 8L, ParticipationType.STAFF);
 
         service.reject(new RejectParticipationRequestsCommand(OWNER.value(), 10L, List.of(32L, 31L), " 인원 마감 "));
 
         InOrder order = inOrder(eventPublisher);
-        order.verify(eventPublisher).publishEvent(new ParticipationRequestRejected(31L, 10L, 7L, "인원 마감", NOW));
-        order.verify(eventPublisher).publishEvent(new ParticipationRequestRejected(32L, 10L, 8L, "인원 마감", NOW));
+        order.verify(eventPublisher).publishEvent(new ParticipationRequestRejected(31L, 10L, 7L, NOW));
+        order.verify(eventPublisher).publishEvent(new ParticipationRequestRejected(32L, 10L, 8L, NOW));
     }
 
     @Test

@@ -9,7 +9,6 @@ import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.in.command.LoginWithKakaoUseCase;
 import com.orbit.auth.application.port.in.command.dto.LoginInfo;
 import com.orbit.auth.application.port.in.command.dto.LoginWithKakaoCommand;
-import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.KakaoIdTokenClaims;
 import com.orbit.auth.application.port.out.LoginNoncePort;
@@ -20,7 +19,7 @@ import com.orbit.shared.error.BusinessException;
 
 /**
  * 카카오 id_token으로 로그인한다. 서명·발급자·대상·만료를 검증한 뒤 서버가 발급한 nonce를 한 번만 소비하고, 외부 식별에 연결된 계정을 찾거나 처음이면
- * 등록한 뒤 자체 Access Token을 발급한다. id_token은 로그인 증명일 뿐 보관하지 않는다.
+ * 등록한 뒤 기기 세션을 시작해 자체 Access Token과 refresh token을 발급한다. id_token은 로그인 증명일 뿐 보관하지 않는다.
  */
 @Service
 public class LoginWithKakaoService implements LoginWithKakaoUseCase {
@@ -33,11 +32,11 @@ public class LoginWithKakaoService implements LoginWithKakaoUseCase {
             VerifyKakaoIdTokenPort idTokens,
             LoginNoncePort nonces,
             AccountRepository accounts,
-            AccessTokenPort accessTokens,
+            SessionTokenIssuer tokens,
             Clock clock) {
         this.idTokens = idTokens;
         this.nonces = nonces;
-        this.accountLogin = new AccountLogin(accounts, accessTokens, clock);
+        this.accountLogin = new AccountLogin(accounts, tokens, clock);
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.orbit.notification.domain.PushDevice;
 import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.support.IntegrationTestSupport;
 
@@ -96,8 +97,23 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("AUTH-004"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.security[0]['Bearer Authentication']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.requestBody.required")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.requestBody"
+                                + ".content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.LogoutRequest"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.responses['204']")
-                        .exists());
+                        .exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/refresh'].post.summary").value("토큰 재발급"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.security")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.RefreshedTokensResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.responses['401']"
+                                + ".content['application/json'].examples['AUTH-009'].value.code")
+                        .value("AUTH-009"));
     }
 
     @Test
@@ -1057,5 +1073,42 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + "['com.orbit.notification.adapter.in.web.NotificationSettingRequest']"
                                 + ".required.length()")
                         .value(3));
+    }
+
+    @Test
+    void documentsPushDeviceUnregistration() throws Exception {
+        String unregister = "$.paths['/api/v1/push-devices/{pushDeviceId}'].delete";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(unregister + ".summary").value("앱 푸시 기기 해제"))
+                .andExpect(jsonPath(unregister + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(unregister + ".parameters[0].name").value("pushDeviceId"))
+                .andExpect(jsonPath(unregister + ".requestBody").doesNotExist())
+                .andExpect(jsonPath(unregister + ".responses['204']").exists())
+                .andExpect(jsonPath(unregister + ".responses['404'].content['application/json']"
+                                + ".examples['NOTIFICATION-005'].value.code")
+                        .value("NOTIFICATION-005"));
+    }
+
+    @Test
+    void documentsPushDeviceRegistration() throws Exception {
+        String register = "$.paths['/api/v1/push-devices'].post";
+        String request = "$.components.schemas['com.orbit.notification.adapter.in.web.PushDeviceRequest']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(register + ".summary").value("앱 푸시 기기 등록"))
+                .andExpect(jsonPath(register + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(register + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.notification.adapter.in.web."
+                                + "RegisteredPushDeviceResponse"))
+                .andExpect(jsonPath(register + ".responses['400'].content['application/json']"
+                                + ".examples['COMMON-400'].value.code")
+                        .value("COMMON-400"))
+                .andExpect(jsonPath(request + ".required").value(containsInAnyOrder("platform", "token")))
+                .andExpect(jsonPath(request + ".properties.platform.enum").value(containsInAnyOrder("IOS", "ANDROID")))
+                .andExpect(jsonPath(request + ".properties.token.maxLength").value(PushDevice.MAX_TOKEN_LENGTH));
     }
 }

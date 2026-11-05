@@ -1,15 +1,18 @@
 package com.orbit.notification.application.service.fake;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import com.orbit.notification.application.port.out.NotificationQueryPort;
 import com.orbit.notification.application.port.out.NotificationRepository;
 import com.orbit.notification.domain.Notification;
+import com.orbit.notification.domain.NotificationType;
 
 /** 알림 저장소·조회의 메모리 구현. 저장·조회 모두 사본을 주고받아 저장하지 않은 변경은 남지 않는다. */
 public class InMemoryNotificationRepository implements NotificationRepository, NotificationQueryPort {
@@ -46,6 +49,24 @@ public class InMemoryNotificationRepository implements NotificationRepository, N
     }
 
     @Override
+    public boolean existsReceived(Long accountId, NotificationType type, Long workId, Instant notifiedAt) {
+        return all().stream()
+                .anyMatch(notification -> notification.isReceivedBy(accountId)
+                        && notification.type() == type
+                        && Objects.equals(notification.workId().orElse(null), workId)
+                        && notification.notifiedAt().equals(notifiedAt));
+    }
+
+    @Override
+    public boolean existsReceivedForParticipationRequest(
+            Long accountId, NotificationType type, Long participationRequestId) {
+        return all().stream()
+                .anyMatch(notification -> notification.isReceivedBy(accountId)
+                        && notification.type() == type
+                        && notification.participationRequestId().equals(Optional.of(participationRequestId)));
+    }
+
+    @Override
     public VisibleNotifications listVisible(Long accountId, boolean unreadOnly, int page, int size) {
         List<Notification> matched = all().stream()
                 .filter(notification -> notification.isReceivedBy(accountId))
@@ -79,6 +100,7 @@ public class InMemoryNotificationRepository implements NotificationRepository, N
                 notification.organizationId(),
                 notification.type(),
                 notification.workId().orElse(null),
+                notification.participationRequestId().orElse(null),
                 notification.message(),
                 notification.notifiedAt(),
                 notification.status(),

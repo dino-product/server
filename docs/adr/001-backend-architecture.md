@@ -26,7 +26,7 @@
 
 ## 인증과 계정
 
-- 소셜 로그인은 카카오·Apple OIDC를 함께 지원하고, 제공자·클라이언트별로 증명을 얻는 경로만 다르게 둡니다. 카카오 앱과 Apple iOS는 네이티브 SDK가 돌려준 id_token을 제출하고, Apple 웹·Android는 서버가 authorize·callback으로 code와 id_token을 받습니다(카카오 웹 흐름은 후속 구현). 모든 경로는 공통 골격(JWKS 서명·발급자·허용 클라이언트·만료)의 제공자별 id_token 검증기와 서버 발급 nonce로 합류하며 제공자 토큰을 API 인증에 쓰지 않습니다. iOS 앱이 카카오 같은 타사 로그인을 제공하면 App Store 심사 지침 4.8에 따라 개인정보 보호형 대체 로그인이 필요하므로 Apple을 두 번째 제공자로 붙였고, 제품 결정은 Notion 반영을 기다립니다([A-10](../domain/bounded-contexts.md#auth-gaps)).
+- 소셜 로그인은 카카오·Apple OIDC를 함께 지원하고, 제공자·클라이언트별로 증명을 얻는 경로만 다르게 둡니다. 카카오 앱과 Apple iOS는 네이티브 SDK가 돌려준 id_token을 제출하고, 카카오 웹과 Apple 웹·Android는 서버가 authorize·callback을 맡습니다(카카오는 인가 코드를 서버가 교환해 id_token을 받고, Apple은 code와 id_token을 함께 받음). 웹 흐름은 Access Token 대신 PKCE에 묶인 일회성 교환 코드만 복귀 주소에 싣습니다. 모든 경로는 공통 골격(JWKS 서명·발급자·허용 클라이언트·만료)의 제공자별 id_token 검증기와 서버 발급 nonce로 합류하며 제공자 토큰을 API 인증에 쓰지 않습니다. iOS 앱이 카카오 같은 타사 로그인을 제공하면 App Store 심사 지침 4.8에 따라 개인정보 보호형 대체 로그인이 필요하므로 Apple을 두 번째 제공자로 붙였고, 제품 결정은 Notion 반영을 기다립니다([A-10](../domain/bounded-contexts.md#auth-gaps)).
 - nonce는 서버가 발급하고 한 번만 소비하므로 이미 쓴 id_token은 다시 제출할 수 없습니다. Apple은 앱이 nonce의 SHA-256 hex를 요청에 넣어 id_token에 해시가 실리므로 서버는 raw를 발급하고 해시로 보관·원자 소비합니다. 앱 흐름은 브라우저 세션이 없어 nonce를 발급 주체와 따로 묶지 않으며 그 이유는 [Auth 로그인 흐름](../domain/auth.md#카카오-로그인-흐름)에 둡니다. 웹 흐름은 state/nonce를 시작 브라우저의 연결 쿠키와 묶고, 콜백 뒤 Access Token 대신 60초 일회성 교환 코드만 복귀 주소에 실어 토큰이 URL에 남지 않게 합니다. 교환 코드는 시작 클라이언트의 PKCE(S256) code_verifier가 있어야 쓸 수 있어 Android 앱 스킴 가로채기와 login CSRF를 막습니다(RFC 8252).
 - 계정 원본은 `auth`가 소유합니다. `Account`는 제공자별 외부 식별(`ExternalIdentity`)과 등록 시각만 가지며 `accounts`·`oauth_credentials` 테이블에 저장합니다. 첫 로그인에 계정을 만들고 이후 같은 제공자의 같은 `sub`는 같은 계정입니다. 카카오 계정과 Apple 계정은 별개이며, Apple 비공개 릴레이 이메일·카카오 이메일 미동의 때문에 이메일 매칭 자동 연결은 불안정하고 탈취 경로가 되므로 하지 않습니다. 이름·연락처 같은 가입 프로필은 아래 `profile` 모듈이, 조직 역할은 organization이 소유하며 auth에 두지 않습니다. `user` 예제는 그대로 둡니다.
 - 자체 자격증명은 HS256 Access JWT(`iss`, `sub`=accountId, `jti`, `exp`, `token_use=access`)입니다. 로그아웃은 토큰의 `jti`를 남은 유효 시간 동안 Redis에 기억해 폐기하며, Refresh 회전은 후속 결정입니다.
@@ -66,7 +66,7 @@
 
 역할 변경·비활성화의 대기함 반환은(역할 변경은 작업중 확인까지 묶어) 요구 인터페이스 `TechnicianWorkRelease`의 한 호출로 organization 트랜잭션에서 함께 커밋합니다. 확인만 동기로 하고 반환을 커밋 후 이벤트로 하면 다음 문제가 남기 때문입니다.
 
-- 비활성화와 반환이 따로 커밋되어, 비활성 기사에게 배정된 채 아무도 처리할 수 없는 작업이 생깁니다. 이벤트 발행 기록(Event Publication Registry)이 없어 리스너 실패·재시작 시 이 상태가 그대로 남습니다.
+- 비활성화와 반환이 따로 커밋되어, 비활성 기사에게 배정된 채 아무도 처리할 수 없는 작업이 생깁니다. 리스너가 실패하면 이벤트 발행 기록([ADR-004](004-event-publication-registry.md))이 다시 보내 처리될 때까지 이 상태가 남습니다.
 - 역할 변경의 확인과 커밋 사이에 기사가 작업을 시작하면 작업중 작업을 가진 채 역할이 바뀐 기사가 생깁니다. 확인과 반환이 한 호출 안에 있으면 schedule이 그 안에서 이 경합을 막을 수 있습니다.
 - 역할 변경의 차단 창과 당사자 알림에 쓸 작업 목록(작업중 작업, 풀린 예정 작업)을 바로 받을 수 없습니다. 비활성화는 차단도 결과 표시도 없어 결과를 돌려받지 않습니다.
 
