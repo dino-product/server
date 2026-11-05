@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.interceptor.TransactionAttribute;
 import org.springframework.util.ClassUtils;
@@ -30,8 +30,9 @@ import com.orbit.schedule.application.port.out.WorkTypeUsagePort;
 class ProgressBoardCacheInvalidationCoverageTest {
 
     /**
-     * 각 서비스의 *ServiceTest가 RecordingEventPublisher로 WorkChanged 발행을 확인한다. 등록(WorkRegistration)은 CreateWorkServiceTest가,
-     * 기본정보 수정(WorkDetailsChange)은 UpdateWorkDetailsServiceTest가 확인한다.
+     * 각 서비스의 *ServiceTest가 RecordingEventPublisher로 WorkChanged 발행을 확인한다. 트랜잭션 밖에서 사진을 확인한 뒤 저장하는 등록·기본정보
+     * 수정·완료보고 제출은 *Transaction이 저장·발행하며 CreateWorkServiceTest·UpdateWorkDetailsServiceTest·SubmitCompletionReportServiceTest가
+     * 확인한다.
      */
     private static final Set<String> WRITERS_PUBLISHING_WORK_CHANGED = Set.of(
             "AcceptWorkService",
@@ -46,19 +47,22 @@ class ProgressBoardCacheInvalidationCoverageTest {
             "RequestCompletionReportService",
             "RescheduleWorkService",
             "StartWorkService",
-            "SubmitCompletionReportService",
             "UnassignWorkService",
-            "UpdateWorkDetailsService",
-            "WorkDetailsChange",
-            "WorkRegistration");
+            "CreateWorkTransaction",
+            "SubmitCompletionReportTransaction",
+            "UpdateWorkDetailsTransaction");
+
+    /** 쓰기 포트로 작업을 읽기만 하고 저장하지 않는 쓰기 서비스. 저장은 *Transaction이 하거나(기본정보 수정), 작업이 아닌 기록만 쓴다(사진 발급). */
+    private static final Set<String> READERS_OF_WRITE_PORTS =
+            Set.of("IssueCompletionPhotoUploadService", "UpdateWorkDetailsService");
 
     private static final Set<Class<?>> WRITE_PORTS = Set.of(WorkRepository.class, WorkTypeUsagePort.class);
 
     @Test
-    @DisplayName("작업을 저장하는 서비스는 모두 WorkChanged를 발행한다고 확인된 목록에 있다")
+    @DisplayName("작업을 저장하는 서비스·트랜잭션 빈은 모두 WorkChanged를 발행한다고 확인된 목록에 있다")
     void everyWorkWriterIsKnownToPublishWorkChanged() {
         ClassPathScanningCandidateComponentProvider scanner = new ClassPathScanningCandidateComponentProvider(false);
-        scanner.addIncludeFilter(new AnnotationTypeFilter(Service.class));
+        scanner.addIncludeFilter(new AnnotationTypeFilter(Component.class));
         Set<String> writers = new TreeSet<>();
         for (BeanDefinition candidate :
                 scanner.findCandidateComponents(getClass().getPackageName())) {
@@ -67,7 +71,7 @@ class ProgressBoardCacheInvalidationCoverageTest {
             boolean usesWritePort = Arrays.stream(service.getDeclaredConstructors())
                     .flatMap(constructor -> Arrays.stream(constructor.getParameterTypes()))
                     .anyMatch(WRITE_PORTS::contains);
-            if (usesWritePort && !readOnly(service)) {
+            if (usesWritePort && !readOnly(service) && !READERS_OF_WRITE_PORTS.contains(service.getSimpleName())) {
                 writers.add(service.getSimpleName());
             }
         }
