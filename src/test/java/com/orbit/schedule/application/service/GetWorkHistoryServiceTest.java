@@ -249,7 +249,7 @@ class GetWorkHistoryServiceTest {
     }
 
     @Test
-    @DisplayName("거절 조건은 구간 안 배정을 한 번이라도 거절한 작업을 담아, 거절 뒤 다시 배정받아 완료한 작업도 통계의 거절 수와 같이 담는다")
+    @DisplayName("거절 조건은 구간 안 배정을 한 번이라도 거절한 작업을 담아, 거절 뒤 다시 배정받아 완료한 작업도 통계의 거절 수와 같이 최신 상태로 담는다")
     void rejectedFilterMatchesRejectedStatistic() {
         fixture.givenManager();
         Work rejectedThenCompleted = fixture.stored(
@@ -265,8 +265,8 @@ class GetWorkHistoryServiceTest {
                 service.get(query(TECHNICIAN_ID.value(), FROM, TO, Set.of(), Set.of(WorkHistoryStatus.REJECTED)));
 
         assertThat(rejected.works())
-                .extracting(WorkHistoryInfo.AssignedWork::workId)
-                .containsExactly(id.value());
+                .extracting(WorkHistoryInfo.AssignedWork::workId, WorkHistoryInfo.AssignedWork::status)
+                .containsExactly(tuple(id.value(), WorkStatus.COMPLETED));
         assertThat(rejected.statistics().rejected()).isEqualTo(rejected.works().size());
     }
 
