@@ -579,6 +579,52 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsTechnicianAcceptanceWithAssignmentErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/acceptance'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("배정 수락"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-009'].value.code")
+                        .value("SCHEDULE-009"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-010'].value.code")
+                        .value("SCHEDULE-010"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.field.AssignmentNumberRequest']"
+                                + ".properties.assignmentNumber")
+                        .exists());
+    }
+
+    @Test
+    void documentsTechnicianRejectionWithReasonList() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/rejection'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("배정 거절"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-009'].value.code")
+                        .value("SCHEDULE-009"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-010'].value.code")
+                        .value("SCHEDULE-010"))
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.field.RejectWorkRequest']"
+                                + ".properties.reason.enum")
+                        .value(containsInAnyOrder(
+                                "SCHEDULE_CONFLICT",
+                                "ALREADY_ASSIGNED",
+                                "LOCATION_TOO_FAR",
+                                "SCOPE_MISMATCH",
+                                "OTHER")));
+    }
+
+    @Test
     void documentsCompletionReportRequestWithIntervalLimit() throws Exception {
         String operation =
                 "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-report-requests'].post";
