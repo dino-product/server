@@ -680,6 +680,36 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsCompletionReportSubmitAndRead() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-report']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".post.summary").value("완료보고 제출"))
+                .andExpect(jsonPath(operation + ".post.responses['204']").exists())
+                .andExpect(jsonPath(operation + ".post.responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-022'].value.code")
+                        .value("SCHEDULE-022"))
+                .andExpect(jsonPath(operation + ".post.responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath(operation + ".get.summary").value("완료보고 조회"))
+                .andExpect(jsonPath(operation + ".get.responses['404'].content['application/json']"
+                                + ".examples['SCHEDULE-012'].value.code")
+                        .value("SCHEDULE-012"))
+                .andExpect(jsonPath(operation + ".get.responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.field.SubmitCompletionReportRequest']"
+                                + ".properties.beforePhotoIds.maxItems")
+                        .value(6))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.field.SubmitCompletionReportRequest']"
+                                + ".properties.afterPhotoIds.maxItems")
+                        .value(6));
+    }
+
+    @Test
     void documentsCompletionReportRequestWithIntervalLimit() throws Exception {
         String operation =
                 "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-report-requests'].post";
@@ -743,7 +773,8 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + ".examples['SCHEDULE-023'].value.code")
                         .value("SCHEDULE-023"))
                 .andExpect(jsonPath(completion + ".description")
-                        .value(org.hamcrest.Matchers.containsString("완료보고 제출 웹 엔드포인트는 아직 없")))
+                        .value(org.hamcrest.Matchers.containsString(
+                                "완료보고 제출(works/{workId}/completion-report)의 beforePhotoIds·afterPhotoIds")))
                 .andExpect(jsonPath("$.paths['/api/v1/organizations/{organizationId}/works/{workId}'].get"
                                 + ".responses['503'].content['application/json'].examples['SCHEDULE-023'].value.code")
                         .value("SCHEDULE-023"))

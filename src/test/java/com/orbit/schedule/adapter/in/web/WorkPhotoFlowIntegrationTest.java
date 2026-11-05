@@ -21,15 +21,12 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.orbit.schedule.application.port.in.command.SubmitCompletionReportUseCase;
-import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.support.LocalStackTestSupport;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -52,9 +49,6 @@ class WorkPhotoFlowIntegrationTest extends ScheduleApiTestSupport {
     private static final byte[] PDF = {'%', 'P', 'D', 'F', '-', '1', '.', '7', '\n', '%', 0, 0, 0, 0, 0, 0, 0, 0};
 
     private final HttpClient http = HttpClient.newHttpClient();
-
-    @Autowired
-    private SubmitCompletionReportUseCase submitCompletionReportUseCase;
 
     @DynamicPropertySource
     static void storage(DynamicPropertyRegistry registry) {
@@ -153,17 +147,31 @@ class WorkPhotoFlowIntegrationTest extends ScheduleApiTestSupport {
         String before = uploadCompletionPhoto(technician, organization.id(), workId, JPEG);
         String after = uploadCompletionPhoto(technician, organization.id(), workId, JPEG);
 
-        submitCompletionReportUseCase.submit(new SubmitCompletionReportCommand(
-                technician, organization.id(), workId, 1, List.of(before), List.of(after), null, null, null, null));
+        Map<String, Object> report =
+                Map.of("assignmentNumber", 1, "beforePhotoIds", List.of(before), "afterPhotoIds", List.of(after));
+        submitReport(technician, organization.id(), workId, report).andExpect(status().isNoContent());
+        submitReport(technician, organization.id(), workId, report).andExpect(status().isNoContent());
 
         assertThat(fileRow(before))
                 .containsEntry("status", "ATTACHED")
                 .containsEntry("purpose", "WORK_COMPLETION_PHOTO")
                 .containsEntry("owner_ref", "work:" + workId);
-        JsonNode report =
+        JsonNode stored =
                 detail(organization.owner(), organization.id(), workId).path("completionReport");
-        assertThat(download(report.path("afterPhotos").get(0).path("url").asString()))
+        assertThat(stored.path("beforePhotos").get(0).path("photoId").asString())
+                .isEqualTo(before);
+        assertThat(stored.path("afterPhotos").get(0).path("photoId").asString()).isEqualTo(after);
+        assertThat(download(stored.path("afterPhotos").get(0).path("url").asString()))
                 .isEqualTo(JPEG);
+    }
+
+    private ResultActions submitReport(long account, long organizationId, long workId, Map<String, Object> body)
+            throws Exception {
+        return mockMvc.perform(
+                post("/api/v1/organizations/{organizationId}/works/{workId}/completion-report", organizationId, workId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(account))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)));
     }
 
     private String uploadSitePhoto(long account, long organizationId, byte[] bytes) throws Exception {
