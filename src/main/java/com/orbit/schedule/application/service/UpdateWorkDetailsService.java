@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.orbit.schedule.application.port.in.command.UpdateWorkDetailsUseCase;
 import com.orbit.schedule.application.port.in.command.dto.UpdateWorkDetailsCommand;
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.SiteCoordinatesPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.application.port.out.WorkTypePort;
 import com.orbit.schedule.domain.CustomerInfo;
@@ -22,7 +23,8 @@ import com.orbit.schedule.domain.WorkTypeId;
 
 /**
  * 작업 기본정보 수정. 작업명·작업 유형·고객정보·결제정보·현장 사진을 한꺼번에 교체하고 상태·배정은 그대로 둔다. 오류 확인 순서는 schedule 지침의 공통 순서를
- * 따른다. 작업 유형을 바꾸면 같은 조직에서 선택할 수 있는 유형이어야 하고, 작업중에는 바꿀 수 없다.
+ * 따른다. 작업 유형을 바꾸면 같은 조직에서 선택할 수 있는 유형이어야 하고, 작업중에는 바꿀 수 없다. 현장 기본주소가 그대로면 이전 좌표를 쓰고, 새
+ * 기본주소이거나 좌표를 아직 구하지 못했으면 좌표를 구해 함께 저장한다(구하지 못하면 좌표 없이 저장).
  */
 @Service
 public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
@@ -30,6 +32,7 @@ public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
     private final WorkTypePort workTypePort;
+    private final SiteCoordinatesPort siteCoordinatesPort;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
@@ -37,11 +40,13 @@ public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
             LoadActorPort loadActorPort,
             WorkRepository workRepository,
             WorkTypePort workTypePort,
+            SiteCoordinatesPort siteCoordinatesPort,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
         this.workTypePort = workTypePort;
+        this.siteCoordinatesPort = siteCoordinatesPort;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
@@ -67,6 +72,7 @@ public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
                                 command.customerAddressDetail())),
                 new PaymentInfo(command.fee() == null ? null : new Money(command.fee()), command.paymentMethod()),
                 command.sitePhotoIds()));
+        SiteLocations.locate(siteCoordinatesPort, work);
         // 지금 유형을 그대로 보낸 수정은 다시 확인하지 않는다. 작업중 작업이 그 사이 삭제된 유형을 가져도 다른 항목을 고칠 수 있다.
         if (!work.workType().equals(workTypeBefore)) {
             OrganizationReferences.requireSelectableWorkType(workTypePort, work);

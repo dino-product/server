@@ -15,6 +15,7 @@ import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
 import com.orbit.schedule.application.port.in.command.dto.ScheduleChangeInfo;
 import com.orbit.schedule.application.port.out.LoadActorPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
+import com.orbit.schedule.application.port.out.SiteCoordinatesPort;
 import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.application.port.out.WorkTypePort;
@@ -35,8 +36,9 @@ import com.orbit.schedule.domain.WorkTypeId;
  * 있으면 같은 조직의 활성 기사 계약이어야 한다. 그 담당기사를 잠근 뒤 확인해, 같은 기사를 잠그고 미리 입력한 담당기사를 비우는 대기함 반환과 한 줄로
  * 선다([스케줄·배정] §9). 함께 배정하려던 일정이 겹치는데 확인하지 않았으면 작업을 만들지 않는다. 확인 뒤 다시 보낸 요청이 작업을 한 번만 만들게 하기 위해서다. 오류 확인 순서는 schedule
  * 지침의 공통 순서를 따른다. 작업 유형을 지정하면 같은 조직에서 선택할 수 있는 유형이어야 한다. 현장 사진은 업로드를 마친 파일의 식별자로 최대 6장까지 받으며
- * 다른 입력과 함께 검증한다. 등록과 함께 배정해 저장했으면 {@link com.orbit.schedule.WorkAssigned}를 발행하고, 저장한 모든 등록(대기함에 둔 등록 포함)은 이어서
- * {@link com.orbit.schedule.WorkChanged}를 발행한다.
+ * 다른 입력과 함께 검증한다. 현장 기본주소가 있으면 좌표를 구해 함께 저장하고, 구하지 못하면 좌표 없이 등록한다. 등록과 함께 배정해 저장했으면
+ * {@link com.orbit.schedule.WorkAssigned}를 발행하고, 저장한 모든 등록(대기함에 둔 등록 포함)은 이어서 {@link com.orbit.schedule.WorkChanged}를
+ * 발행한다.
  */
 @Service
 public class CreateWorkService implements CreateWorkUseCase {
@@ -46,6 +48,7 @@ public class CreateWorkService implements CreateWorkUseCase {
     private final WorkTypePort workTypePort;
     private final TechnicianContractPort technicianContractPort;
     private final LockTechnicianSchedulePort lockTechnicianSchedulePort;
+    private final SiteCoordinatesPort siteCoordinatesPort;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
@@ -55,6 +58,7 @@ public class CreateWorkService implements CreateWorkUseCase {
             WorkTypePort workTypePort,
             TechnicianContractPort technicianContractPort,
             LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            SiteCoordinatesPort siteCoordinatesPort,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.loadActorPort = loadActorPort;
@@ -62,6 +66,7 @@ public class CreateWorkService implements CreateWorkUseCase {
         this.workTypePort = workTypePort;
         this.technicianContractPort = technicianContractPort;
         this.lockTechnicianSchedulePort = lockTechnicianSchedulePort;
+        this.siteCoordinatesPort = siteCoordinatesPort;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
@@ -100,6 +105,7 @@ public class CreateWorkService implements CreateWorkUseCase {
             return registered;
         });
 
+        SiteLocations.locate(siteCoordinatesPort, work);
         OrganizationReferences.requireSelectableWorkType(workTypePort, work);
         work.plannedSchedule()
                 .map(PlannedSchedule::technicianId)

@@ -21,6 +21,8 @@ logging:
   level:
     root: WARN
     org.testcontainers: INFO
+    # 닫힌 로컬 주소로 보낸 좌표 조회의 실패 경고는 테스트마다 반복되므로 감춘다.
+    com.orbit.schedule.adapter.out.kakao: ERROR
 
 app:
   auth:
@@ -63,6 +65,12 @@ app:
       secret: test-only-secret-key-with-at-least-32-bytes
       issuer: orbit-test
       access-token-ttl: PT1H
+  schedule:
+    geocoding:
+      kakao:
+        # 테스트가 실제 카카오를 부르지 않도록 닫힌 로컬 주소를 둔다(연결이 바로 거절돼 좌표 없이 저장). 좌표를 검사하는 테스트는 포트를 바꾼다.
+        address-search-uri: http://127.0.0.1:1/v2/local/search/address.json
+        rest-api-key: test-kakao-rest-api-key
   notification:
     push-delivery:
       # 주기 작업은 끈다. 발신 대기열을 검사하는 테스트는 처리를 직접 부른다.

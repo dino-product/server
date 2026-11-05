@@ -8,12 +8,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +39,7 @@ import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
@@ -76,6 +79,24 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
             assertThat(saved.registrarId()).isEqualTo(new MembershipId(organization.ownerMembership()));
             assertThat(saved.customerInfo())
                     .isEqualTo(new CustomerInfo(null, null, new SiteAddress("04043", "서울시 마포구 양화로 45", "3층")));
+        }
+
+        @Test
+        @DisplayName("현장 기본주소의 좌표를 구해 함께 저장한다")
+        void storesSiteCoordinates() throws Exception {
+            Organization organization = organization();
+            SiteCoordinates coordinates =
+                    new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803"));
+            given(siteCoordinatesPort.find("서울시 마포구 양화로 45")).willReturn(Optional.of(coordinates));
+
+            long workId = createdId(create(
+                            organization.owner(),
+                            organization.id(),
+                            Map.of("name", "에어컨 수리", "customer", Map.of("address", "서울시 마포구 양화로 45")))
+                    .andExpect(status().isOk()));
+
+            assertThat(stored(organization, workId).customerInfo().address().flatMap(SiteAddress::coordinates))
+                    .contains(coordinates);
         }
 
         @Test

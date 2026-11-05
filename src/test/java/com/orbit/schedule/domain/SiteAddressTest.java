@@ -3,6 +3,8 @@ package com.orbit.schedule.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -10,6 +12,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("현장 주소")
 class SiteAddressTest {
+
+    private static final SiteCoordinates SEOUL =
+            new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803"));
 
     @Test
     @DisplayName("우편번호·기본주소·상세주소를 모두 담고 같은 값이면 동등하다")
@@ -84,5 +89,51 @@ class SiteAddressTest {
         assertThatThrownBy(() -> new SiteAddress(null, " ", "3층 302호"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("detail address requires base address");
+    }
+
+    @Test
+    @DisplayName("좌표는 기본주소가 있을 때만 담고, 같은 주소라도 좌표가 다르면 다른 값이다")
+    void holdsCoordinatesOnlyWithBaseAddress() {
+        SiteAddress located = new SiteAddress("04043", "서울시 마포구 양화로 45", null, SEOUL);
+
+        assertThat(located.coordinates()).contains(SEOUL);
+        assertThat(located).isNotEqualTo(new SiteAddress("04043", "서울시 마포구 양화로 45", null));
+        assertThat(located).isEqualTo(new SiteAddress("04043", "서울시 마포구 양화로 45", null).withCoordinates(SEOUL));
+        assertThatThrownBy(() -> new SiteAddress("04043", " ", null, SEOUL))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("coordinates require base address");
+    }
+
+    @Test
+    @DisplayName("기본주소가 있는데 좌표가 없을 때만 좌표를 구해야 한다")
+    void needsCoordinatesOnlyForUnlocatedBaseAddress() {
+        assertThat(new SiteAddress(null, "서울시", null).needsCoordinates()).isTrue();
+        assertThat(new SiteAddress(null, "서울시", null, SEOUL).needsCoordinates()).isFalse();
+        assertThat(new SiteAddress("04043", null, null).needsCoordinates()).isFalse();
+    }
+
+    @Test
+    @DisplayName("기본주소가 같으면 이전 좌표를 이어받고, 기본주소가 바뀌거나 이전 좌표가 없으면 이어받지 않는다")
+    void keepsCoordinatesOnlyForSameBaseAddress() {
+        SiteAddress previous = new SiteAddress("04043", "서울시", "3층", SEOUL);
+
+        assertThat(new SiteAddress("04044", "서울시", "4층").keepingCoordinatesOf(previous))
+                .isEqualTo(new SiteAddress("04044", "서울시", "4층", SEOUL));
+        assertThat(new SiteAddress(null, "부산시", null).keepingCoordinatesOf(previous))
+                .isEqualTo(new SiteAddress(null, "부산시", null));
+        assertThat(new SiteAddress(null, "서울시", null).keepingCoordinatesOf(new SiteAddress(null, "서울시", null)))
+                .isEqualTo(new SiteAddress(null, "서울시", null));
+        assertThat(new SiteAddress(null, "서울시", null).keepingCoordinatesOf(null))
+                .isEqualTo(new SiteAddress(null, "서울시", null));
+    }
+
+    @Test
+    @DisplayName("이미 좌표가 있으면 이전 좌표로 덮지 않는다")
+    void keepsOwnCoordinates() {
+        SiteCoordinates busan = new SiteCoordinates(new BigDecimal("35.1"), new BigDecimal("129.0"));
+        SiteAddress own = new SiteAddress(null, "서울시", null, busan);
+
+        assertThat(own.keepingCoordinatesOf(new SiteAddress(null, "서울시", null, SEOUL)))
+                .isEqualTo(own);
     }
 }

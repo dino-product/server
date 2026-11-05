@@ -8,8 +8,10 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.REGI
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.WORK_TYPE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ import com.orbit.schedule.domain.Money;
 import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
@@ -33,9 +36,19 @@ import com.orbit.schedule.domain.WorkTypeId;
 @DisplayName("작업 기본정보 수정")
 class UpdateWorkDetailsServiceTest {
 
+    private static final SiteCoordinates SEOUL =
+            new SiteCoordinates(new BigDecimal("37.566535"), new BigDecimal("126.977969"));
+    private static final SiteCoordinates BUSAN =
+            new SiteCoordinates(new BigDecimal("35.179554"), new BigDecimal("129.075642"));
+
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final UpdateWorkDetailsService service = new UpdateWorkDetailsService(
-            fixture.actorPort, fixture.workRepository, fixture.workTypes, fixture.events, fixture.clock);
+            fixture.actorPort,
+            fixture.workRepository,
+            fixture.workTypes,
+            fixture.siteCoordinates,
+            fixture.events,
+            fixture.clock);
 
     UpdateWorkDetailsServiceTest() {
         fixture.workTypes.givenSelectable(ORGANIZATION_ID, new WorkTypeId(9L));
@@ -289,6 +302,80 @@ class UpdateWorkDetailsServiceTest {
 
         assertThat(fixture.singleSaved().workType()).isEmpty();
         assertThat(fixture.workTypes.checks()).isZero();
+    }
+
+    @Test
+    @DisplayName("기본주소가 그대로면 이전 좌표를 쓰고 다시 찾지 않는다")
+    void keepsCoordinatesWhenBaseAddressUnchanged() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = givenLocatedWork();
+
+        service.update(customerCommand(id.value(), "김철수", null, "서울시"));
+
+        assertThat(coordinatesOf(fixture.singleSaved())).contains(SEOUL);
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("기본주소가 바뀌면 새 주소로 좌표를 다시 구한다")
+    void relocatesWhenBaseAddressChanges() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = givenLocatedWork();
+        fixture.siteCoordinates.givenCoordinates("부산시", BUSAN);
+
+        service.update(customerCommand(id.value(), null, null, "부산시"));
+
+        assertThat(coordinatesOf(fixture.singleSaved())).contains(BUSAN);
+        assertThat(fixture.siteCoordinates.lookups()).containsExactly("부산시");
+    }
+
+    @Test
+    @DisplayName("새 주소의 좌표를 구하지 못하면 이전 좌표를 남기지 않고 좌표 없이 저장한다")
+    void dropsStaleCoordinatesWhenNewAddressNotFound() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = givenLocatedWork();
+
+        service.update(customerCommand(id.value(), null, null, "부산시"));
+
+        assertThat(coordinatesOf(fixture.singleSaved())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("좌표를 구하지 못했던 작업은 기본주소가 그대로여도 수정할 때 다시 찾는다")
+    void retriesLookupForUnlocatedAddress() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+        fixture.siteCoordinates.givenCoordinates("서울시", SEOUL);
+
+        service.update(customerCommand(id.value(), null, null, "서울시"));
+
+        assertThat(coordinatesOf(fixture.singleSaved())).contains(SEOUL);
+        assertThat(fixture.siteCoordinates.lookups()).containsExactly("서울시");
+    }
+
+    @Test
+    @DisplayName("기본주소를 지우면 좌표도 지우고 찾지 않는다")
+    void clearsCoordinatesWithBaseAddress() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = givenLocatedWork();
+
+        service.update(customerCommand(id.value(), "김철수", null, null));
+
+        assertThat(fixture.singleSaved().customerInfo().address()).isEmpty();
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    /** 기본주소 "서울시"의 좌표를 이미 구한 등록 상태 작업. */
+    private WorkId givenLocatedWork() {
+        WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+        Work work = fixture.stored(id);
+        work.locateSite(SEOUL);
+        fixture.workRepository.store(work);
+        return id;
+    }
+
+    private static Optional<SiteCoordinates> coordinatesOf(Work work) {
+        return work.customerInfo().address().flatMap(SiteAddress::coordinates);
     }
 
     private static UpdateWorkDetailsCommand customerCommand(long workId, String name, String phone, String address) {
