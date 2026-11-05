@@ -24,6 +24,7 @@ import com.orbit.schedule.WorkAccepted;
 import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.WorkRejected;
 import com.orbit.schedule.domain.AssignmentResult;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianId;
@@ -233,11 +234,14 @@ class TechnicianWorkApiIntegrationTest extends ScheduleApiTestSupport {
                     fixture.technicianId(),
                     Instant.now().plus(Duration.ofMinutes(5))));
 
+            Instant before = Instant.now();
             start(fixture.technician(), fixture.organization().id(), workId, 1).andExpect(status().isNoContent());
+            Instant after = Instant.now();
 
             Work saved = stored(fixture.organization(), workId);
             assertThat(saved.status()).isEqualTo(WorkStatus.IN_PROGRESS);
-            assertThat(saved.startedAt()).isPresent();
+            assertThat(saved.startedAt()).hasValueSatisfying(startedAt -> assertThat(startedAt)
+                    .isBetween(before.minusMillis(1), after.plusMillis(1)));
             assertThat(events.stream(WorkChanged.class)).hasSize(1);
 
             start(fixture.technician(), fixture.organization().id(), workId, 1).andExpect(status().isNoContent());
@@ -289,7 +293,7 @@ class TechnicianWorkApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
-        @DisplayName("수락 전 작업은 409 SCHEDULE-002, 관리자는 403 SCHEDULE-005이다")
+        @DisplayName("수락 전·취소된 작업은 409 SCHEDULE-002, 관리자는 403 SCHEDULE-005이다")
         void rejectsPendingWorkAndManager() throws Exception {
             Fixture fixture = fixture();
             long pending = save(assigned(
@@ -300,8 +304,21 @@ class TechnicianWorkApiIntegrationTest extends ScheduleApiTestSupport {
                     fixture.organization(),
                     fixture.technicianId(),
                     Instant.now().plus(Duration.ofMinutes(5))));
+            Work cancelled = accepted(
+                    fixture.organization(),
+                    fixture.technicianId(),
+                    Instant.now().plus(Duration.ofMinutes(5)));
+            cancelled.cancel(
+                    Instant.now().minusSeconds(10),
+                    new MembershipId(fixture.organization().ownerMembership()),
+                    CancellationReason.CUSTOMER_REQUEST,
+                    null);
+            long cancelledId = save(cancelled);
 
             start(fixture.technician(), fixture.organization().id(), pending, 1)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("SCHEDULE-002"));
+            start(fixture.technician(), fixture.organization().id(), cancelledId, 1)
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("SCHEDULE-002"));
             start(fixture.organization().owner(), fixture.organization().id(), acceptedId, 1)
