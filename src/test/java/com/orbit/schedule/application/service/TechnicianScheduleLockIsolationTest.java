@@ -46,7 +46,7 @@ class TechnicianScheduleLockIsolationTest {
                         "AcceptWorkService",
                         "AssignWorkService",
                         "ChangeWorkAssignmentService",
-                        "CreateWorkService",
+                        "WorkRegistration",
                         "ReassignWorkService",
                         "RescheduleWorkService",
                         "ReleaseTechnicianWorksService",

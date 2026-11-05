@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -21,10 +22,12 @@ import org.junit.jupiter.api.Test;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
+import com.orbit.schedule.application.port.in.query.dto.LocationInfo;
 import com.orbit.schedule.application.port.in.query.dto.MyScheduleInfo;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -93,7 +96,22 @@ class GetMyScheduleServiceTest {
                         TEN.plus(TWO_HOURS),
                         "서울시",
                         "3층",
+                        null,
                         false));
+    }
+
+    @Test
+    @DisplayName("현장 기본주소에서 구한 좌표를 길찾기용으로 함께 담는다")
+    void includesSiteLocation() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        work.locateSite(new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803")));
+        fixture.workRepository.store(work);
+
+        assertThat(service.get(query(FROM, TO)).works())
+                .singleElement()
+                .extracting(MyScheduleInfo.ScheduledWork::customerLocation)
+                .isEqualTo(new LocationInfo(new BigDecimal("37.556151"), new BigDecimal("126.922803")));
     }
 
     @Test

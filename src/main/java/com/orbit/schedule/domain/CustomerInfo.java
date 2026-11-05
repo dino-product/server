@@ -35,6 +35,11 @@ public final class CustomerInfo {
         return Optional.ofNullable(address);
     }
 
+    /** 이름·연락처는 그대로 두고 현장 주소만 바꾼 새 고객 정보. */
+    public CustomerInfo withAddress(SiteAddress newAddress) {
+        return new CustomerInfo(name, phone, newAddress);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
