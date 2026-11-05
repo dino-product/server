@@ -198,14 +198,6 @@ class PhotoUploadApiIntegrationTest extends ScheduleApiTestSupport {
                 .path("result");
     }
 
-    private long technicianIdOf(long organizationId, long accountId) {
-        return jdbcTemplate.queryForObject(
-                "select id from technician where company_id = ? and member_id = ?",
-                Long.class,
-                organizationId,
-                accountId);
-    }
-
     /** 지금 시작한 작업중 작업. */
     static Work inProgress(Organization organization, long technicianId) {
         Instant start = Instant.now().minus(Duration.ofMinutes(5));
