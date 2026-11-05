@@ -109,13 +109,14 @@ class WorkPhotoRulesTest {
         }
 
         @Test
-        @DisplayName("요청자가 조직 구성원이 아니면 사진 확인 결과보다 403이 먼저다")
+        @DisplayName("요청자가 조직 구성원이 아니면 저장소를 부르지 않고 403이다(저장소 장애보다 먼저)")
         void requesterCheckComesBeforePhotos() {
-            fixture.mediaFiles.givenRejected(PHOTO_1, Reason.NOT_UPLOADED);
+            fixture.mediaFiles.givenStorageDown();
 
             fixture.assertRejected(
                     () -> fixture.createWorkService().create(create(List.of(PHOTO_1), false)),
                     ScheduleErrorCode.NOT_ORGANIZATION_MEMBER);
+            assertThat(fixture.mediaFiles.stageRequests()).isEmpty();
         }
 
         @Test
@@ -234,6 +235,18 @@ class WorkPhotoRulesTest {
             fixture.assertRejected(
                     () -> fixture.updateWorkDetailsService().update(update(id.value(), List.of(PHOTO_1))),
                     ScheduleErrorCode.ACTION_NOT_ALLOWED);
+        }
+
+        @Test
+        @DisplayName("요청자가 조직 구성원이 아니면 저장소를 부르지 않고 403이다(저장소 장애보다 먼저)")
+        void nonMemberSkipsStorage() {
+            WorkId id = fixture.givenWork(WorkStatus.REGISTERED);
+            fixture.mediaFiles.givenStorageDown();
+
+            fixture.assertRejected(
+                    () -> fixture.updateWorkDetailsService().update(update(id.value(), List.of(PHOTO_1))),
+                    ScheduleErrorCode.NOT_ORGANIZATION_MEMBER);
+            assertThat(fixture.mediaFiles.stageRequests()).isEmpty();
         }
 
         @Test
