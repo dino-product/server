@@ -23,6 +23,10 @@ logging:
     org.testcontainers: INFO
 
 app:
+  schedule:
+    # 진행 보드 캐시는 끈다. 테스트가 SQL·저장소로 직접 넣은 작업은 WorkChanged를 내지 않아 캐시가 옛 보드를 돌려줄 수 있다. 캐시 테스트는 따로 켠다.
+    board-cache:
+      enabled: false
   auth:
     kakao:
       allowed-audiences: test-kakao-app-key,test-kakao-rest-api-key
