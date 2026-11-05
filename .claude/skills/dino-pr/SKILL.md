@@ -15,7 +15,7 @@ description: PR을 만들거나 PR 초안·본문을 작성할 때("PR 써줘", 
 4. **구현 내용 표**: 규칙마다 근거 테스트를 연결합니다(한 클래스면 열 제목에 클래스, 셀에 `#메서드`). 테스트 이름은 실제 파일에서 찾고 없는 테스트를 지어내지 않습니다. 노션 명세와 다르게 구현한 점은 `차이` 열에 번호나 차이 ID(`S-xx`)만 적고 표 아래 `명세와 차이` 목록에 설명합니다. 차이 ID를 해소·생성했으면 BC 문서의 차이·공백 행도 같은 PR에서 고칩니다.
 5. **나머지 절**: 기능 명세(노션 링크와 절, 링크가 없으면 사용자에게 묻기), 관련 이슈, 기술적 선택(리뷰어 동의가 필요한 것만), 검증(실제 실행한 명령·결과와 통계 한 줄. 실행하지 않은 검사는 미실행으로), 리뷰 포인트. 검사가 아직 돌고 있으면 끝날 때까지 기다린 뒤 초안을 씁니다. `TODO`·`*_PENDING` 같은 자리표시자를 남기지 않습니다.
 6. **초안 저장**: `.claude/pr-drafts/<브랜치 이름의 / 를 - 로>.md`. 형식은 `pr_draft.py` docstring의 front matter + 본문입니다. 제목은 `type(scope): 결과 (HM-키)`, 라벨은 제목 type과 같은 `type:*`.
-7. **리뷰**: 초안을 저장한 뒤 `dino-review`로 로컬 리뷰를 하고 [리뷰 마커](../dino-review/references/report.md#marker)를 초안 `## 검증` 절에 남깁니다. 마커가 없거나 현재 HEAD와 다르면 `check`와 CI 규약 검사가 실패합니다.
+7. **리뷰**: 초안을 저장한 뒤 `dino-review`로 로컬 리뷰를 하고(세션 위치와 다른 워크트리면 스킬 인자에 그 워크트리 절대 경로) [리뷰 마커](../dino-review/references/report.md#marker)를 초안 `## 검증` 절에 남깁니다. 마커가 없거나 현재 HEAD와 다르면 `check`와 CI 규약 검사가 실패합니다.
 8. **검사와 미리보기**:
    - `python3 .claude/skills/dino-pr/scripts/pr_draft.py check <초안>`: CI의 PR 규약 검사와 같은 판정입니다. 실패하면 고칩니다.
    - `python3 .claude/skills/dino-pr/scripts/pr_draft.py preview <초안>`: `<초안>.html`을 만듭니다. 사용자에게 경로를 알려 GitHub와 같은 모양(mermaid 렌더링 포함)으로 확인하게 합니다.
