@@ -273,6 +273,16 @@ class ReleaseTechnicianWorksServiceTest {
                 .isEqualTo(TechnicianWorkReleaseInfo.released(List.of(pending.value())));
     }
 
+    @ParameterizedTest
+    @EnumSource(Cause.class)
+    @DisplayName("저장 자리에서 다른 트랜잭션이 작업을 먼저 바꾼 것이 드러나면 변경된 정보라는 409로 알리고 발행하지 않는다(호출자 트랜잭션은 롤백)")
+    void reportsWorkChangedOnConcurrentChange(Cause cause) {
+        givenWork(WorkStatus.PENDING_ACCEPT, 0);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        fixture.assertRejectedWithoutSaving(() -> service.release(command(cause)), ScheduleErrorCode.WORK_CHANGED);
+    }
+
     /** 기사 {@link ScheduleServiceFixture#TECHNICIAN_ID}의 작업을 {@link ScheduleServiceFixture#TEN}보다 주어진 시간 뒤에 시작하게 둔다. */
     private WorkId givenWork(WorkStatus status, int hoursAfterTen) {
         Instant start = TEN.plus(Duration.ofHours(hoursAfterTen));

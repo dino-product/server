@@ -82,6 +82,20 @@ class TechnicianWorkReleaseAdapterTest {
         assertThatThrownBy(() -> adapter.releaseForDeactivation(100L, 3L, 21L)).isSameAs(other);
     }
 
+    @Test
+    @DisplayName("같은 작업의 다른 변경과 저장이 겹친 것도 다시 시도하면 되는 실패라 organization 계약의 같은 예외로 바꾼다")
+    void translatesConcurrentWorkChange() {
+        BusinessException changed = new BusinessException(ScheduleErrorCode.WORK_CHANGED);
+        useCase.failure = changed;
+
+        assertThatThrownBy(() -> adapter.releaseForDeactivation(100L, 3L, 21L))
+                .isInstanceOf(TechnicianWorkReleaseBusyException.class)
+                .hasCause(changed);
+        assertThatThrownBy(() -> adapter.releaseForRoleChange(100L, 3L, 21L))
+                .isInstanceOf(TechnicianWorkReleaseBusyException.class)
+                .hasCause(changed);
+    }
+
     private static final class RecordingUseCase implements ReleaseTechnicianWorksUseCase {
 
         private final List<ReleaseTechnicianWorksCommand> commands = new ArrayList<>();
