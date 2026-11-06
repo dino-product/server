@@ -39,8 +39,7 @@ import com.orbit.schedule.domain.WorkStatus;
 class RejectWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final RejectWorkService service = new RejectWorkService(
-            fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.events, fixture.clock);
+    private final RejectWorkService service = fixture.rejectWorkService();
 
     @Test
     @DisplayName(
@@ -265,6 +264,19 @@ class RejectWorkServiceTest {
         Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reject(rejection, ACCEPTED_AT);
         return fixture.workRepository.store(work);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 다른 요청이 먼저 커밋한 것이 드러나면 새로 읽어 한 번 다시 거절하고, 다시 한 거절만 저장·발행한다")
+    void retriesAfterConcurrentChange() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        service.reject(command(id.value(), 1, RejectionReason.SCHEDULE_CONFLICT, null));
+
+        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.REGISTERED);
+        assertThat(fixture.events.published()).hasSize(2);
     }
 
     private static RejectWorkCommand command(long workId, int number, RejectionReason reason, String note) {

@@ -26,7 +26,8 @@ public interface TechnicianWorkControllerDocs {
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 관리자면 SCHEDULE-005, "
                     + "작업이 없거나 다른 조직의 작업이거나 본인이 볼 수 없는 작업(거절함·다른 기사로 재배정됨·배정 해제·반환됨)이면 SCHEDULE-001, "
                     + "조직·작업 식별자가 양수가 아니면 SCHEDULE-003, 숫자가 아니면 COMMON-400입니다. "
-                    + "같은 기사의 다른 요청을 기다리다 대기 한도를 넘기면 SCHEDULE-006입니다.",
+                    + "같은 기사의 다른 요청을 기다리다 대기 한도를 넘기면 SCHEDULE-006입니다. "
+                    + "같은 작업을 동시에 바꾼 다른 요청과 저장이 겹치면 서버가 최신 상태로 한 번 다시 처리하고, 그래도 겹치면 SCHEDULE-016(다시 조회 뒤 재시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "수락함(이미 수락한 배정 포함)")
     @ApiErrorCodes(
@@ -42,7 +43,8 @@ public interface TechnicianWorkControllerDocs {
                 "NOT_ASSIGNED_TECHNICIAN",
                 "ASSIGNMENT_CHANGED",
                 "INVALID_WORK_STATE",
-                "TECHNICIAN_SCHEDULE_BUSY"
+                "TECHNICIAN_SCHEDULE_BUSY",
+                "WORK_CHANGED"
             })
     void accept(
             @Parameter(hidden = true) AccountPrincipal requester,
@@ -62,7 +64,8 @@ public interface TechnicianWorkControllerDocs {
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 관리자면 SCHEDULE-005, "
                     + "작업이 없거나 다른 조직의 작업이거나 본인이 볼 수 없는 작업이면 SCHEDULE-001, "
                     + "조직·작업 식별자가 양수가 아니면 SCHEDULE-003, 숫자가 아니면 COMMON-400입니다. "
-                    + "같은 기사의 다른 요청을 기다리다 대기 한도를 넘기면 SCHEDULE-006입니다.",
+                    + "같은 기사의 다른 요청을 기다리다 대기 한도를 넘기면 SCHEDULE-006입니다. "
+                    + "같은 작업을 동시에 바꾼 다른 요청과 저장이 겹치면 서버가 최신 상태로 한 번 다시 처리하고, 그래도 겹치면 SCHEDULE-016(다시 조회 뒤 재시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "거절함")
     @ApiErrorCodes(
@@ -78,7 +81,8 @@ public interface TechnicianWorkControllerDocs {
                 "NOT_ASSIGNED_TECHNICIAN",
                 "ASSIGNMENT_CHANGED",
                 "INVALID_WORK_STATE",
-                "TECHNICIAN_SCHEDULE_BUSY"
+                "TECHNICIAN_SCHEDULE_BUSY",
+                "WORK_CHANGED"
             })
     void reject(
             @Parameter(hidden = true) AccountPrincipal requester,
@@ -99,7 +103,8 @@ public interface TechnicianWorkControllerDocs {
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 관리자면 SCHEDULE-005, "
                     + "작업이 없거나 다른 조직의 작업이거나 본인이 볼 수 없는 작업이면 SCHEDULE-001, "
                     + "조직·작업 식별자가 양수가 아니면 SCHEDULE-003, 숫자가 아니면 COMMON-400입니다. "
-                    + "같은 기사의 다른 요청을 기다리다 대기 한도를 넘기면 SCHEDULE-006입니다.",
+                    + "같은 기사의 다른 요청을 기다리다 대기 한도를 넘기면 SCHEDULE-006입니다. "
+                    + "같은 작업을 동시에 바꾼 다른 요청과 저장이 겹치면 서버가 최신 상태로 한 번 다시 처리하고, 그래도 겹치면 SCHEDULE-016(다시 조회 뒤 재시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "시작함(이미 시작한 작업 포함)")
     @ApiErrorCodes(
@@ -117,7 +122,8 @@ public interface TechnicianWorkControllerDocs {
                 "INVALID_WORK_STATE",
                 "TOO_EARLY_TO_START",
                 "START_TIME_PASSED",
-                "TECHNICIAN_SCHEDULE_BUSY"
+                "TECHNICIAN_SCHEDULE_BUSY",
+                "WORK_CHANGED"
             })
     void start(
             @Parameter(hidden = true) AccountPrincipal requester,

@@ -127,6 +127,22 @@ final class ScheduleServiceFixture {
                 new UpdateWorkDetailsTransaction(actorPort, workRepository, workTypes, mediaFiles, events, clock));
     }
 
+    AcceptWorkService acceptWorkService() {
+        return new AcceptWorkService(new AcceptWorkTransaction(actorPort, workRepository, scheduleLock, events, clock));
+    }
+
+    RejectWorkService rejectWorkService() {
+        return new RejectWorkService(new RejectWorkTransaction(actorPort, workRepository, scheduleLock, events, clock));
+    }
+
+    StartWorkService startWorkService() {
+        return new StartWorkService(new StartWorkTransaction(actorPort, workRepository, scheduleLock, events, clock));
+    }
+
+    CancelWorkService cancelWorkService() {
+        return new CancelWorkService(new CancelWorkTransaction(actorPort, workRepository, events, clock));
+    }
+
     SubmitCompletionReportService submitCompletionReportService() {
         return new SubmitCompletionReportService(
                 mediaFiles,

@@ -22,7 +22,7 @@ description: src/main/java 아래 Java 코드를 작성·수정·설계할 때 �
   - Request는 Adapter에서 Command/Query로 변환합니다.
 - **모듈 간**: 모듈 루트 공개 인터페이스·이벤트로만 주고받습니다. Domain은 다른 모듈 타입을 참조하지 않습니다. 다른 모듈의 `domain`·`application`·`adapter` 접근과 Entity 공유를 금지합니다. `allowedDependencies`는 실제로 쓰는 것만 둡니다.
 - **이름**: `Request`→`Command`/`Query`→`Info`→`Response`, 메서드는 `get`(없으면 예외)·`find`(`Optional`)·`list`·`exists`.
-- **트랜잭션**: 변경 UseCase는 `@Transactional`, 조회는 `@Transactional(readOnly = true)`.
+- **트랜잭션**: 변경 UseCase는 `@Transactional`, 조회는 `@Transactional(readOnly = true)`. 외부 호출을 먼저 하거나 충돌을 다시 실행하는 UseCase는 예외입니다([persistence.md#transactions](references/persistence.md#transactions)).
 - **오류**: 모듈 오류는 `{module}.application.error`의 `BaseCode` enum(`{MODULE}-{번호}`)과 `BusinessException`으로 만듭니다. Domain 예외는 Application 경계에서 변환합니다.
 - **노션**: 기능 규칙은 노션 명세를 따르되 코드·Javadoc·문서에 명세를 복사하지 않습니다.
 

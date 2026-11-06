@@ -33,7 +33,8 @@ public interface CompletionReportControllerDocs {
                     + "작업중이 아니면(작업전·취소 등) SCHEDULE-002입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 관리자면 SCHEDULE-005, "
                     + "작업이 없거나 다른 조직의 작업이거나 본인이 볼 수 없는 작업이면 SCHEDULE-001, "
-                    + "조직·작업 식별자가 양수가 아니면 SCHEDULE-003, 숫자가 아니면 COMMON-400입니다.",
+                    + "조직·작업 식별자가 양수가 아니면 SCHEDULE-003, 숫자가 아니면 COMMON-400입니다. "
+                    + "같은 작업을 동시에 바꾼 다른 요청과 저장이 겹치면 서버가 최신 상태로 한 번 다시 처리하고, 그래도 겹치면 SCHEDULE-016(다시 조회 뒤 재시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "제출함(같은 보고의 중복 전송 포함)")
     @ApiErrorCodes(
@@ -52,7 +53,8 @@ public interface CompletionReportControllerDocs {
                 "PHOTO_TYPE_NOT_ALLOWED",
                 "PHOTO_TOO_LARGE",
                 "PHOTO_NOT_UPLOADED",
-                "PHOTO_STORAGE_UNAVAILABLE"
+                "PHOTO_STORAGE_UNAVAILABLE",
+                "WORK_CHANGED"
             })
     void submit(
             @Parameter(hidden = true) AccountPrincipal requester,

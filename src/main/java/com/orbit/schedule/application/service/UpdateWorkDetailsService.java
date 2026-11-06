@@ -25,7 +25,8 @@ import com.orbit.schedule.domain.WorkId;
  * 좌표 없이 저장), 업무 처리·사진 연결·좌표 반영은 {@link UpdateWorkDetailsTransaction}이 한 트랜잭션에서 한다(ADR-007). 그래서 이 메서드에는 트랜잭션이
  * 없다. 조직의 관리자가 아닌 요청은 저장소·좌표 조회 전에 거부한다(트랜잭션 안에서도 다시 확인). 좌표는 지금 작업을 저장소의 읽기 트랜잭션으로 미리 읽어,
  * 트랜잭션 안에서 거부될 요청(식별자 형식 오류·없는 작업·다른 조직·등록자도 총관리자도 아님·완료나 취소된 작업)이거나 기본주소가 그대로이고 좌표가 있으면(이전 좌표를
- * 이어받음) 조회하지 않는다.
+ * 이어받음) 조회하지 않는다. 저장 자리에서 다른 변경과 충돌하면 사진·좌표는 다시 구하지 않고 트랜잭션 부분만 새 트랜잭션에서 한 번 다시 실행해, 다시 읽은
+ * 작업에 고쳐 저장한다([작업] §5 나중 저장이 이김, {@link WorkVersions#retryOnConflict}).
  */
 @Service
 public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
@@ -55,7 +56,8 @@ public class UpdateWorkDetailsService implements UpdateWorkDetailsUseCase {
                 OrganizationActors.requireManager(loadActorPort, command.accountId(), command.organizationId());
         StagedFiles sitePhotos = WorkPhotos.stageSitePhotos(
                 mediaFiles, command.accountId(), command.organizationId(), command.sitePhotoIds(), command.workId());
-        transaction.update(command, sitePhotos, lookUpSite(command, actor));
+        SiteLookup site = lookUpSite(command, actor);
+        WorkVersions.retryOnConflict(() -> transaction.update(command, sitePhotos, site));
     }
 
     private SiteLookup lookUpSite(UpdateWorkDetailsCommand command, ManagerActor actor) {

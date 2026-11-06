@@ -408,6 +408,21 @@ class UpdateWorkDetailsServiceTest {
         return id;
     }
 
+    @Test
+    @DisplayName("저장 자리에서 기사의 수락이 먼저 커밋된 것이 드러나면 다시 읽은 작업에 한 번 다시 고쳐 저장하고(나중 저장이 이김), 수락은 그대로 남는다")
+    void retriesAfterConcurrentAcceptance() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+        fixture.workRepository.failNextSaveWithConcurrentChange(work -> work.accept(NOW));
+
+        service.update(command(id.value(), "보일러 점검", 80_000L, 9L));
+
+        Work saved = fixture.singleSaved();
+        assertThat(saved.name()).isEqualTo("보일러 점검");
+        assertThat(saved.status()).isEqualTo(WorkStatus.ACCEPTED);
+        assertThat(fixture.events.published()).hasSize(1);
+    }
+
     private static Optional<SiteCoordinates> coordinatesOf(Work work) {
         return work.customerInfo().address().flatMap(SiteAddress::coordinates);
     }
