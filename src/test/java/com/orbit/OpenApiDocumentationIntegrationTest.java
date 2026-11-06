@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Arrays;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -393,6 +394,24 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
                                 + ".examples['SCHEDULE-002'].value.code")
                         .value("SCHEDULE-002"));
+    }
+
+    @Test
+    void documentsConcurrentChangeConflictOnRetriedCommands() throws Exception {
+        String works = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}";
+        for (String operation : List.of(
+                works + "/acceptance'].post",
+                works + "/rejection'].post",
+                works + "/start'].post",
+                works + "/completion-report'].post",
+                works + "/cancellation'].post",
+                works + "'].put")) {
+            mockMvc.perform(get("/docs-json"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                    + ".examples['SCHEDULE-016'].value.code")
+                            .value("SCHEDULE-016"));
+        }
     }
 
     @Test

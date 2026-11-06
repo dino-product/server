@@ -43,8 +43,7 @@ import com.orbit.schedule.domain.WorkStatus;
 class CancelWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final CancelWorkService service =
-            new CancelWorkService(fixture.actorPort, fixture.workRepository, fixture.events, fixture.clock);
+    private final CancelWorkService service = fixture.cancelWorkService();
 
     @ParameterizedTest
     @EnumSource(
@@ -203,6 +202,34 @@ class CancelWorkServiceTest {
         service.cancel(command(id.value(), CancellationReason.OTHER, "고객 부재"));
 
         assertThat(fixture.singleSaved().startedAt()).contains(ACCEPTED_AT);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 기사의 시작이 먼저 커밋된 것이 드러나면 다시 읽은 작업중 작업을 한 번 다시 취소하고, 다시 한 취소만 저장·발행한다")
+    void retriesAfterConcurrentStart() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.ACCEPTED);
+        fixture.workRepository.failNextSaveWithConcurrentChange(work -> work.start(NOW));
+
+        service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, null));
+
+        Work saved = fixture.singleSaved();
+        assertThat(saved.status()).isEqualTo(WorkStatus.CANCELED);
+        assertThat(saved.startedAt()).contains(NOW);
+        assertThat(fixture.events.published()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 기사의 완료보고가 먼저 커밋된 것이 드러나면 다시 읽은 완료된 작업을 보고 상태 오류다")
+    void seesCompletionCommittedBeforeSave() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+        fixture.workRepository.failNextSaveWithConcurrentChange(
+                work -> work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW));
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, null)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
     }
 
     private static CancelWorkCommand command(long workId, CancellationReason reason, String note) {

@@ -34,8 +34,7 @@ import com.orbit.schedule.domain.WorkStatus;
 class StartWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final StartWorkService service = new StartWorkService(
-            fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.events, fixture.clock);
+    private final StartWorkService service = fixture.startWorkService();
 
     @Test
     @DisplayName("담당 기사가 수락한 최신 배정의 작업을 시작하면 지금 시각을 시작 시각으로 남기고 작업 변경을 발행하며, 기사를 잠그되 기사의 다른 작업은 읽지 않는다")
@@ -217,6 +216,20 @@ class StartWorkServiceTest {
 
         fixture.assertRejectedWithoutSaving(
                 () -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 다른 요청이 먼저 커밋한 것이 드러나면 새로 읽어 한 번 다시 시작하고, 다시 한 시작만 저장·발행한다")
+    void retriesAfterConcurrentChange() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = acceptedWorkStartingAt(NOW);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        service.start(command(id.value()));
+
+        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     /** 기사 {@link ScheduleServiceFixture#TECHNICIAN_ID}가 수락한, 주어진 시각에 시작하는 2시간 일정의 작업. */

@@ -75,7 +75,8 @@ public interface WorkControllerDocs {
                     + "작업 유형을 바꿀 때 그 조직에서 선택할 수 없는 유형이면 SCHEDULE-014입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005, "
                     + "등록자 본인·총관리자가 아닌 직원이면 SCHEDULE-005, "
-                    + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다.",
+                    + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다. "
+                    + "같은 작업을 동시에 바꾼 다른 요청과 저장이 겹치면 서버가 최신 상태로 한 번 다시 처리하고, 그래도 겹치면 SCHEDULE-016(다시 조회 뒤 재시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "수정 성공")
     @ApiErrorCodes(
@@ -93,7 +94,8 @@ public interface WorkControllerDocs {
                 "PHOTO_TYPE_NOT_ALLOWED",
                 "PHOTO_TOO_LARGE",
                 "PHOTO_NOT_UPLOADED",
-                "PHOTO_STORAGE_UNAVAILABLE"
+                "PHOTO_STORAGE_UNAVAILABLE",
+                "WORK_CHANGED"
             })
     void updateDetails(
             @Parameter(hidden = true) AccountPrincipal requester,
@@ -108,7 +110,8 @@ public interface WorkControllerDocs {
                     + "목록에 없는 사유 등 본문 형식 오류는 COMMON-400입니다. 완료됐거나 이미 취소된 작업은 SCHEDULE-002입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005, "
                     + "등록자 본인·총관리자가 아닌 직원이면 SCHEDULE-005, "
-                    + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다.",
+                    + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다. "
+                    + "같은 작업을 동시에 바꾼 다른 요청과 저장이 겹치면 서버가 최신 상태로 한 번 다시 처리하고, 그래도 겹치면 SCHEDULE-016(다시 조회 뒤 재시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "취소 성공")
     @ApiErrorCodes(
@@ -121,7 +124,8 @@ public interface WorkControllerDocs {
                 "NOT_ORGANIZATION_MEMBER",
                 "ACTION_NOT_ALLOWED",
                 "WORK_NOT_FOUND",
-                "INVALID_WORK_STATE"
+                "INVALID_WORK_STATE",
+                "WORK_CHANGED"
             })
     void cancel(
             @Parameter(hidden = true) AccountPrincipal requester,
