@@ -50,6 +50,7 @@ import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.AssignmentEndReason;
+import com.orbit.schedule.domain.CancellationReason;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PlannedSchedule;
@@ -327,6 +328,43 @@ class TechnicianWorkReleaseIntegrationTest implements SharedContainers {
         assertThat(load(pending).status()).isEqualTo(WorkStatus.PENDING_ACCEPT);
     }
 
+    @Test
+    @DisplayName("같은 작업의 취소가 커밋되기 전에 읽은 비활성화 반환은 저장 자리에서 충돌해 organization 계약의 대기 초과 예외로 실패하고 바깥 트랜잭션도 롤백된다")
+    void failsWhenWorkChangesConcurrently() throws Exception {
+        // 반환은 식별자 순으로 저장하므로 먼저 저장되는 작업을 두어, 뒤 작업의 충돌로 앞 저장까지 롤백되는지 본다.
+        WorkId savedFirst = store(WorkStatus.ACCEPTED, TECHNICIAN_ID, 3);
+        WorkId pending = store(WorkStatus.PENDING_ACCEPT, TECHNICIAN_ID, 0);
+        CountDownLatch cancelled = new CountDownLatch(1);
+        // 기사를 잠그지 않는 취소가 작업 행을 갱신한 채 커밋을 늦춘다.
+        Future<?> holder = executor.submit(() -> inCallerTransaction(() -> {
+            Work work =
+                    workRepository.findInOrganization(organizationId, pending).orElseThrow();
+            work.cancel(Instant.now(), ASSIGNED_BY, CancellationReason.CUSTOMER_REQUEST, null);
+            workRepository.save(work);
+            cancelled.countDown();
+            awaitHolderRelease();
+        }));
+        assertThat(cancelled.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+
+        Future<?> release =
+                executor.submit(() -> inCallerTransaction(() -> technicianWorkRelease.releaseForDeactivation(
+                        organizationId.value(), TECHNICIAN_ID.value(), PROCESSED_BY)));
+        awaitWaitingRowLock();
+        assertThat(release).isNotDone();
+        releaseHolder.countDown();
+        holder.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+        assertThatThrownBy(() -> release.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                .isInstanceOf(ExecutionException.class)
+                .cause()
+                .isInstanceOf(TechnicianWorkReleaseBusyException.class)
+                .cause()
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.WORK_CHANGED));
+        assertThat(load(pending).status()).isEqualTo(WorkStatus.CANCELED);
+        assertThat(load(savedFirst).status()).isEqualTo(WorkStatus.ACCEPTED);
+    }
+
     /**
      * 비활성화 반환이 기사를 잠그고 커밋하기 전에 기다리는 동안 기사 요청을 보내, 요청이 기사 잠금에서 기다렸다가 반환의 커밋을 보고 찾을 수 없음(404)으로
      * 끝나는지 확인한다.
@@ -429,6 +467,23 @@ class TechnicianWorkReleaseIntegrationTest implements SharedContainers {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
+    }
+
+    /** 다른 연결의 행 갱신이 앞선 트랜잭션의 커밋을 기다리는 상태가 될 때까지 기다린다. 기사 잠금(advisory) 대기와 섞이지 않도록 대기 종류로 거른다. */
+    private void awaitWaitingRowLock() throws InterruptedException {
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        Instant deadline = Instant.now().plusSeconds(TEST_TIMEOUT_SECONDS);
+        while (Instant.now().isBefore(deadline)) {
+            Integer waiting = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()"
+                            + " AND wait_event_type = 'Lock' AND wait_event = 'transactionid'",
+                    Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("row lock waiter did not appear");
     }
 
     /** 다른 연결이 advisory lock을 얻지 못하고 기다리는 상태가 될 때까지 기다린다. 이 테스트 컨텍스트의 DB에서는 이 테스트만 잠근다. */
