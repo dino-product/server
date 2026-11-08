@@ -298,6 +298,22 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsCurrentTermsAsPublicOperationOutsideSignupGate() throws Exception {
+        String operation = "$.paths['/api/v1/terms'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("시행 중인 약관 조회"))
+                .andExpect(jsonPath(operation + ".security").doesNotExist())
+                .andExpect(jsonPath(operation + ".responses['403']").doesNotExist())
+                .andExpect(jsonPath(operation + ".responses['404'].content['application/json'].examples['COMMON-404']"
+                                + ".value.code")
+                        .value("COMMON-404"))
+                .andExpect(jsonPath(operation + ".responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.profile.adapter.in.web.CurrentTermsResponse"));
+    }
+
+    @Test
     void documentsMyMembershipListAsProtectedOperation() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())

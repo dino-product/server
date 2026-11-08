@@ -7,7 +7,10 @@ public record AgreeToTermsRequest(
         @Schema(description = "[필수] 서비스 이용약관 동의", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
         Boolean serviceTerms,
 
-        @Schema(description = "[필수] 개인정보 처리방침 동의", example = "true", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(
+                description = "[필수] 개인정보 수집·이용 동의. 약관 조회의 PRIVACY 문서이며, 개인정보 처리방침(PRIVACY_POLICY)은 동의 대상이 아니다",
+                example = "true",
+                requiredMode = Schema.RequiredMode.REQUIRED)
         Boolean privacyPolicy,
 
         @Schema(description = "[선택] 마케팅 정보 수신 동의. 보내지 않으면 바꾸지 않는다", example = "false")

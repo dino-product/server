@@ -5,7 +5,7 @@
 - 계정의 가입 프로필(이름·연락처)과 가입 상태를 소유합니다. auth는 외부 식별·토큰만 맡고, 계정은 auth가 발급한 ID를 `AccountId`로만 보관합니다.
 - 프로필이 없는 계정은 카카오 인증만 마친 가입 미완료 계정으로 봅니다. 프로필 행은 처음 프로필을 저장할 때 만듭니다.
 - 요청자 계정은 컨트롤러가 auth의 루트 공개 계약 `AccountPrincipal`을 `@AuthenticationPrincipal`로 받아 계정 식별자만 Command·Query에 넘깁니다. 이 의존 때문에 auth는 profile을 조회·구독할 수 없습니다. auth에 무언가를 시켜야 하면 auth 공개 계약을 profile이 직접 호출합니다.
-- 시행 중인 약관 버전은 설정값 `app.profile.terms.versions`가 원본입니다. 필수 약관 값을 올리면 기존 계정은 재동의 전까지 가입 미완료와 같은 범위만 씁니다. 동의 기록은 추가만 하고 고치거나 지우지 않습니다.
+- 시행 중인 약관 버전은 설정값 `app.profile.terms.versions`가 원본이고, 공개 API `GET /api/v1/terms`가 이 버전과 본문 주소(`app.profile.terms.base-url`)를 그대로 내려줍니다. 본문 txt는 서버가 만들지 않고 웹 버킷 `terms/`에 운영자가 올리므로, 버전을 올리기 전에 본문을 먼저 올립니다. 필수 약관 값을 올리면 기존 계정은 재동의 전까지 가입 미완료와 같은 범위만 씁니다. 동의 기록은 추가만 하고 고치거나 지우지 않습니다.
 - 가입 미완료·재동의 전 계정의 이용 범위는 [가입 공통 검사](../../../../../../docs/domain/profile.md#profile-signup-gate)가 원본입니다. 다른 모듈이 가입 전 계정에 열어야 하는 API(회사 확인 등)를 만들면 `ProfileWebConfig`의 허용 목록에 경로를 더하고, 공통 검사를 바꾸면 auth의 토큰 404 계약(`AuthApiIntegrationTest`)도 확인합니다.
 - 모듈 루트 공개 계약 `ProfileLookup`은 가입을 마친 계정의 이름만 돌려줍니다. 소비자는 organization의 승인 대기 목록(신청자 이름)과 참여 인원 목록(이름 표시·검색·정렬)이고, 계획된 소비자는 schedule의 기사 이름 조회(HM-288)이며 기사 계약 ID를 계정 ID로 바꾸는 연결은 organization과 합의해야 합니다. organization·schedule이 profile에 의존하므로 profile은 두 모듈의 타입을 참조하거나 조회하지 않습니다.
 - 탈퇴 차단 판정은 상태를 소유한 모듈이 profile 요구 인터페이스 `WithdrawalBlocker`를 구현하고, 탈퇴 뒤처리는 그 모듈들이 `AccountWithdrawn`을 구독합니다(notification도 앱 푸시 기기 삭제로 구독). profile은 organization·schedule·notification을 조회·구독하지 않습니다. 계약은 [Profile 공개 계약](../../../../../../docs/domain/profile.md#공개-계약)이 원본입니다.
