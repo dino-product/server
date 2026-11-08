@@ -11,6 +11,10 @@ springdoc:
     enabled: false
 
 app:
+  profile:
+    terms:
+      # 약관 본문은 운영 웹 CloudFront의 /terms/ (웹 버킷 terms/)
+      base-url: https://orbi-t.com/terms
   notification:
     push:
       fcm:

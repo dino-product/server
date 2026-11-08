@@ -182,11 +182,15 @@ app:
       idle-lifetime: ${AUTH_REFRESH_TOKEN_IDLE_LIFETIME:P30D}
   profile:
     terms:
-      # 시행 중인 약관 버전. 필수 약관(service·privacy) 값을 올리면 기존 계정은 재동의 전까지 이용이 막힌다.
+      # 약관 본문 txt 주소의 앞부분({base-url}/{종류}/{버전}.txt). 기본값(local·test·dev)은 dev 웹, prod는 application-prod.yml에서 덮어쓴다.
+      base-url: https://dev.orbi-t.com/terms
+      # 시행 중인 약관 버전(시행일). 필수 약관(service·privacy) 값을 올리면 기존 계정은 재동의 전까지 이용이 막힌다.
+      # 값을 바꾸기 전에 그 버전의 본문 txt를 웹 버킷 terms/에 먼저 올린다. privacy-policy(처리방침)는 동의 대상이 아니다.
       versions:
         service: "2026-10-10"
         privacy: "2026-10-10"
         marketing: "2026-10-10"
+        privacy-policy: "2026-10-10"
   organization:
     lock:
       wait-limit: ${ORGANIZATION_LOCK_WAIT_LIMIT:}

@@ -22,6 +22,7 @@ class ApplicationProfileConfigurationTest {
     private static final String EVENT_RESUBMISSION = "app.events.resubmission.enabled";
     private static final String PUSH_DELIVERY_DISPATCH = "app.notification.push-delivery.enabled";
     private static final String FCM_PUSH = "app.notification.push.fcm.enabled";
+    private static final String TERMS_BASE_URL = "app.profile.terms.base-url";
     private static final String EVENT_REGISTRY_LOG_LEVEL =
             "logging.level.org.springframework.modulith.events.core.DefaultEventPublicationRegistry";
 
@@ -77,6 +78,7 @@ class ApplicationProfileConfigurationTest {
             assertThat(environment.getProperty(EVENT_SCHEMA_INITIALIZATION)).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
             assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
+            assertThat(environment.getProperty(TERMS_BASE_URL)).isEqualTo("https://orbi-t.com/terms");
         }
     }
 
@@ -187,6 +189,7 @@ class ApplicationProfileConfigurationTest {
             assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("true");
             assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("true");
             assertThat(environment.getProperty("logging.level.com.orbit")).isEqualTo("DEBUG");
+            assertThat(environment.getProperty(TERMS_BASE_URL)).isEqualTo("https://dev.orbi-t.com/terms");
         }
     }
 

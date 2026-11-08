@@ -11,7 +11,7 @@
 
 계정의 가입 프로필(이름·연락처), 가입 상태와 가입일, 약관 동의 이력과 마케팅 수신 동의, 탈퇴를 소유하고, 가입을 마치지 않았거나 필수 약관 재동의 전인 계정이 가입 마무리에 필요한 API 밖을 쓰지 못하게 막는다. 계정 식별자 발급·외부 식별·토큰과 계정 폐쇄는 [auth](auth.md), 조직 소속·역할은 organization이 소유한다. profile은 auth가 발급한 계정 식별자를 값(`AccountId`)으로만 보관한다.
 
-현재 구현 범위는 프로필 입력·수정, 필수 약관 동의(가입 완료)·재동의, 내 정보와 가입 단계 조회, 마이페이지 마케팅 수신 동의 변경, 탈퇴 가능 여부 확인과 [탈퇴](#profile-withdrawal), [가입 공통 검사](#profile-signup-gate), 다른 모듈에 주는 이름 조회 계약과 탈퇴 연동 계약([공개 계약](#공개-계약))이다. 프로필 사진은 아직 없다([남은 일](#profile-todo)).
+현재 구현 범위는 프로필 입력·수정, 필수 약관 동의(가입 완료)·재동의, 내 정보와 가입 단계 조회, 마이페이지 마케팅 수신 동의 변경, 시행 중인 약관 버전·본문 주소 공개 조회(`GET /api/v1/terms`), 탈퇴 가능 여부 확인과 [탈퇴](#profile-withdrawal), [가입 공통 검사](#profile-signup-gate), 다른 모듈에 주는 이름 조회 계약과 탈퇴 연동 계약([공개 계약](#공개-계약))이다. 프로필 사진은 아직 없다([남은 일](#profile-todo)).
 
 ## 가입 상태와 이용 가능 판정
 
@@ -26,7 +26,7 @@
 
 ## HTTP
 
-모든 경로는 본인 계정만 다룬다. 경로의 계정이 요청자와 다르면 존재를 드러내지 않도록 `PROFILE-002`(404)로 거부한다. 프로필을 돌려주는 네 API의 응답은 계정 식별자·가입 상태·다음 단계·이름·연락처·가입일·마케팅 동의 여부를 담는다.
+`/api/v1/profiles/**` 경로는 본인 계정만 다룬다. 경로의 계정이 요청자와 다르면 존재를 드러내지 않도록 `PROFILE-002`(404)로 거부한다. 프로필을 돌려주는 네 API의 응답은 계정 식별자·가입 상태·다음 단계·이름·연락처·가입일·마케팅 동의 여부를 담는다.
 
 | 요청 | 하는 일 | 제품 규칙 |
 | --- | --- | --- |
@@ -35,6 +35,7 @@
 | `POST /api/v1/profiles/{accountId}/terms-agreements` | 필수 약관 동의(가입 완료)·재동의, 마케팅 값을 보내면 함께 반영 | [조직·계정] 정책 §5(약관 동의)·§5.1, 기능명세 §5 |
 | `POST /api/v1/profiles/{accountId}/marketing-consents` | 마이페이지 마케팅 수신 동의 켜고 끄기. 경로는 허용 목록 안이지만 가입을 마치기 전이면 서비스가 `PROFILE-005`로 거부한다. 필수 약관 재동의 전인 활성 계정은 바꿀 수 있다 | [조직·계정] 정책 §5.1 |
 | `GET /api/v1/profiles/{accountId}/withdrawal-eligibility` | 탈퇴 확인 화면 전에 탈퇴를 막는 사유 확인. 탈퇴 가능 여부(`withdrawable`)와 사유·건수 목록(`blocks`) | [조직·계정] 정책 §5.1·§11, 기능명세 §7 |
+| `GET /api/v1/terms` | 약관 문서마다(`SERVICE`·`PRIVACY`·`MARKETING`·`PRIVACY_POLICY`) 시행 중인 버전과 본문 txt 주소. 계정과 무관해 Access Token 없이 부른다. 토큰을 붙이면 유효해야 하며 폐기·만료·위조된 토큰은 auth 계약대로 `COMMON-404`다. 토큰을 붙인 가입 미완료 계정도 허용 목록이라 쓴다. 본문은 서버가 아니라 웹 버킷 `terms/{종류}/{버전}.txt`에 운영자가 올린다(HM-372) | [조직·계정] 정책 §5(약관 동의) |
 | `POST /api/v1/profiles/{accountId}/withdrawals` | 즉시 탈퇴, 성공하면 204. 본문 `{"reason"}`은 선택 자유 텍스트이며 본문을 생략해도 된다. 가입 미완료 계정도 쓸 수 있다 | [조직·계정] 정책 §5.1·§11, 기능명세 §4·§5·§6·§7 |
 
 - 오류: `PROFILE-001`(입력 규칙 위반, 400), `PROFILE-002`(다른 계정·탈퇴한 계정, 404), `PROFILE-003`(프로필 입력 전 약관 동의, 409), `PROFILE-004`(필수 약관 미동의, 400), `PROFILE-005`(가입 미완료·재동의 전 이용, 403, [공통 검사](#profile-signup-gate)), `PROFILE-006`(탈퇴 차단, 409, 코드만), `PROFILE-007`(탈퇴 사유 200자 초과·NUL 문자, 400), 동시 저장 충돌 `COMMON-409`.
@@ -52,7 +53,7 @@ Authorization: Bearer {accessToken} → /api/** (허용 목록 제외)
   → CheckServiceAccessUseCase → 이용 불가면 PROFILE-005(403)
 ```
 
-- **등록과 허용 목록**: `ProfileWebConfig`(`WebMvcConfigurer`)가 인터셉터를 `/api/**`에 걸고 `/api/v1/profiles/**`, `/api/v1/auth/**`, organization의 회사 확인 `/api/v1/organizations/lookup`을 뺀다. 인증되지 않은 요청은 인가 단계가 이미 걸렀거나 공개 경로이므로 넘긴다. 공개 API도 토큰을 붙여 부르면 인증된 요청이라 검사한다(2026-10-10 결정). 탈퇴 API는 `/api/v1/profiles/**` 안이라 가입 미완료 계정도 쓴다. 다른 모듈에 가입 전에 써야 하는 API가 생기면 공개 여부와 관계없이 허용 목록에 더한다.
+- **등록과 허용 목록**: `ProfileWebConfig`(`WebMvcConfigurer`)가 인터셉터를 `/api/**`에 걸고 `/api/v1/profiles/**`, 시행 중인 약관 조회 `/api/v1/terms`, `/api/v1/auth/**`, organization의 회사 확인 `/api/v1/organizations/lookup`을 뺀다. 인증되지 않은 요청은 인가 단계가 이미 걸렀거나 공개 경로이므로 넘긴다. 공개 API도 토큰을 붙여 부르면 인증된 요청이라 검사한다(2026-10-10 결정). 탈퇴 API는 `/api/v1/profiles/**` 안이라 가입 미완료 계정도 쓴다. 다른 모듈에 가입 전에 써야 하는 API가 생기면 공개 여부와 관계없이 허용 목록에 더한다.
 - **보안 필터가 아니라 인터셉터인 이유**: 보안 필터로 두면 없는 경로도 403이 되어 auth의 "폐기·만료·위조 토큰의 404는 실제로 없는 자원의 404와 같다" 계약([Auth 인증 흐름](auth.md#인증과-로그아웃-흐름))이 깨진다. 인터셉터는 컨트롤러 메서드로 연결된 요청만 보므로 없는 경로는 그대로 404가 된다.
 - **다른 모듈 영향**: 다른 모듈은 검사를 직접 넣지 않으며 허용 목록 밖의 새 API는 자동으로 검사 대상이 된다. 허용 목록은 다른 모듈의 URL 문자열이라 모듈 의존이 아니고 `ModularityTest`가 보지 못하므로, auth API를 `/api/v1/auth/**` 밖에 두거나 가입 전 API를 더할 때 허용 목록을 직접 고친다.
 - **테스트 영향**: 다른 모듈의 `@ApplicationModuleTest`에는 profile이 올라오지 않아 이 검사가 빠진다. 전체 컨텍스트 API 통합 테스트에서 실제 Access Token으로 인증 요청을 보내려면 계정이 가입을 마쳐야 하며, `src/test/java/com/orbit/support/SignupTestSupport`가 실제 API로 로그인·프로필 입력·필수 약관 동의를 마친다. 토큰을 직접 서명하는 테스트는 `SignupTestSupport.SignupOnce`가 계정마다 한 번 가입을 마친다.
@@ -96,7 +97,8 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 
 | 속성 | 환경 변수 | 설명 |
 | --- | --- | --- |
-| `app.profile.terms.versions.service`, `privacy`, `marketing` | — | 시행 중인 약관 종류별 버전. 비면 기동에 실패한다. 필수 약관(`service`·`privacy`) 값을 올리면 이전 버전에만 동의한 계정은 그 뒤 첫 요청부터 재동의 전까지 [공통 검사](#profile-signup-gate)에 막힌다 |
+| `app.profile.terms.versions.service`, `privacy`, `marketing`, `privacy-policy` | — | 시행 중인 약관 종류별 버전(시행일 `YYYY-MM-DD`). 비거나 이 형식이 아니면 기동에 실패한다. 필수 약관(`service`·`privacy`) 값을 올리면 이전 버전에만 동의한 계정은 그 뒤 첫 요청부터 재동의 전까지 [공통 검사](#profile-signup-gate)에 막힌다. `privacy-policy`(처리방침)는 동의 대상이 아니라 본문 주소에만 쓴다. 값을 올리기 전에 그 버전의 본문 txt를 먼저 올린다 |
+| `app.profile.terms.base-url` | — | 약관 본문 주소의 앞부분. 본문은 `{base-url}/{종류}/{버전}.txt`이고 종류는 `service`·`privacy-consent`·`marketing`·`privacy-policy`다. 기본값(local·test·dev)은 `https://dev.orbi-t.com/terms`이고 prod만 application-prod.yml에서 `https://orbi-t.com/terms`로 덮어쓴다. `application-deployed.yml`에 두면 dev·prod를 모두 덮으므로 두지 않는다 |
 
 ## 연동 관계
 
