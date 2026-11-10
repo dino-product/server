@@ -81,10 +81,11 @@ final class WorkViews {
                 displayInfos.plannedTechnician(planned), planned.startTime(), planned.expectedDuration());
     }
 
-    static WorkDetailInfo.Cancellation cancellation(Cancellation cancellation) {
+    static WorkDetailInfo.Cancellation cancellation(Cancellation cancellation, DisplayInfos displayInfos) {
         return new WorkDetailInfo.Cancellation(
                 cancellation.cancelledAt(),
                 cancellation.cancelledBy().value(),
+                displayInfos.staffName(cancellation.cancelledBy()),
                 cancellation.reason(),
                 cancellation.note());
     }
@@ -117,20 +118,20 @@ final class WorkViews {
 
     private static WorkDetailInfo.Assignment assignment(
             int number, AssignmentHistory history, DisplayInfos displayInfos) {
+        MembershipId endedBy = history.ending().map(AssignmentEnding::endedBy).orElse(null);
         return new WorkDetailInfo.Assignment(
                 number,
                 schedule(history.schedule(), displayInfos),
                 history.assignedAt(),
                 history.assignedBy().value(),
+                displayInfos.staffName(history.assignedBy()),
                 history.result(),
                 history.decidedAt().orElse(null),
                 history.rejection().map(Rejection::reason).orElse(null),
                 history.rejection().map(Rejection::note).orElse(null),
                 history.ending().map(AssignmentEnding::reason).orElse(null),
                 history.ending().map(AssignmentEnding::endedAt).orElse(null),
-                history.ending()
-                        .map(AssignmentEnding::endedBy)
-                        .map(MembershipId::value)
-                        .orElse(null));
+                endedBy == null ? null : endedBy.value(),
+                displayInfos.staffName(endedBy));
     }
 }

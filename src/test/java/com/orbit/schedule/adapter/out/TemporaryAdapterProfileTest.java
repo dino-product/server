@@ -10,8 +10,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
-import com.orbit.schedule.application.port.out.LoadStaffProfilesPort;
-import com.orbit.schedule.application.port.out.LoadTechnicianProfilesPort;
 import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
 import com.orbit.schedule.application.port.out.WorkTypePort;
 
@@ -27,8 +25,6 @@ class TemporaryAdapterProfileTest {
     @DisplayName("로컬·테스트·개발 서버 프로필에서만 등록한다")
     void registersOnlyInLocalTestAndDev(String profile) {
         runner.withPropertyValues("spring.profiles.active=" + profile).run(context -> {
-            assertThat(context).hasSingleBean(LoadTechnicianProfilesPort.class);
-            assertThat(context).hasSingleBean(LoadStaffProfilesPort.class);
             assertThat(context).hasSingleBean(LoadWorkTypeLabelsPort.class);
             assertThat(context).hasSingleBean(WorkTypePort.class);
         });
@@ -39,8 +35,6 @@ class TemporaryAdapterProfileTest {
     @DisplayName("운영과 이름 없는·그 밖의 환경에서는 등록하지 않는다")
     void doesNotRegisterElsewhere(String profiles) {
         runner.withPropertyValues("spring.profiles.active=" + profiles).run(context -> {
-            assertThat(context).doesNotHaveBean(LoadTechnicianProfilesPort.class);
-            assertThat(context).doesNotHaveBean(LoadStaffProfilesPort.class);
             assertThat(context).doesNotHaveBean(LoadWorkTypeLabelsPort.class);
             assertThat(context).doesNotHaveBean(WorkTypePort.class);
         });
@@ -60,7 +54,9 @@ class TemporaryAdapterProfileTest {
                                 ".*\\.board\\..*",
                                 ".*\\.organization\\.OrganizationActorAdapter",
                                 ".*\\.organization\\.OrganizationTechnicianContractAdapter",
-                                ".*\\.organization\\.OrganizationAccountTechnicianContractsAdapter"
+                                ".*\\.organization\\.OrganizationAccountTechnicianContractsAdapter",
+                                ".*\\.organization\\.OrganizationStaffProfilesAdapter",
+                                ".*\\.organization\\.OrganizationTechnicianProfilesAdapter"
                             }))
     static class ScanTemporaryAdapters {}
 }

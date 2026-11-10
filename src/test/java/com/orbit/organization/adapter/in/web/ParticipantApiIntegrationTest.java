@@ -371,6 +371,77 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.result.participants[0].status").value("ACTIVE"));
     }
 
+    @Test
+    @DisplayName("기사를 직원으로 바꾸면 예정 작업이 대기함으로 돌아가고 같은 계정이 고른 직원 유형의 직원으로 보인다")
+    void changingTechnicianToStaffReturnsWorkToBacklog() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "역할 변경 발주사");
+        long technician = ACCOUNT_IDS.incrementAndGet();
+        long technicianId = join(company, owner, technician, "TECHNICIAN");
+        long workId = registerAssignedWork(owner, company.organizationId(), technicianId);
+        long categoryId = createCategory(owner, company.organizationId(), "staff-categories", "사무");
+
+        JsonNode changed = result(changeRole(owner, company.organizationId(), "technicians", technicianId, categoryId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.role").value("STAFF"))
+                .andExpect(jsonPath("$.result.releasedWorkIds[0]").value(workId)));
+
+        long membershipId = changed.path("memberId").asLong();
+        assertThat(workStatus(owner, company.organizationId(), workId)).isEqualTo("REGISTERED");
+        listParticipants(owner, company.organizationId(), null, null)
+                .andExpect(jsonPath("$.result.counts.technician").value(0))
+                .andExpect(jsonPath("$.result.participants[?(@.accountId == " + technician + ")].memberId")
+                        .value((int) membershipId))
+                .andExpect(jsonPath("$.result.participants[?(@.accountId == " + technician + ")].role")
+                        .value("STAFF"))
+                .andExpect(jsonPath("$.result.participants[?(@.accountId == " + technician + ")].category.categoryId")
+                        .value((int) categoryId));
+    }
+
+    @Test
+    @DisplayName("총관리자 소속은 409 ORGANIZATION-025, 비활성 기사는 409 ORGANIZATION-026, 총관리자가 아닌 직원은 403 ORGANIZATION-003이다")
+    void refusesLockedTargetsAndNonOwners() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "역할 잠금 발주사");
+        long staff = ACCOUNT_IDS.incrementAndGet();
+        long technician = ACCOUNT_IDS.incrementAndGet();
+        long staffMembershipId = join(company, owner, staff, "STAFF");
+        long technicianId = join(company, owner, technician, "TECHNICIAN");
+        long ownerMembershipId = membershipId(company, owner);
+
+        changeRole(owner, company.organizationId(), "staff-memberships", ownerMembershipId, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-025"));
+        changeRole(staff, company.organizationId(), "technicians", technicianId, null)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-003"));
+        changeStatus(owner, company.organizationId(), "technicians", technicianId, "deactivation")
+                .andExpect(status().isNoContent());
+        changeRole(owner, company.organizationId(), "technicians", technicianId, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-026"));
+        listParticipants(owner, company.organizationId(), null, null)
+                .andExpect(jsonPath("$.result.participants[?(@.memberId == " + staffMembershipId + ")].role")
+                        .value("STAFF"));
+    }
+
+    @Test
+    @DisplayName("schedule의 등록 작업 확인이 들어오기 전에는 직원을 기사로 바꾸지 못하고(409 ORGANIZATION-028) 직원 소속이 그대로다")
+    void refusesStaffToTechnicianUntilScheduleChecksRegisteredWorks() throws Exception {
+        long owner = ACCOUNT_IDS.incrementAndGet();
+        Company company = createCompany(owner, "직원 역할 발주사");
+        long staff = ACCOUNT_IDS.incrementAndGet();
+        long staffMembershipId = join(company, owner, staff, "STAFF");
+
+        changeRole(owner, company.organizationId(), "staff-memberships", staffMembershipId, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORGANIZATION-028"));
+
+        listParticipants(owner, company.organizationId(), "STAFF", null)
+                .andExpect(jsonPath("$.result.participants[?(@.memberId == " + staffMembershipId + ")].status")
+                        .value("ACTIVE"));
+    }
+
     private ResultActions listParticipants(long accountId, long organizationId, String type, String name)
             throws Exception {
         MockHttpServletRequestBuilder request = get(
@@ -443,6 +514,27 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                         organizationId,
                         memberId)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId)));
+    }
+
+    private ResultActions changeRole(
+            long accountId, long organizationId, String collection, long memberId, Long categoryId) throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put("categoryId", categoryId);
+        return mockMvc.perform(post(
+                        "/api/v1/organizations/{organizationId}/" + collection + "/{memberId}/role-change",
+                        organizationId,
+                        memberId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(accountId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body)));
+    }
+
+    private long membershipId(Company company, long accountId) {
+        return jdbcTemplate.queryForObject(
+                "select id from company_memberships where company_id = ? and member_id = ?",
+                Long.class,
+                company.organizationId(),
+                accountId);
     }
 
     private long registerAssignedWork(long owner, long organizationId, long technicianId) throws Exception {

@@ -41,10 +41,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.media.MediaFiles;
+import com.orbit.organization.MemberDirectory;
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.StaffMember;
 import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.TechnicianMember;
+import com.orbit.profile.ProfileLookup;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
@@ -94,6 +96,13 @@ class ConcurrentWorkChangeIntegrationTest implements SharedContainers {
     // media 공개 계약. 사진을 보내지 않으므로 확인은 부르지 않고, 연결은 빈 목록으로 부른 횟수만 본다.
     @MockitoBean
     private MediaFiles mediaFiles;
+
+    // organization·profile 공개 계약. 조회 화면의 표시 정보를 찾는 어댑터가 받는다.
+    @MockitoBean
+    private MemberDirectory memberDirectory;
+
+    @MockitoBean
+    private ProfileLookup profileLookup;
 
     @MockitoBean
     private TechnicianContractLookup technicianContractLookup;

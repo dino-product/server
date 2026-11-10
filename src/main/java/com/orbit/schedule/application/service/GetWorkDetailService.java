@@ -71,7 +71,7 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                         displayInfos,
                         displayInfos.registrar(work),
                         WorkViews.assignments(work, displayInfos),
-                        completionReportRequests(work),
+                        completionReportRequests(work, displayInfos),
                         work.canRequestCompletionReportAt(now));
             }
             case TechnicianActor technician -> technicianDetail(work, now, technician);
@@ -86,10 +86,13 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                 work, now, displayInfos, null, WorkViews.currentAssignment(work, displayInfos), List.of(), false);
     }
 
-    private static List<WorkDetailInfo.CompletionReportRequest> completionReportRequests(Work work) {
+    private static List<WorkDetailInfo.CompletionReportRequest> completionReportRequests(
+            Work work, DisplayInfos displayInfos) {
         return work.completionReportRequests().stream()
                 .map(request -> new WorkDetailInfo.CompletionReportRequest(
-                        request.requestedAt(), request.requestedBy().value()))
+                        request.requestedAt(),
+                        request.requestedBy().value(),
+                        displayInfos.staffName(request.requestedBy())))
                 .toList();
     }
 
@@ -125,7 +128,9 @@ public class GetWorkDetailService implements GetWorkDetailUseCase {
                 assignments,
                 work.startedAt().orElse(null),
                 work.completedAt().orElse(null),
-                work.cancellation().map(WorkViews::cancellation).orElse(null),
+                work.cancellation()
+                        .map(cancellation -> WorkViews.cancellation(cancellation, displayInfos))
+                        .orElse(null),
                 work.completionReport()
                         .map(report -> WorkViews.completionReport(work, report, mediaFiles))
                         .orElse(null),

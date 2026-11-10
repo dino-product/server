@@ -15,9 +15,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.orbit.auth.AccountPrincipal;
 import com.orbit.organization.adapter.in.web.docs.ParticipantControllerDocs;
 import com.orbit.organization.application.port.in.command.AssignMemberCategoryUseCase;
+import com.orbit.organization.application.port.in.command.ChangeParticipantRoleUseCase;
 import com.orbit.organization.application.port.in.command.DeactivateParticipantUseCase;
 import com.orbit.organization.application.port.in.command.ReactivateParticipantUseCase;
 import com.orbit.organization.application.port.in.command.dto.AssignMemberCategoryCommand;
+import com.orbit.organization.application.port.in.command.dto.ChangeParticipantRoleCommand;
 import com.orbit.organization.application.port.in.command.dto.ChangeParticipantStatusCommand;
 import com.orbit.organization.application.port.in.query.ListParticipantsUseCase;
 import com.orbit.organization.application.port.in.query.dto.ListParticipantsQuery;
@@ -33,16 +35,19 @@ class ParticipantController implements ParticipantControllerDocs {
     private final AssignMemberCategoryUseCase assignMemberCategoryUseCase;
     private final DeactivateParticipantUseCase deactivateParticipantUseCase;
     private final ReactivateParticipantUseCase reactivateParticipantUseCase;
+    private final ChangeParticipantRoleUseCase changeParticipantRoleUseCase;
 
     ParticipantController(
             ListParticipantsUseCase listParticipantsUseCase,
             AssignMemberCategoryUseCase assignMemberCategoryUseCase,
             DeactivateParticipantUseCase deactivateParticipantUseCase,
-            ReactivateParticipantUseCase reactivateParticipantUseCase) {
+            ReactivateParticipantUseCase reactivateParticipantUseCase,
+            ChangeParticipantRoleUseCase changeParticipantRoleUseCase) {
         this.listParticipantsUseCase = listParticipantsUseCase;
         this.assignMemberCategoryUseCase = assignMemberCategoryUseCase;
         this.deactivateParticipantUseCase = deactivateParticipantUseCase;
         this.reactivateParticipantUseCase = reactivateParticipantUseCase;
+        this.changeParticipantRoleUseCase = changeParticipantRoleUseCase;
     }
 
     @Override
@@ -120,6 +125,37 @@ class ParticipantController implements ParticipantControllerDocs {
             @PathVariable Long technicianId) {
         reactivateParticipantUseCase.reactivate(
                 command(requester, organizationId, ParticipationType.TECHNICIAN, technicianId));
+    }
+
+    @Override
+    @PostMapping("/staff-memberships/{membershipId}/role-change")
+    public ParticipantRoleChangeResponse changeStaffToTechnician(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long organizationId,
+            @PathVariable Long membershipId,
+            @RequestBody ParticipantRoleChangeRequest request) {
+        return changeRole(requester, organizationId, ParticipationType.STAFF, membershipId, request);
+    }
+
+    @Override
+    @PostMapping("/technicians/{technicianId}/role-change")
+    public ParticipantRoleChangeResponse changeTechnicianToStaff(
+            @AuthenticationPrincipal AccountPrincipal requester,
+            @PathVariable Long organizationId,
+            @PathVariable Long technicianId,
+            @RequestBody ParticipantRoleChangeRequest request) {
+        return changeRole(requester, organizationId, ParticipationType.TECHNICIAN, technicianId, request);
+    }
+
+    private ParticipantRoleChangeResponse changeRole(
+            AccountPrincipal requester,
+            Long organizationId,
+            ParticipationType type,
+            Long memberId,
+            ParticipantRoleChangeRequest request) {
+        return ParticipantRoleChangeResponse.from(
+                changeParticipantRoleUseCase.changeRole(new ChangeParticipantRoleCommand(
+                        requester.accountId(), organizationId, type, memberId, request.categoryId())));
     }
 
     private static ChangeParticipantStatusCommand command(
