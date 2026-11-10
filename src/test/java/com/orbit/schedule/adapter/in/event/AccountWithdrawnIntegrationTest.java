@@ -27,9 +27,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.media.MediaFiles;
+import com.orbit.organization.MemberDirectory;
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.profile.AccountWithdrawn;
+import com.orbit.profile.ProfileLookup;
 import com.orbit.profile.WithdrawalBlock;
 import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.profile.WithdrawalBlocker;
@@ -77,6 +79,13 @@ class AccountWithdrawnIntegrationTest implements SharedContainers {
     // 조립에 필요한 media 공개 계약. 이 테스트는 사진을 다루지 않는다.
     @MockitoBean
     private MediaFiles mediaFiles;
+
+    // organization·profile 공개 계약. 조회 화면의 표시 정보를 찾는 어댑터가 받는다.
+    @MockitoBean
+    private MemberDirectory memberDirectory;
+
+    @MockitoBean
+    private ProfileLookup profileLookup;
 
     // 탈퇴한 계정의 기사 계약은 이 대체로 정한다.
     @MockitoBean

@@ -67,8 +67,9 @@ public record WorkDetailInfo(
      * 완료보고 요청 한 건.
      *
      * @param requestedBy 요청한 관리자(조직 소속)
+     * @param requestedByName 요청한 관리자의 이름. 찾지 못했으면 null
      */
-    public record CompletionReportRequest(Instant requestedAt, Long requestedBy) {}
+    public record CompletionReportRequest(Instant requestedAt, Long requestedBy, String requestedByName) {}
 
     /**
      * 입력하지 않은 항목은 null이다.
@@ -94,23 +95,30 @@ public record WorkDetailInfo(
     public record Schedule(TechnicianInfo technician, Instant startTime, Duration expectedDuration, Instant endTime) {}
 
     /**
-     * 배정 한 건. 응답·거절·종료가 없으면 해당 항목이 null이다.
+     * 배정 한 건. 응답·거절·종료가 없으면 해당 항목이 null이다. 처리자 이름은 관리자에게만 담고(역할을 바꾸거나 비활성화된 소속도 이름을 찾는다), 기사에게와 찾지 못했을
+     * 때는 null이다.
      *
      * @param assignmentNumber 배정 이력의 1부터 시작하는 순번. 기사의 수락·거절·시작·완료보고 요청에 쓴다
+     * @param assignedByName 배정한 관리자의 이름
      * @param endedBy 배정을 끝낸 관리자(조직 소속). 기사의 탈퇴로 끝났으면({@code ACCOUNT_WITHDRAWN}) 처리한 관리자가 없어 종료 기록이 있어도 null이다
+     * @param endedByName 배정을 끝낸 관리자의 이름
      */
     public record Assignment(
             int assignmentNumber,
             Schedule schedule,
             Instant assignedAt,
             Long assignedBy,
+            String assignedByName,
             AssignmentResult result,
             Instant decidedAt,
             RejectionReason rejectionReason,
             String rejectionNote,
             AssignmentEndReason endReason,
             Instant endedAt,
-            Long endedBy) {}
+            Long endedBy,
+            String endedByName) {}
 
-    public record Cancellation(Instant cancelledAt, Long cancelledBy, CancellationReason reason, String note) {}
+    /** 취소 기록. 취소한 관리자의 이름은 관리자에게만 담고, 기사에게와 찾지 못했을 때는 null이다. */
+    public record Cancellation(
+            Instant cancelledAt, Long cancelledBy, String cancelledByName, CancellationReason reason, String note) {}
 }

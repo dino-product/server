@@ -18,6 +18,8 @@ import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
 import com.orbit.schedule.application.port.out.StaffProfile;
 import com.orbit.schedule.application.port.out.TechnicianProfile;
 import com.orbit.schedule.application.port.out.TypeLabel;
+import com.orbit.schedule.domain.AssignmentEnding;
+import com.orbit.schedule.domain.Cancellation;
 import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.PlannedSchedule;
@@ -29,8 +31,9 @@ import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.schedule.domain.WorkTypeId;
 
 /**
- * 조회 응답에 담을 작업들의 표시 정보(보일 일정의 담당기사, 상세에서는 배정 이력의 기사, 등록자, 작업유형)를 포트마다 한 번에 찾아 두고 꺼내 쓴다. 찾을 대상이 없는 포트는 부르지 않는다. 찾지
- * 못한 대상은 식별자만 담는다. 삭제된 작업유형은 작업이 시작되기 전(등록·배정됨·작업전)이면 유형 없음으로 보이고, 작업중·완료·취소 작업에는 삭제 전 이름·색 그대로 보인다([작업] §11).
+ * 조회 응답에 담을 작업들의 표시 정보(보일 일정의 담당기사, 상세에서는 배정 이력의 기사와 배정·종료·완료보고 요청·취소 처리자, 등록자, 작업유형)를 포트마다 한 번에 찾아
+ * 두고 꺼내 쓴다. 찾을 대상이 없는 포트는 부르지 않는다. 찾지 못한 대상은 식별자만 담는다. 삭제된 작업유형은 작업이 시작되기 전(등록·배정됨·작업전)이면 유형 없음으로 보이고,
+ * 작업중·완료·취소 작업에는 삭제 전 이름·색 그대로 보인다([작업] §11).
  */
 final class DisplayInfos {
 
@@ -59,7 +62,7 @@ final class DisplayInfos {
         return of(technicianProfiles, staffProfiles, workTypeLabels, organizationId, works, false, true);
     }
 
-    /** 작업 상세용. 배정 이력의 기사까지 함께 찾는다. */
+    /** 작업 상세용. 배정 이력의 기사와 배정·종료·완료보고 요청·취소 처리자까지 함께 찾는다. */
     static DisplayInfos ofDetail(
             LoadTechnicianProfilesPort technicianProfiles,
             LoadStaffProfilesPort staffProfiles,
@@ -109,23 +112,28 @@ final class DisplayInfos {
             boolean withHistory,
             boolean withRegistrars) {
         Set<TechnicianId> technicianIds = new HashSet<>();
-        Set<MembershipId> registrarIds = new HashSet<>();
+        Set<MembershipId> staffIds = new HashSet<>();
         Set<WorkTypeId> workTypeIds = new HashSet<>();
         for (Work work : works) {
             // 지금 일정·미리 입력한 담당기사·돌아온 작업의 마지막 배정 기사를 모두 담는다.
             work.shownSchedule().map(ShownSchedule::technicianId).ifPresent(technicianIds::add);
             if (withHistory) {
-                work.assignmentHistory()
-                        .forEach(history -> technicianIds.add(history.schedule().technicianId()));
+                work.assignmentHistory().forEach(history -> {
+                    technicianIds.add(history.schedule().technicianId());
+                    staffIds.add(history.assignedBy());
+                    history.ending().map(AssignmentEnding::endedBy).ifPresent(staffIds::add);
+                });
+                work.completionReportRequests().forEach(request -> staffIds.add(request.requestedBy()));
+                work.cancellation().map(Cancellation::cancelledBy).ifPresent(staffIds::add);
             }
             if (withRegistrars) {
-                registrarIds.add(work.registrarId());
+                staffIds.add(work.registrarId());
             }
             work.workType().ifPresent(workTypeIds::add);
         }
         return new DisplayInfos(
                 findAll(technicianIds, ids -> technicianProfiles.findProfiles(organizationId, ids)),
-                findAll(registrarIds, ids -> staffProfiles.findProfiles(organizationId, ids)),
+                findAll(staffIds, ids -> staffProfiles.findProfiles(organizationId, ids)),
                 findAll(workTypeIds, ids -> workTypeLabels.findLabels(organizationId, ids)));
     }
 
@@ -156,6 +164,12 @@ final class DisplayInfos {
         return profile == null
                 ? new StaffInfo(registrarId.value(), null, null, null)
                 : new StaffInfo(registrarId.value(), profile.name(), profile.owner(), label(profile.staffType()));
+    }
+
+    /** 처리한 관리자(조직 소속)의 이름. 처리자가 없거나 이름을 찾지 못했으면(기사에게 보이는 상세는 찾지 않는다) null. */
+    String staffName(MembershipId membershipId) {
+        StaffProfile profile = membershipId == null ? null : staff.get(membershipId);
+        return profile == null ? null : profile.name();
     }
 
     /** 화면에 보일 작업유형. 작업유형이 없거나, 시작 전 작업의 유형이 삭제됐으면 비어 있다. 작업유형 조건도 이 값으로 거른다. */

@@ -34,6 +34,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.media.MediaFiles;
+import com.orbit.organization.MemberDirectory;
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.TechnicianMember;
@@ -42,6 +43,7 @@ import com.orbit.organization.TechnicianWorkReleaseBusyException;
 import com.orbit.organization.TechnicianWorkReleaseResult;
 import com.orbit.organization.WorkReleaseBlocked;
 import com.orbit.organization.WorkReleased;
+import com.orbit.profile.ProfileLookup;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.StartWorkUseCase;
@@ -94,6 +96,13 @@ class TechnicianWorkReleaseIntegrationTest implements SharedContainers {
     // media 공개 계약. 조립 테스트는 schedule만 띄우므로 대체한다. 사진을 보내지 않아 확인은 부르지 않고 빈 목록 연결은 아무것도 하지 않는다.
     @MockitoBean
     private MediaFiles mediaFiles;
+
+    // organization·profile 공개 계약. 조회 화면의 표시 정보를 찾는 어댑터가 받는다.
+    @MockitoBean
+    private MemberDirectory memberDirectory;
+
+    @MockitoBean
+    private ProfileLookup profileLookup;
 
     @MockitoBean
     private TechnicianContractLookup technicianContractLookup;
