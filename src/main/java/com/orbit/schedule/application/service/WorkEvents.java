@@ -1,6 +1,7 @@
 package com.orbit.schedule.application.service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -10,20 +11,24 @@ import com.orbit.schedule.CompletionReportSubmitted;
 import com.orbit.schedule.WorkAccepted;
 import com.orbit.schedule.WorkAssigned;
 import com.orbit.schedule.WorkCancelled;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.WorkReassigned;
 import com.orbit.schedule.WorkRejected;
 import com.orbit.schedule.WorkRescheduled;
 import com.orbit.schedule.domain.CompletionReportRequest;
+import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
+import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
  * 변경 유즈케이스가 저장한 뒤 발행하는 공개 이벤트를 만든다. 이벤트는 일어난 사실이며, 누구에게 무엇을 알릴지는 구독하는 쪽이 정한다. 발생 시각은 그 변경에 쓴
- * 시각이다. 저장하지 않은 변경(겹침 미확인 보류, 중복 요청, 거부)에는 부르지 않는다. 배정 해제·기본정보 수정·대기함 반환은 아직 구독하는 모듈이 없어 이벤트를
- * 두지 않았으며, 필요해지면 추가한다.
+ * 시각이다. 저장하지 않은 변경(겹침 미확인 보류, 중복 요청, 거부)에는 부르지 않는다. 저장한 모든 변경은 {@link WorkChanged}를 내고, 알릴 사실이 있는 변경은 그
+ * 사실 이벤트를 먼저 낸다. 대기함에 둔 등록(일정을 비우거나 일부만 준 등록)·배정 해제·기본정보 수정·시작·대기함 반환·작업 유형 해제는 아직 사실 이벤트를 구독하는
+ * 모듈이 없어 {@link WorkChanged}만 낸다.
  */
 final class WorkEvents {
 
@@ -41,32 +46,36 @@ final class WorkEvents {
     }
 
     /**
-     * 반영한 배정·재배정·일정 변경을 하나의 사실로 발행한다. 대기함 작업의 배정은 {@link WorkAssigned}, 담당 기사가 바뀌었으면 {@link WorkReassigned},
-     * 같은 기사의 시간 변경은 {@link WorkRescheduled}다. 재배정·일정 변경은 변경 전 수락 상태였는지를 함께 담는다.
+     * 반영한 배정·재배정·일정 변경을 하나의 사실로 발행하고 이어서 {@link WorkChanged}를 발행한다. 대기함 작업의 배정은 {@link WorkAssigned}, 담당
+     * 기사가 바뀌었으면 {@link WorkReassigned}, 같은 기사의 시간 변경은 {@link WorkRescheduled}다. 재배정·일정 변경은 변경 전 수락 상태였는지를 함께
+     * 담는다.
      */
     static void publishAssignmentChange(
             ApplicationEventPublisher publisher, AssignmentBefore before, Work changed, Instant at) {
+        publisher.publishEvent(assignmentFact(before, changed, at));
+        publisher.publishEvent(changed(changed, at));
+    }
+
+    private static Object assignmentFact(AssignmentBefore before, Work changed, Instant at) {
         WorkSchedule schedule =
                 changed.schedule().orElseThrow(() -> new IllegalStateException("changed work must have a schedule"));
         if (before.status() == WorkStatus.REGISTERED) {
-            publisher.publishEvent(assigned(changed, at));
-            return;
+            return assigned(changed, at);
         }
         TechnicianId previous = before.technicianId()
                 .orElseThrow(() -> new IllegalStateException("assigned work must have a technician"));
         boolean wasAccepted = before.status() == WorkStatus.ACCEPTED;
         if (previous.equals(schedule.technicianId())) {
-            publisher.publishEvent(new WorkRescheduled(
+            return new WorkRescheduled(
                     workId(changed),
                     changed.organizationId().value(),
                     schedule.technicianId().value(),
                     wasAccepted,
                     changed.name(),
                     schedule.startTime(),
-                    at));
-            return;
+                    at);
         }
-        publisher.publishEvent(new WorkReassigned(
+        return new WorkReassigned(
                 workId(changed),
                 changed.organizationId().value(),
                 previous.value(),
@@ -74,7 +83,22 @@ final class WorkEvents {
                 wasAccepted,
                 changed.name(),
                 schedule.startTime(),
-                at));
+                at);
+    }
+
+    /** 작업 하나를 저장했다. 등록이면 저장소가 돌려준 작업을 넘겨 식별자를 얻는다. */
+    static WorkChanged changed(Work work, Instant at) {
+        return new WorkChanged(work.organizationId().value(), List.of(workId(work)), at);
+    }
+
+    /** 한 조직에서 함께 저장한 작업들을 한 건으로 발행한다. 저장한 작업이 없으면 발행하지 않는다. */
+    static void publishChanged(
+            ApplicationEventPublisher publisher, OrganizationId organizationId, List<WorkId> workIds, Instant at) {
+        if (workIds.isEmpty()) {
+            return;
+        }
+        publisher.publishEvent(new WorkChanged(
+                organizationId.value(), workIds.stream().map(WorkId::value).toList(), at));
     }
 
     /** 대기함 작업을 배정했다(배정 변경으로 배정하거나 일정을 함께 준 등록). 등록이면 저장소가 돌려준 작업을 넘겨 식별자를 얻는다. */

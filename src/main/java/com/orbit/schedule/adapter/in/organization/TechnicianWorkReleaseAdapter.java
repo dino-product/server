@@ -16,7 +16,8 @@ import com.orbit.shared.error.BusinessException;
 
 /**
  * organization이 선언한 대기함 반환 요구 인터페이스를 schedule의 반환 유즈케이스로 잇는 어댑터. organization의 트랜잭션 안에서 불리며, 반환 결과와 기사 일정 잠금
- * 대기 초과(SCHEDULE-006)를 organization 계약의 결과 타입·예외로 옮기기만 한다. organization은 schedule 타입을 볼 수 없어 계약의 언어로만 실패를 받는다.
+ * 대기 초과(SCHEDULE-006)·같은 작업의 저장 충돌(SCHEDULE-016)을 organization 계약의 결과 타입·예외로 옮기기만 한다. organization은 schedule 타입을
+ * 볼 수 없어 계약의 언어로만 실패를 받는다.
  */
 @Component
 class TechnicianWorkReleaseAdapter implements TechnicianWorkRelease {
@@ -50,7 +51,9 @@ class TechnicianWorkReleaseAdapter implements TechnicianWorkRelease {
             return releaseTechnicianWorksUseCase.release(
                     new ReleaseTechnicianWorksCommand(organizationId, technicianId, processedByMembershipId, cause));
         } catch (BusinessException exception) {
-            if (exception.getErrorCode() == ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY) {
+            // 둘 다 같은 요청을 다시 보내면 되는 실패다(잠금 대기 초과, 같은 작업의 다른 변경과 저장 충돌).
+            if (exception.getErrorCode() == ScheduleErrorCode.TECHNICIAN_SCHEDULE_BUSY
+                    || exception.getErrorCode() == ScheduleErrorCode.WORK_CHANGED) {
                 throw new TechnicianWorkReleaseBusyException(exception);
             }
             throw exception;

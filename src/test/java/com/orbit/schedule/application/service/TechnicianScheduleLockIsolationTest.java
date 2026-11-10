@@ -43,16 +43,18 @@ class TechnicianScheduleLockIsolationTest {
         assertThat(lockingServices)
                 .extracting(Class::getSimpleName)
                 .contains(
-                        "AcceptWorkService",
+                        // 수락·거절·시작은 저장 자리의 버전 충돌이면 서비스가 이 트랜잭션 부분을 새 트랜잭션에서 다시 부른다.
+                        "AcceptWorkTransaction",
                         "AssignWorkService",
                         "ChangeWorkAssignmentService",
-                        "CreateWorkService",
+                        // 등록은 사진 확인·좌표 조회를 트랜잭션 밖에서 마친 뒤 이 트랜잭션 부분을 부른다(CreateWorkService).
+                        "CreateWorkTransaction",
                         "ReassignWorkService",
                         "RescheduleWorkService",
                         "ReleaseTechnicianWorksService",
-                        "RejectWorkService",
+                        "RejectWorkTransaction",
                         "ReleaseWithdrawnTechnicianWorksService",
-                        "StartWorkService");
+                        "StartWorkTransaction");
         // 클래스 수준·합성 애너테이션까지 Spring이 실행 시 적용하는 규칙 그대로 판정한다.
         AnnotationTransactionAttributeSource attributes = new AnnotationTransactionAttributeSource();
         for (Class<?> service : lockingServices) {

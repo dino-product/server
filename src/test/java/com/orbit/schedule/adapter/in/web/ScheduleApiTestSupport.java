@@ -29,6 +29,7 @@ import com.nimbusds.jwt.SignedJWT;
 import com.orbit.schedule.application.port.out.LoadStaffProfilesPort;
 import com.orbit.schedule.application.port.out.LoadTechnicianProfilesPort;
 import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
+import com.orbit.schedule.application.port.out.SiteCoordinatesPort;
 import com.orbit.schedule.application.port.out.TechnicianContractPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.domain.Work;
@@ -72,6 +73,10 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
 
     @MockitoBean
     protected LoadWorkTypeLabelsPort workTypeLabels;
+
+    // 현장 좌표는 외부 지오코딩이라 대체한다. 넣지 않은 주소는 찾지 못한 것(빈 값)이다.
+    @MockitoBean
+    protected SiteCoordinatesPort siteCoordinatesPort;
 
     @Value("${app.auth.jwt.secret}")
     private String jwtSecret;
@@ -135,6 +140,15 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
                 now,
                 now,
                 now);
+    }
+
+    /** 그 조직에서 계정이 맺은 기사 계약의 식별자. */
+    protected long technicianIdOf(long organizationId, long accountId) {
+        return jdbcTemplate.queryForObject(
+                "select id from technician where company_id = ? and member_id = ?",
+                Long.class,
+                organizationId,
+                accountId);
     }
 
     protected static long account() {

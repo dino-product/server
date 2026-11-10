@@ -30,9 +30,17 @@ dependencies {
     add("annotationProcessor", "jakarta.annotation:jakarta.annotation-api")
     add("annotationProcessor", "jakarta.persistence:jakarta.persistence-api")
 
+    add("implementation", "org.springframework.boot:spring-boot-starter-flyway")
+    add("runtimeOnly", "org.flywaydb:flyway-database-postgresql")
     add("runtimeOnly", "org.postgresql:postgresql")
 
     add("implementation", "org.dhatim:fastexcel:${version("fastexcel")}")
+
+    // 사진 저장소(S3). 동기 클라이언트만 쓰므로 비동기 Netty 클라이언트는 뺀다.
+    add("implementation", platform("software.amazon.awssdk:bom:${version("aws-sdk")}"))
+    add("implementation", "software.amazon.awssdk:s3") {
+        exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+    }
 
     add("implementation", "org.springdoc:springdoc-openapi-starter-webmvc-ui:${version("springdoc")}")
     add("implementation", "io.micrometer:micrometer-registry-prometheus")
@@ -54,5 +62,6 @@ dependencies {
     add("testImplementation", "org.springframework.boot:spring-boot-testcontainers")
     add("testImplementation", "org.testcontainers:testcontainers-junit-jupiter")
     add("testImplementation", "org.testcontainers:testcontainers-postgresql")
+    add("testImplementation", "org.testcontainers:testcontainers-localstack")
     add("testImplementation", "org.dhatim:fastexcel-reader:${version("fastexcel")}")
 }

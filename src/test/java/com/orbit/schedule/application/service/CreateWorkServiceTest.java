@@ -11,6 +11,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.WORK
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -24,6 +25,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.WorkAssigned;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CreateWorkCommand;
 import com.orbit.schedule.application.port.in.command.dto.CreatedWorkInfo;
@@ -40,6 +42,7 @@ import com.orbit.schedule.domain.PaymentInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -50,15 +53,12 @@ import com.orbit.shared.error.BusinessException;
 @DisplayName("작업 등록")
 class CreateWorkServiceTest {
 
+    private static final String SITE_ADDRESS = "서울시 마포구 양화로 45";
+    private static final SiteCoordinates SEOUL =
+            new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803"));
+
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final CreateWorkService service = new CreateWorkService(
-            fixture.actorPort,
-            fixture.workRepository,
-            fixture.workTypes,
-            fixture.technicianContracts,
-            fixture.scheduleLock,
-            fixture.events,
-            fixture.clock);
+    private final CreateWorkService service = fixture.createWorkService();
 
     @ParameterizedTest
     @EnumSource(
@@ -302,12 +302,14 @@ class CreateWorkServiceTest {
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAssigned(
-                        created.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW));
+                .containsExactly(
+                        new WorkAssigned(
+                                created.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(created.workId()), NOW));
     }
 
     @Test
-    @DisplayName("일정을 비우면 대기함에 두고 기사를 잠그거나 확인하지 않으며, 배정이 아니므로 발행하지 않는다")
+    @DisplayName("일정을 비우면 대기함에 두고 기사를 잠그거나 확인하지 않으며, 배정이 아니므로 작업 변경만 발행한다")
     void registersBacklogWithoutLock() {
         fixture.givenManager();
 
@@ -318,11 +320,12 @@ class CreateWorkServiceTest {
         assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.REGISTERED);
         assertThat(fixture.scheduleLock.locks()).isEmpty();
         assertThat(fixture.technicianContracts.checks()).isZero();
-        assertThat(fixture.events.published()).isEmpty();
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(ORGANIZATION_ID.value(), List.of(created.workId()), NOW));
     }
 
     @Test
-    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고, 미리 입력한 담당기사만 잠그며 발행하지 않는다")
+    @DisplayName("담당기사·시작시각·소요시간 중 일부만 주면 입력한 값을 남긴 채 대기함에 두고, 미리 입력한 담당기사만 잠그며 작업 변경만 발행한다")
     void keepsPartialScheduleInBacklog() {
         fixture.givenManager();
 
@@ -338,7 +341,10 @@ class CreateWorkServiceTest {
         assertThat(timeOnly.workId()).isNotNull();
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.technicianContracts.checks()).isEqualTo(1);
-        assertThat(fixture.events.published()).isEmpty();
+        assertThat(fixture.events.published())
+                .containsExactly(
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(technicianOnly.workId()), NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(timeOnly.workId()), NOW));
     }
 
     @Test
@@ -446,8 +452,10 @@ class CreateWorkServiceTest {
         CreatedWorkInfo confirmed = service.create(scheduled(TECHNICIAN_ID.value(), TEN, TWO_HOURS, true));
 
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAssigned(
-                        confirmed.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW));
+                .containsExactly(
+                        new WorkAssigned(
+                                confirmed.workId(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "에어컨 수리", TEN, NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(confirmed.workId()), NOW));
     }
 
     @Test
@@ -495,14 +503,7 @@ class CreateWorkServiceTest {
     void failsFastWhenActorBelongsToOtherOrganization() {
         LoadActorPort misbehavingPort = (accountId, organizationId) ->
                 Optional.of(new ManagerActor(new MembershipId(11L), OTHER_ORGANIZATION_ID, ActorRole.OWNER));
-        CreateWorkService serviceWithMisbehavingPort = new CreateWorkService(
-                misbehavingPort,
-                fixture.workRepository,
-                fixture.workTypes,
-                fixture.technicianContracts,
-                fixture.scheduleLock,
-                fixture.events,
-                fixture.clock);
+        CreateWorkService serviceWithMisbehavingPort = fixture.createWorkService(misbehavingPort);
 
         assertThatThrownBy(() -> serviceWithMisbehavingPort.create(command("에어컨 수리", null)))
                 .isInstanceOf(IllegalStateException.class)
@@ -530,6 +531,64 @@ class CreateWorkServiceTest {
                 () -> service.create(photoCommand(Collections.nCopies(7, "photo"))),
                 ScheduleErrorCode.INVALID_WORK_INPUT);
         assertThat(fixture.workTypes.checks()).isZero();
+    }
+
+    @Test
+    @DisplayName("현장 기본주소가 있으면 그 주소로 구한 좌표를 함께 저장한다")
+    void storesCoordinatesOfBaseAddress() {
+        fixture.givenManager();
+        fixture.siteCoordinates.givenCoordinates(SITE_ADDRESS, SEOUL);
+
+        service.create(customerCommand(null, null, SITE_ADDRESS));
+
+        assertThat(fixture.singleSaved().customerInfo().address().flatMap(SiteAddress::coordinates))
+                .contains(SEOUL);
+        assertThat(fixture.siteCoordinates.lookups()).containsExactly(SITE_ADDRESS);
+    }
+
+    @Test
+    @DisplayName("좌표를 구하지 못해도 좌표 없이 등록한다")
+    void registersWithoutCoordinatesWhenNotFound() {
+        fixture.givenManager();
+
+        service.create(customerCommand(null, null, SITE_ADDRESS));
+
+        assertThat(fixture.singleSaved().customerInfo().address()).contains(new SiteAddress(null, SITE_ADDRESS, null));
+    }
+
+    @Test
+    @DisplayName("기본주소가 없으면 좌표를 찾지 않는다")
+    void skipsLookupWithoutBaseAddress() {
+        fixture.givenManager();
+
+        service.create(customerCommand("이정호", null, null));
+
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("조직의 관리자가 아니면 좌표를 찾지 않고 거부한다")
+    void skipsLookupForNonManager() {
+        fixture.siteCoordinates.givenCoordinates(SITE_ADDRESS, SEOUL);
+
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, SITE_ADDRESS)),
+                ScheduleErrorCode.NOT_ORGANIZATION_MEMBER);
+        fixture.givenTechnician(TECHNICIAN_ID);
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, SITE_ADDRESS)), ScheduleErrorCode.ACTION_NOT_ALLOWED);
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("길이 제한을 넘는 기본주소는 찾지 않고 입력 오류로 거부한다")
+    void skipsLookupForTooLongBaseAddress() {
+        fixture.givenManager();
+
+        fixture.assertRejected(
+                () -> service.create(customerCommand(null, null, "가".repeat(201))),
+                ScheduleErrorCode.INVALID_WORK_INPUT);
+        assertThat(fixture.siteCoordinates.lookups()).isEmpty();
     }
 
     private static CreateWorkCommand photoCommand(List<String> sitePhotoIds) {

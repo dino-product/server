@@ -13,6 +13,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.UNKN
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.WorkAccepted;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.AcceptWorkCommand;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
@@ -37,8 +39,7 @@ import com.orbit.schedule.domain.WorkStatus;
 class AcceptWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final AcceptWorkService service = new AcceptWorkService(
-            fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.events, fixture.clock);
+    private final AcceptWorkService service = fixture.acceptWorkService();
 
     @Test
     @DisplayName(
@@ -60,13 +61,15 @@ class AcceptWorkServiceTest {
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
         assertThat(fixture.events.published())
-                .containsExactly(new WorkAccepted(
-                        id.value(),
-                        ORGANIZATION_ID.value(),
-                        REGISTRAR_ID.value(),
-                        TECHNICIAN_ID.value(),
-                        "대상 작업",
-                        NOW));
+                .containsExactly(
+                        new WorkAccepted(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                REGISTRAR_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                "대상 작업",
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -188,6 +191,46 @@ class AcceptWorkServiceTest {
         Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reschedule(TEN.plusSeconds(3_600), TWO_HOURS, NOW.plusSeconds(60), SETUP_MANAGER_ID);
         return fixture.workRepository.store(work);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 다른 요청이 먼저 커밋한 것이 드러나면 새로 읽어 한 번 다시 수락하고, 다시 한 수락만 저장·발행한다")
+    void retriesAfterConcurrentChange() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+        long version = fixture.stored(id).version();
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        service.accept(command(id.value()));
+
+        Work saved = fixture.singleSaved();
+        assertThat(saved.status()).isEqualTo(WorkStatus.ACCEPTED);
+        assertThat(saved.version()).isEqualTo(version + 2);
+        assertThat(fixture.events.published()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 취소가 먼저 커밋된 것이 드러나면 다시 읽은 취소된 작업을 보고 상태 오류다")
+    void seesCancellationCommittedBeforeSave() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+        fixture.workRepository.failNextSaveWithConcurrentChange(
+                work -> work.cancel(NOW, SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null));
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.accept(command(id.value())), ScheduleErrorCode.INVALID_WORK_STATE);
+        assertThat(fixture.stored(id).status()).isEqualTo(WorkStatus.CANCELED);
+    }
+
+    @Test
+    @DisplayName("다시 수락해도 저장 자리에서 또 충돌하면 변경된 정보라는 409이고 아무것도 저장·발행하지 않는다")
+    void reportsWorkChangedWhenRetryConflictsAgain() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        fixture.assertRejectedWithoutSaving(() -> service.accept(command(id.value())), ScheduleErrorCode.WORK_CHANGED);
     }
 
     private static AcceptWorkCommand command(long workId) {

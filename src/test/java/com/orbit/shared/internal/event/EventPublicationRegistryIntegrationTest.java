@@ -27,23 +27,20 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.orbit.support.IntegrationTestSupport;
 
-import io.micrometer.core.instrument.MeterRegistry;
-
 @Import(EventPublicationRegistryIntegrationTest.ProbeListeners.class)
 @TestPropertySource(
         properties = {
-            "app.events.resubmission.max-attempts=" + EventPublicationRegistryIntegrationTest.MAX_ATTEMPTS,
+            "app.events.resubmission.initial-backoff=PT1M",
+            "app.events.resubmission.max-backoff=PT30M",
             "spring.modulith.events.staleness.processing=PT1S",
             "spring.modulith.events.staleness.check-interval=PT1S"
         })
 class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
 
-    static final int MAX_ATTEMPTS = 3;
-
     private static final String PUBLICATIONS = "event_publication";
     private static final String ARCHIVE = "event_publication_archive";
-    private static final String FAILED_METRIC = "event.publications.failed";
-    private static final String EXHAUSTED_METRIC = "event.publications.exhausted";
+    private static final Duration INITIAL_BACKOFF = Duration.ofMinutes(1);
+    private static final Duration MAX_BACKOFF = Duration.ofMinutes(30);
     private static final int ALWAYS_FAIL = Integer.MAX_VALUE;
     private static final Duration ASYNC_WAIT = Duration.ofSeconds(10);
 
@@ -64,9 +61,6 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
 
     @Autowired
     private FailedEventPublicationResubmitter resubmitter;
-
-    @Autowired
-    private MeterRegistry meterRegistry;
 
     @Test
     void recordsPublicationInPublishingTransactionAndArchivesItAfterListenerCompletes() {
@@ -145,6 +139,7 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
         new TransactionTemplate(transactionManager)
                 .executeWithoutResult(status -> events.publishEvent(new RegistryProbe(key, 1)));
         await().atMost(ASYNC_WAIT).until(() -> statuses(PUBLICATIONS, key).equals(List.of("FAILED")));
+        elapse(key, INITIAL_BACKOFF);
 
         resubmitter.resubmitFailed();
 
@@ -158,25 +153,54 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    void stopsResubmittingWhenAttemptsReachLimit() {
+    void doublesWaitAfterEachFailedAttemptBeforeResubmitting() {
         String key = newKey();
 
         new TransactionTemplate(transactionManager)
                 .executeWithoutResult(status -> events.publishEvent(new RegistryProbe(key, ALWAYS_FAIL)));
-        for (int attempt = 1; attempt < MAX_ATTEMPTS; attempt++) {
-            awaitFailedAfter(key, attempt);
-            resubmitter.resubmitFailed();
-        }
-        awaitFailedAfter(key, MAX_ATTEMPTS);
+        awaitFailedAfter(key, 1);
 
         resubmitter.resubmitFailed();
+        assertNoMoreAttemptsThan(key, 1, "첫 실패 뒤 대기 시간이 지나기 전에는 다시 보내지 않는다");
 
-        await().during(Duration.ofMillis(500)).atMost(Duration.ofSeconds(2)).untilAsserted(() -> assertThat(
-                        moduleListener.attempts(key))
-                .as("시도 횟수 상한에 닿은 발행은 더 보내지 않는다")
-                .isEqualTo(MAX_ATTEMPTS));
-        assertThat(statuses(PUBLICATIONS, key)).as("상한에 닿은 발행은 실패로 남아 조회할 수 있다").containsExactly("FAILED");
-        assertThat(completionAttempts(PUBLICATIONS, key)).containsExactly(MAX_ATTEMPTS);
+        elapse(key, INITIAL_BACKOFF);
+        resubmitter.resubmitFailed();
+        awaitFailedAfter(key, 2);
+
+        elapse(key, INITIAL_BACKOFF);
+        resubmitter.resubmitFailed();
+        assertNoMoreAttemptsThan(key, 2, "두 번째 실패 뒤에는 대기 시간이 두 배로 늘어난다");
+
+        elapse(key, INITIAL_BACKOFF);
+        resubmitter.resubmitFailed();
+        awaitFailedAfter(key, 3);
+    }
+
+    @Test
+    void keepsResubmittingWithoutAttemptLimitAtMaxBackoff() {
+        String key = newKey();
+
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> events.publishEvent(new RegistryProbe(key, ALWAYS_FAIL)));
+        awaitFailedAfter(key, 1);
+        jdbcTemplate.update(
+                "update " + PUBLICATIONS + " set completion_attempts = 1000 where serialized_event like ?",
+                "%" + key + "%");
+
+        elapse(key, MAX_BACKOFF.minusMinutes(1));
+        resubmitter.resubmitFailed();
+        assertNoMoreAttemptsThan(key, 1, "대기 시간 상한이 지나기 전에는 다시 보내지 않는다");
+
+        elapse(key, Duration.ofMinutes(1));
+        resubmitter.resubmitFailed();
+
+        await().atMost(ASYNC_WAIT)
+                .alias("시도가 아무리 많아도 대기 시간 상한이 지나면 다시 보낸다")
+                .until(() -> moduleListener.attempts(key) == 2);
+        await().atMost(ASYNC_WAIT).untilAsserted(() -> assertThat(statuses(PUBLICATIONS, key))
+                .as("다시 실패해도 포기하지 않고 실패 상태로 남겨 다음 재전송을 기다린다")
+                .containsExactly("FAILED"));
+        assertThat(completionAttempts(PUBLICATIONS, key)).containsExactly(1001);
     }
 
     @Test
@@ -190,6 +214,7 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
             await().atMost(ASYNC_WAIT).untilAsserted(() -> assertThat(statuses(PUBLICATIONS, key))
                     .as("처리 중인 채로 멈춘 발행은 실패로 바뀐다")
                     .containsExactly("FAILED"));
+            elapse(key, INITIAL_BACKOFF);
 
             resubmitter.resubmitFailed();
 
@@ -201,38 +226,28 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
         }
     }
 
-    @Test
-    void exposesFailedAndExhaustedPublicationCountsAsMetrics() {
-        String key = newKey();
-
-        new TransactionTemplate(transactionManager)
-                .executeWithoutResult(status -> events.publishEvent(new RegistryProbe(key, ALWAYS_FAIL)));
-        awaitFailedAfter(key, 1);
-
-        await().atMost(ASYNC_WAIT).untilAsserted(() -> {
-            assertThat(gauge(FAILED_METRIC)).as("실패로 남은 발행을 모두 센다").isEqualTo(countFailedWithAttempts(0));
-            assertThat(gauge(EXHAUSTED_METRIC))
-                    .as("시도가 남은 발행은 시도 소진으로 세지 않는다")
-                    .isEqualTo(countFailedWithAttempts(MAX_ATTEMPTS));
-        });
-
-        jdbcTemplate.update(
-                "update " + PUBLICATIONS + " set completion_attempts = ? where serialized_event like ?",
-                MAX_ATTEMPTS,
-                "%" + key + "%");
-
-        await().atMost(ASYNC_WAIT).untilAsserted(() -> {
-            assertThat(gauge(FAILED_METRIC)).isEqualTo(countFailedWithAttempts(0));
-            assertThat(gauge(EXHAUSTED_METRIC))
-                    .as("최대 처리 시도 횟수를 다 쓴 발행을 센다")
-                    .isEqualTo(countFailedWithAttempts(MAX_ATTEMPTS));
-        });
-    }
-
     private void awaitFailedAfter(String key, int attempts) {
         await().atMost(ASYNC_WAIT)
                 .until(() -> moduleListener.attempts(key) == attempts
                         && statuses(PUBLICATIONS, key).equals(List.of("FAILED")));
+    }
+
+    private void assertNoMoreAttemptsThan(String key, int attempts, String description) {
+        await().during(Duration.ofMillis(500))
+                .atMost(Duration.ofSeconds(2))
+                .untilAsserted(() ->
+                        assertThat(moduleListener.attempts(key)).as(description).isEqualTo(attempts));
+    }
+
+    /** 발행·마지막 재전송 시각을 {@code elapsed}만큼 앞당겨 그만큼 시간이 지난 것처럼 만든다. */
+    private void elapse(String key, Duration elapsed) {
+        jdbcTemplate.update(
+                "update " + PUBLICATIONS + " set publication_date = publication_date - ? * interval '1 millisecond',"
+                        + " last_resubmission_date = last_resubmission_date - ? * interval '1 millisecond'"
+                        + " where serialized_event like ?",
+                elapsed.toMillis(),
+                elapsed.toMillis(),
+                "%" + key + "%");
     }
 
     private List<String> statuses(String table, String key) {
@@ -252,17 +267,6 @@ class EventPublicationRegistryIntegrationTest extends IntegrationTestSupport {
                 "select completion_attempts from " + table + " where serialized_event like ?",
                 Integer.class,
                 "%" + key + "%");
-    }
-
-    private double gauge(String name) {
-        return meterRegistry.get(name).gauge().value();
-    }
-
-    private double countFailedWithAttempts(int minimumAttempts) {
-        return jdbcTemplate.queryForObject(
-                "select count(*) from " + PUBLICATIONS + " where status = 'FAILED' and completion_attempts >= ?",
-                Double.class,
-                minimumAttempts);
     }
 
     private static String newKey() {

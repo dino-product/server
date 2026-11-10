@@ -11,7 +11,7 @@
 
 계정의 가입 프로필(이름·연락처), 가입 상태와 가입일, 약관 동의 이력과 마케팅 수신 동의, 탈퇴를 소유하고, 가입을 마치지 않았거나 필수 약관 재동의 전인 계정이 가입 마무리에 필요한 API 밖을 쓰지 못하게 막는다. 계정 식별자 발급·외부 식별·토큰과 계정 폐쇄는 [auth](auth.md), 조직 소속·역할은 organization이 소유한다. profile은 auth가 발급한 계정 식별자를 값(`AccountId`)으로만 보관한다.
 
-현재 구현 범위는 프로필 입력·수정, 필수 약관 동의(가입 완료)·재동의, 내 정보와 가입 단계 조회, 마이페이지 마케팅 수신 동의 변경, 탈퇴 가능 여부 확인과 [탈퇴](#profile-withdrawal), [가입 공통 검사](#profile-signup-gate), 다른 모듈에 주는 이름 조회 계약과 탈퇴 연동 계약([공개 계약](#공개-계약))이다. 프로필 사진은 아직 없다([남은 일](#profile-todo)).
+현재 구현 범위는 프로필 입력·수정, 필수 약관 동의(가입 완료)·재동의, 내 정보와 가입 단계 조회, 마이페이지 마케팅 수신 동의 변경, 시행 중인 약관 버전·본문 주소 공개 조회(`GET /api/v1/terms`), 탈퇴 가능 여부 확인과 [탈퇴](#profile-withdrawal), [가입 공통 검사](#profile-signup-gate), 다른 모듈에 주는 이름 조회 계약과 탈퇴 연동 계약([공개 계약](#공개-계약))이다. 프로필 사진은 아직 없다([남은 일](#profile-todo)).
 
 ## 가입 상태와 이용 가능 판정
 
@@ -26,7 +26,7 @@
 
 ## HTTP
 
-모든 경로는 본인 계정만 다룬다. 경로의 계정이 요청자와 다르면 존재를 드러내지 않도록 `PROFILE-002`(404)로 거부한다. 프로필을 돌려주는 네 API의 응답은 계정 식별자·가입 상태·다음 단계·이름·연락처·가입일·마케팅 동의 여부를 담는다.
+`/api/v1/profiles/**` 경로는 본인 계정만 다룬다. 경로의 계정이 요청자와 다르면 존재를 드러내지 않도록 `PROFILE-002`(404)로 거부한다. 프로필을 돌려주는 네 API의 응답은 계정 식별자·가입 상태·다음 단계·이름·연락처·가입일·마케팅 동의 여부를 담는다.
 
 | 요청 | 하는 일 | 제품 규칙 |
 | --- | --- | --- |
@@ -35,6 +35,7 @@
 | `POST /api/v1/profiles/{accountId}/terms-agreements` | 필수 약관 동의(가입 완료)·재동의, 마케팅 값을 보내면 함께 반영 | [조직·계정] 정책 §5(약관 동의)·§5.1, 기능명세 §5 |
 | `POST /api/v1/profiles/{accountId}/marketing-consents` | 마이페이지 마케팅 수신 동의 켜고 끄기. 경로는 허용 목록 안이지만 가입을 마치기 전이면 서비스가 `PROFILE-005`로 거부한다. 필수 약관 재동의 전인 활성 계정은 바꿀 수 있다 | [조직·계정] 정책 §5.1 |
 | `GET /api/v1/profiles/{accountId}/withdrawal-eligibility` | 탈퇴 확인 화면 전에 탈퇴를 막는 사유 확인. 탈퇴 가능 여부(`withdrawable`)와 사유·건수 목록(`blocks`) | [조직·계정] 정책 §5.1·§11, 기능명세 §7 |
+| `GET /api/v1/terms` | 약관 문서마다(`SERVICE`·`PRIVACY`·`MARKETING`·`PRIVACY_POLICY`) 시행 중인 버전과 본문 txt 주소. 계정과 무관해 Access Token 없이 부른다. 토큰을 붙이면 유효해야 하며 폐기·만료·위조된 토큰은 auth 계약대로 `COMMON-404`다. 토큰을 붙인 가입 미완료 계정도 허용 목록이라 쓴다. 본문은 서버가 아니라 웹 버킷 `terms/{종류}/{버전}.txt`에 운영자가 올린다(HM-372) | [조직·계정] 정책 §5(약관 동의) |
 | `POST /api/v1/profiles/{accountId}/withdrawals` | 즉시 탈퇴, 성공하면 204. 본문 `{"reason"}`은 선택 자유 텍스트이며 본문을 생략해도 된다. 가입 미완료 계정도 쓸 수 있다 | [조직·계정] 정책 §5.1·§11, 기능명세 §4·§5·§6·§7 |
 
 - 오류: `PROFILE-001`(입력 규칙 위반, 400), `PROFILE-002`(다른 계정·탈퇴한 계정, 404), `PROFILE-003`(프로필 입력 전 약관 동의, 409), `PROFILE-004`(필수 약관 미동의, 400), `PROFILE-005`(가입 미완료·재동의 전 이용, 403, [공통 검사](#profile-signup-gate)), `PROFILE-006`(탈퇴 차단, 409, 코드만), `PROFILE-007`(탈퇴 사유 200자 초과·NUL 문자, 400), 동시 저장 충돌 `COMMON-409`.
@@ -52,7 +53,7 @@ Authorization: Bearer {accessToken} → /api/** (허용 목록 제외)
   → CheckServiceAccessUseCase → 이용 불가면 PROFILE-005(403)
 ```
 
-- **등록과 허용 목록**: `ProfileWebConfig`(`WebMvcConfigurer`)가 인터셉터를 `/api/**`에 걸고 `/api/v1/profiles/**`, `/api/v1/auth/**`, organization의 회사 확인 `/api/v1/organizations/lookup`을 뺀다. 인증되지 않은 요청은 인가 단계가 이미 걸렀거나 공개 경로이므로 넘긴다. 공개 API도 토큰을 붙여 부르면 인증된 요청이라 검사한다(2026-10-10 결정). 탈퇴 API는 `/api/v1/profiles/**` 안이라 가입 미완료 계정도 쓴다. 다른 모듈에 가입 전에 써야 하는 API가 생기면 공개 여부와 관계없이 허용 목록에 더한다.
+- **등록과 허용 목록**: `ProfileWebConfig`(`WebMvcConfigurer`)가 인터셉터를 `/api/**`에 걸고 `/api/v1/profiles/**`, 시행 중인 약관 조회 `/api/v1/terms`, `/api/v1/auth/**`, organization의 회사 확인 `/api/v1/organizations/lookup`을 뺀다. 인증되지 않은 요청은 인가 단계가 이미 걸렀거나 공개 경로이므로 넘긴다. 공개 API도 토큰을 붙여 부르면 인증된 요청이라 검사한다(2026-10-10 결정). 탈퇴 API는 `/api/v1/profiles/**` 안이라 가입 미완료 계정도 쓴다. 다른 모듈에 가입 전에 써야 하는 API가 생기면 공개 여부와 관계없이 허용 목록에 더한다.
 - **보안 필터가 아니라 인터셉터인 이유**: 보안 필터로 두면 없는 경로도 403이 되어 auth의 "폐기·만료·위조 토큰의 404는 실제로 없는 자원의 404와 같다" 계약([Auth 인증 흐름](auth.md#인증과-로그아웃-흐름))이 깨진다. 인터셉터는 컨트롤러 메서드로 연결된 요청만 보므로 없는 경로는 그대로 404가 된다.
 - **다른 모듈 영향**: 다른 모듈은 검사를 직접 넣지 않으며 허용 목록 밖의 새 API는 자동으로 검사 대상이 된다. 허용 목록은 다른 모듈의 URL 문자열이라 모듈 의존이 아니고 `ModularityTest`가 보지 못하므로, auth API를 `/api/v1/auth/**` 밖에 두거나 가입 전 API를 더할 때 허용 목록을 직접 고친다.
 - **테스트 영향**: 다른 모듈의 `@ApplicationModuleTest`에는 profile이 올라오지 않아 이 검사가 빠진다. 전체 컨텍스트 API 통합 테스트에서 실제 Access Token으로 인증 요청을 보내려면 계정이 가입을 마쳐야 하며, `src/test/java/com/orbit/support/SignupTestSupport`가 실제 API로 로그인·프로필 입력·필수 약관 동의를 마친다. 토큰을 직접 서명하는 테스트는 `SignupTestSupport.SignupOnce`가 계정마다 한 번 가입을 마친다.
@@ -90,18 +91,20 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 - `profiles`: 기본 키 `account_id`(auth가 발급한 계정 식별자), 이름, 연락처(숫자만), 가입 상태(`PENDING_SIGNUP`·`ACTIVE`·`WITHDRAWN`), 가입일, 탈퇴 시각 `withdrawn_at`, 탈퇴 사유 `withdrawal_reason`(200자), 마케팅 동의 여부·변경 시각, 낙관적 잠금용 `version`. 이름·연락처는 탈퇴하면 비우므로 nullable이다. 연락처는 계정 사이에 중복을 허용하므로 유일 제약이 없다.
 - `profile_terms_agreements`: 계정별 약관 종류·버전·동의 시각. 추가만 한다.
 - 두 테이블 모두 `BaseTimeEntity`의 `created_at`·`updated_at` 감사 컬럼을 가진다. 가입일·동의 시각 같은 업무 시각은 이 컬럼과 별개다.
-- auth의 `accounts`로 가는 외래 키는 두지 않는다(모듈 경계). 두 테이블의 스키마 마이그레이션은 auth와 마찬가지로 아직 없다([실행 프로필 규칙](../../.claude/skills/dino-architecture/references/persistence.md#profiles)).
+- auth의 `accounts`로 가는 외래 키는 두지 않는다(모듈 경계). 두 테이블은 `V1__init.sql`이 만든다([ADR-005](../adr/005-schema-migration.md)).
 
 ## 설정
 
 | 속성 | 환경 변수 | 설명 |
 | --- | --- | --- |
-| `app.profile.terms.versions.service`, `privacy`, `marketing` | — | 시행 중인 약관 종류별 버전. 비면 기동에 실패한다. 필수 약관(`service`·`privacy`) 값을 올리면 이전 버전에만 동의한 계정은 그 뒤 첫 요청부터 재동의 전까지 [공통 검사](#profile-signup-gate)에 막힌다 |
+| `app.profile.terms.versions.service`, `privacy`, `marketing`, `privacy-policy` | — | 시행 중인 약관 종류별 버전(시행일 `YYYY-MM-DD`). 비거나 이 형식이 아니면 기동에 실패한다. 필수 약관(`service`·`privacy`) 값을 올리면 이전 버전에만 동의한 계정은 그 뒤 첫 요청부터 재동의 전까지 [공통 검사](#profile-signup-gate)에 막힌다. `privacy-policy`(처리방침)는 동의 대상이 아니라 본문 주소에만 쓴다. 값을 올리기 전에 그 버전의 본문 txt를 먼저 올린다 |
+| `app.profile.terms.base-url` | — | 약관 본문 주소의 앞부분. 본문은 `{base-url}/{종류}/{버전}.txt`이고 종류는 `service`·`privacy-consent`·`marketing`·`privacy-policy`다. 기본값(local·test·dev)은 `https://dev.orbi-t.com/terms`이고 prod만 application-prod.yml에서 `https://orbi-t.com/terms`로 덮어쓴다. `application-deployed.yml`에 두면 dev·prod를 모두 덮으므로 두지 않는다 |
 
 ## 연동 관계
 
 - **auth (현재)**: 컨트롤러와 공통 검사가 auth 루트 계약 `AccountPrincipal`에서 계정 식별자만 받아 Command·Query에 넘긴다(Conformist). 이 의존 때문에 auth는 profile을 조회·구독할 수 없다. 탈퇴의 계정 폐쇄(외부 식별 해제·토큰 거부)는 `WithdrawService`가 auth 루트 계약 `AccountClosure`를 탈퇴 트랜잭션 안에서 직접 호출한다(auth가 탈퇴 이벤트를 구독하면 순환). 로그인 응답에는 가입 단계가 없으므로 클라이언트는 로그인 뒤 `GET /api/v1/profiles/{accountId}`로 확인한다.
 - **organization·schedule (탈퇴, schedule 연결·organization 연결 전)**: 탈퇴 차단 판정은 두 모듈이 profile 요구 인터페이스 `WithdrawalBlocker`를 구현하고, 탈퇴 뒤처리(소속 비활성화·대기함 반환)는 두 모듈이 `AccountWithdrawn`을 구독해 맡는다(2026-10-14 결정, organization HM-319·schedule HM-320). schedule은 `adapter/in/profile`·`adapter/in/event`로 연결됐다(HM-320). 두 모듈이 profile에 의존하게 되므로 profile은 그들을 조회·구독하지 않는다.
+- **notification (탈퇴, 연결됨)**: 탈퇴한 계정의 앱 푸시 기기를 지우려고 `AccountWithdrawn`을 구독한다(HM-279). notification이 profile에 의존하므로 profile은 notification을 조회·구독하지 않는다.
 - **계획된 관계** (현재 허용 의존성이 아님): schedule의 기사 이름 표시가 `ProfileLookup`을 쓰도록 연결한다(HM-288). 기사 계약 ID를 계정 ID로 바꾸는 연결은 organization과 합의한다.
 
 ## 공개 계약
@@ -110,7 +113,7 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 - `WithdrawalBlocker#blocksFor(Long)` (요구 인터페이스): 탈퇴를 막는 상태를 소유한 모듈이 구현한다 — organization은 유일한 총관리자(HM-319), schedule은 기사 소속의 작업중·배정됨 작업(HM-320). profile이 사전 확인과 탈퇴 직전에 등록된 모든 구현을 부른다. 탈퇴 직전 판정은 탈퇴 트랜잭션 안이라 상태를 바꾸지 않되, 판정과 커밋 사이의 경합을 막는 행 잠금은 잡을 수 있다. 같은 사유를 여러 번 돌려줘도 된다.
   - [요구 인터페이스 규칙](../../.claude/skills/dino-architecture/references/communication.md#요구-인터페이스)과 달리 구현을 여러 모듈이 제공하고, 구현이 없으면 임시 구현 없이 아무것도 막지 않는다. 차단 조건이 상태를 소유한 모듈마다 나뉘고, profile은 그 모듈들을 모르기 때문이다. 그래서 운영 출시 전에 두 구현이 들어가야 한다.
 - `WithdrawalBlock(reason, count)`·`WithdrawalBlockReason`: 차단 사유와 먼저 정리해야 할 대상의 수(1 이상). 사유 `SOLE_OWNER`·`WORK_IN_PROGRESS`·`WORK_PENDING_ACCEPT`는 [조직·계정] 정책 §5.1의 차단 조건이라 profile이 목록을 소유한다. `WORK_PENDING_ACCEPT`는 [작업] 정책 §9의 배정됨 코드 이름을 따른다. 대상 ID는 담지 않는다(정책 §11은 건수와 처리 경로만 안내).
-- `AccountWithdrawn(accountId, occurredAt)` (이벤트): 탈퇴 트랜잭션 안에서 발행하고 구독자는 커밋 뒤 다른 트랜잭션에서 받는다. 차단·롤백·재요청이면 발행하지 않는다. 개인정보 없이 계정 식별자와 발생 시각만 담는다. organization·schedule이 `@ApplicationModuleListener`로 구독해 뒤처리와 실패 재시도를 각자 맡는다. 구독 실패의 재전송은 이벤트 발행 기록(HM-278)이 맡으며, 아직 없어서 지금은 구독자가 실패하면 다시 전달되지 않는다. 아직 구독 모듈은 없다.
+- `AccountWithdrawn(accountId, occurredAt)` (이벤트): 탈퇴 트랜잭션 안에서 발행하고 구독자는 커밋 뒤 다른 트랜잭션에서 받는다. 차단·롤백·재요청이면 발행하지 않는다. 개인정보 없이 계정 식별자와 발생 시각만 담는다. organization·schedule·notification(앱 푸시 기기 삭제)이 `@ApplicationModuleListener`로 구독해 뒤처리와 실패 재시도를 각자 맡는다. 구독 실패의 재전송은 이벤트 발행 기록(HM-278)이 맡으며, 아직 없어서 지금은 구독자가 실패하면 다시 전달되지 않는다. 아직 구독 모듈은 없다.
 - 사용하는 계약: auth `AccountPrincipal`(요청자 계정), `AccountClosure`(탈퇴의 계정 폐쇄).
 
 가입 공통 검사는 공개 계약 없이 웹 계층에서 다른 모듈 API에 적용된다.
@@ -129,4 +132,3 @@ ID 대역·추적 칸의 뜻과 [대역별 구현 규칙](../planning/README.md#
 - **"탈퇴한 사용자" 표기** ([조직·계정] 정책 §5.1): `ProfileLookup`이 탈퇴한 계정을 어떻게 돌려줄지 정한다. 지금은 가입 미완료·프로필 없는 계정과 구분되지 않는다.
 - **탈퇴 뒤 보관 범위**: 약관 동의 이력·가입일·탈퇴 시각·사유를 기한 없이 보관한다. 법적 적정성은 organization 쪽 O-32(ORG-009).
 - **프로필 사진** ([조직·계정] 정책 §5·§5.1): 파일 저장 방식이 정해진 뒤 추가한다.
-- **운영 전**: `profiles`·`profile_terms_agreements` 스키마 마이그레이션. `profiles`는 `name`·`phone_number` NOT NULL 해제, `withdrawn_at`·`withdrawal_reason`(varchar(200)) 추가, `status`의 enum check 제약(Hibernate가 만든 DB)에 `WITHDRAWN` 허용을 함께 적용한다.

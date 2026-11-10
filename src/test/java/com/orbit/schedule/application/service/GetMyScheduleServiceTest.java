@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -21,10 +22,12 @@ import org.junit.jupiter.api.Test;
 
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetMyScheduleQuery;
+import com.orbit.schedule.application.port.in.query.dto.LocationInfo;
 import com.orbit.schedule.application.port.in.query.dto.MyScheduleInfo;
 import com.orbit.schedule.domain.ActorRole;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -41,11 +44,12 @@ class GetMyScheduleServiceTest {
             new GetMyScheduleService(fixture.actorPort, fixture.workRepository, fixture.clock);
 
     @Test
-    @DisplayName("지금 본인이 담당인 구간 안 작업을 시작시각 순으로 담고(다른 기사로 바뀌었거나 거절로 대기함에 돌아간 작업 제외), 지금 배정의 순번·현장 주소·지연을 표시한다")
+    @DisplayName(
+            "지금 본인이 담당인 구간 안 확정 작업을 시작시각 순으로 담고(응답 전 작업, 다른 기사로 바뀌었거나 거절로 대기함에 돌아간 작업 제외), 지금 배정의 순번·현장 주소·지연을 표시한다")
     void listsOwnWorks() {
         fixture.givenTechnician(TECHNICIAN_ID);
         Instant pastStart = NOW.minus(Duration.ofHours(3));
-        WorkId pending = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+        fixture.givenWork(WorkStatus.PENDING_ACCEPT);
         Work rescheduled = fixture.stored(
                 fixture.givenWork(ORGANIZATION_ID, "시간 바뀐 작업", WorkStatus.ACCEPTED, TECHNICIAN_ID, pastStart));
         rescheduled.reschedule(pastStart.minusSeconds(60), TWO_HOURS, NOW, SETUP_MANAGER_ID);
@@ -79,21 +83,36 @@ class GetMyScheduleServiceTest {
                         MyScheduleInfo.ScheduledWork::delayed)
                 .containsExactly(
                         tuple(rescheduledId.value(), WorkStatus.ACCEPTED, 2, true),
-                        tuple(pending.value(), WorkStatus.PENDING_ACCEPT, 1, false),
                         tuple(inProgress.value(), WorkStatus.IN_PROGRESS, 1, false),
                         tuple(completed.value(), WorkStatus.COMPLETED, 1, false),
                         tuple(reassignedBackId.value(), WorkStatus.ACCEPTED, 3, false));
         assertThat(schedule.works().get(1))
                 .isEqualTo(new MyScheduleInfo.ScheduledWork(
-                        pending.value(),
-                        "대상 작업",
-                        WorkStatus.PENDING_ACCEPT,
+                        inProgress.value(),
+                        "진행 중 작업",
+                        WorkStatus.IN_PROGRESS,
                         1,
-                        TEN,
-                        TEN.plus(TWO_HOURS),
+                        TEN.plus(Duration.ofHours(1)),
+                        TEN.plus(Duration.ofHours(1)).plus(TWO_HOURS),
+                        "홍길동",
                         "서울시",
                         "3층",
+                        null,
                         false));
+    }
+
+    @Test
+    @DisplayName("현장 기본주소에서 구한 좌표를 길찾기용으로 함께 담는다")
+    void includesSiteLocation() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        work.locateSite(new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803")));
+        fixture.workRepository.store(work);
+
+        assertThat(service.get(query(FROM, TO)).works())
+                .singleElement()
+                .extracting(MyScheduleInfo.ScheduledWork::customerLocation)
+                .isEqualTo(new LocationInfo(new BigDecimal("37.556151"), new BigDecimal("126.922803")));
     }
 
     @Test

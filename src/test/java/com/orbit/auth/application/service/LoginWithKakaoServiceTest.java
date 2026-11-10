@@ -25,14 +25,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.orbit.auth.application.error.AuthErrorCode;
 import com.orbit.auth.application.port.in.command.dto.LoginInfo;
 import com.orbit.auth.application.port.in.command.dto.LoginWithKakaoCommand;
-import com.orbit.auth.application.port.out.AccessTokenPort;
 import com.orbit.auth.application.port.out.AccountRepository;
 import com.orbit.auth.application.port.out.DuplicateIdentityException;
-import com.orbit.auth.application.port.out.IssuedAccessToken;
 import com.orbit.auth.application.port.out.KakaoIdTokenClaims;
 import com.orbit.auth.application.port.out.LoginNoncePort;
 import com.orbit.auth.application.port.out.VerifyKakaoIdTokenPort;
-import com.orbit.auth.domain.AccessToken;
 import com.orbit.auth.domain.Account;
 import com.orbit.auth.domain.AccountId;
 import com.orbit.auth.domain.ExternalIdentity;
@@ -48,8 +45,8 @@ class LoginWithKakaoServiceTest {
     private static final AccountId ACCOUNT_ID = new AccountId(7L);
     private static final LoginWithKakaoCommand COMMAND = new LoginWithKakaoCommand("id-token");
     private static final KakaoIdTokenClaims CLAIMS = new KakaoIdTokenClaims("1234567890", "nonce");
-    private static final IssuedAccessToken ISSUED = new IssuedAccessToken(
-            "access-token", new AccessToken("jti", ACCOUNT_ID, NOW, NOW.plus(Duration.ofHours(1))));
+    private static final IssuedSessionTokens ISSUED = new IssuedSessionTokens(
+            "access-token", NOW.plus(Duration.ofHours(1)), "refresh-token", NOW.plus(Duration.ofDays(30)));
 
     @Mock
     private VerifyKakaoIdTokenPort idTokens;
@@ -61,13 +58,13 @@ class LoginWithKakaoServiceTest {
     private AccountRepository accounts;
 
     @Mock
-    private AccessTokenPort accessTokens;
+    private SessionTokenIssuer tokens;
 
     private LoginWithKakaoService service;
 
     @BeforeEach
     void setUp() {
-        service = new LoginWithKakaoService(idTokens, nonces, accounts, accessTokens, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new LoginWithKakaoService(idTokens, nonces, accounts, tokens, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -77,7 +74,7 @@ class LoginWithKakaoServiceTest {
         when(nonces.consume("nonce")).thenReturn(true);
         when(accounts.findByIdentity(IDENTITY)).thenReturn(Optional.empty());
         when(accounts.saveNew(any())).thenReturn(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW));
-        when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
+        when(tokens.start(ACCOUNT_ID)).thenReturn(ISSUED);
 
         LoginInfo info = service.login(COMMAND);
 
@@ -85,7 +82,14 @@ class LoginWithKakaoServiceTest {
         verify(accounts).saveNew(saved.capture());
         assertThat(saved.getValue().identities()).containsExactly(IDENTITY);
         assertThat(saved.getValue().registeredAt()).isEqualTo(NOW);
-        assertThat(info).isEqualTo(new LoginInfo(7L, true, "access-token", NOW.plus(Duration.ofHours(1))));
+        assertThat(info)
+                .isEqualTo(new LoginInfo(
+                        7L,
+                        true,
+                        "access-token",
+                        NOW.plus(Duration.ofHours(1)),
+                        "refresh-token",
+                        NOW.plus(Duration.ofDays(30))));
     }
 
     @Test
@@ -95,7 +99,7 @@ class LoginWithKakaoServiceTest {
         when(nonces.consume("nonce")).thenReturn(true);
         when(accounts.findByIdentity(IDENTITY))
                 .thenReturn(Optional.of(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW.minusSeconds(1))));
-        when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
+        when(tokens.start(ACCOUNT_ID)).thenReturn(ISSUED);
 
         LoginInfo info = service.login(COMMAND);
 
@@ -113,7 +117,7 @@ class LoginWithKakaoServiceTest {
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(Account.reconstitute(ACCOUNT_ID, List.of(IDENTITY), NOW)));
         when(accounts.saveNew(any())).thenThrow(new DuplicateIdentityException(IDENTITY, null));
-        when(accessTokens.issue(ACCOUNT_ID)).thenReturn(ISSUED);
+        when(tokens.start(ACCOUNT_ID)).thenReturn(ISSUED);
 
         LoginInfo info = service.login(COMMAND);
 
@@ -144,6 +148,6 @@ class LoginWithKakaoServiceTest {
                         .isEqualTo(AuthErrorCode.INVALID_NONCE));
         verify(accounts, never()).findByIdentity(any());
         verify(accounts, never()).saveNew(any());
-        verify(accessTokens, never()).issue(any());
+        verify(tokens, never()).start(any());
     }
 }

@@ -13,7 +13,6 @@ import org.springframework.context.annotation.FilterType;
 import com.orbit.schedule.application.port.out.LoadStaffProfilesPort;
 import com.orbit.schedule.application.port.out.LoadTechnicianProfilesPort;
 import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
-import com.orbit.schedule.application.port.out.PhotoUrlPort;
 import com.orbit.schedule.application.port.out.WorkTypePort;
 
 @DisplayName("임시 출력 어댑터 등록 프로필")
@@ -31,7 +30,6 @@ class TemporaryAdapterProfileTest {
             assertThat(context).hasSingleBean(LoadTechnicianProfilesPort.class);
             assertThat(context).hasSingleBean(LoadStaffProfilesPort.class);
             assertThat(context).hasSingleBean(LoadWorkTypeLabelsPort.class);
-            assertThat(context).hasSingleBean(PhotoUrlPort.class);
             assertThat(context).hasSingleBean(WorkTypePort.class);
         });
     }
@@ -44,13 +42,13 @@ class TemporaryAdapterProfileTest {
             assertThat(context).doesNotHaveBean(LoadTechnicianProfilesPort.class);
             assertThat(context).doesNotHaveBean(LoadStaffProfilesPort.class);
             assertThat(context).doesNotHaveBean(LoadWorkTypeLabelsPort.class);
-            assertThat(context).doesNotHaveBean(PhotoUrlPort.class);
             assertThat(context).doesNotHaveBean(WorkTypePort.class);
         });
     }
 
     @Configuration(proxyBeanMethods = false)
-    // 모든 프로필에서 등록하는 실제 어댑터(persistence, organization 계약 번역)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에 들어오게 한다.
+    // 모든 프로필에서 등록하는 실제 어댑터(persistence, organization 계약 번역, 카카오 좌표 조회, 진행 보드 캐시)만 빼고 스캔해, 새로 생기는 임시 어댑터도 검사 대상에
+    // 들어오게 한다.
     @ComponentScan(
             basePackages = "com.orbit.schedule.adapter.out",
             excludeFilters =
@@ -58,6 +56,8 @@ class TemporaryAdapterProfileTest {
                             type = FilterType.REGEX,
                             pattern = {
                                 ".*\\.persistence\\..*",
+                                ".*\\.kakao\\..*",
+                                ".*\\.board\\..*",
                                 ".*\\.organization\\.OrganizationActorAdapter",
                                 ".*\\.organization\\.OrganizationTechnicianContractAdapter",
                                 ".*\\.organization\\.OrganizationAccountTechnicianContractsAdapter"

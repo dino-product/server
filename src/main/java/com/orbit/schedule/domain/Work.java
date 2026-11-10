@@ -21,7 +21,7 @@ public final class Work {
     /** 작업에 붙일 수 있는 현장 사진 수. */
     public static final int MAX_SITE_PHOTO_COUNT = 6;
 
-    /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한, HM-238). */
+    /** 현장 사진 식별자 최대 길이. 업로드를 마친 파일의 식별자(media 모듈의 UUID)이며 저장 컬럼 길이와 같다(구현에서 정한 기술 제한). */
     public static final int MAX_SITE_PHOTO_ID_LENGTH = 500;
 
     /**
@@ -477,26 +477,29 @@ public final class Work {
 
     /**
      * 주어진 시각에 지연된 작업인지. 지연은 상태가 아니라 조회 시각으로 계산하는 표시값이며, 예정 종료시각이 그 시각이거나 이미 지났는데 끝나지 않은 작업과 늦게 끝난
-     * 작업이다.
-     *
-     * <ul>
-     *   <li>수락대기·수락됨·작업중: 예정 종료시각이 그 시각이거나 이미 지났으면 지연이다.
-     *   <li>완료: 예정 종료시각이나 그 뒤에 완료했으면 지연이다(완료 시점에 이미 지연이었던 작업).
-     *   <li>등록(대기함): {@link #shownSchedule 보일 일정}의 종료시각이 그 시각이거나 이미 지났으면 지연이다. 시작시각이나 예상소요시간을 모르면 지연이 아니다.
-     *   <li>취소: 지연이 아니다.
-     * </ul>
+     * 작업이다. {@link #delayThreshold 지연 기준 시각}이 있고 그 시각이 지났거나 그 시각이면 지연이다.
      */
     public boolean isDelayedAt(Instant now) {
         Objects.requireNonNull(now, "now must not be null");
+        return delayThreshold().map(threshold -> !now.isBefore(threshold)).orElse(false);
+    }
+
+    /**
+     * 이 시각부터 지연으로 보는 기준({@link #isDelayedAt}). 조회 시각과 상관없는 값이라, 조회 결과를 저장해 두고 지연 여부만 나중 시각으로 다시 판정할 때 쓴다.
+     *
+     * <ul>
+     *   <li>수락대기·수락됨·작업중: 예정 종료시각.
+     *   <li>완료: 예정 종료시각이나 그 뒤에 완료했으면 언제 봐도 지연이라 {@link Instant#EPOCH}(완료 시점에 이미 지연이었던 작업), 그 전에 완료했으면 없다.
+     *   <li>등록(대기함): {@link #shownSchedule 보일 일정}의 종료시각. 시작시각이나 예상소요시간을 모르면 없다.
+     *   <li>취소: 없다.
+     * </ul>
+     */
+    public Optional<Instant> delayThreshold() {
         return switch (status) {
-            case PENDING_ACCEPT, ACCEPTED, IN_PROGRESS -> !now.isBefore(schedule.endTime());
-            case COMPLETED -> !completedAt.isBefore(schedule.endTime());
-            case REGISTERED ->
-                shownSchedule()
-                        .flatMap(ShownSchedule::endTime)
-                        .map(endTime -> !now.isBefore(endTime))
-                        .orElse(false);
-            case CANCELED -> false;
+            case PENDING_ACCEPT, ACCEPTED, IN_PROGRESS -> Optional.of(schedule.endTime());
+            case COMPLETED -> completedAt.isBefore(schedule.endTime()) ? Optional.empty() : Optional.of(Instant.EPOCH);
+            case REGISTERED -> shownSchedule().flatMap(ShownSchedule::endTime);
+            case CANCELED -> Optional.empty();
         };
     }
 
@@ -609,9 +612,18 @@ public final class Work {
     }
 
     /**
+     * 기본정보 수정의 작업명·현장 사진 형식({@link #changeDetails}가 상태보다 먼저 하는 입력 확인과 같다). 서비스가 다른 요청 값 확인(사진 업로드 확인 결과)을
+     * 상태 확인보다 먼저 끝내야 할 때 {@link #changeDetails} 전에 부른다.
+     */
+    public static void requireDetailsInput(String newName, List<String> newSitePhotoIds) {
+        requireName(newName);
+        requireSitePhotos(newSitePhotoIds);
+    }
+
+    /**
      * 작업명·작업 유형·고객정보·결제정보·현장 사진 다섯 항목을 주어진 값으로 한꺼번에 교체한다. null로 준 선택 항목은 비운다(부분 수정이 아니다). 완료·취소된
      * 작업은 바꿀 수 없고, 상태·배정은 그대로 둔다. 작업 유형은 시작 전까지만 바꾸거나 비울 수 있고 작업중에는 지금 유형을 그대로 줘야 한다. 서비스의 공통 오류
-     * 순서(입력 → 상태)에 맞춰 작업명·현장 사진을 상태보다 먼저 검증한다.
+     * 순서(입력 → 상태)에 맞춰 작업명·현장 사진을 상태보다 먼저 검증한다. 현장 기본주소가 그대로면 이전에 구한 좌표를 이어받는다.
      */
     public void changeDetails(
             String newName,
@@ -629,9 +641,28 @@ public final class Work {
         }
         name = newName;
         workType = newWorkType;
-        customerInfo = orEmpty(newCustomerInfo);
+        customerInfo = keepingSiteCoordinates(orEmpty(newCustomerInfo));
         paymentInfo = orEmpty(newPaymentInfo);
         sitePhotos = photos;
+    }
+
+    /** 현장 기본주소에서 구한 좌표를 담는다. 기본주소가 없으면 담을 수 없다. */
+    public void locateSite(SiteCoordinates coordinates) {
+        if (coordinates == null) {
+            throw new IllegalArgumentException("coordinates must not be null");
+        }
+        SiteAddress address = customerInfo
+                .address()
+                .orElseThrow(() -> new IllegalStateException("Cannot locate a site without an address"));
+        customerInfo = customerInfo.withAddress(address.withCoordinates(coordinates));
+    }
+
+    /** 기본주소가 그대로인 수정은 이전에 구한 좌표를 이어받는다. */
+    private CustomerInfo keepingSiteCoordinates(CustomerInfo next) {
+        SiteAddress previous = customerInfo.address().orElse(null);
+        return next.address()
+                .map(address -> next.withAddress(address.keepingCoordinatesOf(previous)))
+                .orElse(next);
     }
 
     /**

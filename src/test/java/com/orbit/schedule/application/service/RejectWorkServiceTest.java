@@ -13,11 +13,14 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.UNKNOWN_WORK_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.WorkRejected;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.RejectWorkCommand;
@@ -36,8 +39,7 @@ import com.orbit.schedule.domain.WorkStatus;
 class RejectWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final RejectWorkService service = new RejectWorkService(
-            fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.events, fixture.clock);
+    private final RejectWorkService service = fixture.rejectWorkService();
 
     @Test
     @DisplayName(
@@ -60,15 +62,17 @@ class RejectWorkServiceTest {
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
         assertThat(fixture.events.published())
-                .containsExactly(new WorkRejected(
-                        id.value(),
-                        ORGANIZATION_ID.value(),
-                        REGISTRAR_ID.value(),
-                        TECHNICIAN_ID.value(),
-                        "대상 작업",
-                        "LOCATION_TOO_FAR",
-                        null,
-                        NOW));
+                .containsExactly(
+                        new WorkRejected(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                REGISTRAR_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                "대상 작업",
+                                "LOCATION_TOO_FAR",
+                                null,
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @ParameterizedTest
@@ -87,10 +91,13 @@ class RejectWorkServiceTest {
 
         service.reject(command(id.value(), 1, reason, note));
 
-        assertThat(fixture.events.published()).singleElement().isInstanceOfSatisfying(WorkRejected.class, event -> {
-            assertThat(event.reasonCode()).isEqualTo(expectedCode);
-            assertThat(event.reasonNote()).isEqualTo(expectedNote);
-        });
+        assertThat(fixture.events.published())
+                .hasExactlyElementsOfTypes(WorkRejected.class, WorkChanged.class)
+                .first()
+                .isInstanceOfSatisfying(WorkRejected.class, event -> {
+                    assertThat(event.reasonCode()).isEqualTo(expectedCode);
+                    assertThat(event.reasonNote()).isEqualTo(expectedNote);
+                });
     }
 
     @Test
@@ -257,6 +264,19 @@ class RejectWorkServiceTest {
         Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
         work.reject(rejection, ACCEPTED_AT);
         return fixture.workRepository.store(work);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 다른 요청이 먼저 커밋한 것이 드러나면 새로 읽어 한 번 다시 거절하고, 다시 한 거절만 저장·발행한다")
+    void retriesAfterConcurrentChange() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.PENDING_ACCEPT);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        service.reject(command(id.value(), 1, RejectionReason.SCHEDULE_CONFLICT, null));
+
+        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.REGISTERED);
+        assertThat(fixture.events.published()).hasSize(2);
     }
 
     private static RejectWorkCommand command(long workId, int number, RejectionReason reason, String note) {

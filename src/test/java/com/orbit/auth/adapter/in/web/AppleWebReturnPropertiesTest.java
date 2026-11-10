@@ -14,11 +14,11 @@ class AppleWebReturnPropertiesTest {
     @Test
     @DisplayName("등록한 클라이언트 이름은 대소문자를 구분하지 않고 찾고, 등록하지 않은 이름은 찾지 않는다")
     void resolvesRegisteredClientsOnly() {
-        AppleWebReturnProperties properties = new AppleWebReturnProperties(
-                Map.of("Web", "https://admin.example.com/login/apple", "android", "orbit://auth/apple"));
+        AppleWebReturnProperties properties =
+                new AppleWebReturnProperties(Map.of("Web", "https://admin.example.com/login/apple"));
 
         assertThat(properties.returnUri("web")).contains("https://admin.example.com/login/apple");
-        assertThat(properties.returnUri("ANDROID")).contains("orbit://auth/apple");
+        assertThat(properties.returnUri("WEB")).contains("https://admin.example.com/login/apple");
         assertThat(properties.returnUri("https://evil.example")).isEmpty();
         assertThat(properties.returnUri(null)).isEmpty();
     }

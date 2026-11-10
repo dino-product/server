@@ -19,10 +19,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.port.in.command.dto.ReleaseDeletedWorkTypeCommand;
 import com.orbit.schedule.application.port.in.command.dto.ReleasedWorkTypeInfo;
 import com.orbit.schedule.application.port.out.ClearedWorkType;
 import com.orbit.schedule.application.port.out.WorkTypeUsagePort;
+import com.orbit.schedule.application.service.fake.RecordingEventPublisher;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.WorkId;
@@ -35,8 +37,9 @@ class ReleaseDeletedWorkTypeServiceTest {
     private static final Instant NOW = Instant.parse("2026-10-19T00:00:00Z");
 
     private final RecordingPort port = new RecordingPort();
+    private final RecordingEventPublisher events = new RecordingEventPublisher();
     private final ReleaseDeletedWorkTypeService service =
-            new ReleaseDeletedWorkTypeService(port, Clock.fixed(NOW, ZoneOffset.UTC));
+            new ReleaseDeletedWorkTypeService(port, events, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @AfterEach
     void clearIsolationLevel() {
@@ -67,6 +70,25 @@ class ReleaseDeletedWorkTypeServiceTest {
                         new ReleasedWorkTypeInfo(7L, null),
                         new ReleasedWorkTypeInfo(8L, 3L),
                         new ReleasedWorkTypeInfo(9L, 3L));
+    }
+
+    @Test
+    @DisplayName("비운 작업들을 식별자 순으로 담아 작업 변경 한 건으로 알린다")
+    void publishesOneWorkChangedForClearedWorks() {
+        port.cleared.add(new ClearedWorkType(new WorkId(9L), WorkStatus.ACCEPTED, new TechnicianId(3L)));
+        port.cleared.add(new ClearedWorkType(new WorkId(7L), WorkStatus.REGISTERED, null));
+
+        service.release(new ReleaseDeletedWorkTypeCommand(100L, 5L));
+
+        assertThat(events.published()).containsExactly(new WorkChanged(100L, List.of(7L, 9L), NOW));
+    }
+
+    @Test
+    @DisplayName("비운 작업이 없으면 작업 변경을 알리지 않는다")
+    void publishesNothingWhenNoWorkCleared() {
+        service.release(new ReleaseDeletedWorkTypeCommand(100L, 5L));
+
+        assertThat(events.published()).isEmpty();
     }
 
     @ParameterizedTest

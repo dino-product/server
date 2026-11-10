@@ -14,12 +14,15 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.orbit.schedule.WorkCancelled;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.CancelWorkCommand;
 import com.orbit.schedule.domain.ActorRole;
@@ -40,8 +43,7 @@ import com.orbit.schedule.domain.WorkStatus;
 class CancelWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final CancelWorkService service =
-            new CancelWorkService(fixture.actorPort, fixture.workRepository, fixture.events, fixture.clock);
+    private final CancelWorkService service = fixture.cancelWorkService();
 
     @ParameterizedTest
     @EnumSource(
@@ -63,7 +65,8 @@ class CancelWorkServiceTest {
         assertThat(fixture.scheduleLock.locks()).isEmpty();
         assertThat(fixture.events.published())
                 .containsExactly(
-                        new WorkCancelled(id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", NOW));
+                        new WorkCancelled(id.value(), ORGANIZATION_ID.value(), TECHNICIAN_ID.value(), "대상 작업", NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -80,7 +83,9 @@ class CancelWorkServiceTest {
                 .contains(new Cancellation(NOW, MANAGER_ID, CancellationReason.DUPLICATE_REGISTRATION, null));
         assertThat(saved.assignmentHistory()).isEmpty();
         assertThat(fixture.events.published())
-                .containsExactly(new WorkCancelled(id.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW));
+                .containsExactly(
+                        new WorkCancelled(id.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -107,7 +112,9 @@ class CancelWorkServiceTest {
         assertThat(fixture.events.published())
                 .containsExactly(
                         new WorkCancelled(planned.value(), ORGANIZATION_ID.value(), null, "미리 입력한 작업", NOW),
-                        new WorkCancelled(returned.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW));
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(planned.value()), NOW),
+                        new WorkCancelled(returned.value(), ORGANIZATION_ID.value(), null, "대상 작업", NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(returned.value()), NOW));
     }
 
     @ParameterizedTest
@@ -195,6 +202,34 @@ class CancelWorkServiceTest {
         service.cancel(command(id.value(), CancellationReason.OTHER, "고객 부재"));
 
         assertThat(fixture.singleSaved().startedAt()).contains(ACCEPTED_AT);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 기사의 시작이 먼저 커밋된 것이 드러나면 다시 읽은 작업중 작업을 한 번 다시 취소하고, 다시 한 취소만 저장·발행한다")
+    void retriesAfterConcurrentStart() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.ACCEPTED);
+        fixture.workRepository.failNextSaveWithConcurrentChange(work -> work.start(NOW));
+
+        service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, null));
+
+        Work saved = fixture.singleSaved();
+        assertThat(saved.status()).isEqualTo(WorkStatus.CANCELED);
+        assertThat(saved.startedAt()).contains(NOW);
+        assertThat(fixture.events.published()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 기사의 완료보고가 먼저 커밋된 것이 드러나면 다시 읽은 완료된 작업을 보고 상태 오류다")
+    void seesCompletionCommittedBeforeSave() {
+        fixture.givenManager(ActorRole.OWNER);
+        WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+        fixture.workRepository.failNextSaveWithConcurrentChange(
+                work -> work.submitCompletionReport(new CompletionReport(null, null, null, null, null, null), NOW));
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.cancel(command(id.value(), CancellationReason.CUSTOMER_REQUEST, null)),
+                ScheduleErrorCode.INVALID_WORK_STATE);
     }
 
     private static CancelWorkCommand command(long workId, CancellationReason reason, String note) {

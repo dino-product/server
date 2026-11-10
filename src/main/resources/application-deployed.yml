@@ -7,9 +7,6 @@ spring:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
-  jpa:
-    hibernate:
-      ddl-auto: none
   data:
     redis:
       host: ${REDIS_HOST}
@@ -19,3 +16,10 @@ decorator:
   datasource:
     p6spy:
       enable-logging: false
+
+app:
+  schedule:
+    # 진행 보드 캐시는 캐시 전용 Redis(infra redis-cache)가 있을 때만 켠다. 로그인·실시간용 Redis(noeviction)에 캐시를 두지 않는다.
+    board-cache:
+      enabled: ${BOARD_CACHE_ENABLED:false}
+      shared-redis-fallback: false

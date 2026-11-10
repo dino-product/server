@@ -44,8 +44,7 @@ class ManagedWorkCommandRulesTest {
 
     static Stream<UseCase> useCases() {
         return Stream.of(
-                new UseCase("기본정보 수정", (f, request) -> new UpdateWorkDetailsService(
-                                f.actorPort, f.workRepository, f.workTypes)
+                new UseCase("기본정보 수정", (f, request) -> f.updateWorkDetailsService()
                         .update(new UpdateWorkDetailsCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -100,20 +99,20 @@ class ManagedWorkCommandRulesTest {
                                 request.validInput() ? TEN.plus(Duration.ofHours(1)) : null,
                                 TWO_HOURS,
                                 false))),
-                new UseCase("배정 해제", (f, request) -> new UnassignWorkService(f.actorPort, f.workRepository, f.clock)
+                new UseCase("배정 해제", (f, request) -> new UnassignWorkService(
+                                f.actorPort, f.workRepository, f.events, f.clock)
                         .unassign(new UnassignWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),
                                 request.validInput() ? 0L : null))),
-                new UseCase(
-                        "취소", (f, request) -> new CancelWorkService(f.actorPort, f.workRepository, f.events, f.clock)
-                                .cancel(new CancelWorkCommand(
-                                        request.accountId(),
-                                        request.organizationId(),
-                                        request.workId(),
-                                        request.validInput() ? CancellationReason.CUSTOMER_REQUEST : null,
-                                        null))));
+                new UseCase("취소", (f, request) -> f.cancelWorkService()
+                        .cancel(new CancelWorkCommand(
+                                request.accountId(),
+                                request.organizationId(),
+                                request.workId(),
+                                request.validInput() ? CancellationReason.CUSTOMER_REQUEST : null,
+                                null))));
     }
 
     /** 등록자 본인·총관리자만 하는 변경. 배정된 작업(수락대기)이면 배정 변경(통합)도 재배정·일정 변경이라 여기에 든다. */

@@ -8,6 +8,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -281,6 +282,53 @@ class ReviewSkillRecordTest(unittest.TestCase):
     def test_review_skill_records_head(self):
         self.assertEqual(self.run_record({"tool_name": "Skill", "tool_input": {"skill": "dino-review"}}), 0)
         self.assertTrue(report.review_recorded(self.head, self.root))
+
+    def add_worktree(self, name: str) -> tuple[Path, str]:
+        env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        worktree = Path(self.tmp.name + "-" + name)
+        self.addCleanup(lambda: subprocess.run(["rm", "-rf", str(worktree)], check=False))
+        subprocess.run(["git", "worktree", "add", "-q", "-b", name, str(worktree)], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", name], cwd=worktree, check=True, env=env)
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=worktree, check=True,
+                              capture_output=True, text=True).stdout.strip()
+        return worktree, head
+
+    def test_records_worktree_given_in_skill_args(self):
+        worktree, head = self.add_worktree("task")
+        payload = {"tool_name": "Skill", "cwd": str(self.root),
+                   "tool_input": {"skill": "dino-review", "args": f"HM-1 리뷰 {worktree}"}}
+        self.assertEqual(self.run_record(payload), 0)
+        self.assertTrue(report.review_recorded(head, worktree))
+        self.assertFalse(report.review_recorded(head, self.root))
+        self.assertFalse(report.review_recorded(self.head, self.root))
+
+    def test_records_worktree_of_session_cwd(self):
+        worktree, head = self.add_worktree("session")
+        (worktree / "sub").mkdir()
+        payload = {"tool_name": "Skill", "cwd": str(worktree / "sub"), "tool_input": {"skill": "dino-review"}}
+        self.assertEqual(self.run_record(payload), 0)
+        self.assertTrue(report.review_recorded(head, worktree))
+        self.assertFalse(report.review_recorded(self.head, self.root))
+
+    def test_ignores_path_of_other_repository(self):
+        other = tempfile.TemporaryDirectory()
+        self.addCleanup(other.cleanup)
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=other.name, check=True)
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "other"], cwd=other.name, check=True,
+                       env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                            "GIT_COMMITTER_EMAIL": "t@t", "PATH": os.environ.get("PATH", "")})
+        payload = {"tool_name": "Skill", "cwd": str(self.root),
+                   "tool_input": {"skill": "dino-review", "args": other.name}}
+        self.assertEqual(self.run_record(payload), 0)
+        self.assertTrue(report.review_recorded(self.head, self.root))
+        self.assertFalse((Path(other.name) / ".claude").exists())
+
+    def test_record_failure_does_not_fail_tool(self):
+        (self.root / ".claude").mkdir()
+        (self.root / ".claude" / "reviews").write_text("not a directory")
+        for payload in [{"tool_name": "Skill", "tool_input": {"skill": "dino-review"}}, [1],
+                        {"tool_name": "Skill", "tool_input": "dino-review"}]:
+            self.assertEqual(self.run_record(payload), 0)
 
     def test_other_skill_or_tool_not_recorded(self):
         for payload in [{"tool_name": "Skill", "tool_input": {"skill": "dino-pr"}},

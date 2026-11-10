@@ -26,7 +26,10 @@ public interface WorkControllerDocs {
                     + "기사의 수락을 기다리고, 비우면 대기함에 둡니다. schedule 항목을 일부만 주면 입력한 값을 남긴 채 대기함에 둡니다. "
                     + "같은 기사의 다른 작업과 시간이 겹치는데 schedule.conflictConfirmed가 false면 작업을 만들지 않고 applied=false와 "
                     + "겹친 작업을 돌려줍니다(오류 아님). 확인 뒤 schedule.conflictConfirmed=true로 다시 보내면 만듭니다. "
-                    + "현장 사진은 업로드를 마친 파일의 식별자로 최대 6장까지 받습니다(sitePhotoIds). "
+                    + "현장 사진은 현장 사진 업로드 주소 발급(site-photo-uploads)으로 요청자가 올린 파일의 식별자로 최대 6장까지 받습니다(sitePhotoIds). "
+                    + "업로드를 마치지 않았거나 요청자가 올린 사진이 아니거나 이미 다른 작업에 붙은 사진이면 SCHEDULE-022, "
+                    + "올라온 파일이 이미지가 아니거나 밝힌 형식과 다르면 SCHEDULE-020, 밝힌 크기보다 크면 SCHEDULE-021, "
+                    + "사진 저장소에 닿지 못하면 SCHEDULE-023(503, 잠시 뒤 다시 시도)입니다. 같은 식별자를 두 번 넣으면 SCHEDULE-003입니다. "
                     + "입력 규칙 위반(현장 사진 7장 이상, 빈·500자 넘는 식별자 포함)은 SCHEDULE-003, 본문 형식 오류(목록에 없는 결제 방식 등)는 COMMON-400, "
                     + "선택할 수 없는 작업 유형은 SCHEDULE-014, "
                     + "배정하거나 일부만 준 담당기사가 그 조직의 활성 기사 계약이 아니면 SCHEDULE-013, 같은 기사의 다른 변경을 기다리다 시간이 지나면 SCHEDULE-006입니다. "
@@ -50,7 +53,11 @@ public interface WorkControllerDocs {
                 "TECHNICIAN_NOT_ASSIGNABLE",
                 "NOT_ORGANIZATION_MEMBER",
                 "ACTION_NOT_ALLOWED",
-                "TECHNICIAN_SCHEDULE_BUSY"
+                "TECHNICIAN_SCHEDULE_BUSY",
+                "PHOTO_TYPE_NOT_ALLOWED",
+                "PHOTO_TOO_LARGE",
+                "PHOTO_NOT_UPLOADED",
+                "PHOTO_STORAGE_UNAVAILABLE"
             })
     CreatedWorkResponse create(
             @Parameter(hidden = true) AccountPrincipal requester,
@@ -60,14 +67,16 @@ public interface WorkControllerDocs {
     @Operation(
             summary = "작업 기본정보 수정",
             description = "작업명·작업 유형·고객·결제 정보·현장 사진을 한꺼번에 교체합니다. 비운 선택 항목은 지우고 상태·배정은 그대로 둡니다. "
-                    + "현장 사진은 업로드를 마친 파일의 식별자로 최대 6장까지 받으며(sitePhotoIds), 빼거나 null로 보내면 모두 지웁니다. "
+                    + "현장 사진은 이미 이 작업에 붙은 사진과 요청자가 새로 올린 사진의 식별자로 최대 6장까지 받으며(sitePhotoIds), 빼거나 null로 보내면 모두 지웁니다. "
+                    + "빠진 사진은 저장소에서 만료 처리됩니다. 사진 오류(SCHEDULE-020·021·022·023)는 작업 등록과 같습니다. "
                     + "완료·취소된 작업과, 작업중 작업의 작업 유형을 바꾸거나 비우는 요청은 SCHEDULE-002입니다"
                     + "(작업중에는 지금 유형을 그대로 보내면 다른 항목을 고칠 수 있습니다). "
                     + "입력 규칙 위반(현장 사진 7장 이상, 빈·500자 넘는 식별자 포함)은 SCHEDULE-003, 본문 형식 오류(목록에 없는 결제 방식 등)는 COMMON-400, "
                     + "작업 유형을 바꿀 때 그 조직에서 선택할 수 없는 유형이면 SCHEDULE-014입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005, "
                     + "등록자 본인·총관리자가 아닌 직원이면 SCHEDULE-005, "
-                    + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다.",
+                    + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다. "
+                    + "같은 작업을 동시에 바꾼 다른 요청과 저장이 겹치면 서버가 최신 상태로 한 번 다시 처리하고, 그래도 겹치면 SCHEDULE-016(다시 조회 뒤 재시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "수정 성공")
     @ApiErrorCodes(
@@ -81,7 +90,12 @@ public interface WorkControllerDocs {
                 "NOT_ORGANIZATION_MEMBER",
                 "ACTION_NOT_ALLOWED",
                 "WORK_NOT_FOUND",
-                "INVALID_WORK_STATE"
+                "INVALID_WORK_STATE",
+                "PHOTO_TYPE_NOT_ALLOWED",
+                "PHOTO_TOO_LARGE",
+                "PHOTO_NOT_UPLOADED",
+                "PHOTO_STORAGE_UNAVAILABLE",
+                "WORK_CHANGED"
             })
     void updateDetails(
             @Parameter(hidden = true) AccountPrincipal requester,
@@ -96,7 +110,8 @@ public interface WorkControllerDocs {
                     + "목록에 없는 사유 등 본문 형식 오류는 COMMON-400입니다. 완료됐거나 이미 취소된 작업은 SCHEDULE-002입니다. "
                     + "요청자가 그 조직의 구성원이 아니면 SCHEDULE-004, 기사면 SCHEDULE-005, "
                     + "등록자 본인·총관리자가 아닌 직원이면 SCHEDULE-005, "
-                    + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다.",
+                    + "작업이 없거나 다른 조직의 작업이면 SCHEDULE-001입니다. "
+                    + "같은 작업을 동시에 바꾼 다른 요청과 저장이 겹치면 서버가 최신 상태로 한 번 다시 처리하고, 그래도 겹치면 SCHEDULE-016(다시 조회 뒤 재시도)입니다.",
             security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponse(responseCode = "204", description = "취소 성공")
     @ApiErrorCodes(
@@ -109,7 +124,8 @@ public interface WorkControllerDocs {
                 "NOT_ORGANIZATION_MEMBER",
                 "ACTION_NOT_ALLOWED",
                 "WORK_NOT_FOUND",
-                "INVALID_WORK_STATE"
+                "INVALID_WORK_STATE",
+                "WORK_CHANGED"
             })
     void cancel(
             @Parameter(hidden = true) AccountPrincipal requester,

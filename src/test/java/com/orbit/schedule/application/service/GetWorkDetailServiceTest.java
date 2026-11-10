@@ -16,6 +16,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.WORK
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.GetWorkDetailQuery;
 import com.orbit.schedule.application.port.in.query.dto.LabelInfo;
+import com.orbit.schedule.application.port.in.query.dto.LocationInfo;
 import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.StaffInfo;
 import com.orbit.schedule.application.port.in.query.dto.TechnicianInfo;
@@ -41,6 +43,7 @@ import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -54,7 +57,7 @@ class GetWorkDetailServiceTest {
     private final GetWorkDetailService service = new GetWorkDetailService(
             fixture.actorPort,
             fixture.workRepository,
-            photoId -> "url/" + photoId,
+            fixture.mediaFiles,
             fixture.technicianProfiles,
             fixture.staffProfiles,
             fixture.workTypeLabels,
@@ -97,7 +100,20 @@ class GetWorkDetailServiceTest {
         assertThat(detail.startedAt()).isEqualTo(ACCEPTED_AT);
         assertThat(detail.completedAt()).isEqualTo(NOW);
         assertThat(detail.completionReport().workNote()).isEqualTo("첫 보고");
-        assertThat(detail.completionReport().beforePhotos()).containsExactly(new PhotoInfo("before-1", "url/before-1"));
+        assertThat(detail.completionReport().beforePhotos())
+                .containsExactly(new PhotoInfo("before-1", "url/100/before-1"));
+    }
+
+    @Test
+    @DisplayName("현장 사진 주소를 서명하지 못하면 503 SCHEDULE-023이다")
+    void signingFailure() {
+        fixture.givenManager();
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.REGISTERED));
+        work.replaceSitePhotos(List.of("site-1"));
+        WorkId id = fixture.workRepository.store(work);
+        fixture.mediaFiles.givenSigningFails();
+
+        fixture.assertRejected(() -> service.get(query(id.value())), ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE);
     }
 
     @Test
@@ -197,12 +213,13 @@ class GetWorkDetailServiceTest {
         assertThat(detail.startedAt()).isEqualTo(ACCEPTED_AT);
         assertThat(detail.completedAt()).isEqualTo(NOW);
         assertThat(detail.completionReport().workNote()).isEqualTo("다시 보고");
-        assertThat(detail.completionReport().afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/after-1"));
+        assertThat(detail.completionReport().afterPhotos())
+                .containsExactly(new PhotoInfo("after-1", "url/100/after-1"));
         assertThat(detail.registrar()).as("등록자는 관리자에게만 보인다").isNull();
         assertThat(fixture.staffProfiles.lookups())
                 .as("기사에게 보이지 않는 등록자는 찾지 않는다")
                 .isEmpty();
-        assertThat(detail.sitePhotos()).containsExactly(new PhotoInfo("site-1", "url/site-1"));
+        assertThat(detail.sitePhotos()).containsExactly(new PhotoInfo("site-1", "url/100/site-1"));
     }
 
     @Test
@@ -384,6 +401,26 @@ class GetWorkDetailServiceTest {
                 .isFalse();
         assertThat(service.get(query(accepted.value())).completionReportRequestable())
                 .isFalse();
+    }
+
+    @Test
+    @DisplayName("현장 주소와 함께 기본주소에서 구한 좌표를 담고, 좌표가 없으면 null이다")
+    void includesSiteLocation() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId unlocated = fixture.givenWork(WorkStatus.ACCEPTED);
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.ACCEPTED));
+        work.locateSite(new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803")));
+        WorkId located = fixture.workRepository.store(work);
+
+        assertThat(service.get(query(located.value())).customer())
+                .isEqualTo(new WorkDetailInfo.Customer(
+                        "홍길동",
+                        "010-1234-5678",
+                        "04043",
+                        "서울시",
+                        "3층",
+                        new LocationInfo(new BigDecimal("37.556151"), new BigDecimal("126.922803"))));
+        assertThat(service.get(query(unlocated.value())).customer().location()).isNull();
     }
 
     private static GetWorkDetailQuery query(Long workId) {

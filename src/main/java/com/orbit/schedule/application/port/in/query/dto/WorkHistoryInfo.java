@@ -13,8 +13,9 @@ import com.orbit.schedule.domain.WorkStatus;
  *
  * @param technicianId 조회한 기사(기사가 비워 보냈으면 본인)
  * @param works 그 기사의 마지막 배정 시작시각 내림차순(최근 먼저), 작업 식별자 내림차순으로 정렬한 작업
+ * @param totalCompleted 구간과 관계없이 그 기사가 지금 담당인 채 완료한 그 조직의 작업 수(누적 완료)
  */
-public record WorkHistoryInfo(Long technicianId, List<AssignedWork> works, Statistics statistics) {
+public record WorkHistoryInfo(Long technicianId, List<AssignedWork> works, Statistics statistics, long totalCompleted) {
 
     public WorkHistoryInfo {
         works = List.copyOf(works);
@@ -29,6 +30,9 @@ public record WorkHistoryInfo(Long technicianId, List<AssignedWork> works, Stati
      * @param assignmentNumber 이 배정의 순번(1부터). 지금 배정이 아닐 수 있으므로 수락·거절 등에는 current가 true일 때만 쓴다
      * @param result 그 배정의 결과
      * @param endReason 그 배정이 관리자 조치나 담당 기사의 탈퇴(처리자 없음, {@code ACCOUNT_WITHDRAWN})로 끝났으면 방식. 아니면 null
+     * @param workType 화면에 보일 작업유형. 없으면 null
+     * @param startedAt 그 기사가 지금 담당인 채 완료한 작업이면 실제 작업 시작 시각, 아니면 null
+     * @param completedAt 그 기사가 지금 담당인 채 완료한 작업이면 완료 시각, 아니면 null
      */
     public record AssignedWork(
             Long workId,
@@ -39,7 +43,10 @@ public record WorkHistoryInfo(Long technicianId, List<AssignedWork> works, Stati
             Instant startTime,
             Instant endTime,
             AssignmentResult result,
-            AssignmentEndReason endReason) {}
+            AssignmentEndReason endReason,
+            LabelInfo workType,
+            Instant startedAt,
+            Instant completedAt) {}
 
     /**
      * 이력의 작업 수 집계.

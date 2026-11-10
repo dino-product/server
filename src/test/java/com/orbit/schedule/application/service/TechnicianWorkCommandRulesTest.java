@@ -50,15 +50,13 @@ class TechnicianWorkCommandRulesTest {
 
     static Stream<UseCase> useCases() {
         return Stream.of(
-                new UseCase("수락", true, (f, request) -> new AcceptWorkService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.events, f.clock)
+                new UseCase("수락", true, (f, request) -> f.acceptWorkService()
                         .accept(new AcceptWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),
                                 request.assignmentNumber()))),
-                new UseCase("거절", true, (f, request) -> new RejectWorkService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.events, f.clock)
+                new UseCase("거절", true, (f, request) -> f.rejectWorkService()
                         .reject(new RejectWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
@@ -66,15 +64,13 @@ class TechnicianWorkCommandRulesTest {
                                 request.assignmentNumber(),
                                 RejectionReason.SCHEDULE_CONFLICT,
                                 null))),
-                new UseCase("시작", true, (f, request) -> new StartWorkService(
-                                f.actorPort, f.workRepository, f.scheduleLock, f.clock)
+                new UseCase("시작", true, (f, request) -> f.startWorkService()
                         .start(new StartWorkCommand(
                                 request.accountId(),
                                 request.organizationId(),
                                 request.workId(),
                                 request.assignmentNumber()))),
-                new UseCase("완료보고", false, (f, request) -> new SubmitCompletionReportService(
-                                f.actorPort, f.workRepository, f.events, f.clock)
+                new UseCase("완료보고", false, (f, request) -> f.submitCompletionReportService()
                         .submit(new SubmitCompletionReportCommand(
                                 request.accountId(),
                                 request.organizationId(),

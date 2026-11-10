@@ -1,12 +1,16 @@
 package com.orbit.schedule.application.service.fake;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import com.orbit.schedule.application.port.out.ConcurrentWorkChangeException;
@@ -32,7 +36,7 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private final Map<Long, Work> store = new LinkedHashMap<>();
     private final List<Work> saved = new ArrayList<>();
     private long sequence;
-    private boolean failNextSave;
+    private final Deque<Consumer<Work>> concurrentChanges = new ArrayDeque<>();
     private int activeByTechnicianQueryCount;
     private final List<WorkSearchCriteria> searches = new ArrayList<>();
     private WorkSearchResult searchResult;
@@ -40,16 +44,28 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
     private final List<Listing> listings = new ArrayList<>();
     private final Map<Predicate<WorkSearchCriteria>, Long> givenCounts = new LinkedHashMap<>();
 
-    /** 다음 저장을, 읽은 뒤 다른 트랜잭션이 먼저 바꾼 것처럼 실패시킨다. */
+    /** 다음 저장을, 읽은 뒤 다른 트랜잭션이 먼저 바꾼 것처럼 실패시킨다. 여러 번 부르면 그만큼의 다음 저장이 차례로 실패한다. */
     public void failNextSaveWithConcurrentChange() {
-        failNextSave = true;
+        concurrentChanges.add(work -> {});
+    }
+
+    /**
+     * 다음 저장 직전에 다른 트랜잭션이 저장된 작업을 {@code concurrentChange}대로 바꿔 커밋한 것처럼, 저장값을 바꿔 버전을 올리고 이 저장을 실패시킨다. 다른
+     * 요청의 저장이므로 저장 기록({@link #saved()})에는 남기지 않는다.
+     */
+    public void failNextSaveWithConcurrentChange(Consumer<Work> concurrentChange) {
+        concurrentChanges.add(Objects.requireNonNull(concurrentChange, "concurrentChange must not be null"));
     }
 
     /** 실제 저장소처럼 기존 작업을 저장할 때마다 버전을 하나 올린다. */
     @Override
     public Work save(Work work) {
-        if (failNextSave) {
-            failNextSave = false;
+        Consumer<Work> concurrentChange = concurrentChanges.poll();
+        if (concurrentChange != null) {
+            WorkId id = work.id().orElseThrow();
+            Work committed = copyOf(store.get(id.value()), id);
+            concurrentChange.accept(committed);
+            put(committed, committed.version() + 1);
             throw new ConcurrentWorkChangeException(new IllegalStateException("simulated concurrent change"));
         }
         Work stored = put(work, work.id().isPresent() ? work.version() + 1 : 0L);
@@ -134,6 +150,34 @@ public class FakeWorkRepository implements WorkRepository, WorkQueryPort {
         Objects.requireNonNull(technicianId, "technicianId must not be null");
         return listScheduledBetween(organizationId, from, to).stream()
                 .filter(work -> work.schedule().orElseThrow().technicianId().equals(technicianId))
+                .toList();
+    }
+
+    @Override
+    public long countCompletedByTechnician(OrganizationId organizationId, TechnicianId technicianId) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        return inOrganization(organizationId).stream()
+                .filter(work -> work.status() == WorkStatus.COMPLETED)
+                .filter(work -> work.schedule()
+                        .map(schedule -> schedule.technicianId().equals(technicianId))
+                        .orElse(false))
+                .count();
+    }
+
+    @Override
+    public List<Work> listCurrentForTechnician(
+            OrganizationId organizationId, TechnicianId technicianId, Set<WorkStatus> statuses) {
+        Objects.requireNonNull(organizationId, "organizationId must not be null");
+        Objects.requireNonNull(technicianId, "technicianId must not be null");
+        if (statuses.contains(WorkStatus.REGISTERED) || statuses.contains(WorkStatus.CANCELED)) {
+            throw new IllegalArgumentException("only scheduled statuses have a current assignee: " + statuses);
+        }
+        return inOrganization(organizationId).stream()
+                .filter(work -> statuses.contains(work.status()))
+                .filter(work -> work.schedule()
+                        .map(schedule -> schedule.technicianId().equals(technicianId))
+                        .orElse(false))
                 .toList();
     }
 

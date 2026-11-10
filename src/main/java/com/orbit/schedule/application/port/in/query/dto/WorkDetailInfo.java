@@ -75,8 +75,15 @@ public record WorkDetailInfo(
      *
      * @param address 현장 기본주소
      * @param addressDetail 현장 상세주소
+     * @param location 현장 기본주소에서 구한 좌표. 기본주소가 없거나 구하지 못했으면 null
      */
-    public record Customer(String name, String phone, String postalCode, String address, String addressDetail) {}
+    public record Customer(
+            String name,
+            String phone,
+            String postalCode,
+            String address,
+            String addressDetail,
+            LocationInfo location) {}
 
     /** 입력하지 않은 항목은 null이다. */
     public record Payment(Long fee, PaymentMethod method) {}

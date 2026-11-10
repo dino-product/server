@@ -17,12 +17,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Apple web login", description = "웹·Android용 Apple 로그인(서버 authorize·callback)")
+@Tag(name = "Apple web login", description = "웹용 Apple 로그인(서버 authorize·callback)")
 public interface AppleWebLoginControllerDocs {
 
     @Operation(
             summary = "Apple 웹 로그인 시작",
-            description = "브라우저(Android는 Custom Tab)로 여는 주소입니다. 클라이언트는 PKCE code_verifier를 보관하고 그 S256 값을 "
+            description = "브라우저로 여는 주소입니다. 클라이언트는 PKCE code_verifier를 보관하고 그 S256 값을 "
                     + "code_challenge로 보냅니다. 일회성 state·nonce를 만들고 시작한 브라우저에 연결 쿠키를 남긴 뒤 Apple 로그인 페이지로 302 "
                     + "리다이렉트합니다. 로그인이 끝나면 client에 등록된 복귀 주소로 돌아갑니다.")
     @ApiResponse(
@@ -80,6 +80,6 @@ public interface AppleWebLoginControllerDocs {
             description = "교환 성공",
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = LoginResponse.class)))
     @ApiErrorCodes(enumClass = CommonErrorCode.class, includes = "BAD_REQUEST")
-    @ApiErrorCodes(enumClass = AuthErrorCode.class, includes = "INVALID_APPLE_LOGIN_EXCHANGE_CODE")
+    @ApiErrorCodes(enumClass = AuthErrorCode.class, includes = "INVALID_LOGIN_EXCHANGE_CODE")
     LoginResponse exchange(AppleLoginExchangeRequest request);
 }

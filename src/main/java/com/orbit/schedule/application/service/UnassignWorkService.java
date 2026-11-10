@@ -3,6 +3,7 @@ package com.orbit.schedule.application.service;
 import java.time.Clock;
 import java.time.Instant;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,11 +23,17 @@ public class UnassignWorkService implements UnassignWorkUseCase {
 
     private final LoadActorPort loadActorPort;
     private final WorkRepository workRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    public UnassignWorkService(LoadActorPort loadActorPort, WorkRepository workRepository, Clock clock) {
+    public UnassignWorkService(
+            LoadActorPort loadActorPort,
+            WorkRepository workRepository,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.loadActorPort = loadActorPort;
         this.workRepository = workRepository;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -43,5 +50,6 @@ public class UnassignWorkService implements UnassignWorkUseCase {
         DomainRuleViolations.run(() -> work.unassign(now, actor.membershipId()));
 
         WorkVersions.save(workRepository, work);
+        eventPublisher.publishEvent(WorkEvents.changed(work, now));
     }
 }

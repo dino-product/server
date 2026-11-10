@@ -1,5 +1,6 @@
 package com.orbit.schedule.adapter.out.persistence;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import com.orbit.schedule.domain.CompletionReport;
 import com.orbit.schedule.domain.CustomerInfo;
 import com.orbit.schedule.domain.PaymentMethod;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkStatus;
 import com.orbit.shared.persistence.BaseTimeEntity;
@@ -41,8 +43,8 @@ import com.orbit.shared.persistence.BaseTimeEntity;
  * 비정규화, 대기함의 미리 입력한 일정이나 마지막 배정 일정, 완료보고 인라인·사진 분리, 현장 사진, 완료보고 요청, 배정 순번)은
  * {@link WorkMapper}가 원본이다. 값 검증은 Domain이 하며 이 Entity는 컬럼 제약만 선언한다.
  *
- * <p>이 Entity와 자식 Entity는 모두 {@code BaseTimeEntity}를 상속한다. 다음은 ERD에 빠져 있어 Entity 기준으로 ERD에 추가한다(운영은
- * {@code ddl-auto: none}이라 ERD에 올라야 실제 스키마에 반영된다): 배정 이력·사진 테이블의 감사 컬럼, 작업의 등록 시각
+ * <p>이 Entity와 자식 Entity는 모두 {@code BaseTimeEntity}를 상속한다. 다음은 ERD에 빠져 있어 Entity 기준으로 ERD에 추가한다(실제 스키마는
+ * 마이그레이션 {@code db/migration}이 만든다): 배정 이력·사진 테이블의 감사 컬럼, 작업의 등록 시각
  * {@code registered_at}, 활성 작업 조회용 인덱스 {@code (company_id, technician_id, status)}, 구간 조회용
  * {@code (company_id, scheduled_start_at)}, 등록순 정렬용 {@code (company_id, registered_at)}, 최근 수정순 정렬용
  * {@code (company_id, updated_at)}, 자식 테이블의 {@code work_id}, 배정 이력의 {@code (technician_id, scheduled_start_at)}, 현장 사진
@@ -113,6 +115,12 @@ class WorkJpaEntity extends BaseTimeEntity {
 
     @Column(name = "customer_address_detail", length = SiteAddress.MAX_DETAIL_ADDRESS_LENGTH)
     private String customerAddressDetail;
+
+    @Column(name = "customer_latitude", precision = 8, scale = SiteCoordinates.SCALE)
+    private BigDecimal customerLatitude;
+
+    @Column(name = "customer_longitude", precision = 9, scale = SiteCoordinates.SCALE)
+    private BigDecimal customerLongitude;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method", length = 20)
@@ -251,6 +259,14 @@ class WorkJpaEntity extends BaseTimeEntity {
         return customerAddressDetail;
     }
 
+    BigDecimal customerLatitude() {
+        return customerLatitude;
+    }
+
+    BigDecimal customerLongitude() {
+        return customerLongitude;
+    }
+
     PaymentMethod paymentMethod() {
         return paymentMethod;
     }
@@ -324,6 +340,8 @@ class WorkJpaEntity extends BaseTimeEntity {
             String newCustomerPostalCode,
             String newCustomerAddress,
             String newCustomerAddressDetail,
+            BigDecimal newCustomerLatitude,
+            BigDecimal newCustomerLongitude,
             PaymentMethod newPaymentMethod,
             Long newFee) {
         this.name = newName;
@@ -333,6 +351,8 @@ class WorkJpaEntity extends BaseTimeEntity {
         this.customerPostalCode = newCustomerPostalCode;
         this.customerAddress = newCustomerAddress;
         this.customerAddressDetail = newCustomerAddressDetail;
+        this.customerLatitude = newCustomerLatitude;
+        this.customerLongitude = newCustomerLongitude;
         this.paymentMethod = newPaymentMethod;
         this.fee = newFee;
     }

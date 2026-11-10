@@ -1,7 +1,7 @@
 <a id="erdcloud"></a>
 # ERDCloud 변경
 
-팀 데이터 모델은 ERDCloud [Main ERD](https://www.erdcloud.com/d/3yXZhTYQ87poiJwTG)에 있습니다. 레포에 ERD를 복사하지 않고, 모듈 책임·설계 결정은 [BC 문서](../../../../docs/domain/bounded-contexts.md)가, 실제 스키마는 [영속성 규칙](../../dino-architecture/references/persistence.md)이 원본입니다. ERD 편집은 열려 있는 모든 사람에게 실시간으로 반영되는 공유 산출물 변경이므로 [게시 승인](../../dino-pr/references/publishing-approvals.md#publishing)을 따릅니다.
+팀 데이터 모델은 ERDCloud [Main ERD](https://www.erdcloud.com/d/3yXZhTYQ87poiJwTG)에 있습니다. 레포에 ERD를 복사하지 않고, 모듈 책임·설계 결정은 [BC 문서](../../../../docs/domain/bounded-contexts.md)가, 실제 스키마는 마이그레이션([ADR-005](../../../../docs/adr/005-schema-migration.md))이, Entity 매핑 규칙은 [영속성 규칙](../../dino-architecture/references/persistence.md)이 원본입니다. ERD 편집은 열려 있는 모든 사람에게 실시간으로 반영되는 공유 산출물 변경이므로 [게시 승인](../../dino-pr/references/publishing-approvals.md#publishing)을 따릅니다.
 
 <a id="scope"></a>
 ## 범위

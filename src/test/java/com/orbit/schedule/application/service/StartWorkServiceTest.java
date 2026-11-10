@@ -13,12 +13,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.StartWorkCommand;
 import com.orbit.schedule.application.port.out.TechnicianScheduleBusyException;
@@ -32,11 +34,10 @@ import com.orbit.schedule.domain.WorkStatus;
 class StartWorkServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final StartWorkService service =
-            new StartWorkService(fixture.actorPort, fixture.workRepository, fixture.scheduleLock, fixture.clock);
+    private final StartWorkService service = fixture.startWorkService();
 
     @Test
-    @DisplayName("담당 기사가 수락한 최신 배정의 작업을 시작하면 지금 시각을 시작 시각으로 남기고, 기사를 잠그되 기사의 다른 작업은 읽지 않는다")
+    @DisplayName("담당 기사가 수락한 최신 배정의 작업을 시작하면 지금 시각을 시작 시각으로 남기고 작업 변경을 발행하며, 기사를 잠그되 기사의 다른 작업은 읽지 않는다")
     void startsAcceptedWork() {
         fixture.givenTechnician(TECHNICIAN_ID);
         WorkId id = acceptedWorkStartingAt(NOW);
@@ -48,6 +49,8 @@ class StartWorkServiceTest {
         assertThat(saved.startedAt()).contains(NOW);
         assertThat(fixture.scheduleLock.locks()).containsExactly(new Lock(ORGANIZATION_ID, TECHNICIAN_ID, 0));
         assertThat(fixture.workRepository.activeByTechnicianQueryCount()).isZero();
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -81,6 +84,7 @@ class StartWorkServiceTest {
 
         assertThat(fixture.workRepository.saved()).isEmpty();
         assertThat(fixture.stored(id).startedAt()).contains(firstStartedAt);
+        assertThat(fixture.events.published()).isEmpty();
     }
 
     @Test
@@ -146,6 +150,25 @@ class StartWorkServiceTest {
         assertThat(fixture.stored(id).startedAt()).isEmpty();
     }
 
+    @Test
+    @DisplayName("예정 종료가 지난 작업을 사무실이 지금 시간대로 옮기면 바뀐 배정의 일정으로 판정해 새 순번으로 시작한다")
+    void startsWithRescheduledTimeAfterScheduledEndPassed() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = acceptedWorkStartingAt(NOW.minus(Duration.ofHours(3)));
+        Work work = fixture.stored(id);
+        work.reschedule(
+                NOW.minus(Duration.ofMinutes(30)), TWO_HOURS, NOW.minus(Duration.ofMinutes(1)), SETUP_MANAGER_ID);
+        fixture.workRepository.store(work);
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.start(command(id.value())), ScheduleErrorCode.ASSIGNMENT_CHANGED);
+        service.start(new StartWorkCommand(ACCOUNT_ID, ORGANIZATION_ID.value(), id.value(), 2));
+
+        Work saved = fixture.singleSaved();
+        assertThat(saved.status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        assertThat(saved.startedAt()).contains(NOW);
+    }
+
     @ParameterizedTest
     @EnumSource(
             value = WorkStatus.class,
@@ -193,6 +216,20 @@ class StartWorkServiceTest {
 
         fixture.assertRejectedWithoutSaving(
                 () -> service.start(command(id.value())), ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 다른 요청이 먼저 커밋한 것이 드러나면 새로 읽어 한 번 다시 시작하고, 다시 한 시작만 저장·발행한다")
+    void retriesAfterConcurrentChange() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = acceptedWorkStartingAt(NOW);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        service.start(command(id.value()));
+
+        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.IN_PROGRESS);
+        assertThat(fixture.events.published())
+                .containsExactly(new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     /** 기사 {@link ScheduleServiceFixture#TECHNICIAN_ID}가 수락한, 주어진 시각에 시작하는 2시간 일정의 작업. */

@@ -4,13 +4,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import com.orbit.schedule.adapter.in.web.CompletionReportResponse;
 import com.orbit.schedule.adapter.in.web.LabelResponse;
+import com.orbit.schedule.adapter.in.web.LocationResponse;
+import com.orbit.schedule.adapter.in.web.PhotoResponse;
 import com.orbit.schedule.adapter.in.web.StaffResponse;
 import com.orbit.schedule.adapter.in.web.TechnicianResponse;
-import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
-import com.orbit.schedule.application.port.in.query.dto.PhotoInfo;
 import com.orbit.schedule.application.port.in.query.dto.WorkDetailInfo;
-import com.orbit.schedule.domain.ActualPaymentMethod;
 import com.orbit.schedule.domain.AssignmentEndReason;
 import com.orbit.schedule.domain.AssignmentResult;
 import com.orbit.schedule.domain.CancellationReason;
@@ -59,9 +59,9 @@ public record WorkDetailResponse(
         Instant completedAt,
 
         @Schema(description = "취소 기록. 없으면 null") Cancellation cancellation,
-        @Schema(description = "완료보고. 없으면 null") CompletionReport completionReport,
+        @Schema(description = "완료보고. 없으면 null") CompletionReportResponse completionReport,
 
-        @Schema(description = "등록·수정 때 붙인 현장 사진(첨부 파일)") List<Photo> sitePhotos,
+        @Schema(description = "등록·수정 때 붙인 현장 사진(첨부 파일)") List<PhotoResponse> sitePhotos,
 
         @Schema(
                 description = "사무실이 담당 기사에게 완료보고를 요청한 기록(오래된 것부터, 상태 변경 이력의 보고 요청 발송됨). "
@@ -96,8 +96,8 @@ public record WorkDetailResponse(
                 info.startedAt(),
                 info.completedAt(),
                 info.cancellation() == null ? null : Cancellation.from(info.cancellation()),
-                info.completionReport() == null ? null : CompletionReport.from(info.completionReport()),
-                info.sitePhotos().stream().map(Photo::from).toList(),
+                info.completionReport() == null ? null : CompletionReportResponse.from(info.completionReport()),
+                info.sitePhotos().stream().map(PhotoResponse::from).toList(),
                 info.completionReportRequests().stream()
                         .map(CompletionReportRequest::from)
                         .toList(),
@@ -123,10 +123,19 @@ public record WorkDetailResponse(
             String address,
 
             @Schema(description = "현장 상세주소", example = "3층 302호")
-            String addressDetail) {
+            String addressDetail,
+
+            @Schema(description = "현장 좌표. 길찾기에 쓴다. 기본주소가 없거나 서버가 좌표를 구하지 못했으면 null이며, 그때는 주소로 길찾기한다")
+            LocationResponse location) {
 
         static Customer from(WorkDetailInfo.Customer info) {
-            return new Customer(info.name(), info.phone(), info.postalCode(), info.address(), info.addressDetail());
+            return new Customer(
+                    info.name(),
+                    info.phone(),
+                    info.postalCode(),
+                    info.address(),
+                    info.addressDetail(),
+                    LocationResponse.from(info.location()));
         }
     }
 
@@ -260,28 +269,6 @@ public record WorkDetailResponse(
         }
     }
 
-    @Schema(description = "완료보고")
-    public record CompletionReport(
-            @Schema(description = "작업 전 사진") List<Photo> beforePhotos,
-            @Schema(description = "작업 후 사진") List<Photo> afterPhotos,
-            @Schema(description = "사용 부품") String usedParts,
-            @Schema(description = "작업 메모") String workNote,
-            @Schema(description = "실제 결제 금액(원)") Long actualFee,
-
-            @Schema(description = "실제 결제 방식. CASH(현금), BANK_TRANSFER(계좌이체), CREDIT_CARD(신용카드), INVOICE(청구서 발행·후불)")
-            ActualPaymentMethod actualPaymentMethod) {
-
-        static CompletionReport from(CompletionReportInfo info) {
-            return new CompletionReport(
-                    info.beforePhotos().stream().map(Photo::from).toList(),
-                    info.afterPhotos().stream().map(Photo::from).toList(),
-                    info.usedParts(),
-                    info.workNote(),
-                    info.actualFee(),
-                    info.actualPaymentMethod());
-        }
-    }
-
     @Schema(description = "완료보고 요청 한 건")
     public record CompletionReportRequest(
             @Schema(description = "요청 시각", example = "2026-10-21T02:10:00Z")
@@ -292,16 +279,6 @@ public record WorkDetailResponse(
 
         static CompletionReportRequest from(WorkDetailInfo.CompletionReportRequest info) {
             return new CompletionReportRequest(info.requestedAt(), info.requestedBy());
-        }
-    }
-
-    @Schema(description = "사진")
-    public record Photo(
-            @Schema(description = "업로드한 사진 식별자") String photoId,
-            @Schema(description = "내려받을 주소") String url) {
-
-        static Photo from(PhotoInfo info) {
-            return new Photo(info.photoId(), info.url());
         }
     }
 }

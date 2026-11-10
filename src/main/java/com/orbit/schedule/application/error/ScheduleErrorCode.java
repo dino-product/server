@@ -29,7 +29,11 @@ public enum ScheduleErrorCode implements BaseCode {
     WORK_CHANGED(HttpStatus.CONFLICT, "SCHEDULE-016", "변경된 정보입니다. 최신 정보를 확인해 주세요."),
     TOO_EARLY_TO_START(HttpStatus.CONFLICT, "SCHEDULE-017", "아직 작업을 시작할 수 없습니다."),
     START_TIME_PASSED(HttpStatus.CONFLICT, "SCHEDULE-018", "예정 시간이 지나 시작할 수 없습니다. 사무실에 일정 변경을 요청해 주세요."),
-    COMPLETION_REPORT_REQUESTED_RECENTLY(HttpStatus.TOO_MANY_REQUESTS, "SCHEDULE-019", "잠시 후 다시 요청할 수 있습니다.");
+    COMPLETION_REPORT_REQUESTED_RECENTLY(HttpStatus.TOO_MANY_REQUESTS, "SCHEDULE-019", "잠시 후 다시 요청할 수 있습니다."),
+    PHOTO_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "SCHEDULE-020", "이미지 파일만 올릴 수 있습니다."),
+    PHOTO_TOO_LARGE(HttpStatus.BAD_REQUEST, "SCHEDULE-021", "사진 용량이 너무 큽니다."),
+    PHOTO_NOT_UPLOADED(HttpStatus.BAD_REQUEST, "SCHEDULE-022", "업로드를 마치지 않았거나 쓸 수 없는 사진입니다. 사진을 다시 올려 주세요."),
+    PHOTO_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "SCHEDULE-023", "사진 저장소에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus httpStatus;
     private final String code;

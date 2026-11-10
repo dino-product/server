@@ -9,6 +9,7 @@ import static com.orbit.schedule.application.service.ScheduleServiceFixture.TECH
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TEN;
 import static com.orbit.schedule.application.service.ScheduleServiceFixture.TWO_HOURS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import com.orbit.media.MediaStorageUnavailableException;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.query.dto.CompletionReportInfo;
 import com.orbit.schedule.application.port.in.query.dto.GetCompletionReportQuery;
@@ -29,6 +31,7 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.shared.error.BusinessException;
 
 /** 공통 오류 순서는 {@link WorkQueryRulesTest}가 다룬다. */
 @DisplayName("완료보고 조회")
@@ -44,7 +47,7 @@ class GetCompletionReportServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
     private final GetCompletionReportService service =
-            new GetCompletionReportService(fixture.actorPort, fixture.workRepository, photoId -> "url/" + photoId);
+            new GetCompletionReportService(fixture.actorPort, fixture.workRepository, fixture.mediaFiles);
 
     @Test
     @DisplayName("관리자는 보고 내용과 사진의 내려받을 주소를 순서대로 받는다")
@@ -59,12 +62,26 @@ class GetCompletionReportServiceTest {
         assertThat(info.completedAt()).isEqualTo(NOW);
         CompletionReportInfo report = info.report();
         assertThat(report.beforePhotos())
-                .containsExactly(new PhotoInfo("before-1", "url/before-1"), new PhotoInfo("before-2", "url/before-2"));
-        assertThat(report.afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/after-1"));
+                .containsExactly(
+                        new PhotoInfo("before-1", "url/100/before-1"), new PhotoInfo("before-2", "url/100/before-2"));
+        assertThat(report.afterPhotos()).containsExactly(new PhotoInfo("after-1", "url/100/after-1"));
         assertThat(report.usedParts()).isEqualTo("필터");
         assertThat(report.workNote()).isEqualTo("교체 완료");
         assertThat(report.actualFee()).isEqualTo(120_000L);
         assertThat(report.actualPaymentMethod()).isEqualTo(ActualPaymentMethod.CASH);
+    }
+
+    @Test
+    @DisplayName("사진 주소를 서명하지 못하면 원인을 이은 503 SCHEDULE-023이다")
+    void signingFailure() {
+        fixture.givenManager();
+        WorkId id = givenCompletedWork(REPORT);
+        fixture.mediaFiles.givenSigningFails();
+
+        assertThatThrownBy(() -> service.get(query(id.value())))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ScheduleErrorCode.PHOTO_STORAGE_UNAVAILABLE))
+                .hasCauseInstanceOf(MediaStorageUnavailableException.class);
     }
 
     @Test

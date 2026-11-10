@@ -8,11 +8,14 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.interceptor.TransactionAttribute;
+
+import com.orbit.schedule.application.port.in.query.dto.GetProgressBoardQuery;
 
 @DisplayName("여러 번 읽어 한 화면을 만드는 조회의 트랜잭션")
 class SnapshotQueryIsolationTest {
@@ -23,10 +26,11 @@ class SnapshotQueryIsolationTest {
             classes = {
                 GetTimetableService.class,
                 SearchWorksService.class,
-                GetProgressBoardService.class,
+                ProgressBoardSnapshotReader.class,
                 GetWorkDetailService.class,
                 ExportWorksService.class,
-                GetBacklogSummaryService.class
+                GetBacklogSummaryService.class,
+                GetWorkHistoryService.class
             })
     @DisplayName("한 스냅샷(REPEATABLE READ) 읽기 전용 트랜잭션에서 실행한다")
     void runsInRepeatableReadSnapshot(Class<?> service) {
@@ -44,5 +48,15 @@ class SnapshotQueryIsolationTest {
                     .as(method.toString())
                     .isEqualTo(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         });
+    }
+
+    @Test
+    @DisplayName("진행 보드 조회 유즈케이스는 트랜잭션을 열지 않는다(같은 보드를 기다리는 동안 DB 커넥션을 잡지 않고, 스냅샷 만들기가 자기 격리 수준으로 시작한다)")
+    void progressBoardUseCaseOpensNoTransaction() throws NoSuchMethodException {
+        AnnotationTransactionAttributeSource attributes = new AnnotationTransactionAttributeSource();
+        Method get = GetProgressBoardService.class.getMethod("get", GetProgressBoardQuery.class);
+
+        assertThat(attributes.getTransactionAttribute(get, GetProgressBoardService.class))
+                .isNull();
     }
 }

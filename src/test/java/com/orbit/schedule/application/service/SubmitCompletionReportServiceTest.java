@@ -20,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.orbit.schedule.CompletionReportSubmitted;
+import com.orbit.schedule.WorkChanged;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.dto.SubmitCompletionReportCommand;
 import com.orbit.schedule.domain.ActualPaymentMethod;
@@ -35,8 +36,7 @@ import com.orbit.schedule.domain.WorkStatus;
 class SubmitCompletionReportServiceTest {
 
     private final ScheduleServiceFixture fixture = new ScheduleServiceFixture();
-    private final SubmitCompletionReportService service =
-            new SubmitCompletionReportService(fixture.actorPort, fixture.workRepository, fixture.events, fixture.clock);
+    private final SubmitCompletionReportService service = fixture.submitCompletionReportService();
 
     @Test
     @DisplayName("담당 기사가 작업중인 작업에 보고를 제출하면 보고를 붙여 완료하고 지금 시각을 완료 시각으로 남기며, 저장한 뒤 등록자에게 알릴 제출을 발행한다")
@@ -59,13 +59,15 @@ class SubmitCompletionReportServiceTest {
                         ActualPaymentMethod.CREDIT_CARD));
         assertThat(fixture.scheduleLock.locks()).isEmpty();
         assertThat(fixture.events.published())
-                .containsExactly(new CompletionReportSubmitted(
-                        id.value(),
-                        ORGANIZATION_ID.value(),
-                        REGISTRAR_ID.value(),
-                        TECHNICIAN_ID.value(),
-                        "대상 작업",
-                        NOW));
+                .containsExactly(
+                        new CompletionReportSubmitted(
+                                id.value(),
+                                ORGANIZATION_ID.value(),
+                                REGISTRAR_ID.value(),
+                                TECHNICIAN_ID.value(),
+                                "대상 작업",
+                                NOW),
+                        new WorkChanged(ORGANIZATION_ID.value(), List.of(id.value()), NOW));
     }
 
     @Test
@@ -170,6 +172,70 @@ class SubmitCompletionReportServiceTest {
 
         fixture.assertRejected(
                 () -> service.submit(command(id.value(), 1, null, null, null)), ScheduleErrorCode.INVALID_WORK_INPUT);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 같은 보고의 제출이 먼저 커밋된 것이 드러나면 다시 읽어 중복 전송으로 보고 바꾸지 않고 성공하며, 사진을 다시 연결하거나 발행하지 않는다")
+    void treatsConcurrentSameReportAsResend() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+        CompletionReport report = new CompletionReport(
+                List.of("before.jpg"),
+                List.of("after.jpg"),
+                "필터 1개",
+                "교체 완료",
+                new Money(150_000L),
+                ActualPaymentMethod.CREDIT_CARD);
+        fixture.workRepository.failNextSaveWithConcurrentChange(
+                work -> work.submitCompletionReport(report, NOW.minusSeconds(1)));
+
+        service.submit(command(id.value(), 1, "필터 1개", 150_000L, ActualPaymentMethod.CREDIT_CARD));
+
+        assertThat(fixture.workRepository.saved()).isEmpty();
+        assertThat(fixture.events.published()).isEmpty();
+        assertThat(fixture.mediaFiles.attachments()).isEmpty();
+        assertThat(fixture.stored(id).completedAt()).contains(NOW.minusSeconds(1));
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 기본정보 수정이 먼저 커밋된 것이 드러나면 한 번 다시 제출해 완료하고, 사진 확인은 다시 하지 않으며 사진 연결과 발행은 다시 한 제출의 한 번뿐이다")
+    void retriesAfterConcurrentDetailsChange() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        service.submit(command(id.value(), 1, "필터 1개", 150_000L, ActualPaymentMethod.CREDIT_CARD));
+
+        assertThat(fixture.singleSaved().status()).isEqualTo(WorkStatus.COMPLETED);
+        assertThat(fixture.mediaFiles.attachments()).hasSize(1);
+        assertThat(fixture.events.published()).hasSize(2);
+        assertThat(fixture.mediaFiles.stageRequests()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("저장 자리에서 취소가 먼저 커밋된 것이 드러나면 다시 읽은 취소된 작업을 보고 상태 오류이고 사진을 연결하지 않는다")
+    void seesCancellationCommittedBeforeSave() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+        fixture.workRepository.failNextSaveWithConcurrentChange(
+                work -> work.cancel(NOW, SETUP_MANAGER_ID, CancellationReason.CUSTOMER_REQUEST, null));
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.submit(command(id.value(), 1, null, null, null)), ScheduleErrorCode.INVALID_WORK_STATE);
+        assertThat(fixture.mediaFiles.attachments()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("다시 제출해도 저장 자리에서 또 충돌하면 변경된 정보라는 409이고 사진을 연결하지 않는다")
+    void reportsWorkChangedWhenRetryConflictsAgain() {
+        fixture.givenTechnician(TECHNICIAN_ID);
+        WorkId id = fixture.givenWork(WorkStatus.IN_PROGRESS);
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+        fixture.workRepository.failNextSaveWithConcurrentChange();
+
+        fixture.assertRejectedWithoutSaving(
+                () -> service.submit(command(id.value(), 1, null, null, null)), ScheduleErrorCode.WORK_CHANGED);
+        assertThat(fixture.mediaFiles.attachments()).isEmpty();
     }
 
     private static SubmitCompletionReportCommand command(

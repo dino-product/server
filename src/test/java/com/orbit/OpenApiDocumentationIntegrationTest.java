@@ -7,11 +7,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Arrays;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.orbit.notification.domain.PushDevice;
 import com.orbit.profile.WithdrawalBlockReason;
 import com.orbit.support.IntegrationTestSupport;
 
@@ -96,8 +98,23 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .value("AUTH-004"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.security[0]['Bearer Authentication']")
                         .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.requestBody.required")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.requestBody"
+                                + ".content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.LogoutRequest"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.responses['204']")
-                        .exists());
+                        .exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/refresh'].post.summary").value("토큰 재발급"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.security")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.auth.adapter.in.web.RefreshedTokensResponse"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.responses['401']"
+                                + ".content['application/json'].examples['AUTH-009'].value.code")
+                        .value("AUTH-009"));
     }
 
     @Test
@@ -281,6 +298,22 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsCurrentTermsAsPublicOperationOutsideSignupGate() throws Exception {
+        String operation = "$.paths['/api/v1/terms'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("시행 중인 약관 조회"))
+                .andExpect(jsonPath(operation + ".security").doesNotExist())
+                .andExpect(jsonPath(operation + ".responses['403']").doesNotExist())
+                .andExpect(jsonPath(operation + ".responses['404'].content['application/json'].examples['COMMON-404']"
+                                + ".value.code")
+                        .value("COMMON-404"))
+                .andExpect(jsonPath(operation + ".responses['200']"
+                                + ".content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.profile.adapter.in.web.CurrentTermsResponse"));
+    }
+
+    @Test
     void documentsMyMembershipListAsProtectedOperation() throws Exception {
         mockMvc.perform(get("/docs-json"))
                 .andExpect(status().isOk())
@@ -377,6 +410,24 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
                                 + ".examples['SCHEDULE-002'].value.code")
                         .value("SCHEDULE-002"));
+    }
+
+    @Test
+    void documentsConcurrentChangeConflictOnRetriedCommands() throws Exception {
+        String works = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}";
+        for (String operation : List.of(
+                works + "/acceptance'].post",
+                works + "/rejection'].post",
+                works + "/start'].post",
+                works + "/completion-report'].post",
+                works + "/cancellation'].post",
+                works + "'].put")) {
+            mockMvc.perform(get("/docs-json"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                    + ".examples['SCHEDULE-016'].value.code")
+                            .value("SCHEDULE-016"));
+        }
     }
 
     @Test
@@ -563,6 +614,137 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsTechnicianAcceptanceWithAssignmentErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/acceptance'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("배정 수락"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-009'].value.code")
+                        .value("SCHEDULE-009"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-010'].value.code")
+                        .value("SCHEDULE-010"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.field.AssignmentNumberRequest']"
+                                + ".properties.assignmentNumber")
+                        .exists());
+    }
+
+    @Test
+    void documentsTechnicianRejectionWithReasonList() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/rejection'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("배정 거절"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-009'].value.code")
+                        .value("SCHEDULE-009"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-010'].value.code")
+                        .value("SCHEDULE-010"))
+                .andExpect(jsonPath("$.components.schemas['com.orbit.schedule.adapter.in.web.field.RejectWorkRequest']"
+                                + ".properties.reason.enum")
+                        .value(containsInAnyOrder(
+                                "SCHEDULE_CONFLICT",
+                                "ALREADY_ASSIGNED",
+                                "LOCATION_TOO_FAR",
+                                "SCOPE_MISMATCH",
+                                "OTHER")));
+    }
+
+    @Test
+    void documentsWorkHistoryWithTotalCompleted() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/work-history'].get";
+        String response = "$.components.schemas['com.orbit.schedule.adapter.in.web.history.WorkHistoryResponse']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("기사 작업 이력 조회"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['200']").exists())
+                .andExpect(jsonPath(operation + ".responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath(response + ".properties.totalCompleted").exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'statuses')]")
+                        .exists())
+                .andExpect(jsonPath(operation + ".parameters[?(@.name == 'workTypeIds')]")
+                        .exists())
+                .andExpect(jsonPath(response + ".properties.statistics").exists());
+    }
+
+    @Test
+    void documentsTechnicianSchedulesWithAssignmentNumberAndLocation() throws Exception {
+        String base = "$.paths['/api/v1/organizations/{organizationId}/my-schedule";
+        String work = "$.components.schemas"
+                + "['com.orbit.schedule.adapter.in.web.myschedule.MyScheduleResponse.ScheduledWork']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(base + "'].get.summary").value("내 일정 조회"))
+                .andExpect(jsonPath(base + "/pending'].get.summary").value("응답 필요 작업 조회"))
+                .andExpect(jsonPath(base + "/actionable'].get.summary").value("지금 수행 가능한 작업 조회"))
+                .andExpect(jsonPath(base + "/actionable'].get.responses['403'].content['application/json']"
+                                + ".examples['SCHEDULE-005'].value.code")
+                        .value("SCHEDULE-005"))
+                .andExpect(jsonPath(work + ".properties.assignmentNumber").exists())
+                .andExpect(jsonPath(work + ".properties.customerLocation").exists());
+    }
+
+    @Test
+    void documentsTechnicianStartWithStartWindowErrors() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/start'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".summary").value("작업 시작"))
+                .andExpect(jsonPath(operation + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(operation + ".responses['204']").exists())
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-017'].value.code")
+                        .value("SCHEDULE-017"))
+                .andExpect(jsonPath(operation + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-018'].value.code")
+                        .value("SCHEDULE-018"));
+    }
+
+    @Test
+    void documentsCompletionReportSubmitAndRead() throws Exception {
+        String operation = "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-report']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(operation + ".post.summary").value("완료보고 제출"))
+                .andExpect(jsonPath(operation + ".post.responses['204']").exists())
+                .andExpect(jsonPath(operation + ".post.responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-022'].value.code")
+                        .value("SCHEDULE-022"))
+                .andExpect(jsonPath(operation + ".post.responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath(operation + ".get.summary").value("완료보고 조회"))
+                .andExpect(jsonPath(operation + ".get.responses['404'].content['application/json']"
+                                + ".examples['SCHEDULE-012'].value.code")
+                        .value("SCHEDULE-012"))
+                .andExpect(jsonPath(operation + ".get.responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.field.SubmitCompletionReportRequest']"
+                                + ".properties.beforePhotoIds.maxItems")
+                        .value(6))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.field.SubmitCompletionReportRequest']"
+                                + ".properties.afterPhotoIds.maxItems")
+                        .value(6));
+    }
+
+    @Test
     void documentsCompletionReportRequestWithIntervalLimit() throws Exception {
         String operation =
                 "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-report-requests'].post";
@@ -590,6 +772,54 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                         .exists())
                 .andExpect(jsonPath(detail + ".properties.completionReportRequestable")
                         .exists());
+    }
+
+    @Test
+    void documentsPhotoUploadsAndPhotoErrors() throws Exception {
+        String site = "$.paths['/api/v1/organizations/{organizationId}/site-photo-uploads'].post";
+        String completion =
+                "$.paths['/api/v1/organizations/{organizationId}/works/{workId}/completion-photo-uploads'].post";
+        String create = "$.paths['/api/v1/organizations/{organizationId}/works'].post";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(site + ".summary").value("현장 사진 업로드 주소 발급"))
+                .andExpect(
+                        jsonPath(site + ".security[0]['Bearer Authentication']").exists())
+                .andExpect(jsonPath(
+                                site + ".responses['200'].content['application/json'].schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.schedule.adapter.in.web.photo.PhotoUploadResponse"))
+                .andExpect(jsonPath(site + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-020'].value.code")
+                        .value("SCHEDULE-020"))
+                .andExpect(jsonPath(completion + ".summary").value("완료보고 사진 업로드 주소 발급"))
+                .andExpect(jsonPath(completion + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-021'].value.code")
+                        .value("SCHEDULE-021"))
+                .andExpect(jsonPath(completion + ".responses['409'].content['application/json']"
+                                + ".examples['SCHEDULE-002'].value.code")
+                        .value("SCHEDULE-002"))
+                .andExpect(jsonPath(create + ".responses['400'].content['application/json']"
+                                + ".examples['SCHEDULE-022'].value.code")
+                        .value("SCHEDULE-022"))
+                .andExpect(jsonPath(create + ".responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath(site + ".responses['503'].content['application/json']"
+                                + ".examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath(completion + ".description")
+                        .value(org.hamcrest.Matchers.containsString(
+                                "완료보고 제출(works/{workId}/completion-report)의 beforePhotoIds·afterPhotoIds")))
+                .andExpect(jsonPath("$.paths['/api/v1/organizations/{organizationId}/works/{workId}'].get"
+                                + ".responses['503'].content['application/json'].examples['SCHEDULE-023'].value.code")
+                        .value("SCHEDULE-023"))
+                .andExpect(jsonPath("$.components.schemas"
+                                + "['com.orbit.schedule.adapter.in.web.photo.PhotoUploadResponse']"
+                                + ".properties.requiredHeaders.description")
+                        .value(org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("본문 길이와 같아야"),
+                                org.hamcrest.Matchers.containsString("HTTP 클라이언트가 붙인다"),
+                                org.hamcrest.Matchers.containsString("브라우저는 직접 붙일 수 없"))));
     }
 
     @Test
@@ -967,6 +1197,28 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void documentsRealtimeStreamAsProtectedEventStream() throws Exception {
+        String open = "$.paths['/api/v1/organizations/{organizationId}/events'].get";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(open + ".summary").value("실시간 갱신 연결"))
+                .andExpect(
+                        jsonPath(open + ".security[0]['Bearer Authentication']").exists())
+                .andExpect(jsonPath(open + ".parameters[*].name")
+                        .value(containsInAnyOrder("organizationId", "X-Orbit-Client")))
+                .andExpect(jsonPath(open + ".responses['200'].content['text/event-stream']")
+                        .exists())
+                .andExpect(jsonPath(open + ".responses['200'].content['application/json']")
+                        .doesNotExist())
+                .andExpect(jsonPath(open + ".responses['403'].content['application/json']"
+                                + ".examples['REALTIME-001'].value.code")
+                        .value("REALTIME-001"))
+                .andExpect(jsonPath(open + ".responses['503'].content['application/json']"
+                                + ".examples['REALTIME-002'].value.code")
+                        .value("REALTIME-002"));
+    }
+
+    @Test
     void documentsNotificationSettingReadAndChange() throws Exception {
         String operations = "$.paths['/api/v1/notification-settings']";
         mockMvc.perform(get("/docs-json"))
@@ -988,5 +1240,42 @@ class OpenApiDocumentationIntegrationTest extends IntegrationTestSupport {
                                 + "['com.orbit.notification.adapter.in.web.NotificationSettingRequest']"
                                 + ".required.length()")
                         .value(3));
+    }
+
+    @Test
+    void documentsPushDeviceUnregistration() throws Exception {
+        String unregister = "$.paths['/api/v1/push-devices/{pushDeviceId}'].delete";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(unregister + ".summary").value("앱 푸시 기기 해제"))
+                .andExpect(jsonPath(unregister + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(unregister + ".parameters[0].name").value("pushDeviceId"))
+                .andExpect(jsonPath(unregister + ".requestBody").doesNotExist())
+                .andExpect(jsonPath(unregister + ".responses['204']").exists())
+                .andExpect(jsonPath(unregister + ".responses['404'].content['application/json']"
+                                + ".examples['NOTIFICATION-005'].value.code")
+                        .value("NOTIFICATION-005"));
+    }
+
+    @Test
+    void documentsPushDeviceRegistration() throws Exception {
+        String register = "$.paths['/api/v1/push-devices'].post";
+        String request = "$.components.schemas['com.orbit.notification.adapter.in.web.PushDeviceRequest']";
+        mockMvc.perform(get("/docs-json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(register + ".summary").value("앱 푸시 기기 등록"))
+                .andExpect(jsonPath(register + ".security[0]['Bearer Authentication']")
+                        .exists())
+                .andExpect(jsonPath(register + ".responses['200'].content['application/json']"
+                                + ".schema.properties.result['$ref']")
+                        .value("#/components/schemas/com.orbit.notification.adapter.in.web."
+                                + "RegisteredPushDeviceResponse"))
+                .andExpect(jsonPath(register + ".responses['400'].content['application/json']"
+                                + ".examples['COMMON-400'].value.code")
+                        .value("COMMON-400"))
+                .andExpect(jsonPath(request + ".required").value(containsInAnyOrder("platform", "token")))
+                .andExpect(jsonPath(request + ".properties.platform.enum").value(containsInAnyOrder("IOS", "ANDROID")))
+                .andExpect(jsonPath(request + ".properties.token.maxLength").value(PushDevice.MAX_TOKEN_LENGTH));
     }
 }

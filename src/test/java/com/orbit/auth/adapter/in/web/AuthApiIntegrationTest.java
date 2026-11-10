@@ -1,13 +1,16 @@
 package com.orbit.auth.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.UUID;
 
@@ -19,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -27,6 +31,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.orbit.auth.domain.RefreshTokenHash;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -34,11 +39,17 @@ import tools.jackson.databind.ObjectMapper;
 @DisplayName("인증 API")
 class AuthApiIntegrationTest extends AuthApiTestSupport {
 
+    private static final String REFRESH_TOKEN_FORMAT =
+            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[A-Za-z0-9_-]{43}";
+
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Value("${app.auth.jwt.secret}")
     private String jwtSecret;
@@ -67,6 +78,8 @@ class AuthApiIntegrationTest extends AuthApiTestSupport {
                 .andExpect(jsonPath("$.result.registered").value(true))
                 .andExpect(jsonPath("$.result.accessToken").isString())
                 .andExpect(jsonPath("$.result.accessTokenExpiresAt").isString())
+                .andExpect(jsonPath("$.result.refreshToken").isString())
+                .andExpect(jsonPath("$.result.refreshTokenExpiresAt").isString())
                 .andReturn()
                 .getResponse()
                 .getContentAsString()
@@ -81,6 +94,36 @@ class AuthApiIntegrationTest extends AuthApiTestSupport {
 
         assertThat(second.path("result").path("accountId").asLong())
                 .isEqualTo(first.path("result").path("accountId").asLong());
+    }
+
+    @Test
+    @DisplayName("로그인마다 새 기기 세션을 30일 만료로 시작하고 refresh token 원문은 저장하지 않는다")
+    void startsDeviceSessionPerLogin() throws Exception {
+        String subject = UUID.randomUUID().toString();
+
+        JsonNode first = loginAs(subject);
+        JsonNode second = loginAs(subject);
+
+        String firstToken = first.path("result").path("refreshToken").asText();
+        String secondToken = second.path("result").path("refreshToken").asText();
+        assertThat(firstToken).matches(REFRESH_TOKEN_FORMAT);
+        assertThat(secondToken).matches(REFRESH_TOKEN_FORMAT);
+        assertThat(firstToken.substring(0, 36)).isNotEqualTo(secondToken.substring(0, 36));
+        assertThat(Instant.parse(
+                        first.path("result").path("refreshTokenExpiresAt").asText()))
+                .isCloseTo(Instant.now().plus(Duration.ofDays(30)), within(1, ChronoUnit.MINUTES));
+        long accountId = first.path("result").path("accountId").asLong();
+        assertThat(jdbcTemplate.queryForList(
+                        "select id from refresh_sessions where account_id = ? order by started_at",
+                        String.class,
+                        accountId))
+                .containsExactlyInAnyOrder(firstToken.substring(0, 36), secondToken.substring(0, 36));
+        assertThat(jdbcTemplate.queryForList(
+                        "select token_hash from refresh_sessions where account_id = ?", String.class, accountId))
+                .containsExactlyInAnyOrder(
+                        RefreshTokenHash.of(firstToken.substring(37)).value(),
+                        RefreshTokenHash.of(secondToken.substring(37)).value())
+                .doesNotContain(firstToken.substring(37), secondToken.substring(37));
     }
 
     @Test
@@ -170,7 +213,9 @@ class AuthApiIntegrationTest extends AuthApiTestSupport {
                 .andExpect(status().isNoContent());
 
         assertNotFoundLikeMissingResource(get("/api/v1/auth/me").header(HttpHeaders.AUTHORIZATION, token));
-        assertNotFoundLikeMissingResource(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, token));
+        // 로그아웃은 만료·폐기 토큰으로도 refresh token을 끝낼 수 있게 404로 막지 않고, 끝낼 것이 없으면 그대로 204다.
+        mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isNoContent());
     }
 
     @Test

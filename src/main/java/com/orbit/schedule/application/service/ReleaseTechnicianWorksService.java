@@ -5,7 +5,9 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
@@ -22,6 +24,7 @@ import com.orbit.schedule.domain.MembershipId;
 import com.orbit.schedule.domain.OrganizationId;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
+import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkStatus;
 
 /**
@@ -34,19 +37,25 @@ import com.orbit.schedule.domain.WorkStatus;
  * <p>organization의 트랜잭션 안에서만 실행해 기사 계약 종료와 함께 커밋·롤백된다(바깥 트랜잭션이 없으면 Spring이 거부한다). 배정·재배정·일정 변경·일부만 입력한 등록·기사
  * 요청(수락·거절·시작)과 같은 기사 잠금을 잡은 뒤 기사의 활성 작업과 미리 입력한 대기함 작업을 읽어, 잠금을 기다리는 동안 커밋된 변경까지 처리한다. 잠근 뒤의 조회가 앞선 커밋을 보려면 READ
  * COMMITTED여야 하는데, 바깥 트랜잭션에 참여하므로 격리 수준을 지정할 수 없다. 그래서 바깥 트랜잭션이 그보다 높은 격리 수준을 지정했으면 잠그기 전에 거부하고, 지정하지 않았으면 PostgreSQL
- * 기본값 READ COMMITTED에 기댄다.
+ * 기본값 READ COMMITTED에 기댄다. 기사를 잠그지 않는 변경(취소·기본정보 수정·배정 해제 등)이 같은 작업을 먼저 바꿔 저장 자리에서 충돌하면, 같은
+ * 트랜잭션으로는 새로 읽지 못해 다시 실행하지 않고 409(SCHEDULE-016)로 알린다(HM-371). 어댑터가 이를 대기 초과와 같은 계약 예외로 옮겨 호출자가 다시 시도하게 한다.
  */
 @Service
 public class ReleaseTechnicianWorksService implements ReleaseTechnicianWorksUseCase {
 
     private final WorkRepository workRepository;
     private final LockTechnicianSchedulePort lockTechnicianSchedulePort;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public ReleaseTechnicianWorksService(
-            WorkRepository workRepository, LockTechnicianSchedulePort lockTechnicianSchedulePort, Clock clock) {
+            WorkRepository workRepository,
+            LockTechnicianSchedulePort lockTechnicianSchedulePort,
+            ApplicationEventPublisher eventPublisher,
+            Clock clock) {
         this.workRepository = workRepository;
         this.lockTechnicianSchedulePort = lockTechnicianSchedulePort;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -83,8 +92,13 @@ public class ReleaseTechnicianWorksService implements ReleaseTechnicianWorksUseC
                         .sorted(Comparator.comparing(ReleaseTechnicianWorksService::idOf))
                         .toList();
         plannedForTechnician.forEach(Work::clearPlannedTechnician);
-        released.forEach(workRepository::save);
-        plannedForTechnician.forEach(workRepository::save);
+        // 바깥 트랜잭션에 참여해 다시 실행할 수 없으므로, 저장 자리의 충돌은 409(SCHEDULE-016)로 알려 호출자 전체를 롤백한다.
+        released.forEach(work -> WorkVersions.save(workRepository, work));
+        plannedForTechnician.forEach(work -> WorkVersions.save(workRepository, work));
+        List<WorkId> changed = Stream.concat(released.stream(), plannedForTechnician.stream())
+                .map(work -> work.id().orElseThrow())
+                .toList();
+        WorkEvents.publishChanged(eventPublisher, organizationId, changed, now);
         return TechnicianWorkReleaseInfo.released(
                 released.stream().map(ReleaseTechnicianWorksService::idOf).toList());
     }

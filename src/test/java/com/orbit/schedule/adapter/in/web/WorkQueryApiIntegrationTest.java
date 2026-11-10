@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.ByteArrayInputStream;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -37,6 +38,7 @@ import com.orbit.schedule.domain.PlannedSchedule;
 import com.orbit.schedule.domain.Rejection;
 import com.orbit.schedule.domain.RejectionReason;
 import com.orbit.schedule.domain.SiteAddress;
+import com.orbit.schedule.domain.SiteCoordinates;
 import com.orbit.schedule.domain.TechnicianId;
 import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkSchedule;
@@ -486,6 +488,38 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
+        @DisplayName("현장 좌표가 있으면 고객 정보에 위도·경도를 담고, 없으면 null이다")
+        void returnsSiteLocation() throws Exception {
+            Organization organization = organization();
+            Work located = Work.register(
+                    new OrganizationId(organization.id()),
+                    "좌표 작업",
+                    new MembershipId(organization.ownerMembership()),
+                    Instant.now().minus(Duration.ofHours(1)),
+                    null,
+                    new CustomerInfo(null, null, new SiteAddress(null, "서울시 마포구 양화로 45", null)),
+                    null);
+            located.locateSite(new SiteCoordinates(new BigDecimal("37.556151"), new BigDecimal("126.922803")));
+            long locatedId = save(located);
+            long unlocatedId = save(Work.register(
+                    new OrganizationId(organization.id()),
+                    "좌표 없는 작업",
+                    new MembershipId(organization.ownerMembership()),
+                    Instant.now().minus(Duration.ofHours(1)),
+                    null,
+                    new CustomerInfo(null, null, new SiteAddress(null, "서울시 마포구 양화로 45", null)),
+                    null));
+
+            detail(organization.owner(), organization.id(), locatedId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.customer.location.latitude").value(37.556151))
+                    .andExpect(jsonPath("$.result.customer.location.longitude").value(126.922803));
+            detail(organization.owner(), organization.id(), unlocatedId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.customer.location").value(nullValue()));
+        }
+
+        @Test
         @DisplayName("등록 때 붙인 현장 사진을 첨부 파일(식별자·주소)로 돌려준다")
         void returnsSitePhotosAsAttachments() throws Exception {
             Organization organization = organization();
@@ -676,14 +710,6 @@ class WorkQueryApiIntegrationTest extends ScheduleApiTestSupport {
             return mockMvc.perform(get("/api/v1/organizations/{organizationId}/progress-board?" + query, organizationId)
                     .header(HttpHeaders.AUTHORIZATION, bearer(requester)));
         }
-    }
-
-    private long technicianIdOf(long organizationId, long accountId) {
-        return jdbcTemplate.queryForObject(
-                "select id from technician where company_id = ? and member_id = ?",
-                Long.class,
-                organizationId,
-                accountId);
     }
 
     private void givenDisplayInfos(Organization organization) {
