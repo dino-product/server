@@ -426,20 +426,37 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("schedule의 등록 작업 확인이 들어오기 전에는 직원을 기사로 바꾸지 못하고(409 ORGANIZATION-028) 직원 소속이 그대로다")
-    void refusesStaffToTechnicianUntilScheduleChecksRegisteredWorks() throws Exception {
+    @DisplayName("직원이 등록한 작업 중 끝나지 않은 작업이 있으면 기사로 바꾸지 못하고(409 ORGANIZATION-028), 그 작업을 취소하면 기사로 바뀐다")
+    void changesStaffToTechnicianOnlyWithoutUnfinishedRegisteredWorks() throws Exception {
         long owner = ACCOUNT_IDS.incrementAndGet();
         Company company = createCompany(owner, "직원 역할 발주사");
         long staff = ACCOUNT_IDS.incrementAndGet();
         long staffMembershipId = join(company, owner, staff, "STAFF");
+        long workId = registerWork(staff, company.organizationId());
 
         changeRole(owner, company.organizationId(), "staff-memberships", staffMembershipId, null)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ORGANIZATION-028"));
-
         listParticipants(owner, company.organizationId(), "STAFF", null)
                 .andExpect(jsonPath("$.result.participants[?(@.memberId == " + staffMembershipId + ")].status")
                         .value("ACTIVE"));
+
+        mockMvc.perform(post(
+                                "/api/v1/organizations/{organizationId}/works/{workId}/cancellation",
+                                company.organizationId(),
+                                workId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(staff))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("reason", "CUSTOMER_REQUEST"))))
+                .andExpect(status().isNoContent());
+
+        changeRole(owner, company.organizationId(), "staff-memberships", staffMembershipId, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.role").value("TECHNICIAN"));
+        listParticipants(owner, company.organizationId(), null, null)
+                .andExpect(jsonPath("$.result.counts.technician").value(1))
+                .andExpect(jsonPath("$.result.participants[?(@.accountId == " + staff + ")].role")
+                        .value("TECHNICIAN"));
     }
 
     private ResultActions listParticipants(long accountId, long organizationId, String type, String name)
@@ -552,6 +569,16 @@ class ParticipantApiIntegrationTest extends IntegrationTestSupport {
                                         "2030-03-02T01:00:00Z",
                                         "expectedDurationMinutes",
                                         60))))))
+                .path("workId")
+                .asLong();
+    }
+
+    /** 일정 없이 대기함 작업을 등록한다. */
+    private long registerWork(long registrar, long organizationId) throws Exception {
+        return result(mockMvc.perform(post("/api/v1/organizations/{organizationId}/works", organizationId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(registrar))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "보일러 점검")))))
                 .path("workId")
                 .asLong();
     }
