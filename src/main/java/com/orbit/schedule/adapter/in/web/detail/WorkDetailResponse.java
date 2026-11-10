@@ -204,6 +204,9 @@ public record WorkDetailResponse(
             @Schema(description = "배정한 관리자(소속 식별자)", example = "5")
             Long assignedBy,
 
+            @Schema(description = "배정한 관리자의 이름(역할을 바꾸거나 비활성화된 소속 포함). 기사에게와 찾지 못했으면 null", example = "김운영")
+            String assignedByName,
+
             @Schema(
                     description = "응답 결과. PENDING(응답 전), ACCEPTED(수락), REJECTED(거절), WITHDRAWN(응답 전 회수)",
                     example = "ACCEPTED")
@@ -230,7 +233,10 @@ public record WorkDetailResponse(
             @Schema(description = "배정이 끝난 시각") Instant endedAt,
 
             @Schema(description = "배정을 끝낸 관리자(소속 식별자). 기사 탈퇴로 끝났으면 null")
-            Long endedBy) {
+            Long endedBy,
+
+            @Schema(description = "배정을 끝낸 관리자의 이름. 처리자가 없거나 기사에게, 찾지 못했으면 null")
+            String endedByName) {
 
         static Assignment from(WorkDetailInfo.Assignment info) {
             return new Assignment(
@@ -238,13 +244,15 @@ public record WorkDetailResponse(
                     Schedule.from(info.schedule()),
                     info.assignedAt(),
                     info.assignedBy(),
+                    info.assignedByName(),
                     info.result(),
                     info.decidedAt(),
                     info.rejectionReason(),
                     info.rejectionNote(),
                     info.endReason(),
                     info.endedAt(),
-                    info.endedBy());
+                    info.endedBy(),
+                    info.endedByName());
         }
     }
 
@@ -256,6 +264,9 @@ public record WorkDetailResponse(
             @Schema(description = "취소한 관리자(소속 식별자)", example = "5")
             Long cancelledBy,
 
+            @Schema(description = "취소한 관리자의 이름. 기사에게와 찾지 못했으면 null", example = "김운영")
+            String cancelledByName,
+
             @Schema(
                     description = "취소 사유. CUSTOMER_REQUEST(고객 요청), TECHNICIAN_ISSUE(기사 사정), "
                             + "DUPLICATE_REGISTRATION(중복 등록), OTHER(기타)",
@@ -265,7 +276,8 @@ public record WorkDetailResponse(
             @Schema(description = "기타 사유 메모") String note) {
 
         static Cancellation from(WorkDetailInfo.Cancellation info) {
-            return new Cancellation(info.cancelledAt(), info.cancelledBy(), info.reason(), info.note());
+            return new Cancellation(
+                    info.cancelledAt(), info.cancelledBy(), info.cancelledByName(), info.reason(), info.note());
         }
     }
 
@@ -275,10 +287,13 @@ public record WorkDetailResponse(
             Instant requestedAt,
 
             @Schema(description = "요청한 관리자(소속 식별자)", example = "5")
-            Long requestedBy) {
+            Long requestedBy,
+
+            @Schema(description = "요청한 관리자의 이름. 찾지 못했으면 null", example = "김운영")
+            String requestedByName) {
 
         static CompletionReportRequest from(WorkDetailInfo.CompletionReportRequest info) {
-            return new CompletionReportRequest(info.requestedAt(), info.requestedBy());
+            return new CompletionReportRequest(info.requestedAt(), info.requestedBy(), info.requestedByName());
         }
     }
 }

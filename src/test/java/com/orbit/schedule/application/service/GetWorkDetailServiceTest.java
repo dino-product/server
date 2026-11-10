@@ -131,7 +131,11 @@ class GetWorkDetailServiceTest {
         assertThat(detail.status()).isEqualTo(WorkStatus.CANCELED);
         assertThat(detail.cancellation())
                 .isEqualTo(new WorkDetailInfo.Cancellation(
-                        NOW.minusSeconds(60), SETUP_MANAGER_ID.value(), CancellationReason.CUSTOMER_REQUEST, null));
+                        NOW.minusSeconds(60),
+                        SETUP_MANAGER_ID.value(),
+                        null,
+                        CancellationReason.CUSTOMER_REQUEST,
+                        null));
         assertThat(detail.assignments())
                 .extracting(
                         WorkDetailInfo.Assignment::assignmentNumber,
@@ -171,6 +175,37 @@ class GetWorkDetailServiceTest {
                         WorkDetailInfo.Assignment::endedAt,
                         WorkDetailInfo.Assignment::endedBy)
                 .containsExactly(tuple(AssignmentResult.ACCEPTED, AssignmentEndReason.ACCOUNT_WITHDRAWN, NOW, null));
+    }
+
+    @Test
+    @DisplayName("관리자는 배정·배정 해제·취소 처리자의 이름을 보고, 지금 담당인 기사는 처리자 이름을 받지 않는다")
+    void managerSeesProcessorNames() {
+        Work work = fixture.stored(fixture.givenWork(WorkStatus.PENDING_ACCEPT));
+        work.unassign(ACCEPTED_AT, REGISTRAR_ID);
+        work.assign(new WorkSchedule(OTHER_TECHNICIAN_ID, TEN, TWO_HOURS), ACCEPTED_AT, SETUP_MANAGER_ID);
+        work.cancel(NOW.minusSeconds(60), REGISTRAR_ID, CancellationReason.CUSTOMER_REQUEST, null);
+        WorkId id = fixture.workRepository.store(work);
+        fixture.staffProfiles.given(ORGANIZATION_ID, new StaffProfile(SETUP_MANAGER_ID, "오르빗", true, null));
+        fixture.staffProfiles.given(ORGANIZATION_ID, new StaffProfile(REGISTRAR_ID, "김운영", false, null));
+
+        fixture.givenManager();
+        WorkDetailInfo managerView = service.get(query(id.value()));
+        assertThat(managerView.assignments())
+                .extracting(
+                        WorkDetailInfo.Assignment::assignedByName,
+                        WorkDetailInfo.Assignment::endReason,
+                        WorkDetailInfo.Assignment::endedByName)
+                .containsExactly(
+                        tuple("오르빗", AssignmentEndReason.UNASSIGNED, "김운영"),
+                        tuple("오르빗", AssignmentEndReason.CANCELLED, "김운영"));
+        assertThat(managerView.cancellation().cancelledByName()).isEqualTo("김운영");
+
+        fixture.givenTechnician(OTHER_TECHNICIAN_ID);
+        WorkDetailInfo technicianView = service.get(query(id.value()));
+        assertThat(technicianView.assignments())
+                .extracting(WorkDetailInfo.Assignment::assignedByName, WorkDetailInfo.Assignment::endedByName)
+                .containsExactly(tuple(null, null));
+        assertThat(technicianView.cancellation().cancelledByName()).isNull();
     }
 
     @Test
@@ -274,7 +309,7 @@ class GetWorkDetailServiceTest {
         assertThat(detail.status()).isEqualTo(WorkStatus.CANCELED);
         assertThat(detail.cancellation())
                 .isEqualTo(new WorkDetailInfo.Cancellation(
-                        ACCEPTED_AT, SETUP_MANAGER_ID.value(), CancellationReason.CUSTOMER_REQUEST, null));
+                        ACCEPTED_AT, SETUP_MANAGER_ID.value(), null, CancellationReason.CUSTOMER_REQUEST, null));
         assertThat(detail.customer()).isNotNull();
         assertThat(detail.schedule()).isNotNull();
     }
@@ -366,12 +401,15 @@ class GetWorkDetailServiceTest {
         work.requestCompletionReport(second, REGISTRAR_ID);
         WorkId id = fixture.workRepository.store(work);
 
+        fixture.staffProfiles.given(ORGANIZATION_ID, new StaffProfile(SETUP_MANAGER_ID, "오르빗", true, null));
+
         fixture.givenManager();
         WorkDetailInfo managerView = service.get(query(id.value()));
         assertThat(managerView.completionReportRequests())
+                .as("이름을 찾지 못한 요청자는 식별자만 담는다")
                 .containsExactly(
-                        new WorkDetailInfo.CompletionReportRequest(first, SETUP_MANAGER_ID.value()),
-                        new WorkDetailInfo.CompletionReportRequest(second, REGISTRAR_ID.value()));
+                        new WorkDetailInfo.CompletionReportRequest(first, SETUP_MANAGER_ID.value(), "오르빗"),
+                        new WorkDetailInfo.CompletionReportRequest(second, REGISTRAR_ID.value(), null));
         assertThat(managerView.completionReportRequestable())
                 .as("마지막 요청 뒤 30분이 지나지 않았다")
                 .isFalse();
