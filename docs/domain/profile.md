@@ -105,11 +105,11 @@ POST /api/v1/profiles/{accountId}/withdrawals {reason?}
 - **auth (현재)**: 컨트롤러와 공통 검사가 auth 루트 계약 `AccountPrincipal`에서 계정 식별자만 받아 Command·Query에 넘긴다(Conformist). 이 의존 때문에 auth는 profile을 조회·구독할 수 없다. 탈퇴의 계정 폐쇄(외부 식별 해제·토큰 거부)는 `WithdrawService`가 auth 루트 계약 `AccountClosure`를 탈퇴 트랜잭션 안에서 직접 호출한다(auth가 탈퇴 이벤트를 구독하면 순환). 로그인 응답에는 가입 단계가 없으므로 클라이언트는 로그인 뒤 `GET /api/v1/profiles/{accountId}`로 확인한다.
 - **organization·schedule (탈퇴, schedule 연결·organization 연결 전)**: 탈퇴 차단 판정은 두 모듈이 profile 요구 인터페이스 `WithdrawalBlocker`를 구현하고, 탈퇴 뒤처리(소속 비활성화·대기함 반환)는 두 모듈이 `AccountWithdrawn`을 구독해 맡는다(2026-10-14 결정, organization HM-319·schedule HM-320). schedule은 `adapter/in/profile`·`adapter/in/event`로 연결됐다(HM-320). 두 모듈이 profile에 의존하게 되므로 profile은 그들을 조회·구독하지 않는다.
 - **notification (탈퇴, 연결됨)**: 탈퇴한 계정의 앱 푸시 기기를 지우려고 `AccountWithdrawn`을 구독한다(HM-279). notification이 profile에 의존하므로 profile은 notification을 조회·구독하지 않는다.
-- **계획된 관계** (현재 허용 의존성이 아님): schedule의 기사 이름 표시가 `ProfileLookup`을 쓰도록 연결한다(HM-288). 기사 계약 ID를 계정 ID로 바꾸는 연결은 organization과 합의한다.
+- **schedule (이름 조회, 연결됨)**: 조회 화면의 기사·등록자 이름을 `ProfileLookup`으로 찾는다. 기사 계약·직원 소속 ID를 계정 ID로 바꾸는 것은 organization `MemberDirectory`가 맡는다.
 
 ## 공개 계약
 
-- `ProfileLookup#findNames(Set<Long>)`: 계정 ID별 표시 이름. 가입을 마친(`ACTIVE`) 계정만 돌려주고, 가입 미완료·프로필 없는·탈퇴한 계정은 결과에 키가 없어 소비자가 셋을 구분하지 못한다. 소비 모듈은 organization(승인 대기 목록의 신청자 이름과 참여 인원 목록의 이름·이름 검색·이름순 정렬, 이름이 없으면 비워 두고 목록 맨 뒤에 두며 검색에서 빠짐)이다. 탈퇴한 계정의 표기는 [남은 일](#profile-todo)이다.
+- `ProfileLookup#findNames(Set<Long>)`: 계정 ID별 표시 이름. 가입을 마친(`ACTIVE`) 계정만 돌려주고, 가입 미완료·프로필 없는·탈퇴한 계정은 결과에 키가 없어 소비자가 셋을 구분하지 못한다. 소비 모듈은 organization(승인 대기 목록의 신청자 이름과 참여 인원 목록의 이름·이름 검색·이름순 정렬, 이름이 없으면 비워 두고 목록 맨 뒤에 두며 검색에서 빠짐)과 schedule(조회 화면의 기사·등록자 이름, 이름이 없으면 null)이다. 탈퇴한 계정의 표기는 [남은 일](#profile-todo)이다.
 - `WithdrawalBlocker#blocksFor(Long)` (요구 인터페이스): 탈퇴를 막는 상태를 소유한 모듈이 구현한다 — organization은 유일한 총관리자(HM-319), schedule은 기사 소속의 작업중·배정됨 작업(HM-320). profile이 사전 확인과 탈퇴 직전에 등록된 모든 구현을 부른다. 탈퇴 직전 판정은 탈퇴 트랜잭션 안이라 상태를 바꾸지 않되, 판정과 커밋 사이의 경합을 막는 행 잠금은 잡을 수 있다. 같은 사유를 여러 번 돌려줘도 된다.
   - [요구 인터페이스 규칙](../../.claude/skills/dino-architecture/references/communication.md#요구-인터페이스)과 달리 구현을 여러 모듈이 제공하고, 구현이 없으면 임시 구현 없이 아무것도 막지 않는다. 차단 조건이 상태를 소유한 모듈마다 나뉘고, profile은 그 모듈들을 모르기 때문이다. 그래서 운영 출시 전에 두 구현이 들어가야 한다.
 - `WithdrawalBlock(reason, count)`·`WithdrawalBlockReason`: 차단 사유와 먼저 정리해야 할 대상의 수(1 이상). 사유 `SOLE_OWNER`·`WORK_IN_PROGRESS`·`WORK_PENDING_ACCEPT`는 [조직·계정] 정책 §5.1의 차단 조건이라 profile이 목록을 소유한다. `WORK_PENDING_ACCEPT`는 [작업] 정책 §9의 배정됨 코드 이름을 따른다. 대상 ID는 담지 않는다(정책 §11은 건수와 처리 경로만 안내).

@@ -21,11 +21,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.media.MediaFiles;
+import com.orbit.organization.MemberDirectory;
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.StaffMember;
 import com.orbit.organization.TechnicianContract;
 import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.TechnicianMember;
+import com.orbit.profile.ProfileLookup;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
@@ -119,6 +121,13 @@ class ScheduleModuleTest implements SharedContainers {
     // organization 공개 계약. 넣지 않으면 활성 기사 계약이 없다.
     @MockitoBean
     private TechnicianContractLookup technicianContractLookup;
+
+    // organization·profile 공개 계약. 조회 화면의 표시 정보(기사·등록자 이름·유형)를 찾는다. 넣지 않으면 표시 정보가 없다.
+    @MockitoBean
+    private MemberDirectory memberDirectory;
+
+    @MockitoBean
+    private ProfileLookup profileLookup;
 
     @Autowired
     private CreateWorkUseCase createWorkUseCase;

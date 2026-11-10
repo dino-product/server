@@ -24,7 +24,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.orbit.media.MediaFiles;
+import com.orbit.organization.MemberDirectory;
 import com.orbit.organization.OrganizationMemberLookup;
+import com.orbit.profile.ProfileLookup;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
 import com.orbit.schedule.application.port.in.command.CancelWorkUseCase;
@@ -88,6 +90,13 @@ class ScheduleUseCaseFlowTest implements SharedContainers {
     // media 공개 계약. 조립 테스트는 schedule만 띄우므로 대체한다. 사진을 보내지 않아 확인은 부르지 않고 빈 목록 연결은 아무것도 하지 않는다.
     @MockitoBean
     private MediaFiles mediaFiles;
+
+    // organization·profile 공개 계약. 조회 화면의 표시 정보를 찾는 어댑터가 받는다.
+    @MockitoBean
+    private MemberDirectory memberDirectory;
+
+    @MockitoBean
+    private ProfileLookup profileLookup;
 
     // 배정할 기사의 계약 확인. 넣지 않은 조합은 활성 기사 계약이 아니다.
     @MockitoBean
