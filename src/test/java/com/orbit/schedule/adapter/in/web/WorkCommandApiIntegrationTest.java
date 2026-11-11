@@ -437,15 +437,17 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
 
             update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검", "workTypeId", selectable))
                     .andExpect(status().isNoContent());
+            assertThat(stored(organization, workId).name()).isEqualTo("보일러 점검");
             assertThat(stored(organization, workId).workType()).contains(new WorkTypeId(selectable));
             for (long unselectable : new long[] {deleted, workType(other, "설치"), 999_999L}) {
                 update(
                                 organization.owner(),
                                 organization.id(),
                                 workId,
-                                Map.of("name", "보일러 점검", "workTypeId", unselectable))
+                                Map.of("name", "에어컨 철거", "workTypeId", unselectable))
                         .andExpect(status().isBadRequest())
                         .andExpect(jsonPath("$.code").value("SCHEDULE-014"));
+                assertThat(stored(organization, workId).name()).isEqualTo("보일러 점검");
                 assertThat(stored(organization, workId).workType()).contains(new WorkTypeId(selectable));
             }
         }

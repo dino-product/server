@@ -1,7 +1,6 @@
 package com.orbit.schedule.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -13,7 +12,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.AfterEach;
@@ -22,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -61,20 +60,22 @@ class WorkTypeLockApiIntegrationTest extends ScheduleApiTestSupport {
         String owner = bearer(organization.owner());
         CountDownLatch registered = new CountDownLatch(1);
         CountDownLatch commit = new CountDownLatch(1);
-        CompletableFuture<Integer> registration = inTransaction(() -> {
-            int status = register(owner, organization.id(), workType);
+        CompletableFuture<Response> registration = inTransaction(() -> {
+            Response response = register(owner, organization.id(), workType);
             registered.countDown();
             await(commit);
-            return status;
+            return response;
         });
         assertThat(registered.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
+        int waitingBefore = lockWaiters();
         CompletableFuture<Integer> deletion = CompletableFuture.supplyAsync(
                 () -> status(() -> mockMvc.perform(deleteRequest(owner, organization.id(), workType))), executor);
-        assertThatThrownBy(() -> deletion.get(500, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+        awaitLockWaiter(waitingBefore);
+        assertThat(deletion).isNotDone();
 
         commit.countDown();
-        assertThat(registration.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo(200);
+        assertThat(registration.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).status()).isEqualTo(200);
         assertThat(deletion.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo(204);
         assertThat(jdbcTemplate.queryForList(
                         "select job_type_id from work where company_id = ?", Long.class, organization.id()))
@@ -98,13 +99,15 @@ class WorkTypeLockApiIntegrationTest extends ScheduleApiTestSupport {
         });
         assertThat(deleted.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
-        CompletableFuture<Integer> registration =
+        int waitingBefore = lockWaiters();
+        CompletableFuture<Response> registration =
                 CompletableFuture.supplyAsync(() -> register(owner, organization.id(), workType), executor);
-        assertThatThrownBy(() -> registration.get(500, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+        awaitLockWaiter(waitingBefore);
+        assertThat(registration).isNotDone();
 
         commit.countDown();
         assertThat(deletion.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo(204);
-        assertThat(registration.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo(400);
+        assertThat(registration.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo(new Response(400, "SCHEDULE-014"));
         assertThat(jdbcTemplate.queryForObject(
                         "select count(*) from work where company_id = ?", Integer.class, organization.id()))
                 .isZero();
@@ -138,9 +141,11 @@ class WorkTypeLockApiIntegrationTest extends ScheduleApiTestSupport {
         });
         assertThat(updated.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
+        int waitingBefore = lockWaiters();
         CompletableFuture<Integer> deletion = CompletableFuture.supplyAsync(
                 () -> status(() -> mockMvc.perform(deleteRequest(owner, organization.id(), workType))), executor);
-        assertThatThrownBy(() -> deletion.get(500, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+        awaitLockWaiter(waitingBefore);
+        assertThat(deletion).isNotDone();
 
         commit.countDown();
         assertThat(update.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo(204);
@@ -149,8 +154,8 @@ class WorkTypeLockApiIntegrationTest extends ScheduleApiTestSupport {
                 .isNull();
     }
 
-    private int register(String bearer, long organizationId, long workType) {
-        return status(() -> mockMvc.perform(post("/api/v1/organizations/{organizationId}/works", organizationId)
+    private Response register(String bearer, long organizationId, long workType) {
+        return respond(() -> mockMvc.perform(post("/api/v1/organizations/{organizationId}/works", organizationId)
                 .header(HttpHeaders.AUTHORIZATION, bearer)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("name", "에어컨 설치", "workTypeId", workType)))));
@@ -160,6 +165,23 @@ class WorkTypeLockApiIntegrationTest extends ScheduleApiTestSupport {
         return delete("/api/v1/organizations/{organizationId}/work-types/{workTypeId}", organizationId, workType)
                 .header(HttpHeaders.AUTHORIZATION, bearer);
     }
+
+    /** 요청을 보내 응답 상태 코드와 오류 코드(없으면 null)를 돌려준다. */
+    private Response respond(ThrowingRequest request) {
+        try {
+            MockHttpServletResponse response = request.send().andReturn().getResponse();
+            return new Response(
+                    response.getStatus(),
+                    objectMapper
+                            .readTree(response.getContentAsString())
+                            .path("code")
+                            .asString(null));
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private record Response(int status, String code) {}
 
     /** 요청을 보내 응답 상태 코드를 돌려준다. */
     private int status(ThrowingRequest request) {
@@ -182,6 +204,22 @@ class WorkTypeLockApiIntegrationTest extends ScheduleApiTestSupport {
     @FunctionalInterface
     private interface ThrowingRequest {
         ResultActions send() throws Exception;
+    }
+
+    /** PostgreSQL에서 잠금을 기다리는 연결 수. 반대쪽 요청이 실제로 잠금에 걸렸는지 알아내는 데 쓴다. */
+    private int lockWaiters() {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+                Integer.class);
+    }
+
+    /** 반대쪽 요청이 DB 잠금에 걸려 기다릴 때까지 기다린다. 고정 시간만 기다리면 요청이 늦게 시작해도 통과한다. */
+    private void awaitLockWaiter(int waitingBefore) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+        while (lockWaiters() <= waitingBefore) {
+            assertThat(System.nanoTime()).as("반대쪽 요청이 잠금을 기다리지 않음").isLessThan(deadline);
+            Thread.sleep(50);
+        }
     }
 
     private static void await(CountDownLatch latch) {

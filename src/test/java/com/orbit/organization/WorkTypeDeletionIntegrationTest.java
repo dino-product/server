@@ -37,8 +37,8 @@ import com.orbit.support.IntegrationTestSupport;
 
 /**
  * 작업 유형 삭제가 schedule 구현과 함께 한 트랜잭션에서 시작 전 작업의 유형을 비우고, 작업에 유형을 지정하는 쪽의 선택 가능 확인과 한 줄로 서는지 실제
- * 트랜잭션으로 확인한다. schedule의 작업 등록은 아직 임시 어댑터가 모든 유형을 거부하므로, 지정하는 쪽은 TransactionTemplate 안에서 선택 가능 확인 뒤
- * 작업 행을 직접 넣어 흉내 낸다.
+ * 트랜잭션으로 확인한다. 이 테스트는 organization만의 검사라 작업에 유형을 지정하는 쪽은 TransactionTemplate 안에서 선택 가능 확인 뒤
+ * 작업 행을 직접 넣어 흉내 낸다. schedule의 실제 등록·수정과 맞물린 순서는 schedule의 {@code WorkTypeLockApiIntegrationTest}가 확인한다.
  */
 @RecordApplicationEvents
 @DisplayName("작업 유형 삭제와 schedule 연동(PostgreSQL)")

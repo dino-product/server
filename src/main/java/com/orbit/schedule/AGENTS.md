@@ -68,7 +68,7 @@ HTTP 요청은 웹 계층이 먼저 인증 실패(401)와 숫자가 아닌 경�
 - Application: `com.orbit.schedule.application` 패키지의 관련 테스트.
 - Adapter: `com.orbit.schedule.adapter` 패키지의 관련 테스트(`WorkPersistenceAdapterTest`·잠금 어댑터는 Docker의 PostgreSQL 필요).
 - 모듈 조립: `com.orbit.schedule.ScheduleModuleTest`, `com.orbit.schedule.ScheduleUseCaseFlowTest`(둘 다 Docker의 PostgreSQL 필요).
-- 작업 유형 지정(등록·기본정보 수정)과 삭제의 잠금 순서: `WorkTypeLockApiIntegrationTest`(Docker의 PostgreSQL 필요), 유형 확인·표시 정보 어댑터는 `OrganizationWorkTypeAdapterTest`·`OrganizationWorkTypeLabelsAdapterTest`.
+- 작업 유형 지정(등록·기본정보 수정)과 삭제의 잠금 순서: `WorkTypeLockApiIntegrationTest`(Docker의 PostgreSQL 필요), 유형 확인·표시 정보 어댑터는 `OrganizationWorkTypeAdapterTest`·`OrganizationWorkTypeLabelsAdapterTest`, 실제 organization과의 연동은 `OrganizationWorkTypeAdaptersIntegrationTest`(Docker의 PostgreSQL 필요).
 - 작업 유형 삭제 요구 인터페이스: `CountWorksByTypeServiceTest`, `ReleaseDeletedWorkTypeServiceTest`, `WorkTypeReleaseAdapterTest`, `WorkTypeUsagePersistenceAdapterTest`(Docker의 PostgreSQL 필요), organization 삭제와 함께는 `com.orbit.organization.WorkTypeDeletionIntegrationTest`.
 - 대기함 반환 요구 인터페이스: `ReleaseTechnicianWorksServiceTest`, `TechnicianWorkReleaseAdapterTest`, 바깥 트랜잭션·잠금·기사 요청과의 경합은 `TechnicianWorkReleaseIntegrationTest`(Docker의 PostgreSQL 필요), 구현이 하나인지 `com.orbit.organization.TechnicianWorkReleaseRegistrationTest`.
 - 직원 등록 작업 확인 요구 인터페이스: `ExistsUnfinishedRegisteredWorksServiceTest`, `RegisteredWorksPersistenceAdapterTest`(Docker의 PostgreSQL 필요), organization 역할 변경과 함께는 `com.orbit.organization.adapter.in.web.ParticipantApiIntegrationTest`.
