@@ -1,5 +1,6 @@
 package com.orbit.schedule.adapter.in.web;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -61,7 +62,8 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
     protected WorkRepository workRepository;
 
     // 대체하는 출력 포트. 기사 계약 확인은 테스트가 기사 계약 행을 만들지 않아 대체하며 넣지 않은 조합은 활성 기사 계약이 아니다. 표시 정보는
-    // organization·profile 계약 전이라 대체한다. 모든 API 테스트가 같은 대체 Bean을 두어 Spring 컨텍스트를 함께 쓴다.
+    // 조회 테스트가 값을 정해 쓰려고 대체한다(작업 유형 표시 정보의 실제 organization 연결은 OrganizationWorkTypeAdaptersIntegrationTest). 모든 API 테스트가
+    // 같은 대체 Bean을 두어 Spring 컨텍스트를 함께 쓴다.
     @MockitoBean
     protected TechnicianContractPort technicianContractPort;
 
@@ -108,6 +110,29 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
                 organizationId,
                 owner);
         return new Organization(organizationId, owner, membership);
+    }
+
+    /** 그 발주사의 총관리자가 작업 유형을 API로 만든다. 작업이 고를 수 있는 실제 유형이다. */
+    protected long workType(Organization organization, String name) throws Exception {
+        String body = mockMvc.perform(post("/api/v1/organizations/{organizationId}/work-types", organization.id())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", name, "color", "#3B82F6"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(body).path("result").path("workTypeId").asLong();
+    }
+
+    /** 그 발주사의 총관리자가 작업 유형을 API로 삭제한다. 시작 전 작업의 유형은 함께 비워진다. */
+    protected void deleteWorkType(Organization organization, long workTypeId) throws Exception {
+        mockMvc.perform(delete(
+                                "/api/v1/organizations/{organizationId}/work-types/{workTypeId}",
+                                organization.id(),
+                                workTypeId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                .andExpect(status().isNoContent());
     }
 
     protected long save(Work work) {

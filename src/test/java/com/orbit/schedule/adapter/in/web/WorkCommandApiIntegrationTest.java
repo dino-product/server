@@ -48,6 +48,7 @@ import com.orbit.schedule.domain.Work;
 import com.orbit.schedule.domain.WorkId;
 import com.orbit.schedule.domain.WorkSchedule;
 import com.orbit.schedule.domain.WorkStatus;
+import com.orbit.schedule.domain.WorkTypeId;
 
 /** 작업 변경 API를 공통 응답·보안·트랜잭션·영속성과 함께 확인한다. 준비물은 {@link ScheduleApiTestSupport}를 따른다. */
 @DisplayName("작업 변경 API")
@@ -82,6 +83,28 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
             assertThat(saved.registrarId()).isEqualTo(new MembershipId(organization.ownerMembership()));
             assertThat(saved.customerInfo())
                     .isEqualTo(new CustomerInfo(null, null, new SiteAddress("04043", "서울시 마포구 양화로 45", "3층")));
+        }
+
+        @Test
+        @DisplayName("그 발주사의 작업 유형을 지정해 등록하면 저장하고, 없는 유형이나 삭제된 유형, 다른 발주사의 유형이면 400 SCHEDULE-014로 만들지 않는다")
+        void registersWithSelectableWorkTypeOnly() throws Exception {
+            Organization organization = organization();
+            Organization other = organization();
+            long selectable = workType(organization, "설치");
+            long deleted = workType(organization, "철거");
+            deleteWorkType(organization, deleted);
+
+            long workId = createdId(
+                    create(organization.owner(), organization.id(), Map.of("name", "에어컨 설치", "workTypeId", selectable))
+                            .andExpect(status().isOk()));
+
+            assertThat(stored(organization, workId).workType()).contains(new WorkTypeId(selectable));
+            for (long unselectable : new long[] {deleted, workType(other, "설치"), 999_999L}) {
+                create(organization.owner(), organization.id(), Map.of("name", "에어컨 설치", "workTypeId", unselectable))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.code").value("SCHEDULE-014"));
+            }
+            assertThat(worksIn(organization)).isEqualTo(1);
         }
 
         @Test
@@ -403,15 +426,30 @@ class WorkCommandApiIntegrationTest extends ScheduleApiTestSupport {
         }
 
         @Test
-        @DisplayName("작업 유형을 지정하면 선택할 수 있는 유형이 아직 없어 400 SCHEDULE-014다")
-        void rejectsWorkTypeUntilWorkTypesExist() throws Exception {
+        @DisplayName("그 발주사의 작업 유형으로 바꾸면 저장하고, 없는 유형이나 삭제된 유형, 다른 발주사의 유형이면 400 SCHEDULE-014로 바꾸지 않는다")
+        void changesToSelectableWorkTypeOnly() throws Exception {
             Organization organization = organization();
+            Organization other = organization();
             long workId = registeredWork(organization);
+            long selectable = workType(organization, "설치");
+            long deleted = workType(organization, "철거");
+            deleteWorkType(organization, deleted);
 
-            update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검", "workTypeId", 3))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("SCHEDULE-014"));
-            assertThat(stored(organization, workId).name()).isEqualTo("대기 작업");
+            update(organization.owner(), organization.id(), workId, Map.of("name", "보일러 점검", "workTypeId", selectable))
+                    .andExpect(status().isNoContent());
+            assertThat(stored(organization, workId).name()).isEqualTo("보일러 점검");
+            assertThat(stored(organization, workId).workType()).contains(new WorkTypeId(selectable));
+            for (long unselectable : new long[] {deleted, workType(other, "설치"), 999_999L}) {
+                update(
+                                organization.owner(),
+                                organization.id(),
+                                workId,
+                                Map.of("name", "에어컨 철거", "workTypeId", unselectable))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.code").value("SCHEDULE-014"));
+                assertThat(stored(organization, workId).name()).isEqualTo("보일러 점검");
+                assertThat(stored(organization, workId).workType()).contains(new WorkTypeId(selectable));
+            }
         }
 
         @Test
