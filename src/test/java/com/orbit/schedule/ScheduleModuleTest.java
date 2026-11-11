@@ -2,12 +2,14 @@ package com.orbit.schedule;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,8 @@ import com.orbit.organization.StaffMember;
 import com.orbit.organization.TechnicianContract;
 import com.orbit.organization.TechnicianContractLookup;
 import com.orbit.organization.TechnicianMember;
+import com.orbit.organization.WorkTypeLabel;
+import com.orbit.organization.WorkTypeLookup;
 import com.orbit.profile.ProfileLookup;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
@@ -68,8 +72,10 @@ import com.orbit.schedule.application.port.in.query.dto.SearchWorksQuery;
 import com.orbit.schedule.application.port.out.AccountTechnicianContract;
 import com.orbit.schedule.application.port.out.AccountTechnicianContractsPort;
 import com.orbit.schedule.application.port.out.LoadActorPort;
+import com.orbit.schedule.application.port.out.LoadWorkTypeLabelsPort;
 import com.orbit.schedule.application.port.out.LockTechnicianSchedulePort;
 import com.orbit.schedule.application.port.out.TechnicianContractPort;
+import com.orbit.schedule.application.port.out.TypeLabel;
 import com.orbit.schedule.application.port.out.WorkQueryPort;
 import com.orbit.schedule.application.port.out.WorkRepository;
 import com.orbit.schedule.application.port.out.WorkTypePort;
@@ -110,6 +116,9 @@ class ScheduleModuleTest implements SharedContainers {
     @Autowired
     private WorkTypePort workTypePort;
 
+    @Autowired
+    private LoadWorkTypeLabelsPort workTypeLabelsPort;
+
     // organization 공개 계약. 조립 테스트는 schedule만 띄우므로 대체하며, 넣지 않으면 활성 구성원이 없다.
     @MockitoBean
     private OrganizationMemberLookup memberLookup;
@@ -121,6 +130,10 @@ class ScheduleModuleTest implements SharedContainers {
     // organization 공개 계약. 넣지 않으면 활성 기사 계약이 없다.
     @MockitoBean
     private TechnicianContractLookup technicianContractLookup;
+
+    // organization 공개 계약. 작업 유형 확인과 표시 정보를 찾는 어댑터가 받는다. 넣지 않으면 모든 유형이 선택할 수 없고 표시 정보가 없다.
+    @MockitoBean
+    private WorkTypeLookup workTypeLookup;
 
     // organization·profile 공개 계약. 조회 화면의 표시 정보(기사·등록자 이름·유형)를 찾는다. 넣지 않으면 표시 정보가 없다.
     @MockitoBean
@@ -338,9 +351,20 @@ class ScheduleModuleTest implements SharedContainers {
     }
 
     @Test
-    void assembledWorkTypePortDeniesUntilOrganizationContract() {
+    void assembledWorkTypePortsUseOrganizationContract() {
+        when(workTypeLookup.isSelectable(100L, 2L)).thenReturn(true);
+        when(workTypeLookup.findLabels(100L, Set.of(2L, 3L)))
+                .thenReturn(List.of(
+                        new WorkTypeLabel(2L, "설치", "#3B82F6", false), new WorkTypeLabel(3L, "철거", "#EF4444", true)));
+
         assertThat(workTypePort.isSelectable(ORGANIZATION_ID, new WorkTypeId(2L)))
+                .isTrue();
+        assertThat(workTypePort.isSelectable(ORGANIZATION_ID, new WorkTypeId(3L)))
                 .isFalse();
+        assertThat(workTypeLabelsPort.findLabels(ORGANIZATION_ID, Set.of(new WorkTypeId(2L), new WorkTypeId(3L))))
+                .containsOnly(
+                        entry(new WorkTypeId(2L), new TypeLabel(2L, "설치", "#3B82F6", false)),
+                        entry(new WorkTypeId(3L), new TypeLabel(3L, "철거", "#EF4444", true)));
     }
 
     @Test

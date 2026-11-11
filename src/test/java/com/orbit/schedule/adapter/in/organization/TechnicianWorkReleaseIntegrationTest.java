@@ -43,6 +43,7 @@ import com.orbit.organization.TechnicianWorkReleaseBusyException;
 import com.orbit.organization.TechnicianWorkReleaseResult;
 import com.orbit.organization.WorkReleaseBlocked;
 import com.orbit.organization.WorkReleased;
+import com.orbit.organization.WorkTypeLookup;
 import com.orbit.profile.ProfileLookup;
 import com.orbit.schedule.application.error.ScheduleErrorCode;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
@@ -106,6 +107,10 @@ class TechnicianWorkReleaseIntegrationTest implements SharedContainers {
 
     @MockitoBean
     private TechnicianContractLookup technicianContractLookup;
+
+    // organization 공개 계약. 작업 유형 확인과 표시 정보를 찾는 어댑터가 받는다. 넣지 않으면 모든 유형이 선택할 수 없고 표시 정보가 없다.
+    @MockitoBean
+    private WorkTypeLookup workTypeLookup;
 
     @Autowired
     private TechnicianWorkRelease technicianWorkRelease;

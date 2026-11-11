@@ -1,5 +1,6 @@
 package com.orbit.schedule.adapter.in.web;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -108,6 +109,29 @@ abstract class ScheduleApiTestSupport extends IntegrationTestSupport {
                 organizationId,
                 owner);
         return new Organization(organizationId, owner, membership);
+    }
+
+    /** 그 발주사의 총관리자가 작업 유형을 API로 만든다. 작업이 고를 수 있는 실제 유형이다. */
+    protected long workType(Organization organization, String name) throws Exception {
+        String body = mockMvc.perform(post("/api/v1/organizations/{organizationId}/work-types", organization.id())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", name, "color", "#3B82F6"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(body).path("result").path("workTypeId").asLong();
+    }
+
+    /** 그 발주사의 총관리자가 작업 유형을 API로 삭제한다. 시작 전 작업의 유형은 함께 비워진다. */
+    protected void deleteWorkType(Organization organization, long workTypeId) throws Exception {
+        mockMvc.perform(delete(
+                                "/api/v1/organizations/{organizationId}/work-types/{workTypeId}",
+                                organization.id(),
+                                workTypeId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(organization.owner())))
+                .andExpect(status().isNoContent());
     }
 
     protected long save(Work work) {

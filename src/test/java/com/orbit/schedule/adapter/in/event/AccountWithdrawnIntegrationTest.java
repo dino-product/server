@@ -30,6 +30,7 @@ import com.orbit.media.MediaFiles;
 import com.orbit.organization.MemberDirectory;
 import com.orbit.organization.OrganizationMemberLookup;
 import com.orbit.organization.TechnicianContractLookup;
+import com.orbit.organization.WorkTypeLookup;
 import com.orbit.profile.AccountWithdrawn;
 import com.orbit.profile.ProfileLookup;
 import com.orbit.profile.WithdrawalBlock;
@@ -75,6 +76,10 @@ class AccountWithdrawnIntegrationTest implements SharedContainers {
 
     @MockitoBean
     private TechnicianContractLookup technicianContractLookup;
+
+    // organization 공개 계약. 작업 유형 확인과 표시 정보를 찾는 어댑터가 받는다. 넣지 않으면 모든 유형이 선택할 수 없고 표시 정보가 없다.
+    @MockitoBean
+    private WorkTypeLookup workTypeLookup;
 
     // 조립에 필요한 media 공개 계약. 이 테스트는 사진을 다루지 않는다.
     @MockitoBean

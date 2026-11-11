@@ -26,6 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import com.orbit.media.MediaFiles;
 import com.orbit.organization.MemberDirectory;
 import com.orbit.organization.OrganizationMemberLookup;
+import com.orbit.organization.WorkTypeLookup;
 import com.orbit.profile.ProfileLookup;
 import com.orbit.schedule.application.port.in.command.AcceptWorkUseCase;
 import com.orbit.schedule.application.port.in.command.AssignWorkUseCase;
@@ -105,6 +106,10 @@ class ScheduleUseCaseFlowTest implements SharedContainers {
     // 탈퇴하는 기사 계정의 기사 계약 조회. organization을 띄우지 않으므로 대체한다.
     @MockitoBean
     private AccountTechnicianContractsPort accountTechnicianContractsPort;
+
+    // organization 공개 계약. 작업 유형 확인·표시 정보를 찾는 어댑터가 받으며, 이 흐름은 유형을 지정하지 않는다.
+    @MockitoBean
+    private WorkTypeLookup workTypeLookup;
 
     private static final long ACCOUNT_ID = 1L;
     // 테스트들이 같은 DB를 쓰므로 테스트마다 다른 조직을 써서, 앞선 테스트가 남긴 작업이 조회·겹침 판정에 섞이지 않게 한다.
