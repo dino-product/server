@@ -187,6 +187,34 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
                         .header(HttpHeaders.ORIGIN, WEB_ORIGIN)
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+
+        // form-urlencoded POST는 사전 요청 없이 바로 가므로 실제 응답에도 허용 헤더가 없어야 스크립트가 읽지 못한다.
+        String subject = appleSubject();
+        Started started = start("web");
+        mockMvc.perform(callbackRequest(
+                                started,
+                                APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID),
+                                code(subject))
+                        .header(HttpHeaders.ORIGIN, WEB_ORIGIN))
+                .andExpect(status().isFound())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS));
+    }
+
+    @Test
+    @DisplayName("CORS 검사에서 빠져도 Apple 출처로 온 연결 쿠키 없는 위조 콜백은 401 AUTH-003이다")
+    void rejectsForgedCallbackPostedFromAppleOrigin() throws Exception {
+        String subject = appleSubject();
+        Started started = start("web");
+
+        mockMvc.perform(post("/api/v1/auth/apple/callback")
+                        .header(HttpHeaders.ORIGIN, APPLE_ORIGIN)
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("state", started.state())
+                        .param("code", code(subject))
+                        .param("id_token", APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-003"));
     }
 
     @Test
