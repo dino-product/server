@@ -2,7 +2,7 @@
 
 [루트 지침](../../../../../../AGENTS.md)에 추가 적용합니다. 아래 경로는 이 모듈 기준이며 책임·소비자는 [도메인 지도](../../../../../../docs/domain/README.md)를 확인합니다.
 
-- 작고 안정적인 횡단 관심사만 소유합니다. 루트는 메타데이터, 공개 계약은 `error`/`openapi`/`security`/`persistence` named interface에 둡니다. `security`는 SecurityFilterChain 확장점과 필터용 오류 응답 기록만 공개하며 `SecurityConfig` 자체는 `internal`에 남습니다. `persistence`는 Entity 공통 부모(`BaseTimeEntity`)만 공개하며 감사 설정(`JpaAuditingConfig`)은 `internal`에 남습니다. Entity 작성 규칙은 [JPA 모델](../../../../../../.claude/skills/dino-architecture/references/persistence.md#jpa)이 원본입니다.
+- 작고 안정적인 횡단 관심사만 소유합니다. 루트는 메타데이터, 공개 계약은 `error`/`openapi`/`security`/`persistence` named interface에 둡니다. `security`는 SecurityFilterChain·CORS 제외 확장점과 필터용 오류 응답 기록만 공개하며 `SecurityConfig` 자체는 `internal`에 남습니다. `persistence`는 Entity 공통 부모(`BaseTimeEntity`)만 공개하며 감사 설정(`JpaAuditingConfig`)은 `internal`에 남습니다. Entity 작성 규칙은 [JPA 모델](../../../../../../.claude/skills/dino-architecture/references/persistence.md#jpa)이 원본입니다.
 - 소비자는 `shared::*` 대신 실제 named interface를 `allowedDependencies`에 선언합니다.
 - 설정·응답·예외 처리·보안은 `internal`, 비동기 활성화는 `internal/config/AsyncConfig`, 주기 작업 활성화는 `internal/config/SchedulingConfig`, JPA 감사 시각의 주입 `Clock` 연결은 `internal/config/JpaAuditingConfig`가 담당합니다. 이벤트 발행 기록의 실패 재전송은 `internal/event`에 있으며 공개 계약이 없습니다([ADR-004](../../../../../../docs/adr/004-event-publication-registry.md)).
 - 한 모듈 전용이거나 사용처 없는 ErrorCode·DTO·유틸리티를 이동하지 않습니다. 공통 코드·계약 변경은 모든 영향받는 소비 모듈과 회귀 테스트를 확인합니다.
