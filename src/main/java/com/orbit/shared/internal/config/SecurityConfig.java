@@ -16,12 +16,14 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.orbit.shared.internal.security.ApiAccessDeniedHandler;
 import com.orbit.shared.internal.security.ApiAuthenticationEntryPoint;
+import com.orbit.shared.security.CorsExemption;
 import com.orbit.shared.security.SecurityFilterChainCustomizer;
 
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class SecurityConfig {
     private final ApiAuthenticationEntryPoint authenticationEntryPoint;
     private final ApiAccessDeniedHandler accessDeniedHandler;
     private final ObjectProvider<SecurityFilterChainCustomizer> customizers;
+    private final ObjectProvider<CorsExemption> corsExemptions;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -85,6 +88,11 @@ public class SecurityConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-        return source;
+        List<RequestMatcher> exemptions =
+                corsExemptions.orderedStream().map(CorsExemption::matcher).toList();
+        // 설정이 없는 요청은 CORS 필터가 Origin을 검사하지 않고 허용 헤더도 붙이지 않는다.
+        return request -> exemptions.stream().anyMatch(exemption -> exemption.matches(request))
+                ? null
+                : source.getCorsConfiguration(request);
     }
 }

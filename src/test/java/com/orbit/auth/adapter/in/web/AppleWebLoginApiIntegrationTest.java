@@ -2,6 +2,7 @@ package com.orbit.auth.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,12 +15,15 @@ import jakarta.servlet.http.Cookie;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -43,6 +47,10 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
     /** Apple이 첫 승인 때만 보내는 이름·이메일. 서버는 저장하지 않는다. */
     private static final String FIRST_AUTHORIZATION_USER =
             "{\"name\":{\"firstName\":\"길동\",\"lastName\":\"홍\"},\"email\":\"x@privaterelay.appleid.com\"}";
+    /** form_post 콜백에 브라우저가 붙이는 Apple 로그인 화면의 출처. CORS 허용 목록에는 없다. */
+    private static final String APPLE_ORIGIN = "https://appleid.apple.com";
+    /** 테스트 CORS 허용 목록에 있는 웹 출처. */
+    private static final String WEB_ORIGIN = "http://localhost:3000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -149,6 +157,85 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
         assertThat(APPLE.tokenRequests().getLast())
                 .containsEntry("client_id", AppleAuthStub.SERVICES_ID)
                 .containsEntry("redirect_uri", "http://localhost/api/v1/auth/apple/callback");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {APPLE_ORIGIN, "null"})
+    @DisplayName("Apple이 다른 사이트에서 form POST로 보내 Origin이 붙은 콜백도 CORS 검사 없이 처리해 교환 코드를 보낸다")
+    void completesCallbackPostedFromAppleOrigin(String origin) throws Exception {
+        String subject = appleSubject();
+        Started started = start("web");
+
+        MvcResult callback = mockMvc.perform(callbackRequest(
+                                started,
+                                APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID),
+                                code(subject))
+                        .header(HttpHeaders.ORIGIN, origin))
+                .andExpect(status().isFound())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
+                .andReturn();
+
+        URI location = URI.create(callback.getResponse().getHeader(HttpHeaders.LOCATION));
+        assertThat(location.toString()).startsWith("http://localhost:3000/login/apple?code=");
+        exchange(query(location).getFirst("code")).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("콜백은 허용한 출처에도 CORS 응답 헤더를 주지 않아 다른 출처의 스크립트가 응답을 읽을 수 없다")
+    void grantsNoCorsAccessToCallback() throws Exception {
+        mockMvc.perform(options("/api/v1/auth/apple/callback")
+                        .header(HttpHeaders.ORIGIN, WEB_ORIGIN)
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+
+        // form-urlencoded POST는 사전 요청 없이 바로 가므로 실제 응답에도 허용 헤더가 없어야 스크립트가 읽지 못한다.
+        String subject = appleSubject();
+        Started started = start("web");
+        mockMvc.perform(callbackRequest(
+                                started,
+                                APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID),
+                                code(subject))
+                        .header(HttpHeaders.ORIGIN, WEB_ORIGIN))
+                .andExpect(status().isFound())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN))
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS));
+    }
+
+    @Test
+    @DisplayName("CORS 검사에서 빠져도 Apple 출처로 온 연결 쿠키 없는 위조 콜백은 401 AUTH-003이다")
+    void rejectsForgedCallbackPostedFromAppleOrigin() throws Exception {
+        String subject = appleSubject();
+        Started started = start("web");
+
+        mockMvc.perform(post("/api/v1/auth/apple/callback")
+                        .header(HttpHeaders.ORIGIN, APPLE_ORIGIN)
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("state", started.state())
+                        .param("code", code(subject))
+                        .param("id_token", APPLE.idToken(subject, started.nonce(), AppleAuthStub.SERVICES_ID)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH-003"));
+    }
+
+    @Test
+    @DisplayName("콜백 밖의 Apple 로그인 경로는 지금처럼 허용한 출처만 CORS로 받고 그 밖의 출처는 403이다")
+    void keepsCorsCheckOutsideCallback() throws Exception {
+        mockMvc.perform(options("/api/v1/auth/apple/exchange")
+                        .header(HttpHeaders.ORIGIN, WEB_ORIGIN)
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, WEB_ORIGIN));
+        mockMvc.perform(post("/api/v1/auth/apple/exchange")
+                        .header(HttpHeaders.ORIGIN, APPLE_ORIGIN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new AppleLoginExchangeRequest("code", VERIFIER))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/auth/apple/authorize")
+                        .header(HttpHeaders.ORIGIN, APPLE_ORIGIN)
+                        .param("client", "web")
+                        .param("code_challenge", CHALLENGE))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
     }
 
     @Test
@@ -387,13 +474,18 @@ class AppleWebLoginApiIntegrationTest extends AuthApiTestSupport {
     }
 
     private ResultActions callback(Started started, String idToken, String code) throws Exception {
-        return mockMvc.perform(post("/api/v1/auth/apple/callback")
+        return mockMvc.perform(callbackRequest(started, idToken, code));
+    }
+
+    /** Apple이 form_post로 보내는 콜백. */
+    private static MockHttpServletRequestBuilder callbackRequest(Started started, String idToken, String code) {
+        return post("/api/v1/auth/apple/callback")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .cookie(new Cookie(AppleWebLoginController.BROWSER_BINDING_COOKIE, started.binding()))
                 .param("state", started.state())
                 .param("code", code)
                 .param("id_token", idToken)
-                .param("user", FIRST_AUTHORIZATION_USER));
+                .param("user", FIRST_AUTHORIZATION_USER);
     }
 
     /** 웹 로그인을 시작하고 콜백까지 마쳐 복귀 주소의 교환 코드를 돌려준다. */
